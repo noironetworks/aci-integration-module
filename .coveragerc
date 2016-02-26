@@ -1,0 +1,6 @@
+[run]
+branch = True
+source = aim
+
+[report]
+ignore_errors = True
