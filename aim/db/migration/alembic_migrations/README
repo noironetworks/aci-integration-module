@@ -1,0 +1,13 @@
+Please see https://alembic.readthedocs.org/en/latest/index.html for general documentation
+
+To create alembic migrations use:
+$ aim db-manage --config-file /path/to/db/config revision --message "description of revision" --autogenerate
+
+Stamp db with most recent migration version, without actually running migrations
+$ aim db-manage stamp head
+
+Upgrade can be performed by:
+$ aim db-manage --config-file /path/to/db/config upgrade
+$ aim db-manage --config-file /path/to/db/config upgrade head
+
+the config-file option is not required and defaults to /etc/aim/aim.conf
