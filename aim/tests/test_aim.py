@@ -20,7 +20,7 @@ Tests for `aim` module.
 from aim.tests import base
 
 
-class TestAim(base.TestCase):
+class TestAim(base.BaseTestCase):
 
     def test_something(self):
         pass
