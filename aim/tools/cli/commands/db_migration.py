@@ -20,10 +20,8 @@ from aim.tools.cli.groups import aimcli
 
 
 @aimcli.aim.group(name='db-migration')
-@click.option('--config-file', help='Database connection configuration file',
-              default='/etc/aim/aim.conf')
 @click.pass_context
-def db_migration(ctx, config_file):
+def db_migration(ctx):
     alembic_path = os.path.abspath(
         os.path.join(os.path.dirname(alembic_migrations.__file__),
                      'alembic.ini'))
@@ -32,9 +30,7 @@ def db_migration(ctx, config_file):
                      'alembic'))
     migration_config = {'alembic_ini_path': alembic_path,
                         'alembic_repo_path': migrate_path,
-                        'db_url': ''}
-    # TODO(ivar): DB URL needs to be retrieved via config file once we decide
-    # which library to use for that
+                        'db_url': ctx.obj['conf'].database.connection}
     ctx.obj['manager'] = manager.MigrationManager(migration_config)
 
 

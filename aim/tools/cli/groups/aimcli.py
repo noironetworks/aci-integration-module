@@ -11,11 +11,38 @@
 #    under the License.
 
 import click
+from click import exceptions as exc
+from oslo_config import cfg
+
+_db_opts = [
+    cfg.StrOpt('connection',
+               deprecated_name='sql_connection',
+               default='',
+               secret=True,
+               help='URL to database'),
+    cfg.StrOpt('engine',
+               default='',
+               help='Database engine for which script will be generated '
+                    'when using offline migration.'),
+]
 
 
 @click.group()
+@click.option('--config-file', '-c', multiple=True,
+              help='AIM static configuration file')
 @click.pass_context
-def aim(ctx):
+def aim(ctx, config_file):
     """Group for AIM cli."""
     if ctx.obj is None:
         ctx.obj = {}
+    args = []
+    for file in config_file or []:
+        args += ['--config-file', file]
+    cfg.CONF(project='aim', args=args)
+    if not cfg.CONF.config_file:
+        raise exc.UsageError(
+            "Unable to find configuration file via the default "
+            "search paths (~/.aim/, ~/, /etc/aim/, /etc/) and "
+            "the '--config-file' option %s!" % config_file)
+    cfg.CONF.register_opts(_db_opts, 'database')
+    ctx.obj['conf'] = cfg.CONF

@@ -10,6 +10,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import traceback
+
 from click import testing
 import mock
 
@@ -26,7 +28,9 @@ class TestShell(base.BaseTestCase):
         self.invoke = self.runner.invoke
 
     def run_command(self, command, raises=False):
-        result = self.invoke(shell.aim, command.split(' '))
+        result = self.invoke(
+            shell.aim,
+            ['--config-file', self.test_conf_file] + command.split(' '))
         if raises:
             self._assert_command_exception(result)
         else:
@@ -35,28 +39,42 @@ class TestShell(base.BaseTestCase):
 
     def _assert_command_no_exception(self, result):
         self.assertFalse(
-            result.exception, "Exception raised by AIM command, "
-                              "output:\n %s" % result.output)
+            result.exception,
+            "Exception raised by AIM command, output:\n %s \n traceback %s" %
+            (result.output,
+             '\n'.join(traceback.format_tb(result.exc_info[-1]))))
 
     def _assert_command_exception(self, result):
         self.assertTrue(
             result.exception, "Exception NOT raised by AIM command, "
                               "output:\n %s" % result.output)
 
+    def _verify_db_manager_params(self, db_manager, num_called=1):
+        self.assertTrue(db_manager.called)
+        param = db_manager.call_args_list[0][0][0]
+        self.assertEqual(3, len(param))
+        self.assertTrue(
+            param['alembic_repo_path'].endswith(
+                'aim/db/migration/alembic_migrations/alembic'))
+        self.assertTrue(
+            param['alembic_ini_path'].endswith(
+                'aim/db/migration/alembic_migrations/alembic.ini'))
+        self.assertEqual('sqlite://', param['db_url'])
+
     def test_aim_db_migration(self):
-        # aim db-migration --config-file /etc/aim/aim.conf
-        self.run_command(
-            'db-migration --config-file /etc/aim/aim.conf',
-            raises=True)
+        # aim db-migration
+        result = self.run_command('db-migration')
+        self.assertTrue('Usage:' in result.output)
 
     def test_aim_db_migration_version(self):
         with mock.patch('oslo_db.sqlalchemy.migration_cli.manager'
                         '.MigrationManager') as db_manager:
             instance = db_manager.return_value
             instance.version = mock.Mock()
-            # aim db-migration --config-file /etc/aim/aim.conf version
+            # aim db-migration version
             self.run_command(
-                'db-migration --config-file /etc/aim/aim.conf version')
+                'db-migration version')
+            self._verify_db_manager_params(db_manager)
             # Manager constructor called
             self.assertTrue(db_manager.called)
             # Version method called
@@ -67,9 +85,9 @@ class TestShell(base.BaseTestCase):
                         '.MigrationManager') as db_manager:
             instance = db_manager.return_value
             instance.upgrade = mock.Mock()
-            # aim db-migration --config-file /etc/aim/aim.conf upgrade
-            self.run_command(
-                'db-migration --config-file /etc/aim/aim.conf upgrade')
+            # aim db-migration upgrade
+            self.run_command('db-migration upgrade')
+            self._verify_db_manager_params(db_manager)
             # Manager constructor called
             self.assertTrue(db_manager.called)
             # Version method called
@@ -77,9 +95,8 @@ class TestShell(base.BaseTestCase):
 
             # test explicit parameter
             instance.upgrade.reset_mock()
-            # aim db-migration --config-file /etc/aim/aim.conf upgrade rev
-            self.run_command(
-                'db-migration --config-file /etc/aim/aim.conf upgrade rev')
+            # aim db-migration upgrade rev
+            self.run_command('db-migration upgrade rev')
             instance.upgrade.assert_called_with('rev')
 
     def test_aim_db_migration_stamp(self):
@@ -87,18 +104,17 @@ class TestShell(base.BaseTestCase):
                         '.MigrationManager') as db_manager:
             instance = db_manager.return_value
             instance.stamp = mock.Mock()
-            # aim db-migration --config-file /etc/aim/aim.conf stamp
-            self.run_command(
-                'db-migration --config-file /etc/aim/aim.conf stamp',
-                raises=True)
+            # aim db-migration stamp
+            self.run_command('db-migration stamp', raises=True)
+            self._verify_db_manager_params(db_manager)
             # Raises exception since revision is required
             # Manager constructor called
             self.assertTrue(db_manager.called)
 
             # test explicit parameter
-            # aim db-migration --config-file /etc/aim/aim.conf stamp rev
+            # aim db-migration stamp rev
             self.run_command(
-                'db-migration --config-file /etc/aim/aim.conf stamp rev')
+                'db-migration stamp rev')
             instance.stamp.assert_called_with('rev')
 
     def test_aim_db_migration_revision(self):
@@ -106,9 +122,9 @@ class TestShell(base.BaseTestCase):
                         '.MigrationManager') as db_manager:
             instance = db_manager.return_value
             instance.revision = mock.Mock()
-            # aim db-migration --config-file /etc/aim/aim.conf revision
-            self.run_command(
-                'db-migration --config-file /etc/aim/aim.conf revision')
+            # aim db-migration revision
+            self.run_command('db-migration revision')
+            self._verify_db_manager_params(db_manager)
             # Raises exception since revision is required
             # Manager constructor called
             self.assertTrue(db_manager.called)
@@ -117,10 +133,9 @@ class TestShell(base.BaseTestCase):
 
             # test explicit parameter
             instance.revision.reset_mock()
-            # aim db-migration --config-file /etc/aim/aim.conf revision
+            # aim db-migration revision
             # --message "test message" --no-autogenerate
-            self.run_command(
-                "db-migration --config-file /etc/aim/aim.conf revision "
-                "--message test --autogenerate")
+            self.run_command('db-migration revision '
+                             '--message test --autogenerate')
             instance.revision.assert_called_with(message='test',
                                                  autogenerate=True)
