@@ -1,3 +1,6 @@
+# Copyright (c) 2016 Cisco Systems
+# All Rights Reserved.
+#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -17,7 +20,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from aim.tools.cli.aim import model_base
+from aim.db import model_base
 
 # In order to run this migration against existing databases, choose a unique
 # version table name.
@@ -70,10 +73,13 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix='sqlalchemy.',
-        poolclass=pool.NullPool)
+    try:
+        connectable = config.attributes['connection']
+    except (AttributeError, KeyError):
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section),
+            prefix='sqlalchemy.',
+            poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(

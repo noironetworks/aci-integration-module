@@ -1,3 +1,6 @@
+# Copyright (c) 2016 Cisco Systems
+# All Rights Reserved.
+#
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -15,6 +18,7 @@ import os
 import click
 from oslo_db.sqlalchemy.migration_cli import manager
 
+from aim.db import migration
 from aim.db.migration import alembic_migrations
 from aim.tools.cli.groups import aimcli
 
@@ -23,11 +27,10 @@ from aim.tools.cli.groups import aimcli
 @click.pass_context
 def db_migration(ctx):
     alembic_path = os.path.abspath(
-        os.path.join(os.path.dirname(alembic_migrations.__file__),
+        os.path.join(os.path.dirname(migration.__file__),
                      'alembic.ini'))
-    migrate_path = os.path.abspath(
-        os.path.join(os.path.dirname(alembic_migrations.__file__),
-                     'alembic'))
+    migrate_path = os.path.abspath(os.path.dirname(
+        alembic_migrations.__file__))
     migration_config = {'alembic_ini_path': alembic_path,
                         'alembic_repo_path': migrate_path,
                         'db_url': ctx.obj['conf'].database.connection}
