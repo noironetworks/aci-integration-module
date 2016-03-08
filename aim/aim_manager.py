@@ -26,7 +26,26 @@ class AimContext(object):
 
 
 class AimManager(object):
-    """Main object for performing operations on AIM."""
+    """Main object for performing operations on AIM.
+
+    To manipulate AIM database objects, invoke the appropriate
+    operation specifying an AimContext and the resource to operate on. The
+    resource should be an object of type that inherits from
+    aim.api.ResourceBase.
+    The AimContext must have property 'db_session' set to sqlalchemy
+    ORM session object; the database operation is performed in the
+    context of that session.
+    Example: Create a BridgeDomain object and then retrieve it
+
+        db = ...
+        a_ctx = AimContext(db_session=db)
+        mgr = AimManager(...)
+
+        bd = aim.api.resource.BridgeDomain(...)
+        mgr.create(a_ctx, bd)
+
+        retrieved_bd = mgr.get(a_ctx, bd)
+    """
 
     _db_model_map = {api_res.BridgeDomain: models.BridgeDomain}
 
@@ -40,7 +59,7 @@ class AimManager(object):
         If 'overwrite' is True, and an object exists in the database
         with the same identity attribute values, then that object will
         be over-written with the specified resource. Otherwise an
-        integrity violation constraints is raised.
+        integrity constraint violation is raised.
         """
         self._validate_resource_class(resource)
         with context.db_session.begin(subtransactions=True):
@@ -58,8 +77,8 @@ class AimManager(object):
 
         Values of identity attributes of parameter 'resource' are used
         to determine the database object to update; no other attributes
-        are used during the update. Param 'update_attr_val' specifies
-        the values of the attributes to update.
+        from 'resource' are used during the update. Param 'update_attr_val'
+        specifies the values of the attributes to update.
         If the object does not exist in the database, no changes are
         made to the database.
         """
@@ -79,8 +98,7 @@ class AimManager(object):
 
         Only values of identity attributes of parameter 'resource' are
         used; other attributes may be left unspecified.
-        If the object does not exist in the database, no changes are
-        made to the database.
+        If the object does not exist in the database, no error is reported.
         """
         self._validate_resource_class(resource)
         with context.db_session.begin(subtransactions=True):
@@ -121,8 +139,8 @@ class AimManager(object):
         return result
 
     def _validate_resource_class(self, resource_or_class):
-        res_cls = (isinstance(resource_or_class, type) and
-                   resource_or_class or type(resource_or_class))
+        res_cls = (resource_or_class if isinstance(resource_or_class, type)
+                   else type(resource_or_class))
         db_cls = self._db_model_map.get(res_cls)
         if not db_cls:
             raise exc.UnknownResourceType(type=res_cls)
@@ -148,7 +166,7 @@ class AimManager(object):
         return val
 
     def _make_db_obj(self, resource):
-        cls = self._validate_resource_class(resource)
+        cls = self._db_model_map.get(type(resource))
         obj = cls()
         obj.from_attr(self._extract_attributes(resource))
         return obj
