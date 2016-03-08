@@ -13,27 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import sqlalchemy as sa
-from sqlalchemy.ext import declarative
+
+def main():
+    pass
 
 
-class AimBase(object):
-    """Base class for AIM DB models.
-
-    Defines a mandatory primary-key column named 'rn' for all tables.
-    Child classes may define additional primary-key columns.
-    """
-
-    @declarative.declared_attr
-    def __tablename__(cls):
-        return cls.__name__.lower()
-
-    __table_args__ = {'mysql_engine': 'InnoDB'}
-
-
-class HasRn(object):
-
-    rn = sa.Column(sa.String(64), primary_key=True)
-
-
-Base = declarative.declarative_base(cls=AimBase)
+if __name__ == '__main__':
+    main()

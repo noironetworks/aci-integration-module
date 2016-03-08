@@ -13,27 +13,32 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+"""Create TenantTree table
+
+Revision ID: 72fa5bce100b
+Revises:
+Create Date: 2016-03-15 16:29:57.408348
+
+"""
+
+# revision identifiers, used by Alembic.
+revision = '72fa5bce100b'
+down_revision = '40855b7eb958'
+branch_labels = None
+depends_on = None
+
+from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.ext import declarative
 
 
-class AimBase(object):
-    """Base class for AIM DB models.
-
-    Defines a mandatory primary-key column named 'rn' for all tables.
-    Child classes may define additional primary-key columns.
-    """
-
-    @declarative.declared_attr
-    def __tablename__(cls):
-        return cls.__name__.lower()
-
-    __table_args__ = {'mysql_engine': 'InnoDB'}
+def upgrade():
+    op.create_table(
+        'aim_tenant_tree',
+        sa.Column('rn', sa.String(64), nullable=False),
+        sa.Column('root_full_hash', sa.String(64), nullable=False),
+        sa.Column('tree', sa.LargeBinary, nullable=False),
+        sa.PrimaryKeyConstraint('rn'))
 
 
-class HasRn(object):
-
-    rn = sa.Column(sa.String(64), primary_key=True)
-
-
-Base = declarative.declarative_base(cls=AimBase)
+def downgrade():
+    pass

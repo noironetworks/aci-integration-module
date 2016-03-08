@@ -17,7 +17,12 @@ import os
 
 from oslo_config import cfg
 from oslotest import base
+from sqlalchemy import engine as sa_engine
+from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
+from aim import aim_manager
+from aim.api import resource
+from aim.db import model_base
 
 CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
@@ -26,6 +31,18 @@ ETCDIR = os.path.join(ROOTDIR, 'etc')
 
 def etcdir(*p):
     return os.path.join(ETCDIR, *p)
+
+
+def resource_equal(self, other):
+    if type(self) != type(other):
+        return False
+    for attr in self.identity_attributes:
+        if getattr(self, attr) != getattr(other, attr):
+            return False
+    for attr in self.other_attributes:
+        if getattr(self, attr, None) != getattr(other, attr, None):
+            return False
+    return True
 
 
 class BaseTestCase(base.BaseTestCase):
@@ -47,3 +64,14 @@ class BaseTestCase(base.BaseTestCase):
         self.addCleanup(CONF.reset)
         self.test_conf_file = etcdir('aim.conf.test')
         self.config_parse()
+
+
+class TestAimDBBase(base.BaseTestCase):
+
+    def setUp(self):
+        super(TestAimDBBase, self).setUp()
+        engine = sa_engine.create_engine('sqlite:///:memory:')
+        model_base.Base.metadata.create_all(engine)
+        session = sa_sessionmaker(bind=engine)()
+        self.ctx = aim_manager.AimContext(db_session=session)
+        resource.ResourceBase.__eq__ = resource_equal

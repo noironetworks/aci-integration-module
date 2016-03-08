@@ -1,7 +1,7 @@
 [run]
 branch = True
 source = aim
-omit = aim/tests/*
+omit = aim/tests/*,aim/agent/aid/observers/base_observer.py,aim/common/hashtree/base.py,aim/db/migration/alembic_migrations/env.py,aim/tools/cli/commands/_hello_aim_cli.py
 
 [report]
 ignore_errors = True
