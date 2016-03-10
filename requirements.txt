@@ -8,4 +8,5 @@ alembic
 Click
 oslo.config
 oslo.db
+oslo.log
 pbr>=1.6
