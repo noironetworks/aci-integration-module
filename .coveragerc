@@ -1,6 +1,7 @@
 [run]
 branch = True
 source = aim
+omit = aim/tests/*
 
 [report]
 ignore_errors = True
