@@ -13,9 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
+from sqlalchemy import event as sa_event
+
 from aim.api import resource as api_res
 from aim.db import models
 from aim import exceptions as exc
+
+
+LOG = logging.getLogger(__name__)
 
 
 class AimContext(object):
@@ -51,7 +57,10 @@ class AimManager(object):
 
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff
-        pass
+        self._resource_map = {}
+        for k, v in self._db_model_map.iteritems():
+            self._resource_map[v] = k
+        self._update_listeners = []
 
     def create(self, context, resource, overwrite=False):
         """Persist AIM resource to the database.
@@ -71,6 +80,7 @@ class AimManager(object):
                     db_obj.from_attr(attr_val)
             db_obj = db_obj or self._make_db_obj(resource)
             context.db_session.add(db_obj)
+            self._add_commit_hook(context.db_session)
 
     def update(self, context, resource, **update_attr_val):
         """Persist updates to AIM resource to the database.
@@ -92,6 +102,7 @@ class AimManager(object):
                             if k in resource.other_attributes}
                 db_obj.from_attr(attr_val)
                 context.db_session.add(db_obj)
+                self._add_commit_hook(context.db_session)
 
     def delete(self, context, resource):
         """Delete AIM resource from the database.
@@ -105,6 +116,7 @@ class AimManager(object):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
                 context.db_session.delete(db_obj)
+                self._add_commit_hook(context.db_session)
 
     def get(self, context, resource):
         """Get AIM resource from the database.
@@ -137,6 +149,31 @@ class AimManager(object):
                                   resource_class, **attr_val).all():
             result.append(self._make_resource(resource_class, obj))
         return result
+
+    def register_update_listener(self, func):
+        """Register callback for update to AIM objects.
+
+        Parameter 'func' should be a function that accepts 4 parameters.
+        The first parameter is SQLAlchemy ORM session in which AIM objects
+        are being updated. Rest of the parameters are lists of AIM resources
+        that were added, updated and deleted respectively.
+        The callback will be invoked before the database transaction
+        that updated the AIM object commits.
+
+        Example:
+
+        def my_listener(session, added, updated, deleted):
+            "Iterate over 'added', 'updated', 'deleted'
+
+        a_mgr = AimManager()
+        a_mgr.register_update_listener(my_listener)
+
+        """
+        self._update_listeners.append(func)
+
+    def unregister_update_listener(self, func):
+        """Remove callback for update to AIM objects."""
+        self._update_listeners.remove(func)
 
     def _validate_resource_class(self, resource_or_class):
         res_cls = (resource_or_class if isinstance(resource_or_class, type)
@@ -175,3 +212,28 @@ class AimManager(object):
         attr_val = {k: v for k, v in db_obj.to_attr().iteritems()
                     if k in (cls.other_attributes + cls.identity_attributes)}
         return cls(**attr_val)
+
+    def _add_commit_hook(self, session):
+        if not sa_event.contains(session, 'before_flush',
+                                 self._before_session_commit):
+            sa_event.listen(session, 'before_flush',
+                            self._before_session_commit)
+
+    def _before_session_commit(self, session, flush_context, instances):
+        added = []
+        updated = []
+        deleted = []
+        modified = [(session.new, added),
+                    (session.dirty, updated),
+                    (session.deleted, deleted)]
+        for mod_set, res_list in modified:
+            for db_obj in mod_set:
+                res_cls = self._resource_map.get(type(db_obj))
+                if res_cls:
+                    res = self._make_resource(res_cls, db_obj)
+                    res_list.append(res)
+        for func in self._update_listeners[:]:
+            LOG.debug("Invoking pre-commit hook %s with %d add(s), "
+                      "%d update(s), %d delete(s)",
+                      func.__name__, len(added), len(updated), len(deleted))
+            func(session, added, updated, deleted)

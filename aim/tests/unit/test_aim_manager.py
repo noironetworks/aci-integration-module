@@ -20,6 +20,8 @@ test_aim_manager
 Tests for `aim_manager` module.
 """
 
+import mock
+
 from sqlalchemy import engine as sa_engine
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
@@ -28,6 +30,18 @@ from aim.api import resource
 from aim.db import model_base
 from aim import exceptions as exc
 from aim.tests import base
+
+
+def resource_equal(self, other):
+    if type(self) != type(other):
+        return False
+    for attr in self.identity_attributes:
+        if getattr(self, attr) != getattr(other, attr):
+            return False
+    for attr in self.other_attributes:
+        if getattr(self, attr, None) != getattr(other, attr, None):
+            return False
+    return True
 
 
 class TestAimManager(base.BaseTestCase):
@@ -39,6 +53,7 @@ class TestAimManager(base.BaseTestCase):
         model_base.Base.metadata.create_all(engine)
         session = sa_sessionmaker(bind=engine)()
         self.ctx = aim_manager.AimContext(db_session=session)
+        resource.ResourceBase.__eq__ = resource_equal
 
     def test_resource_ops(self):
         bd = resource.BridgeDomain(tenant_rn='foo', rn='net1')
@@ -97,3 +112,33 @@ class TestAimManager(base.BaseTestCase):
 
         self.assertRaises(
             exc.UnknownResourceType, self.mgr.find, self.ctx, bad_resource)
+
+    def test_commit_hook(self):
+        listener = mock.Mock()
+        listener.__name__ = 'mock-listener'
+        self.mgr.register_update_listener(listener)
+
+        bd = resource.BridgeDomain(tenant_rn='foo', rn='net1')
+        self.mgr.create(self.ctx, bd)
+        listener.assert_called_with(mock.ANY, [bd], [], [])
+
+        listener.reset_mock()
+        self.mgr.update(self.ctx, bd, vrf_rn='shared')
+        bd.vrf_rn = 'shared'
+        listener.assert_called_with(mock.ANY, [], [bd], [])
+
+        listener.reset_mock()
+        bd.rn = 'net2'
+        self.mgr.create(self.ctx, bd)
+        listener.assert_called_with(mock.ANY, [bd], [], [])
+
+        listener.reset_mock()
+        self.mgr.delete(self.ctx, bd)
+        listener.assert_called_with(mock.ANY, [], [], [bd])
+
+        self.mgr.unregister_update_listener(listener)
+
+        listener.reset_mock()
+        bd.rn = 'net1'
+        self.mgr.delete(self.ctx, bd)
+        self.assertFalse(listener.called)
