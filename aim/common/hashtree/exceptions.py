@@ -37,3 +37,7 @@ class StructuredHashTreeException(HashTreeException):
 class MultipleRootTreeError(StructuredHashTreeException):
     message = ("Node with key %(key)s cannot be inserted in tree since "
                "it's not nested in root %(root_key)s")
+
+
+class HashTreeNotFound(StructuredHashTreeException):
+    message = "Hash Tree not found for tenans %(tenant_rn)s"

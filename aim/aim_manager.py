@@ -17,18 +17,12 @@ from oslo_log import log as logging
 from sqlalchemy import event as sa_event
 
 from aim.api import resource as api_res
+from aim.db import agent_model
 from aim.db import models
 from aim import exceptions as exc
 
 
 LOG = logging.getLogger(__name__)
-
-
-class AimContext(object):
-    """Holds contextual information needed for AimManager calls."""
-
-    def __init__(self, db_session=None):
-        self.db_session = db_session
 
 
 class AimManager(object):
@@ -53,7 +47,8 @@ class AimManager(object):
         retrieved_bd = mgr.get(a_ctx, bd)
     """
 
-    _db_model_map = {api_res.BridgeDomain: models.BridgeDomain}
+    _db_model_map = {api_res.BridgeDomain: models.BridgeDomain,
+                     api_res.Agent: agent_model.Agent}
 
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff
@@ -77,10 +72,11 @@ class AimManager(object):
                 db_obj = self._query_db_obj(context.db_session, resource)
                 if db_obj:
                     attr_val = self._extract_attributes(resource, "other")
-                    db_obj.from_attr(attr_val)
-            db_obj = db_obj or self._make_db_obj(resource)
+                    db_obj.from_attr(context.db_session, attr_val)
+            db_obj = db_obj or self._make_db_obj(context.db_session, resource)
             context.db_session.add(db_obj)
             self._add_commit_hook(context.db_session)
+            return self.get(context, resource)
 
     def update(self, context, resource, **update_attr_val):
         """Persist updates to AIM resource to the database.
@@ -94,15 +90,16 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         if not update_attr_val:
-            return
+            return self.get(context, resource)
         with context.db_session.begin(subtransactions=True):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
                             if k in resource.other_attributes}
-                db_obj.from_attr(attr_val)
+                db_obj.from_attr(context.db_session, attr_val)
                 context.db_session.add(db_obj)
                 self._add_commit_hook(context.db_session)
+                return self.get(context, resource)
 
     def delete(self, context, resource):
         """Delete AIM resource from the database.
@@ -130,7 +127,8 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         db_obj = self._query_db_obj(context.db_session, resource)
-        return db_obj and self._make_resource(type(resource), db_obj) or None
+        return self._make_resource(
+            context.db_session, type(resource), db_obj) if db_obj else None
 
     def find(self, context, resource_class, **kwargs):
         """Find AIM resources from the database that match specified criteria.
@@ -143,11 +141,13 @@ class AimManager(object):
         self._validate_resource_class(resource_class)
         attr_val = {k: v for k, v in kwargs.iteritems()
                     if k in (resource_class.other_attributes +
-                             resource_class.identity_attributes)}
+                             resource_class.identity_attributes +
+                             resource_class.db_attributes)}
         result = []
         for obj in self._query_db(context.db_session,
                                   resource_class, **attr_val).all():
-            result.append(self._make_resource(resource_class, obj))
+            result.append(
+                self._make_resource(context.db_session, resource_class, obj))
         return result
 
     def register_update_listener(self, func):
@@ -200,17 +200,21 @@ class AimManager(object):
         if not attr_type or attr_type == "other":
             val.update({k: getattr(resource, k, None)
                         for k in resource.other_attributes})
+        if not attr_type or attr_type == "db":
+            val.update({k: getattr(resource, k, None)
+                        for k in resource.db_attributes})
         return val
 
-    def _make_db_obj(self, resource):
+    def _make_db_obj(self, session, resource):
         cls = self._db_model_map.get(type(resource))
         obj = cls()
-        obj.from_attr(self._extract_attributes(resource))
+        obj.from_attr(session, self._extract_attributes(resource))
         return obj
 
-    def _make_resource(self, cls, db_obj):
-        attr_val = {k: v for k, v in db_obj.to_attr().iteritems()
-                    if k in (cls.other_attributes + cls.identity_attributes)}
+    def _make_resource(self, session, cls, db_obj):
+        attr_val = {k: v for k, v in db_obj.to_attr(session).iteritems()
+                    if k in (cls.other_attributes + cls.identity_attributes +
+                             cls.db_attributes)}
         return cls(**attr_val)
 
     def _add_commit_hook(self, session):
@@ -230,7 +234,7 @@ class AimManager(object):
             for db_obj in mod_set:
                 res_cls = self._resource_map.get(type(db_obj))
                 if res_cls:
-                    res = self._make_resource(res_cls, db_obj)
+                    res = self._make_resource(session, res_cls, db_obj)
                     res_list.append(res)
         for func in self._update_listeners[:]:
             LOG.debug("Invoking pre-commit hook %s with %d add(s), "

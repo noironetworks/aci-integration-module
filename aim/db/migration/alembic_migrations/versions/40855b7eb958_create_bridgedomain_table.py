@@ -33,7 +33,7 @@ import sqlalchemy as sa
 
 def upgrade():
     op.create_table(
-        'aim_bridge_domain',
+        'aim_bridge_domains',
         sa.Column('rn', sa.String(64), nullable=False),
         sa.Column('tenant_rn', sa.String(64), nullable=False),
         sa.Column('vrf_tenant_rn', sa.String(64)),

@@ -20,8 +20,8 @@ from oslotest import base
 from sqlalchemy import engine as sa_engine
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
-from aim import aim_manager
 from aim.api import resource
+from aim import context
 from aim.db import model_base
 
 CONF = cfg.CONF
@@ -70,8 +70,12 @@ class TestAimDBBase(base.BaseTestCase):
 
     def setUp(self):
         super(TestAimDBBase, self).setUp()
-        engine = sa_engine.create_engine('sqlite:///:memory:')
-        model_base.Base.metadata.create_all(engine)
-        session = sa_sessionmaker(bind=engine)()
-        self.ctx = aim_manager.AimContext(db_session=session)
+        self.engine = sa_engine.create_engine('sqlite:///:memory:')
+        model_base.Base.metadata.create_all(self.engine)
+        session = sa_sessionmaker(bind=self.engine)()
+        self.ctx = context.AimContext(db_session=session)
         resource.ResourceBase.__eq__ = resource_equal
+
+    def get_new_context(self):
+        return context.AimContext(
+            db_session=sa_sessionmaker(bind=self.engine)())

@@ -13,22 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import sqlalchemy as sa
 
-from aim.db import model_base
+class AimContext(object):
+    """Holds contextual information needed for AimManager calls."""
 
-
-class BridgeDomain(model_base.Base, model_base.HasRn,
-                   model_base.AttributeMixin):
-    """DB model for BridgeDomain."""
-
-    __tablename__ = 'aim_bridge_domains'
-
-    tenant_rn = sa.Column(sa.String(64), primary_key=True)
-    vrf_tenant_rn = sa.Column(sa.String(64))
-    vrf_rn = sa.Column(sa.String(64))
-    enable_arp_flood = sa.Column(sa.Boolean)
-    enable_routing = sa.Column(sa.Boolean)
-    limit_ip_learn_to_subnet = sa.Column(sa.Boolean)
-    l2_unknown_unicast_mode = sa.Column(sa.String(16))
-    ep_move_detect_mode = sa.Column(sa.String(16))
+    def __init__(self, db_session=None):
+        self.db_session = db_session
