@@ -39,7 +39,7 @@ class AttributeMixin(object):
         return {k: getattr(self, k) for k in self.__dict__.keys()}
 
 
-class BridgeDomain(model_base.Base,
+class BridgeDomain(model_base.Base, model_base.HasRn,
                    AttributeMixin):
     """DB model for BridgeDomain."""
 
