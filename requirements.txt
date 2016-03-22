@@ -9,4 +9,5 @@ Click
 oslo.config
 oslo.db
 oslo.log
+oslo.utils
 pbr>=1.6

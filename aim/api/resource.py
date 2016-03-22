@@ -13,7 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_utils import timeutils
+
+from aim.common import utils
 from aim import exceptions as exc
+
+LOG = logging.getLogger(__name__)
 
 
 class ResourceBase(object):
@@ -25,13 +32,15 @@ class ResourceBase(object):
     object identifier (DN). These attributes must always be specified.
     Class property 'other_attributes' gives a list of additional
     resource attributes that are defined on the resource.
+    Class property 'db_attributes' gives a list of resource attributes
+    that are managed by the database layer, eg: timestamp, incremental counter.
     """
     def __init__(self, defaults, **kwargs):
         unset_attr = [k for k in self.identity_attributes
-                      if kwargs.get(k) is None]
+                      if kwargs.get(k) is None and k not in defaults]
         if unset_attr:
             raise exc.IdentityAttributesMissing(attr=unset_attr)
-        for k, v in defaults:
+        for k, v in defaults.iteritems():
             setattr(self, k, v)
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
@@ -51,6 +60,35 @@ class BridgeDomain(ResourceBase):
                         'limit_ip_learn_to_subnet',
                         'l2_unknown_unicast_mode',
                         'ep_move_detect_mode']
+    # Attrbutes completely managed by the DB (eg. timestamps)
+    db_attributes = []
 
     def __init__(self, **kwargs):
         super(BridgeDomain, self).__init__({}, **kwargs)
+
+
+class Agent(ResourceBase):
+    """Resource representing an AIM Agent"""
+
+    identity_attributes = ['id']
+    other_attributes = ['agent_type',
+                        'host',
+                        'binary_file',
+                        'admin_state_up',
+                        'description',
+                        'hash_trees',
+                        'beat_count']
+    # Attrbutes completely managed by the DB (eg. timestamps)
+    db_attributes = ['created_at',
+                     'heartbeat_timestamp']
+
+    def __init__(self, **kwargs):
+        super(Agent, self).__init__({'admin_state_up': True,
+                                     'beat_count': 0,
+                                     'id': utils.generate_uuid()}, **kwargs)
+
+    def is_down(self):
+        LOG.debug("Checking whether agent %s (timestamp %s) is down" %
+                  (self.id, self.heartbeat_timestamp))
+        return timeutils.is_older_than(self.heartbeat_timestamp,
+                                       cfg.CONF.aim.agent_down_time)

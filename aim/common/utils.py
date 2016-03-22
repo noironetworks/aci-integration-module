@@ -14,6 +14,7 @@
 #    under the License.
 
 import functools
+import uuid
 
 from oslo_log import log as logging
 
@@ -33,3 +34,7 @@ def log(method):
                   ' called with arguments %(args)s %(kwargs)s', data)
         return method(*args, **kwargs)
     return wrapper
+
+
+def generate_uuid():
+    return str(uuid.uuid4())
