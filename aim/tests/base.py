@@ -79,3 +79,14 @@ class TestAimDBBase(base.BaseTestCase):
     def get_new_context(self):
         return context.AimContext(
             db_session=sa_sessionmaker(bind=self.engine)())
+
+    def _get_example_bridge_domain(self, **kwargs):
+        example = resource.BridgeDomain(tenant_rn='test-tenant',
+                                        vrf_rn='default',
+                                        rn='test', enable_arp_flood=False,
+                                        enable_routing=True,
+                                        limit_ip_learn_to_subnets=False,
+                                        l2_unknown_unicast_mode='proxy',
+                                        ep_move_detect_mode='')
+        example.__dict__.update(kwargs)
+        return example

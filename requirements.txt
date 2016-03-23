@@ -5,7 +5,9 @@
 # Requirements should be kept alphabetically ordered
 
 alembic
+acitoolkit>=0.3.1
 Click
+gevent>=1.1.0
 oslo.config
 oslo.db
 oslo.log

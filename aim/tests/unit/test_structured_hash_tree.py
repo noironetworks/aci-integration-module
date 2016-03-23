@@ -426,6 +426,16 @@ class TestStructuredHashTree(base.BaseTestCase):
         self.assertEqual(data, data2)
         self.assertTrue(self._tree_deep_check(data.root, data2.root))
 
+    def test_list_keys(self):
+        data = tree.StructuredHashTree().include(
+            [{'key': (['keyA', ], ['keyB', 'keykeyB'])},
+             {'key': (['keyA', ], ['keyC', 'keykeyC'])},
+             {'key': (['keyA', ], ['keyC', 'keykeyC'], ['keyD', ])}])
+        data2 = tree.StructuredHashTree.from_string(str(data))
+        self.assertTrue(data is not data2)
+        self.assertEqual(data, data2)
+        self.assertTrue(self._tree_deep_check(data.root, data2.root))
+
 
 class TestHashTreeExceptions(base.BaseTestCase):
 

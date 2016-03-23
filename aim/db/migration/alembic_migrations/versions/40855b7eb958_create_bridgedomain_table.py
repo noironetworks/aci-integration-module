@@ -36,11 +36,10 @@ def upgrade():
         'aim_bridge_domains',
         sa.Column('rn', sa.String(64), nullable=False),
         sa.Column('tenant_rn', sa.String(64), nullable=False),
-        sa.Column('vrf_tenant_rn', sa.String(64)),
         sa.Column('vrf_rn', sa.String(64)),
         sa.Column('enable_arp_flood', sa.Boolean),
         sa.Column('enable_routing', sa.Boolean),
-        sa.Column('limit_ip_learn_to_subnet', sa.Boolean),
+        sa.Column('limit_ip_learn_to_subnets', sa.Boolean),
         sa.Column('l2_unknown_unicast_mode', sa.String(16)),
         sa.Column('ep_move_detect_mode', sa.String(16)),
         sa.PrimaryKeyConstraint('rn', 'tenant_rn'))

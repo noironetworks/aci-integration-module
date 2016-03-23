@@ -25,10 +25,9 @@ class BridgeDomain(model_base.Base, model_base.HasRn,
     __tablename__ = 'aim_bridge_domains'
 
     tenant_rn = sa.Column(sa.String(64), primary_key=True)
-    vrf_tenant_rn = sa.Column(sa.String(64))
     vrf_rn = sa.Column(sa.String(64))
     enable_arp_flood = sa.Column(sa.Boolean)
     enable_routing = sa.Column(sa.Boolean)
-    limit_ip_learn_to_subnet = sa.Column(sa.Boolean)
+    limit_ip_learn_to_subnets = sa.Column(sa.Boolean)
     l2_unknown_unicast_mode = sa.Column(sa.String(16))
     ep_move_detect_mode = sa.Column(sa.String(16))

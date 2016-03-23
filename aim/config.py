@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from apicapi import config as apic_config  # noqa
 from oslo_config import cfg
 
 agent_opts = [
@@ -22,3 +23,21 @@ agent_opts = [
     ]
 
 cfg.CONF.register_opts(agent_opts, 'aim')
+
+
+db_opts = [
+    cfg.StrOpt('connection',
+               deprecated_name='sql_connection',
+               default='',
+               secret=True,
+               help='URL to database'),
+    cfg.StrOpt('engine',
+               default='',
+               help='Database engine for which script will be generated '
+                    'when using offline migration.'),
+]
+
+cfg.CONF.register_opts(db_opts, 'database')
+
+
+CONF = cfg.CONF

@@ -192,7 +192,8 @@ class StructuredHashTree(base.ComparableCollection):
     @staticmethod
     def from_string(string):
         to_dict = json.loads(string)
-        return StructuredHashTree(StructuredHashTree._build_tree(to_dict))
+        return (StructuredHashTree(StructuredHashTree._build_tree(to_dict)) if
+                to_dict else StructuredHashTree())
 
     @staticmethod
     def _build_tree(root_dict):

@@ -13,13 +13,36 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from aim.agent.aid.universes import base_universe as base
 
-from aim.agent.aid.observers import base_observer as base
 
-
-class ACIObserver(base.HashTreeOvserver):
-    """HashTree Observer of the ACI state.
+class AimDbUniverse(base.HashTreeStoredUniverse):
+    """HashTree Universe of the AIM DB state.
 
     This Hash Tree bases observer retrieves and stores state information
-    from the ACI REST API.
+    from the AIM database.
     """
+
+    def serve(self, tenants):
+        pass
+
+    def get_aim_resources(self, resource_keys):
+        pass
+
+    def push_aim_resources(self, resources):
+        pass
+
+    def push_aim_resource(self, resource):
+        pass
+
+    def get_aim_resource(self, resource_key):
+        pass
+
+    def state(self):
+        pass
+
+    def observe(self):
+        pass
+
+    def initialize(self, db_handler):
+        pass
