@@ -103,7 +103,7 @@ def fv_bd_to_resource(converted, helper, to_aim=True):
     else:
         # Exclude vrf_name
         result = default_to_resource(converted, helper, to_aim=to_aim)
-        result[helper['resource']]['attributes'].pop('vrfRn', None)
+        result[helper['resource']]['attributes'].pop('vrfName', None)
         return result
 
 
@@ -161,7 +161,7 @@ resource_map = {
         'resource': resource.BridgeDomain,
         'exceptions': {
             'tnFvCtxName': {
-                'other': 'vrf_rn',
+                'other': 'vrf_name',
             }
         },
         'to_resource': fv_rs_ctx_to_resource,

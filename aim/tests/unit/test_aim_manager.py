@@ -39,7 +39,8 @@ class TestAimManager(base.TestAimDBBase):
 
     def _test_resource_ops(self, resource, test_identity_attributes,
                            test_required_attributes, test_search_attributes,
-                           test_update_attributes):
+                           test_update_attributes,
+                           test_dn=None):
         """Test basic operations for resources
 
         :param resource: resource type, eg: BridgeDomain
@@ -52,6 +53,7 @@ class TestAimManager(base.TestAimDBBase):
         search. eg: {'vrf_rn': 'shared'}
         :param test_update_attributes: some attributes already present in
         one of the previously specified ones that hold a different value.
+        :param test_dn: expected DN of created resource, if any.
         :return:
         """
         # Run the following only if ID attributes are also required
@@ -65,6 +67,9 @@ class TestAimManager(base.TestAimDBBase):
         creation_attributes.update(test_required_attributes),
         creation_attributes.update(test_identity_attributes)
         res = resource(**creation_attributes)
+
+        if test_dn:
+            self.assertEqual(test_dn, res.dn)
 
         # Verify successful creation
         r1 = self.mgr.create(self.ctx, res)
@@ -186,19 +191,25 @@ class TestAimManager(base.TestAimDBBase):
     def test_bridge_domain_ops(self):
         self._test_resource_ops(
             resource.BridgeDomain,
-            test_identity_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
-            test_required_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
+            test_identity_attributes={'tenant_name': 'tenant1',
+                                      'name': 'net1'},
+            test_required_attributes={'tenant_name': 'tenant1',
+                                      'name': 'net1'},
             test_search_attributes={'l2_unknown_unicast_mode': 'proxy'},
             test_update_attributes={'l2_unknown_unicast_mode': 'private',
-                                    'vrf_rn': 'default'})
+                                    'display_name': 'pretty-net1',
+                                    'vrf_name': 'default'},
+            test_dn='uni/tn-tenant1/BD-net1')
 
     def test_bridge_domain_hooks(self):
         self._test_commit_hook(
             resource.BridgeDomain,
-            test_identity_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
-            test_required_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
+            test_identity_attributes={'tenant_name': 'tenant1',
+                                      'name': 'net1'},
+            test_required_attributes={'tenant_name': 'tenant1',
+                                      'name': 'net1'},
             test_update_attributes={'l2_unknown_unicast_mode': 'private',
-                                    'vrf_rn': 'private'})
+                                    'vrf_name': 'private'})
 
     def test_agent_ops(self):
         self._test_resource_ops(

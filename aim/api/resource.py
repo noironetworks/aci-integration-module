@@ -20,6 +20,10 @@ from oslo_utils import timeutils
 from aim.common import utils
 from aim import exceptions as exc
 
+# TODO(amitbose) Move ManagedObjectClass definitions to AIM
+from apicapi import apic_client
+
+
 LOG = logging.getLogger(__name__)
 
 
@@ -50,14 +54,29 @@ class ResourceBase(object):
         return [getattr(self, x) for x in self.identity_attributes]
 
 
-class BridgeDomain(ResourceBase):
+class AciResourceBase(ResourceBase):
+    """Base class for AIM resources that map to ACI objects.
+
+    Child classes must define class attribute '_aci_mo_name' which is
+    the ManagedObjectClass name of corresponding ACI object.
+    """
+    _aci_mo_name = None
+
+    @property
+    def dn(self):
+        return apic_client.ManagedObjectClass(self._aci_mo_name).dn(
+            *self.identity)
+
+
+class BridgeDomain(AciResourceBase):
     """Resource representing a BridgeDomain in ACI.
 
     Identity attributes are RNs for ACI tenant and bridge-domain.
     """
 
-    identity_attributes = ['tenant_rn', 'rn']
-    other_attributes = ['vrf_rn',
+    identity_attributes = ['tenant_name', 'name']
+    other_attributes = ['display_name',
+                        'vrf_name',
                         'enable_arp_flood',
                         'enable_routing',
                         'limit_ip_learn_to_subnets',
@@ -65,6 +84,8 @@ class BridgeDomain(ResourceBase):
                         'ep_move_detect_mode']
     # Attrbutes completely managed by the DB (eg. timestamps)
     db_attributes = []
+
+    _aci_mo_name = 'fvBD'
 
     def __init__(self, **kwargs):
         super(BridgeDomain, self).__init__({}, **kwargs)

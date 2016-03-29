@@ -18,14 +18,14 @@ import sqlalchemy as sa
 from aim.db import model_base
 
 
-class BridgeDomain(model_base.Base, model_base.HasRn,
+class BridgeDomain(model_base.Base, model_base.HasName,
                    model_base.AttributeMixin):
     """DB model for BridgeDomain."""
 
     __tablename__ = 'aim_bridge_domains'
 
-    tenant_rn = sa.Column(sa.String(64), primary_key=True)
-    vrf_rn = sa.Column(sa.String(64))
+    tenant_name = sa.Column(sa.String(64), primary_key=True)
+    vrf_name = sa.Column(sa.String(64))
     enable_arp_flood = sa.Column(sa.Boolean)
     enable_routing = sa.Column(sa.Boolean)
     limit_ip_learn_to_subnets = sa.Column(sa.Boolean)
