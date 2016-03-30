@@ -17,6 +17,7 @@ from oslo_log import log as logging
 from sqlalchemy import event as sa_event
 
 from aim.api import resource as api_res
+from aim.api import status as api_status
 from aim.db import agent_model
 from aim.db import models
 from aim import exceptions as exc
@@ -149,6 +150,31 @@ class AimManager(object):
             result.append(
                 self._make_resource(context.db_session, resource_class, obj))
         return result
+
+    def get_status(self, context, resource):
+        """Get status of an AIM resource, if any.
+
+        Values of identity attributes of parameter 'resource' are used
+        to determine the object to get status for; other attributes may
+        be left unspecified.
+        """
+
+        if isinstance(resource, api_res.AciResourceBase):
+            # TODO(amitbose) Fetch status from DB
+            return api_status.AciStatus()
+        return None
+
+    def update_status(self, context, resource, status):
+        """Update the status of an AIM resource.
+
+        Values of identity attributes of parameter 'resource' are used
+        to determine the object whose status will be updated; other
+        attributes may be left unspecified.
+        """
+
+        if isinstance(resource, api_res.AciResourceBase):
+            # TODO(amitbose) Update status to DB
+            pass
 
     def register_update_listener(self, func):
         """Register callback for update to AIM objects.

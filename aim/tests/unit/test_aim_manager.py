@@ -188,6 +188,18 @@ class TestAimManager(base.TestAimDBBase):
         self.mgr.delete(self.ctx, res)
         self.assertFalse(listener.called)
 
+    def _test_resource_status(self, resource, test_identity_attributes):
+        creation_attributes = {}
+        creation_attributes.update(test_identity_attributes)
+        res = resource(**creation_attributes)
+
+        status = self.mgr.get_status(self.ctx, res)
+        self.assertFalse(status.is_build())
+        self.assertFalse(status.is_error())
+
+        status.sync_message = "some message"
+        self.mgr.update_status(self.ctx, res, status)
+
     def test_bridge_domain_ops(self):
         self._test_resource_ops(
             resource.BridgeDomain,
@@ -210,6 +222,12 @@ class TestAimManager(base.TestAimDBBase):
                                       'name': 'net1'},
             test_update_attributes={'l2_unknown_unicast_mode': 'private',
                                     'vrf_name': 'private'})
+
+    def test_bridge_domain_status(self):
+        self._test_resource_status(
+            resource.BridgeDomain,
+            test_identity_attributes={'tenant_name': 'tenant1',
+                                      'name': 'net1'})
 
     def test_agent_ops(self):
         self._test_resource_ops(
