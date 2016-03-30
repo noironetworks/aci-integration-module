@@ -13,12 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from aim.agent.aid.observers import base_observer as base
+import logging
+
+from aim.tools.cli.groups import aimcli
+from aim.tools.cli.commands import *  # noqa
+from aim.tools.cli.debug import *  # noqa
+
+aim_debug = aimcli.aim
+logging.getLogger().setLevel(logging.DEBUG)
 
 
-class AIMObserver(base.HashTreeOvserver):
-    """HashTree Observer of the AIM state.
-
-    This Hash Tree bases observer retrieves and stores state information
-    from the AIM database.
-    """
+def run():
+    aim_debug(auto_envvar_prefix='AIM')

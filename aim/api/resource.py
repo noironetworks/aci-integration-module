@@ -45,6 +45,10 @@ class ResourceBase(object):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
+    @property
+    def identity(self):
+        return [getattr(self, x) for x in self.identity_attributes]
+
 
 class BridgeDomain(ResourceBase):
     """Resource representing a BridgeDomain in ACI.
@@ -53,11 +57,10 @@ class BridgeDomain(ResourceBase):
     """
 
     identity_attributes = ['tenant_rn', 'rn']
-    other_attributes = ['vrf_tenant_rn',
-                        'vrf_rn',
+    other_attributes = ['vrf_rn',
                         'enable_arp_flood',
                         'enable_routing',
-                        'limit_ip_learn_to_subnet',
+                        'limit_ip_learn_to_subnets',
                         'l2_unknown_unicast_mode',
                         'ep_move_detect_mode']
     # Attrbutes completely managed by the DB (eg. timestamps)

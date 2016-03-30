@@ -188,18 +188,17 @@ class TestAimManager(base.TestAimDBBase):
             resource.BridgeDomain,
             test_identity_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
             test_required_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
-            test_search_attributes={'vrf_rn': 'shared',
-                                    'vrf_tenant_rn': 'common'},
-            test_update_attributes={'vrf_rn': 'private',
-                                    'vrf_tenant_rn': 'tenant1'})
+            test_search_attributes={'l2_unknown_unicast_mode': 'proxy'},
+            test_update_attributes={'l2_unknown_unicast_mode': 'private',
+                                    'vrf_rn': 'default'})
 
     def test_bridge_domain_hooks(self):
         self._test_commit_hook(
             resource.BridgeDomain,
             test_identity_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
             test_required_attributes={'tenant_rn': 'tenant1', 'rn': 'net1'},
-            test_update_attributes={'vrf_rn': 'private',
-                                    'vrf_tenant_rn': 'tenant1'})
+            test_update_attributes={'l2_unknown_unicast_mode': 'private',
+                                    'vrf_rn': 'private'})
 
     def test_agent_ops(self):
         self._test_resource_ops(
