@@ -113,8 +113,12 @@ def fv_rs_ctx_to_resource(converted, helper, to_aim=True):
         return default_to_resource(converted, helper, to_aim=to_aim)
     else:
         # Only include vrf_name
-        return {helper['resource']: {'attributes': {
-            'dn': converted['dn'], 'tnFvCtxName': converted['tnFvCtxName']}}}
+        if converted['tnFvCtxName'] is not None:
+            return {helper['resource']: {'attributes': {
+                'dn': converted['dn'],
+                'tnFvCtxName': converted['tnFvCtxName']}}}
+        else:
+            return None
 
 
 # Resource map maps APIC objects into AIM ones. the key of this map is the
@@ -250,8 +254,9 @@ class BaseConverter(object):
             if other not in destination_identity_attributes:
                 res_dict[other] = converted
         LOG.debug("Converted %s into %s" % (object_dict, res_dict))
-        return [(helper.get('to_resource') or
-                 default_to_resource)(res_dict, helper, to_aim=to_aim)]
+        result = (helper.get('to_resource') or default_to_resource)(
+            res_dict, helper, to_aim=to_aim)
+        return [result] if result else []
 
 
 class AciToAimModelConverter(BaseConverter):

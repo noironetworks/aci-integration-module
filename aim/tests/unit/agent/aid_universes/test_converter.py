@@ -249,3 +249,21 @@ class TestAimToAciConverter(base.TestAimDBBase):
                         'Expected %s not in result %s' % (expected[0], result))
         self.assertTrue(expected[1] in result,
                         'Expected %s not in result %s' % (expected[1], result))
+
+    def test_missing_reference(self):
+        example_bd = self._get_example_bridge_domain()
+        example_bd.vrf_rn = None
+        result = self.converter.convert([example_bd])
+        self.assertEqual(1, len(result))
+        expected = [
+            {
+                "fvBD": {
+                    "attributes": {
+                        "arpFlood": "no",
+                        "dn": "uni/tn-test-tenant/BD-test",
+                        "epMoveDetectMode": "",
+                        "limitIpLearnToSubnets": "no",
+                        "unicastRoute": "yes",
+                        "unkMacUcastAct": "proxy"}}}
+        ]
+        self.assertEqual(expected, result)
