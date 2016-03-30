@@ -300,18 +300,18 @@ class AciTenantManager(gevent.Greenlet):
                     resource = event.values()[0]
                     dn = resource['attributes']['dn']
                     extra_dns.discard(dn)
-                    data = self.aci_session.get_data(
-                        'mo/' + dn, rsp_prop_include='config-only')
-                    resource['attributes'].update(
-                        data[0].values()[0]['attributes'])
                     # See if there's any extra object to be retrieved
                     for filler in RS_FILL_DICT[event.keys()[0]]:
                         extra_dns.add(dn + '/' + filler if not callable(filler)
                                       else filler(resource))
                     visited.add(dn)
+                    data = self.aci_session.get_data(
+                        'mo/' + dn, rsp_prop_include='config-only')
+                    resource['attributes'].update(
+                        data[0].values()[0]['attributes'])
                 except apic_exc.ApicResponseNotOk as e:
                     # Object might have been deleted
-                    if e.err_code == '404':
+                    if str(e.err_code) == '404':
                         LOG.debug("Resource %s not found", dn)
                         resource['attributes'][STATUS_FIELD] = (
                             converter.DELETED_STATUS)
@@ -339,7 +339,7 @@ class AciTenantManager(gevent.Greenlet):
             except apic_exc.ApicResponseNotOk as e:
                 # Object might have been deleted or didn't exist
                 # in a first place
-                if e.err_code == '404':
+                if str(e.err_code) == '404':
                     LOG.debug("Resource %s not found", dn)
                 else:
                     LOG.error(e.message)

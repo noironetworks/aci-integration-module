@@ -90,3 +90,21 @@ class TestAimDBBase(base.BaseTestCase):
                                         ep_move_detect_mode='')
         example.__dict__.update(kwargs)
         return example
+
+    def _get_example_bd(self, **kwargs):
+        example_bd = {
+            "fvBD": {
+                "attributes": {
+                    "arpFlood": "no", "descr": "test",
+                    "dn": "uni/tn-test-tenant/BD-test",
+                    "epMoveDetectMode": "",
+                    "limitIpLearnToSubnets": "no",
+                    "llAddr": "::",
+                    "mac": "00:22:BD:F8:19:FF",
+                    "multiDstPktAct": "bd-flood",
+                    "name": "test",
+                    "ownerKey": "", "ownerTag": "", "unicastRoute": "yes",
+                    "unkMacUcastAct": "proxy", "unkMcastAct": "flood",
+                    "vmac": "not-applicable"}}}
+        example_bd['fvBD']['attributes'].update(kwargs)
+        return example_bd

@@ -14,6 +14,7 @@
 #    under the License.
 
 import collections
+import copy
 
 from apicapi import apic_client
 import gevent
@@ -32,6 +33,21 @@ class FakeResponse(object):
         self.ok = ok
         self.text = text or json.dumps({'imdata': {}})
         self.status_code = status_code
+
+
+def mock_get_data(inst, dn, **kwargs):
+    try:
+        inst._data_stash
+    except Exception:
+        inst._data_stash = {}
+
+    try:
+        return [inst._data_stash[dn]]
+    except KeyError:
+        # Simulate 404
+        raise apic_client.cexc.ApicResponseNotOk(
+            request='get', status='404', reason='Not Found',
+            err_text='Not Found', err_code='404')
 
 
 class TestAciTenant(base.TestAimDBBase):
@@ -54,9 +70,7 @@ class TestAciTenant(base.TestAimDBBase):
         self.post_body = mock.patch(
             'apicapi.apic_client.ApicSession.post_body')
         self.post_body.start()
-        self.get_data = mock.patch(
-            'apicapi.apic_client.ApicSession.get_data')
-        self.get_data.start()
+        apic_client.ApicSession.get_data = mock_get_data
         # Patch currently unimplemented methods
         self.manager = aci_tenant.AciTenantManager('tenant-1',
                                                    config.CONF.apic)
@@ -68,7 +82,17 @@ class TestAciTenant(base.TestAimDBBase):
         self.addCleanup(self.tn_subscribe.stop)
         self.addCleanup(self.process_q.stop)
         self.addCleanup(self.post_body.stop)
-        self.addCleanup(self.get_data.stop)
+
+    def _add_server_data(self, data, manager=None):
+        manager = manager or self.manager
+        try:
+            manager.aci_session._data_stash
+        except Exception:
+            manager.aci_session._data_stash = {}
+
+        for resource in data:
+            manager.aci_session._data_stash[
+                'mo/' + resource.values()[0]['attributes']['dn']] = resource
 
     def _objects_transaction_create(self, transaction, objs):
         for obj in objs:
@@ -88,13 +112,13 @@ class TestAciTenant(base.TestAimDBBase):
     def _init_event(self):
         return [
             {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-ivar-wstest/BD-test/rsctx",
+                "dn": "uni/tn-test-tenant/BD-test/rsctx",
                 "tnFvCtxName": "test"}}},
             {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-ivar-wstest/BD-test-2/rsctx",
+                "dn": "uni/tn-test-tenant/BD-test-2/rsctx",
                 "tnFvCtxName": "test"}}},
             {"fvBD": {"attributes": {"arpFlood": "yes", "descr": "test",
-                                     "dn": "uni/tn-ivar-wstest/BD-test",
+                                     "dn": "uni/tn-test-tenant/BD-test",
                                      "epMoveDetectMode": "",
                                      "limitIpLearnToSubnets": "no",
                                      "llAddr": ":: ",
@@ -107,7 +131,7 @@ class TestAciTenant(base.TestAimDBBase):
                                      "unkMcastAct": "flood",
                                      "vmac": "not-applicable"}}},
             {"fvBD": {"attributes": {"arpFlood": "no", "descr": "",
-                                     "dn": "uni/tn-ivar-wstest/BD-test-2",
+                                     "dn": "uni/tn-test-tenant/BD-test-2",
                                      "epMoveDetectMode": "",
                                      "limitIpLearnToSubnets": "no",
                                      "llAddr": ":: ",
@@ -119,8 +143,8 @@ class TestAciTenant(base.TestAimDBBase):
                                      "unkMcastAct": "flood",
                                      "vmac": "not-applicable"}}},
             {"fvTenant": {"attributes": {"descr": "",
-                                         "dn": "uni/tn-ivar-wstest",
-                                         "name": "ivar-wstest",
+                                         "dn": "uni/tn-test-tenant",
+                                         "name": "test-tenant",
                                          "ownerKey": "",
                                          "ownerTag": ""}}}]
 
@@ -172,10 +196,10 @@ class TestAciTenant(base.TestAimDBBase):
     def test_squash_events(self):
         double_events = [
             {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-ivar-wstest/BD-test/rsctx",
+                "dn": "uni/tn-test-tenant/BD-test/rsctx",
                 "tnFvCtxName": "test"}}},
             {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-ivar-wstest/BD-test/rsctx",
+                "dn": "uni/tn-test-tenant/BD-test/rsctx",
                 "tnFvCtxName": "test-2"}}}
             ]
         self.manager._subscribe_tenant()
@@ -218,3 +242,61 @@ class TestAciTenant(base.TestAimDBBase):
         self._objects_transaction_delete(trs, conversion)
         self.manager.aci_session.post_body.assert_called_once_with(
             mock.ANY, json.dumps(trs.root), 'test-tenant')
+
+    def test_fill_events_noop(self):
+        # On unchanged data, fill events is a noop
+        events = self._init_event()
+        events_copy = copy.deepcopy(events)
+        self.manager._fill_events(events)
+        self.assertEqual(events, events_copy)
+
+    def test_fill_events(self):
+        events = [
+            {"fvRsCtx": {"attributes": {
+                "dn": "uni/tn-test-tenant/BD-test/rsctx",
+                "tnFvCtxName": "test", "status": "modified"}}},
+        ]
+        complete = {"fvRsCtx": {"attributes": {
+            "dn": "uni/tn-test-tenant/BD-test/rsctx", "status": "modified",
+            "tnFvCtxName": "test", "extra": "something_important"}}}
+        parent_bd = self._get_example_bd()
+        self._add_server_data([complete, parent_bd])
+        self.manager._fill_events(events)
+        self.assertEqual([complete, parent_bd], events)
+
+        # Now start from BD
+        events = [{"fvBD": {"attributes": {
+            "arpFlood": "yes", "descr": "test",
+            "dn": "uni/tn-test-tenant/BD-test", "status": "modified"}}}]
+        parent_bd['fvBD']['attributes']['status'] = 'modified'
+        self.manager._fill_events(events)
+        self.assertEqual([parent_bd, complete], events)
+
+    def test_fill_events_not_found(self):
+        events = [
+            {"fvRsCtx": {"attributes": {
+                "dn": "uni/tn-test-tenant/BD-test/rsctx",
+                "tnFvCtxName": "test", "status": "modified"}}},
+        ]
+        parent_bd = self._get_example_bd()
+        # fvRsCtx is missing on server side
+        self._add_server_data([parent_bd])
+        self.manager._fill_events(events)
+        missing = {"fvRsCtx": {"attributes": {
+            "dn": "uni/tn-test-tenant/BD-test/rsctx",
+            "tnFvCtxName": "test", "status": "deleted"}}}
+        self.assertEqual([missing, parent_bd], events)
+
+        # Test missing counterpart
+        complete = {"fvRsCtx": {"attributes": {
+            "dn": "uni/tn-test-tenant/BD-test/rsctx", "status": "modified",
+            "tnFvCtxName": "test", "extra": "something_important"}}}
+        self.manager.aci_session._data_stash = {}
+        self._add_server_data([complete])
+        events = [
+            {"fvRsCtx": {"attributes": {
+                "dn": "uni/tn-test-tenant/BD-test/rsctx",
+                "tnFvCtxName": "test", "status": "modified"}}},
+        ]
+        self.manager._fill_events(events)
+        self.assertEqual([complete], events)
