@@ -15,29 +15,32 @@
 
 from apicapi import config as apic_config  # noqa
 from oslo_config import cfg
+from oslo_log import log as logging
+
+default_opts = [
+    cfg.StrOpt('host', help=("Host where this agent/controller is running"))
+]
+
+cfg.CONF.register_opts(default_opts)
 
 agent_opts = [
     cfg.IntOpt('agent_down_time', default=75,
                help=("Seconds to regard the agent is down; should be at "
-                     "least twice report_interval.")),
+                     "least twice agent_report_interval.")),
+    cfg.IntOpt('agent_polling_interval', default=5,
+               help=("Seconds that need to pass before the agent starts each "
+                     "new cycle.")),
+    cfg.IntOpt('agent_report_interval', default=30,
+               help=("Number of seconds after which an agent reports his "
+                     "state"))
     ]
 
 cfg.CONF.register_opts(agent_opts, 'aim')
 
-
-db_opts = [
-    cfg.StrOpt('connection',
-               deprecated_name='sql_connection',
-               default='',
-               secret=True,
-               help='URL to database'),
-    cfg.StrOpt('engine',
-               default='',
-               help='Database engine for which script will be generated '
-                    'when using offline migration.'),
-]
-
-cfg.CONF.register_opts(db_opts, 'database')
-
+logging.register_options(cfg.CONF)
 
 CONF = cfg.CONF
+
+
+def init(args, **kwargs):
+    CONF(args=args, project='aim')

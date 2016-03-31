@@ -56,6 +56,8 @@ class TenantTreeManager(object):
 
     @utils.log
     def update_bulk(self, context, hash_trees):
+        # TODO(ivar): When AIM tenant creation is defined, tenant_rn might not
+        # correspond to x.root.key[0] anymore.
         trees = {x.root.key[0]: x for x in hash_trees}
         with context.db_session.begin(subtransactions=True):
             db_objs = self._find_query(context,
@@ -103,18 +105,24 @@ class TenantTreeManager(object):
             raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
 
     @utils.log
-    def find_changed(self, context, tenant_hash_map):
-        return [
-            self.tree_klass.from_string(str(x.tree)) for x in self._find_query(
-                context, in_={'tenant_rn': tenant_hash_map.keys()},
-                notin_={'root_full_hash': tenant_hash_map.values()}).all()]
+    def find_changed(self, context, tenant_map):
+        return dict((x.tenant_rn, self.tree_klass.from_string(str(x.tree)))
+                    for x in self._find_query(
+                        context, in_={'tenant_rn': tenant_map.keys()},
+                        notin_={'root_full_hash': tenant_map.values()}).all())
+
+    @utils.log
+    def get_tenants(self, context):
+        return [x[0] for x in
+                context.db_session.query(TenantTree.tenant_rn).all()]
 
     def _find_query(self, context, in_=None, notin_=None, **kwargs):
         query = context.db_session.query(TenantTree)
         for k, v in (in_ or {}).iteritems():
             query = query.filter(getattr(TenantTree, k).in_(v))
         for k, v in (notin_ or {}).iteritems() or {}:
-            query = query.filter(getattr(TenantTree, k).notin_(v))
+            query = query.filter(getattr(TenantTree, k).notin_(
+                [(x or '') for x in v]))
         if kwargs:
             query = query.filter_by(**kwargs)
         return query

@@ -251,9 +251,11 @@ class TestAimManager(base.TestAimDBBase):
             test_identity_attributes={'id': 'myuuid'},
             test_required_attributes={'agent_type': 'aid',
                                       'host': 'h1',
-                                      'binary_file': 'aid.py'},
+                                      'binary_file': 'aid.py',
+                                      'version': '1.0'},
             test_search_attributes={'host': 'h1'},
-            test_update_attributes={'host': 'h2'})
+            test_update_attributes={'host': 'h2',
+                                    'version': '2.0'})
 
     def test_agent_commit_hook(self):
         self._test_commit_hook(
@@ -261,12 +263,13 @@ class TestAimManager(base.TestAimDBBase):
             test_identity_attributes={'id': 'myuuid'},
             test_required_attributes={'agent_type': 'aid',
                                       'host': 'h1',
-                                      'binary_file': 'aid.py'},
+                                      'binary_file': 'aid.py',
+                                      'version': '1.0'},
             test_update_attributes={'host': 'h2'})
 
     def test_agent_timestamp(self):
         agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
-                               binary_file='binary_file')
+                               binary_file='binary_file', version='1.0')
 
         # Verify successful creation
         agent = self.mgr.create(self.ctx, agent, overwrite=True)
@@ -285,7 +288,7 @@ class TestAimManager(base.TestAimDBBase):
 
     def test_agent_down(self):
         agent = resource.Agent(agent_type='aid', host='host',
-                               binary_file='binary_file')
+                               binary_file='binary_file', version='1.0')
         self.assertRaises(AttributeError, agent.is_down)
         agent = self.mgr.create(self.ctx, agent)
         self.assertFalse(agent.is_down())

@@ -546,7 +546,22 @@ class TestHashTreeManager(base.TestAimDBBase):
                        data2.root.key[0]: data2.root.full_hash,
                        data3.root.key[0]: data3.root.full_hash})
         self.assertEqual(1, len(changed))
-        self.assertEqual(data1.root.key, changed[0].root.key)
+        self.assertEqual(data1.root.key, changed.values()[0].root.key)
+
+    def test_get_tenants(self):
+        data1 = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+        data2 = tree.StructuredHashTree().include(
+            [{'key': ('keyA1', 'keyB')}, {'key': ('keyA1', 'keyC')},
+             {'key': ('keyA1', 'keyC', 'keyD')}])
+        data3 = tree.StructuredHashTree().include(
+            [{'key': ('keyA2', 'keyB')}, {'key': ('keyA2', 'keyC')},
+             {'key': ('keyA2', 'keyC', 'keyD')}])
+
+        self.mgr.update_bulk(self.ctx, [data1, data2, data3])
+        tenants = self.mgr.get_tenants(self.ctx)
+        self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(tenants))
 
     def test_single_session_multi_objects(self):
         with self.ctx.db_session.begin(subtransactions=True):
@@ -554,8 +569,9 @@ class TestHashTreeManager(base.TestAimDBBase):
                 [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
                  {'key': ('keyA', 'keyC', 'keyD')}])
             self.mgr.update(self.ctx, data)
-            agent = resource.Agent(id='test', agent_type='aid', host='host',
-                                   binary_file='binary', hash_trees=['keyA'])
+            agent = resource.Agent(id='test', agent_type='aid', host='host3',
+                                   binary_file='binary', hash_trees=['keyA'],
+                                   version='1.0')
             agent = aim_manager.AimManager().create(self.ctx, agent)
 
         # Creation worked
@@ -579,10 +595,12 @@ class TestHashTreeManager(base.TestAimDBBase):
             self.mgr.update_bulk(self.ctx, [data, data2, data3])
             agent1 = resource.Agent(agent_type='aid', host='host',
                                     binary_file='binary',
-                                    hash_trees=['keyA', 'keyA1', 'keyA2'])
+                                    hash_trees=['keyA', 'keyA1', 'keyA2'],
+                                    version='1.0')
             agent2 = resource.Agent(agent_type='aid', host='host2',
                                     binary_file='binary',
-                                    hash_trees=['keyA', 'keyA2'])
+                                    hash_trees=['keyA', 'keyA2'],
+                                    version='1.0')
             agent1 = aim_manager.AimManager().create(self.ctx, agent1)
             agent2 = aim_manager.AimManager().create(self.ctx, agent2)
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']),
@@ -598,7 +616,6 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.assertEqual(set(['keyA1', 'keyA2']), set(agent1.hash_trees))
         self.assertEqual(set(), set(agent2.hash_trees))
         # Add rogue key
-        self.ctx.db_session.commit()
         self.assertRaises(
             exc.HashTreeNotFound, aim_manager.AimManager().update,
             self.ctx, agent1, hash_trees=['notakey'])

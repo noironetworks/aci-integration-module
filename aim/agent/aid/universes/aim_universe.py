@@ -13,7 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
+
 from aim.agent.aid.universes import base_universe as base
+from aim import context
+from aim.db import tree_model
+
+
+LOG = logging.getLogger(__name__)
 
 
 class AimDbUniverse(base.HashTreeStoredUniverse):
@@ -23,26 +30,42 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     from the AIM database.
     """
 
+    def initialize(self, db_session):
+        super(AimDbUniverse, self).initialize(db_session)
+        self.tree_manager = tree_model.TREE_MANAGER
+        self.context = context.AimContext(db_session)
+        self._served_tenants = set()
+        return self
+
     def serve(self, tenants):
-        pass
+        LOG.debug('Serving tenants: %s' % tenants)
+        self._served_tenants = set(tenants)
 
     def get_aim_resources(self, resource_keys):
-        pass
-
-    def push_aim_resources(self, resources):
-        pass
-
-    def push_aim_resource(self, resource):
-        pass
-
-    def get_aim_resource(self, resource_key):
-        pass
-
-    def state(self):
+        # TODO(ivar): This depends on how the HashTree Keys are stored
         pass
 
     def observe(self):
         pass
 
-    def initialize(self, db_handler):
-        pass
+    def get_optimized_state(self, other_state):
+        request = {}
+        for tenant in self._served_tenants:
+            request[tenant] = None
+            if tenant in other_state:
+                request[tenant] = other_state[tenant].root.full_hash
+        return self.tree_manager.find_changed(self.context, request)
+
+    @property
+    def state(self):
+        """State is not kept in memory by this universe, retrieve remotely
+
+        :return: current state
+        """
+        # Returns state for all the tenants regardless
+        return self.tree_manager.find_changed(
+            self.context, dict([(x, None) for x in self._served_tenants]))
+
+    def reconcile(self, other_universe):
+        # For now, reconciliation into AIM cannot be done
+        raise NotImplementedError

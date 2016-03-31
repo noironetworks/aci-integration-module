@@ -48,6 +48,7 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
         sa.TIMESTAMP, server_default=func.now(), onupdate=func.now())
     description = sa.Column(sa.String(255))
     beat_count = sa.Column(sa.Integer, default=0)
+    version = sa.Column(sa.String, nullable=False)
     hash_trees = orm.relationship(tree_model.AgentToHashTreeAssociation,
                                   backref='agents',
                                   cascade='all, delete-orphan',

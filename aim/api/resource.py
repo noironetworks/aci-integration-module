@@ -129,7 +129,8 @@ class Agent(ResourceBase):
                         'admin_state_up',
                         'description',
                         'hash_trees',
-                        'beat_count']
+                        'beat_count',
+                        'version']
     # Attrbutes completely managed by the DB (eg. timestamps)
     db_attributes = ['created_at',
                      'heartbeat_timestamp']
@@ -138,6 +139,9 @@ class Agent(ResourceBase):
         super(Agent, self).__init__({'admin_state_up': True,
                                      'beat_count': 0,
                                      'id': utils.generate_uuid()}, **kwargs)
+
+    def __eq__(self, other):
+        return self.id == other.id
 
     def is_down(self):
         LOG.debug("Checking whether agent %s (timestamp %s) is down" %

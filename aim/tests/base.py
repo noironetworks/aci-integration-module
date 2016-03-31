@@ -17,11 +17,11 @@ import os
 
 from oslo_config import cfg
 from oslotest import base
-from sqlalchemy import engine as sa_engine
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
 from aim.api import resource
 from aim import context
+from aim.db import api
 from aim.db import model_base
 
 CONF = cfg.CONF
@@ -65,16 +65,39 @@ class BaseTestCase(base.BaseTestCase):
         self.test_conf_file = etcdir('aim.conf.test')
         self.config_parse()
 
+    def _check_call_list(self, expected, mocked, check_all=True):
+        observed = mocked.call_args_list
+        for call in expected:
+            self.assertTrue(call in observed,
+                            msg='Call not found, expected:\n%s\nobserved:'
+                                '\n%s' % (str(call), str(observed)))
+            observed.remove(call)
+        if check_all:
+            self.assertFalse(
+                len(observed),
+                msg='There are more calls than expected: %s' % str(observed))
 
-class TestAimDBBase(base.BaseTestCase):
+
+class TestAimDBBase(BaseTestCase):
+
+    _TABLES_ESTABLISHED = False
 
     def setUp(self):
         super(TestAimDBBase, self).setUp()
-        self.engine = sa_engine.create_engine('sqlite:///:memory:')
-        model_base.Base.metadata.create_all(self.engine)
-        session = sa_sessionmaker(bind=self.engine)()
-        self.ctx = context.AimContext(db_session=session)
+        self.engine = api.get_engine()
+        if not TestAimDBBase._TABLES_ESTABLISHED:
+            model_base.Base.metadata.create_all(self.engine)
+            TestAimDBBase._TABLES_ESTABLISHED = True
+        self.session = api.get_session(expire_on_commit=True)
+        self.ctx = context.AimContext(db_session=self.session)
         resource.ResourceBase.__eq__ = resource_equal
+
+        def clear_tables():
+            with self.engine.begin() as conn:
+                for table in reversed(
+                        model_base.Base.metadata.sorted_tables):
+                    conn.execute(table.delete())
+        self.addCleanup(clear_tables)
 
     def get_new_context(self):
         return context.AimContext(

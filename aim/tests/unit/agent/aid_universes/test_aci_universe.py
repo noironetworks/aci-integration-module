@@ -36,6 +36,7 @@ class TestAciUniverse(base.TestAimDBBase):
         aci_tenant.AciTenantManager.is_dead = mock.Mock(return_value=False)
         aci_tenant.AciTenantManager.health_state = True
         aci_tenant.AciTenantManager.kill = _kill_thread
+        aci_tenant.AciTenantManager._establish_aci_session = mock.Mock()
 
     def test_serve(self):
         tenant_list = ['tn%s' % x for x in range(10)]
@@ -136,3 +137,29 @@ class TestAciUniverse(base.TestAimDBBase):
         self.universe.serve(tenant_list_new)
         self.assertEqual(set(tenant_list_new),
                          set(self.universe._serving_tenants.keys()))
+
+    def test_push_aim_resources(self):
+        # Create some resources
+        bd1_tn1 = self._get_example_bridge_domain(tenant_name='tn1',
+                                                  name='bd1')
+        bd2_tn1 = self._get_example_bridge_domain(tenant_name='tn1',
+                                                  name='bd2')
+        bd1_tn2 = self._get_example_bridge_domain(tenant_name='tn2',
+                                                  name='bd1')
+        bd2_tn2 = self._get_example_bridge_domain(tenant_name='tn2',
+                                                  name='bd2')
+
+        self.universe.serve(['tn1', 'tn2'])
+        self.universe.push_aim_resources(
+            {'create': [bd1_tn1, bd2_tn1, bd2_tn2],
+             'delete': [bd1_tn2]})
+        # Verify that the requests are filled properly
+        tn1 = self.universe._serving_tenants['tn1'].object_backlog.get()
+        tn2 = self.universe._serving_tenants['tn2'].object_backlog.get()
+        self.assertEqual({'create': [bd1_tn1, bd2_tn1]}, tn1)
+        self.assertEqual({'create': [bd2_tn2], 'delete': [bd1_tn2]}, tn2)
+
+        self.assertTrue(
+            self.universe._serving_tenants['tn1'].object_backlog.empty())
+        self.assertTrue(
+            self.universe._serving_tenants['tn2'].object_backlog.empty())

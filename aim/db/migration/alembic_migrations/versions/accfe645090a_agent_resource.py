@@ -46,6 +46,7 @@ def upgrade():
                   server_default=func.now(), onupdate=func.now()),
         sa.Column('beat_count', sa.Integer, default=0),
         sa.Column('description', sa.String(255)),
+        sa.Column('version', sa.String(10)),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('agent_type', 'host',
                             name='uniq_agents0agent_type0host'))
