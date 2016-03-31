@@ -28,8 +28,8 @@ class TestAciToAimConverter(base.TestAimDBBase):
         example_bd = self._get_example_bd()
         result = self.converter.convert([example_bd])
         # Expected object
-        expected = resource.BridgeDomain(tenant_rn='test-tenant',
-                                         rn='test',
+        expected = resource.BridgeDomain(tenant_name='test-tenant',
+                                         name='test',
                                          enable_arp_flood=False,
                                          enable_routing=True,
                                          limit_ip_learn_to_subnets=False,
@@ -39,8 +39,8 @@ class TestAciToAimConverter(base.TestAimDBBase):
         self.assertEqual(expected, result[0])
         # Convert another BD
         example_bd_2 = self._get_example_bd(dn='uni/tn-test-tenant/BD-test-1')
-        expected_2 = resource.BridgeDomain(tenant_rn='test-tenant',
-                                           rn='test-1',
+        expected_2 = resource.BridgeDomain(tenant_name='test-tenant',
+                                           name='test-1',
                                            enable_arp_flood=False,
                                            enable_routing=True,
                                            limit_ip_learn_to_subnets=False,
@@ -53,8 +53,8 @@ class TestAciToAimConverter(base.TestAimDBBase):
     def test_non_existing_resource(self):
         example_bd = self._get_example_bd()
         result = self.converter.convert([example_bd, {'fvCtxNonEx': {}}])
-        expected = resource.BridgeDomain(tenant_rn='test-tenant',
-                                         rn='test',
+        expected = resource.BridgeDomain(tenant_name='test-tenant',
+                                         name='test',
                                          enable_arp_flood=False,
                                          enable_routing=True,
                                          limit_ip_learn_to_subnets=False,
@@ -67,8 +67,8 @@ class TestAciToAimConverter(base.TestAimDBBase):
     def test_non_uni_dn(self):
         example_bd = self._get_example_bd(dn='tn-test-tenant/BD-test')
         result = self.converter.convert([example_bd])
-        expected = resource.BridgeDomain(tenant_rn='test-tenant',
-                                         rn='test',
+        expected = resource.BridgeDomain(tenant_name='test-tenant',
+                                         name='test',
                                          enable_arp_flood=False,
                                          enable_routing=True,
                                          limit_ip_learn_to_subnets=False,
@@ -105,7 +105,7 @@ class TestAciToAimConverter(base.TestAimDBBase):
             'to_resource': converter.fv_bd_to_resource}, {
             'resource': 'fvRsCtx',
             'exceptions': {
-                'vrf_rn': {
+                'vrf_name': {
                     'other': 'tnFvCtxName'
                 },
             },
@@ -126,14 +126,14 @@ class TestAciToAimConverter(base.TestAimDBBase):
                 'arpFlood': 'yes', 'seg': '14909412',
                 'modTs': '2016-03-24T14:55:12.867+00:00',
                 'rn': '', 'childAction': ''}}}]
-        expected = resource.BridgeDomain(tenant_rn='test-tenant',
-                                         rn='test',
+        expected = resource.BridgeDomain(tenant_name='test-tenant',
+                                         name='test',
                                          enable_arp_flood=True,
                                          l2_unknown_unicast_mode='flood')
         result = self.converter.convert(partial_bd)
         # Verify that dictionary doesn't have more values than it should
-        self.assertEqual({'tenant_rn': 'test-tenant',
-                          'rn': 'test', 'enable_arp_flood': True,
+        self.assertEqual({'tenant_name': 'test-tenant',
+                          'name': 'test', 'enable_arp_flood': True,
                           'l2_unknown_unicast_mode': 'flood'},
                          expected.__dict__)
         self.assertEqual(expected, result[0])
@@ -143,12 +143,12 @@ class TestAciToAimConverter(base.TestAimDBBase):
             'fvBD': {'attributes': {
                 'dn': 'uni/tn-test-tenant/BD-test',
                 'status': 'deleted'}}}]
-        expected = resource.BridgeDomain(tenant_rn='test-tenant',
-                                         rn='test',
+        expected = resource.BridgeDomain(tenant_name='test-tenant',
+                                         name='test',
                                          _status='deleted')
         result = self.converter.convert(deleted_bd)
-        self.assertEqual({'tenant_rn': 'test-tenant',
-                          'rn': 'test', '_status': 'deleted'},
+        self.assertEqual({'tenant_name': 'test-tenant',
+                          'name': 'test', '_status': 'deleted'},
                          expected.__dict__)
         self.assertEqual(expected, result[0])
 
@@ -186,8 +186,8 @@ class TestAimToAciConverter(base.TestAimDBBase):
         self.assertTrue(expected[1] in result,
                         'Expected %s not in result %s' % (expected[1], result))
         # Convert another BD
-        example_bd_2 = self._get_example_bridge_domain(rn='test-1',
-                                                       vrf_rn='common')
+        example_bd_2 = self._get_example_bridge_domain(name='test-1',
+                                                       vrf_name='common')
         expected_2 = [
             {
                 "fvBD": {

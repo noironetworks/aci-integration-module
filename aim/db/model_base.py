@@ -33,9 +33,10 @@ class AimBase(object):
     __table_args__ = {'mysql_engine': 'InnoDB'}
 
 
-class HasRn(object):
+class HasName(object):
 
-    rn = sa.Column(sa.String(64), primary_key=True)
+    name = sa.Column(sa.String(64), primary_key=True)
+    display_name = sa.Column(sa.String(256))
 
 
 class HasId(object):

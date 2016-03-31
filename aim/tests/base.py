@@ -81,9 +81,9 @@ class TestAimDBBase(base.BaseTestCase):
             db_session=sa_sessionmaker(bind=self.engine)())
 
     def _get_example_bridge_domain(self, **kwargs):
-        example = resource.BridgeDomain(tenant_rn='test-tenant',
-                                        vrf_rn='default',
-                                        rn='test', enable_arp_flood=False,
+        example = resource.BridgeDomain(tenant_name='test-tenant',
+                                        vrf_name='default',
+                                        name='test', enable_arp_flood=False,
                                         enable_routing=True,
                                         limit_ip_learn_to_subnets=False,
                                         l2_unknown_unicast_mode='proxy',
