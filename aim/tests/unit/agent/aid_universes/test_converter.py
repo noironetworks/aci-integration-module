@@ -252,7 +252,7 @@ class TestAimToAciConverter(base.TestAimDBBase):
 
     def test_missing_reference(self):
         example_bd = self._get_example_bridge_domain()
-        example_bd.vrf_rn = None
+        example_bd.vrf_name = None
         result = self.converter.convert([example_bd])
         self.assertEqual(1, len(result))
         expected = [
