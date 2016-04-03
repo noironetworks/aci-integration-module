@@ -42,3 +42,8 @@ class IdentityAttributesMissing(AimException):
 
 class UnknownResourceType(AimException):
     message = "Unknown resource type %(type)s."
+
+
+class AciResourceDefinitionError(AimException):
+    message = ("Required class attribute %(attr)s not defined for "
+               "resource %(klass)s")

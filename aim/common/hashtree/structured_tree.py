@@ -327,6 +327,9 @@ class StructuredHashTree(base.ComparableCollection):
         self._diff_children(childrenl, childrenr, result)
         return result
 
+    def has_subtree(self):
+        return self.root and len(self.root._children) > 0
+
     def _diff_children(self, childrenl, childrenr, result):
         for node in childrenr:
             if childrenl.index(node.key) is None:

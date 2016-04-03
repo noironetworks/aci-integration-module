@@ -19,6 +19,7 @@ from sqlalchemy import event as sa_event
 from aim.api import resource as api_res
 from aim.api import status as api_status
 from aim.db import agent_model
+from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import models
 from aim import exceptions as exc
 
@@ -57,6 +58,7 @@ class AimManager(object):
         for k, v in self._db_model_map.iteritems():
             self._resource_map[v] = k
         self._update_listeners = []
+        self._hashtree_db_listener = ht_db_l.HashTreeDbListener(self)
 
     def create(self, context, resource, overwrite=False):
         """Persist AIM resource to the database.

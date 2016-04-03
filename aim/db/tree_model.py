@@ -97,7 +97,8 @@ class TenantTreeManager(object):
     @utils.log
     def get(self, context, tenant_rn):
         try:
-            return self._find_query(context, tenant_rn=tenant_rn).one()
+            return self.tree_klass.from_string(str(
+                self._find_query(context, tenant_rn=tenant_rn).one().tree))
         except sql_exc.NoResultFound:
             raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
 
@@ -118,4 +119,12 @@ class TenantTreeManager(object):
             query = query.filter_by(**kwargs)
         return query
 
-TREE_MANAGER = TenantTreeManager(structured_tree.StructuredHashTree)
+
+class TenantHashTreeManager(TenantTreeManager):
+    def __init__(self):
+        super(TenantHashTreeManager, self).__init__(
+            structured_tree.StructuredHashTree)
+
+
+# TODO(amitbose) Do we need this global?
+TREE_MANAGER = TenantHashTreeManager()

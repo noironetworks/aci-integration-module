@@ -143,6 +143,22 @@ class TestAimManager(base.TestAimDBBase):
         self.assertRaises(
             exc.UnknownResourceType, self.mgr.find, self.ctx, bad_resource)
 
+    def test_bad_aci_resource_definition(self):
+
+        class bad_resource_1(resource.AciResourceBase):
+            pass
+
+        class bad_resource_2(bad_resource_1):
+            _aci_mo_name = 'fvMagic'
+
+        def create_obj(klass):
+            return klass({})
+
+        self.assertRaises(exc.AciResourceDefinitionError, create_obj,
+                          bad_resource_1)
+        self.assertRaises(exc.AciResourceDefinitionError, create_obj,
+                          bad_resource_2)
+
     def _test_commit_hook(self, resource, test_identity_attributes,
                           test_required_attributes, test_update_attributes):
         """Test basic commit hooks for resources
