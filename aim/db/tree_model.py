@@ -180,23 +180,31 @@ class AimHashTreeMaker(object):
         key = tuple(['|'.join(x) for x in zip(cls_list, id_values)])
         return key
 
-    def update_tree(self, tree, update):
-        """Update tree with AIM resources.
+    def update(self, tree, updates):
+        """Add/update AIM resource to tree.
 
         :param tree: ComparableCollection instance
-        :param update: dictionary containing resources *of a single tenant*
-        represented as follows:
-        {"create": [list-of-resources], "delete": [list-of-resources]}
+        :param updates: list of resources *of a single tenant* that should be
+                        added/updated
         :return: The updated tree (value is also changed)
         """
-        for resource in update.get('delete', []):
-            key = self._build_hash_tree_key(resource)
-            tree.pop(key)
-
-        for resource in update.get('create', []):
+        for resource in updates:
             key = self._build_hash_tree_key(resource)
             tree.add(key, **{x: getattr(resource, x, None)
                              for x in resource.other_attributes})
+        return tree
+
+    def delete(self, tree, deletes):
+        """Delete AIM resources from tree.
+
+        :param tree: ComparableCollection instance
+        :param deletes: list of resources *of a single tenant* that should be
+                        deleted
+        :return: The updated tree (value is also changed)
+        """
+        for resource in deletes:
+            key = self._build_hash_tree_key(resource)
+            tree.pop(key)
         return tree
 
     def get_tenant_key(self, resource):

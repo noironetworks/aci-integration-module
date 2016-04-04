@@ -41,8 +41,7 @@ class HashTreeDbListener(object):
                 if not key:
                     continue
                 updates_by_tenant.setdefault(key, ([], []))
-                updates_by_tenant[key][0 if idx < 2 else 1].append(
-                    (key, res))
+                updates_by_tenant[key][0 if idx < 2 else 1].append(res)
 
         # Query hash-tree for each tenant and modify the tree based on DB
         # updates
@@ -59,10 +58,8 @@ class HashTreeDbListener(object):
             except hexc.HashTreeNotFound:
                 ttree = htree.StructuredHashTree()
                 ttree_exists = False
-            for key_res in upd[0]:
-                self.tt_maker.update_tree(ttree, {"create": [key_res[1]]})
-            for key_res in upd[1]:
-                self.tt_maker.update_tree(ttree, {"delete": [key_res[1]]})
+            self.tt_maker.update(ttree, upd[0])
+            self.tt_maker.delete(ttree, upd[1])
 
             if not ttree.has_subtree():
                 if ttree_exists:
