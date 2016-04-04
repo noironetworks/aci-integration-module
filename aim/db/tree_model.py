@@ -56,14 +56,14 @@ class TenantTree(model_base.Base):
 
 class TenantTreeManager(object):
 
-    def __init__(self, tree_klass):
+    def __init__(self, tree_klass, tenant_rn_funct=None):
         self.tree_klass = tree_klass
+        self.tenant_rn_funct = (tenant_rn_funct or
+                                self._default_tenant_rn_funct)
 
     @utils.log
     def update_bulk(self, context, hash_trees):
-        # TODO(ivar): When AIM tenant creation is defined, tenant_rn might not
-        # correspond to x.root.key[0] anymore.
-        trees = {x.root.key[0]: x for x in hash_trees}
+        trees = {self.tenant_rn_funct(x): x for x in hash_trees}
         with context.db_session.begin(subtransactions=True):
             db_objs = self._find_query(context,
                                        in_={'tenant_rn': trees.keys()}).all()
@@ -74,7 +74,7 @@ class TenantTreeManager(object):
                 context.db_session.add(obj)
 
             for hash_tree in trees.values():
-                obj = TenantTree(tenant_rn=hash_tree.root.key[0],
+                obj = TenantTree(tenant_rn=self.tenant_rn_funct(hash_tree),
                                  root_full_hash=hash_tree.root.full_hash,
                                  tree=str(hash_tree))
                 context.db_session.add(obj)
@@ -83,7 +83,7 @@ class TenantTreeManager(object):
     def delete_bulk(self, context, hash_trees):
         with context.db_session.begin(subtransactions=True):
             db_objs = self._find_query(
-                context, in_={'tenant_rn': [x.root.key[0]
+                context, in_={'tenant_rn': [self.tenant_rn_funct(x)
                                             for x in hash_trees]}).all()
             for db_obj in db_objs:
                 context.db_session.delete(db_obj)
@@ -111,6 +111,8 @@ class TenantTreeManager(object):
 
     @utils.log
     def find_changed(self, context, tenant_map):
+        if not tenant_map:
+            return {}
         return dict((x.tenant_rn, self.tree_klass.from_string(str(x.tree)))
                     for x in self._find_query(
                         context, in_={'tenant_rn': tenant_map.keys()},
@@ -132,11 +134,8 @@ class TenantTreeManager(object):
             query = query.filter_by(**kwargs)
         return query
 
-
-class TenantHashTreeManager(TenantTreeManager):
-    def __init__(self):
-        super(TenantHashTreeManager, self).__init__(
-            structured_tree.StructuredHashTree)
+    def _default_tenant_rn_funct(self, tree):
+        return tree.root.key[0]
 
 
 class AimHashTreeMaker(object):
@@ -211,6 +210,19 @@ class AimHashTreeMaker(object):
         key = self._build_hash_tree_key(resource)
         return key[0] if key else None
 
+    @staticmethod
+    def tenant_rn_funct(tree):
+        """RN funct for Tree Maker
 
-# TODO(amitbose) Do we need this global?
-TREE_MANAGER = TenantHashTreeManager()
+        Utility function for TreeManager initialization
+        :param tree:
+        :return:
+        """
+        return tree.root.key[0][tree.root.key[0].find('|') + 1:]
+
+
+class TenantHashTreeManager(TenantTreeManager):
+    def __init__(self):
+        super(TenantHashTreeManager, self).__init__(
+            structured_tree.StructuredHashTree,
+            AimHashTreeMaker.tenant_rn_funct)

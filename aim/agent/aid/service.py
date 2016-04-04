@@ -17,8 +17,8 @@ import sys
 import time
 import traceback
 
+import gevent
 from oslo_log import log as logging
-from oslo_service import loopingcall
 import semantic_version
 
 from aim.agent.aid.universes.aci import aci_universe
@@ -50,7 +50,7 @@ class AID(object):
             api.get_session())
         self.context = context.AimContext(self.session)
         self.manager = aim_manager.AimManager()
-        self.tree_manager = tree_model.TREE_MANAGER
+        self.tree_manager = tree_model.TenantHashTreeManager()
         self.polling_interval = conf.aim.agent_polling_interval
         self.host = conf.host
         self.agent_id = 'aid-%s' % self.host
@@ -62,10 +62,7 @@ class AID(object):
         self._send_heartbeat()
         # Report procedure should happen asynchronously
         report_interval = conf.aim.agent_report_interval
-        if report_interval:
-            heartbeat = loopingcall.FixedIntervalLoopingCall(
-                self._send_heartbeat)
-            heartbeat.start(interval=report_interval)
+        gevent.spawn(self._heartbeat_loop, report_interval)
 
     def daemon_loop(self):
         while True:
@@ -95,7 +92,14 @@ class AID(object):
         # TODO(ivar): retrieve status for objects. Collecting status
         # should happen asynchronously as should be pushing it to AIM.
 
+    def _heartbeat_loop(self, interval):
+        while True:
+            start = time.time()
+            self._send_heartbeat()
+            gevent.sleep(max(0, interval - (time.time() - start)))
+
     def _send_heartbeat(self):
+        LOG.debug("Sending Heartbeat for agent %s" % self.agent_id)
         self.agent.beat_count += 1
         self.agent = self.manager.create(self.context, self.agent,
                                          overwrite=True)
@@ -111,6 +115,8 @@ class AID(object):
                                              admin_state_up=True)
                 if not x.is_down()]
             # Validate agent version
+            if not agents:
+                return []
             max_version = max(agents, key=lambda x: x.version).version
             if self._major_vercompare(self.agent.version, max_version) < 0:
                 LOG.error("Agent version is outdated: Current %s Required %s"
@@ -141,7 +147,7 @@ class AID(object):
         ring = hashring.ConsistentHashRing(dict([(x.id, None)
                                                  for x in agents]))
         # retrieve tenants
-        for tenant in tree_model.TREE_MANAGER.get_tenants(self.context):
+        for tenant in self.tree_manager.get_tenants(self.context):
             allocations = ring.assign_key(tenant)
             if self.agent_id in allocations:
                 result.append(tenant)
@@ -150,14 +156,15 @@ class AID(object):
     def _wait_for_next_cycle(self, start_time):
         # sleep till end of polling interval
         elapsed = time.time() - start_time
-        LOG.debug("AID loop - completed in %(time).3f. ", {'elapsed': elapsed})
+        LOG.debug("AID loop - completed in %(time).3f. ", {'time': elapsed})
         if elapsed < self.polling_interval:
-            time.sleep(self.polling_interval - elapsed)
+            gevent.sleep(self.polling_interval - elapsed)
         else:
             LOG.debug("Loop iteration exceeded interval "
                       "(%(polling_interval)s vs. %(elapsed)s)!",
                       {'polling_interval': self.polling_interval,
                        'elapsed': elapsed})
+            gevent.sleep(0)
 
     def _major_vercompare(self, x, y):
         return (semantic_version.Version(x).major -

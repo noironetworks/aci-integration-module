@@ -319,6 +319,10 @@ class StructuredHashTree(base.ComparableCollection):
 
     @utils.log
     def diff(self, other):
+        if not self.root:
+            return {"add": [], "remove": self._get_subtree_keys(other.root)}
+        if not other.root:
+            return {"add": self._get_subtree_keys(self.root), "remove": []}
         childrenl = ChildrenList()
         childrenl.add(self.root)
         childrenr = ChildrenList()
@@ -339,7 +343,7 @@ class StructuredHashTree(base.ComparableCollection):
             else:
                 # Common child
                 if childrenl[node.key].partial_hash != node.partial_hash:
-                    LOG.debug("Node %s out of sync" % node.key)
+                    LOG.debug("Node %s out of sync" % str(node.key))
                     # This node needs to be modified as well
                     result['add'].append(node.key)
                 if childrenl[node.key].full_hash != node.full_hash:
@@ -355,6 +359,8 @@ class StructuredHashTree(base.ComparableCollection):
 
     def _get_subtree_keys(self, root):
         # traverse the tree and returns all its keys
+        if not root:
+            return []
         result = [root.key]
         for node in root.get_children():
             result += self._get_subtree_keys(node)

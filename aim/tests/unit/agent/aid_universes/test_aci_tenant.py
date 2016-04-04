@@ -50,43 +50,7 @@ def mock_get_data(inst, dn, **kwargs):
             err_text='Not Found', err_code='404')
 
 
-class TestAciTenant(base.TestAimDBBase):
-
-    def setUp(self):
-        super(TestAciTenant, self).setUp()
-        config.CONF.set_override('apic_hosts', ['1.1.1.1'], 'apic')
-        self.ws_login = mock.patch('acitoolkit.acitoolkit.Session.login')
-        self.ws_login.start()
-
-        self.tn_subscribe = mock.patch(
-            'aim.agent.aid.universes.aci.tenant.Tenant._instance_subscribe',
-            return_value=FakeResponse())
-        self.tn_subscribe.start()
-
-        self.process_q = mock.patch(
-            'acitoolkit.acisession.Subscriber._process_event_q')
-        self.process_q.start()
-
-        self.post_body = mock.patch(
-            'apicapi.apic_client.ApicSession.post_body')
-        self.post_body.start()
-
-        self.apic_login = mock.patch(
-            'apicapi.apic_client.ApicSession.login')
-        self.apic_login.start()
-        apic_client.ApicSession.get_data = mock_get_data
-        # Patch currently unimplemented methods
-        self.manager = aci_tenant.AciTenantManager('tenant-1',
-                                                   config.CONF.apic)
-
-        # Monkey patch APIC Transactions
-        self.old_transaction_commit = apic_client.Transaction.commit
-
-        self.addCleanup(self.ws_login.stop)
-        self.addCleanup(self.apic_login.stop)
-        self.addCleanup(self.tn_subscribe.stop)
-        self.addCleanup(self.process_q.stop)
-        self.addCleanup(self.post_body.stop)
+class TestAciClientMixin(object):
 
     def _add_server_data(self, data, manager=None):
         manager = manager or self.manager
@@ -165,10 +129,53 @@ class TestAciTenant(base.TestAimDBBase):
                                          "ownerKey": "",
                                          "ownerTag": ""}}}]
 
-    def _set_events(self, event_list):
-        self.manager.ws_session.subscription_thread._events[
-            self.manager.tenant._get_instance_subscription_urls()[0]] = [
+    def _set_events(self, event_list, manager=None):
+        # Greenlets have their own weird way of calculating bool
+        manager = manager if manager is not None else self.manager
+        manager.ws_session.subscription_thread._events[
+            manager.tenant._get_instance_subscription_urls()[0]] = [
             dict([('imdata', [x])]) for x in event_list]
+
+    def _do_aci_mocks(self):
+        config.CONF.set_override('apic_hosts', ['1.1.1.1'], 'apic')
+        self.ws_login = mock.patch('acitoolkit.acitoolkit.Session.login')
+        self.ws_login.start()
+
+        self.tn_subscribe = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.Tenant._instance_subscribe',
+            return_value=FakeResponse())
+        self.tn_subscribe.start()
+
+        self.process_q = mock.patch(
+            'acitoolkit.acisession.Subscriber._process_event_q')
+        self.process_q.start()
+
+        self.post_body = mock.patch(
+            'apicapi.apic_client.ApicSession.post_body')
+        self.post_body.start()
+
+        self.apic_login = mock.patch(
+            'apicapi.apic_client.ApicSession.login')
+        self.apic_login.start()
+        apic_client.ApicSession.get_data = mock_get_data
+
+        # Monkey patch APIC Transactions
+        self.old_transaction_commit = apic_client.Transaction.commit
+
+        self.addCleanup(self.ws_login.stop)
+        self.addCleanup(self.apic_login.stop)
+        self.addCleanup(self.tn_subscribe.stop)
+        self.addCleanup(self.process_q.stop)
+        self.addCleanup(self.post_body.stop)
+
+
+class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
+
+    def setUp(self):
+        super(TestAciTenant, self).setUp()
+        self._do_aci_mocks()
+        self.manager = aci_tenant.AciTenantManager('tenant-1',
+                                                   config.CONF.apic)
 
     def test_event_loop(self):
         self.manager._subscribe_tenant()

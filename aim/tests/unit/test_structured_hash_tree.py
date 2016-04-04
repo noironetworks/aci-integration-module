@@ -455,7 +455,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
     def setUp(self):
         super(TestHashTreeManager, self).setUp()
-        self.mgr = tree_model.TREE_MANAGER
+        self.mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
 
     def test_update(self):
         data = tree.StructuredHashTree().include(

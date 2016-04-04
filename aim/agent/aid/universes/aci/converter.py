@@ -55,11 +55,14 @@ def default_to_resource(converted, helper, to_aim=True):
     if to_aim:
         # APIC to AIM
         return klass(
+            set_default=False,
             **dict([(k, v) for k, v in converted.iteritems() if k in
                     (klass.identity_attributes + klass.db_attributes +
                      klass.other_attributes)]))
     else:
-        return {klass: {'attributes': converted}}
+        result = {klass: {'attributes': converted}}
+        result[klass]['attributes'].pop('displayName', None)
+        return result
 
 
 def convert_attribute(aim_attribute, to_aim=True):
@@ -298,7 +301,12 @@ class AciToAimModelConverter(BaseConverter):
         """
         res_map = {}
         for res in converted_list:
-            current = res_map.setdefault(tuple(res.identity), res)
+            # Base for squashing is the Resource with all its defaults
+            klass = type(res)
+            current = res_map.setdefault(
+                tuple(res.identity),
+                klass(**dict([(y, res.identity[x]) for x, y in
+                              enumerate(klass.identity_attributes)])))
             current.__dict__.update(res.__dict__)
         return res_map.values()
 

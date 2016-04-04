@@ -15,6 +15,7 @@
 
 from oslo_log import log as logging
 
+from aim.api import resource as api_res
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
 from aim.db import tree_model
@@ -37,7 +38,7 @@ class HashTreeDbListener(object):
         all_updates = [added, updated, deleted]
         for idx in range(len(all_updates)):
             for res in all_updates[idx]:
-                key = self.tt_maker.get_tenant_key(res)
+                key = self._get_resource_tenant(res)
                 if not key:
                     continue
                 updates_by_tenant.setdefault(key, ([], []))
@@ -72,3 +73,7 @@ class HashTreeDbListener(object):
             self.tt_mgr.update_bulk(ctx, upd_trees)
         if del_trees:
             self.tt_mgr.delete_bulk(ctx, del_trees)
+
+    def _get_resource_tenant(self, resource):
+        return (resource.name if isinstance(resource, api_res.Tenant) else
+                getattr(resource, 'tenant_name', None))

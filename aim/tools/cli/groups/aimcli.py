@@ -34,13 +34,15 @@ db_opts = [
 @click.group()
 @click.option('--config-file', '-c', multiple=True,
               help='AIM static configuration file')
+@click.option('--db/--no-db', default=True)
 @click.pass_context
-def aim(ctx, config_file):
+def aim(ctx, config_file, db):
     """Group for AIM cli."""
-    try:
-        config.CONF.register_opts(db_opts, 'database')
-    except Exception:
-        pass
+    if db:
+        try:
+            config.CONF.register_opts(db_opts, 'database')
+        except Exception:
+            pass
     if ctx.obj is None:
         ctx.obj = {}
     args = []

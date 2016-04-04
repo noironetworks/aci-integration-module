@@ -16,6 +16,8 @@
 import mock
 
 from aim.agent.aid.universes import aim_universe
+from aim import aim_manager
+from aim.api import resource
 from aim.common.hashtree import structured_tree as tree
 from aim.db import agent_model  # noqa
 from aim.db import tree_model
@@ -27,7 +29,7 @@ class TestAimDbUniverse(base.TestAimDBBase):
     def setUp(self):
         super(TestAimDbUniverse, self).setUp()
         self.universe = aim_universe.AimDbUniverse().initialize(self.session)
-        self.tree_mgr = tree_model.TREE_MANAGER
+        self.tree_mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
 
     def test_serve(self):
         # Serve the first batch of tenants
@@ -102,3 +104,32 @@ class TestAimDbUniverse(base.TestAimDBBase):
         # Now Data1 is included too
         self.assertEqual({'tnA3': data4, 'tnA': data1},
                          self.universe.get_optimized_state(other_state))
+
+    def test_get_aim_resources(self):
+        tree_mgr = tree_model.TenantHashTreeManager()
+        aim_mgr = aim_manager.AimManager()
+        # Create Resources on a couple of tenants
+        bd1 = resource.BridgeDomain(
+            tenant_name='t1', name='bd1', display_name='somestuff',
+            vrf_name='vrf')
+        bd2 = resource.BridgeDomain(
+            tenant_name='t2', name='bd1', display_name='somestuff',
+            vrf_name='vrf2')
+
+        aim_mgr.create(self.ctx, bd1)
+        aim_mgr.create(self.ctx, bd2)
+
+        # Two trees exist
+        trees = tree_mgr.find(self.ctx)
+        self.assertEqual(2, len(trees))
+
+        # Calculate the different with empty trees to retrieve missing keys
+        diff_tn_1 = trees[0].diff(tree.StructuredHashTree())
+        diff_tn_2 = trees[1].diff(tree.StructuredHashTree())
+
+        result = self.universe.get_aim_resources(diff_tn_1.get('add', []) +
+                                                 diff_tn_1.get('remove', []) +
+                                                 diff_tn_2.get('add', []) +
+                                                 diff_tn_2.get('remove', []))
+        self.assertTrue(bd1 in result)
+        self.assertTrue(bd2 in result)

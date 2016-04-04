@@ -131,11 +131,6 @@ class TestAciToAimConverter(base.TestAimDBBase):
                                          enable_arp_flood=True,
                                          l2_unknown_unicast_mode='flood')
         result = self.converter.convert(partial_bd)
-        # Verify that dictionary doesn't have more values than it should
-        self.assertEqual({'tenant_name': 'test-tenant',
-                          'name': 'test', 'enable_arp_flood': True,
-                          'l2_unknown_unicast_mode': 'flood'},
-                         expected.__dict__)
         self.assertEqual(expected, result[0])
 
     def test_deleted_object(self):
@@ -147,9 +142,6 @@ class TestAciToAimConverter(base.TestAimDBBase):
                                          name='test',
                                          _status='deleted')
         result = self.converter.convert(deleted_bd)
-        self.assertEqual({'tenant_name': 'test-tenant',
-                          'name': 'test', '_status': 'deleted'},
-                         expected.__dict__)
         self.assertEqual(expected, result[0])
 
 

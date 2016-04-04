@@ -67,6 +67,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 if (added not in self._serving_tenants or not
                         self._serving_tenants[added].health_state or
                         self._serving_tenants[added].is_dead()):
+                    LOG.debug("Adding new tenant %s" % added)
                     # Start thread or replace broken one
                     # Checking the 'dead' state helps those cases in which
                     # a kill successfully happened but then  the state was

@@ -17,7 +17,16 @@
 import abc
 import six
 
+from oslo_log import log as logging
+from oslo_utils import importutils
+
+from aim import aim_manager
 from aim.common.hashtree import structured_tree
+from aim import context
+from aim import exceptions as aim_exc
+
+
+LOG = logging.getLogger(__name__)
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -147,8 +156,15 @@ class HashTreeStoredUniverse(AimUniverse):
     def initialize(self, db_session):
         super(HashTreeStoredUniverse, self).initialize(db_session)
         self.db = db_session
+        self.context = context.AimContext(self.db)
+        self.manager = aim_manager.AimManager()
         self._state = {}
         return self
+
+    def _dissect_key(self, key):
+        # Returns ('path.to.Class', [identity list])
+        return (key[-1][:key[-1].find('|')],
+                [x[x.find('|') + 1:] for x in key])
 
     def observe(self):
         pass
@@ -165,6 +181,9 @@ class HashTreeStoredUniverse(AimUniverse):
             difference = tree.diff(my_tenant_state)
             result['create'].extend(difference['add'])
             result['delete'].extend(difference['remove'])
+        LOG.debug("Universe differences: %s" % result)
+        if not result.get('create') and not result.get('delete'):
+            LOG.debug("The Universe is in sync.")
         # Get AIM resources at the end to reduce the number of transactions
         result['create'] = self.get_aim_resources(result['create'])
         result['delete'] = self.get_aim_resources(result['delete'])
@@ -175,7 +194,20 @@ class HashTreeStoredUniverse(AimUniverse):
         self.get_aim_resources([resource_key])
 
     def get_aim_resources(self, resource_keys):
-        pass
+        result = []
+        for key in resource_keys:
+            dissected = self._dissect_key(key)
+            klass = importutils.import_class(dissected[0])
+            res = klass(
+                **dict([(y, dissected[1][x])
+                        for x, y in enumerate(klass.identity_attributes)]))
+            try:
+                res_db = self.manager.get(self.context, res)
+                result.append(res_db or res)
+            except aim_exc.UnknownResourceType:
+                LOG.debug("Resource %s is not defined in AIM", dissected)
+
+        return result
 
     def push_aim_resources(self, resources):
         pass
