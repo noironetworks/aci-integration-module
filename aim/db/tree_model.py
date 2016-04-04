@@ -13,14 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
 import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import exc as sql_exc
 
+from aim.api import resource as api_res
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim.db import model_base
+
+
+LOG = logging.getLogger(__name__)
 
 
 class AgentToHashTreeAssociation(model_base.Base):
@@ -132,6 +137,71 @@ class TenantHashTreeManager(TenantTreeManager):
     def __init__(self):
         super(TenantHashTreeManager, self).__init__(
             structured_tree.StructuredHashTree)
+
+
+class AimHashTreeMaker(object):
+    """Hash Tree Maker
+
+    Utility class that updates a given Hash Tree with AIM resources following
+    a specific convention. This can be used to maintain consistent
+    representation across different parts of the system
+
+    In our current convention, each node of a given AIM resource is added to
+    the tree with a key represented as follows:
+
+    list('path.to.parent.Class|res-name', 'path.to.child.Class|res-name')
+    """
+
+    def __init__(self):
+        pass
+
+    def _build_hash_tree_key(self, resource):
+        if not isinstance(resource, api_res.AciResourceBase):
+            return None
+
+        cls_list = []
+        klass = type(resource)
+        while klass and hasattr(klass, '_tree_parent'):
+            cls_list.append(klass)
+            klass = klass._tree_parent
+        cls_list.reverse()
+
+        if cls_list[0] != api_res.Tenant:
+            return None
+
+        id_values = resource.identity
+        if len(id_values) != len(cls_list):
+            LOG.warning("Mismatch between number of identity values (%d) and "
+                        "parent classes (%d) for %s",
+                        len(id_values), len(cls_list), resource)
+            return None
+
+        cls_list = ['%s.%s' % (c.__module__, c.__name__) for c in cls_list]
+        key = tuple(['|'.join(x) for x in zip(cls_list, id_values)])
+        return key
+
+    def update_tree(self, tree, update):
+        """Update tree with AIM resources.
+
+        :param tree: ComparableCollection instance
+        :param update: dictionary containing resources *of a single tenant*
+        represented as follows:
+        {"create": [list-of-resources], "delete": [list-of-resources]}
+        :return: The updated tree (value is also changed)
+        """
+        for resource in update.get('delete', []):
+            key = self._build_hash_tree_key(resource)
+            tree.pop(key)
+
+        for resource in update.get('create', []):
+            key = self._build_hash_tree_key(resource)
+            tree.add(key, **{x: getattr(resource, x, None)
+                             for x in resource.other_attributes})
+        return tree
+
+    def get_tenant_key(self, resource):
+        key = self._build_hash_tree_key(resource)
+        return key[0] if key else None
 
 
 # TODO(amitbose) Do we need this global?

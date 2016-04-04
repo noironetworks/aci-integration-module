@@ -35,8 +35,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                 for x in resource.other_attributes}
 
         # add
-        self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
-        self.ctx.db_session.commit()
+        with self.ctx.db_session.begin(subtransactions=True):
+            self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
 
         db_tree = self.tt_mgr.get(self.ctx, key[0])
         exp_tree = tree.StructuredHashTree().add(key, **attr)
