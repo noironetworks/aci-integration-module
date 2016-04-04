@@ -17,6 +17,8 @@
 import abc
 import six
 
+from aim.common.hashtree import structured_tree
+
 
 @six.add_metaclass(abc.ABCMeta)
 class BaseUniverse(object):
@@ -33,12 +35,12 @@ class BaseUniverse(object):
     """
 
     @abc.abstractmethod
-    def initialize(self, db_handler):
+    def initialize(self, db_session):
         """Observer initialization method.
 
         This method will be called before any other.
 
-        :param db_handler: handler to the AIM DB, can be used to retrieve state
+        :param db_session: session to the AIM DB, can be used to retrieve state
         or useful configuration options.
         :returns: self
         """
@@ -95,6 +97,10 @@ class AimUniverse(BaseUniverse):
     def get_aim_resources(self, resource_keys):
         """Given a resource key list, returns the corresponding AIM resources
 
+        In case the AIM resource doesn't exist in the DB, a non-persistent
+        resource will be fine as well as long as the identity attributes
+        are correctly set (useful for objects deletion).
+
         :param resource_keys: List of keys representing the AIM resource.
         The format of the key can be defined by the Universe specialization.
         Comparable Universes must have the same key format.
@@ -102,22 +108,13 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def push_aim_resource(self, resource):
-        """Given an AIM resource, push it in the current Universe
-
-        This method will transform the AIM resource into a format that the
-        current Universe understands, and the pushes it.
-        :param resource: The AIM resource to be pushed.
-        :return:
-        """
-
-    @abc.abstractmethod
     def push_aim_resources(self, resources):
-        """Given an AIM resource list, push it in the current Universe
+        """Given an AIM resource map, push it in the current Universe
 
         This method will transform the AIM resources into a format that the
         current Universe understands, and the push them.
-        :param resources: The AIM resource list to be pushed.
+        :param resources: The AIM resource map to be pushed. map will organize
+        the resources by "create" and "delete"
         :return:
         """
 
@@ -130,14 +127,26 @@ class AimUniverse(BaseUniverse):
         :param tenants: List of tenant identifiers
         :return:
         """
+    @abc.abstractmethod
+    def get_optimized_state(self, other_state):
+        """Get optimized state.
+
+        Given a state, return a subset of the current state containing only
+        changed tenants. This is useful for interaction with universes that
+        don't store in-memory state and are able to make less expensive calls
+        by knowing in advance the counterpart's state.
+
+        :param other_state: state object of another universe
+        :return:
+        """
 
 
 class HashTreeStoredUniverse(AimUniverse):
     """Universe storing state in the form of a Hash Tree."""
 
-    def initialize(self, db_handler):
-        super(HashTreeStoredUniverse, self).initialize(db_handler)
-        self.db = db_handler
+    def initialize(self, db_session):
+        super(HashTreeStoredUniverse, self).initialize(db_session)
+        self.db = db_session
         self._state = {}
         return self
 
@@ -145,15 +154,27 @@ class HashTreeStoredUniverse(AimUniverse):
         pass
 
     def reconcile(self, other_universe):
-        pass
+        my_state = self.state
+        other_state = other_universe.get_optimized_state(my_state)
+        result = {'create': [], 'delete': []}
+        # TODO(ivar): remove stale tenants
+        for tenant, tree in other_state.iteritems():
+            my_tenant_state = my_state.get(
+                tenant, structured_tree.StructuredHashTree())
+            # Retrieve difference to transform self into other
+            difference = tree.diff(my_tenant_state)
+            result['create'].extend(difference['add'])
+            result['delete'].extend(difference['remove'])
+        # Get AIM resources at the end to reduce the number of transactions
+        result['create'] = self.get_aim_resources(result['create'])
+        result['delete'] = self.get_aim_resources(result['delete'])
+        # Reconciliation method for pushing changes
+        self.push_aim_resources(result)
 
     def get_aim_resource(self, resource_key):
-        pass
+        self.get_aim_resources([resource_key])
 
     def get_aim_resources(self, resource_keys):
-        pass
-
-    def push_aim_resource(self, resource):
         pass
 
     def push_aim_resources(self, resources):
@@ -161,6 +182,9 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def serve(self, tenants):
         pass
+
+    def get_optimized_state(self, other_state):
+        return self.state
 
     @property
     def state(self):

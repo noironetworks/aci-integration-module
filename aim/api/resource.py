@@ -53,19 +53,46 @@ class ResourceBase(object):
     def identity(self):
         return [getattr(self, x) for x in self.identity_attributes]
 
+    def __str__(self):
+        return '%s%s' % (type(self), self.identity)
+
 
 class AciResourceBase(ResourceBase):
     """Base class for AIM resources that map to ACI objects.
 
-    Child classes must define class attribute '_aci_mo_name' which is
-    the ManagedObjectClass name of corresponding ACI object.
+    Child classes must define the following class attributes:
+    * _tree_parent: Type of parent class in ACI tree structure
+    * _aci_mo_name: ManagedObjectClass name of corresponding ACI object
     """
-    _aci_mo_name = None
+
+    def __init__(self, defaults, **kwargs):
+        cls = type(self)
+        for ra in ['_tree_parent', '_aci_mo_name']:
+            if not hasattr(cls, ra):
+                raise exc.AciResourceDefinitionError(attr=ra, klass=cls)
+        super(AciResourceBase, self).__init__(defaults, **kwargs)
 
     @property
     def dn(self):
         return apic_client.ManagedObjectClass(self._aci_mo_name).dn(
             *self.identity)
+
+
+class Tenant(AciResourceBase):
+    """Resource representing a Tenant in ACI.
+
+    Identity attribute is RN for ACI tenant.
+    """
+
+    identity_attributes = ['name']
+    other_attributes = ['display_name']
+    db_attributes = []
+
+    _aci_mo_name = 'fvTenant'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(Tenant, self).__init__({}, **kwargs)
 
 
 class BridgeDomain(AciResourceBase):
@@ -86,6 +113,7 @@ class BridgeDomain(AciResourceBase):
     db_attributes = []
 
     _aci_mo_name = 'fvBD'
+    _tree_parent = Tenant
 
     def __init__(self, **kwargs):
         super(BridgeDomain, self).__init__({}, **kwargs)
@@ -101,7 +129,8 @@ class Agent(ResourceBase):
                         'admin_state_up',
                         'description',
                         'hash_trees',
-                        'beat_count']
+                        'beat_count',
+                        'version']
     # Attrbutes completely managed by the DB (eg. timestamps)
     db_attributes = ['created_at',
                      'heartbeat_timestamp']
@@ -110,6 +139,9 @@ class Agent(ResourceBase):
         super(Agent, self).__init__({'admin_state_up': True,
                                      'beat_count': 0,
                                      'id': utils.generate_uuid()}, **kwargs)
+
+    def __eq__(self, other):
+        return self.id == other.id
 
     def is_down(self):
         LOG.debug("Checking whether agent %s (timestamp %s) is down" %

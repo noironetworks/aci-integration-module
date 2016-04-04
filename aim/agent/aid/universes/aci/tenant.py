@@ -15,17 +15,19 @@
 
 import collections
 import json
+import Queue
 import time
-
-from aim.agent.aid.universes.aci import converter
-from aim.common.hashtree import structured_tree
-from aim import exceptions
+import traceback
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
 from apicapi import exceptions as apic_exc
 import gevent
 from oslo_log import log as logging
+
+from aim.agent.aid.universes.aci import converter
+from aim.common.hashtree import structured_tree
+from aim import exceptions
 
 LOG = logging.getLogger(__name__)
 TENANT_KEY = 'fvTenant'
@@ -122,12 +124,15 @@ class AciTenantManager(gevent.Greenlet):
         self.aci_session = self._establish_aci_session(self.apic_config)
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
+        # TODO(ivar): subscribe on faults as well, this might be a different
+        # thread altogether
         self.tenant = Tenant(self.tenant_name, filtered_children=CHILDREN_LIST)
         self._state = structured_tree.StructuredHashTree()
         self.health_state = False
         self.polling_yield = 1
         self.to_aim_converter = converter.AciToAimModelConverter()
         self.to_aci_converter = converter.AimToAciModelConverter()
+        self.object_backlog = Queue.Queue()
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
@@ -163,14 +168,16 @@ class AciTenantManager(gevent.Greenlet):
                 self._event_loop()
         except gevent.GreenletExit:
             raise
-        except Exception:
-            import traceback
+        except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
-                      "%s" % self.tenant_name)
-            LOG.error(traceback.format_exc())
+                      "%s, error: %s" % (self.tenant_name, e.message))
+            LOG.debug(traceback.format_exc())
 
     def _event_loop(self):
         start_time = time.time()
+        # Push the backlog at the very start of the event loop, so that
+        # all the events we generate here are likely caught in this iteration.
+        self._push_aim_resources()
         if self.tenant.instance_has_event(self.ws_session):
             # Continuously check for events
             events = self.tenant.instance_get_event_data(
@@ -192,26 +199,52 @@ class AciTenantManager(gevent.Greenlet):
                                                   start_time)))
 
     def push_aim_resources(self, resources):
-        """Given a list of AIM resources for this tenant, push them into APIC
+        """Given a map of AIM resources for this tenant, push them into APIC
+
+        Stash the objects to be eventually pushed. Given the nature of the
+        system we don't really care if we lose one or two messages, or
+        even all of them, or if we mess the order, or get involved in
+        a catastrophic meteor impact, we should always be able to get
+        back in sync.
 
         :param resources: a dictionary with "create" and "delete" resources
         :return:
         """
-        # Convert to ACI objects
-        with self.aci_session.transaction() as trs:
-            for method, aci_objects in resources.iteritems():
+        # TODO(ivar): improve performance by squashing similar events
+        self.object_backlog.put(resources)
+
+    def _push_aim_resources(self):
+        while not self.object_backlog.empty():
+            request = self.object_backlog.get()
+            for method, aim_objects in request.iteritems():
                 # Method will be either "create" or "delete"
-                aci_objects = self.to_aci_converter.convert(aci_objects)
-                for obj in aci_objects:
+                for aim_object in aim_objects:
                     # get MO from ACI client, identify it via its DN parts and
                     # push the new body
-                    LOG.debug('%s ACI object %s' % (method, obj))
-                    getattr(getattr(self.aci_session, obj.keys()[0]), method)(
-                        *self.dn_manager.aci_decompose(
-                            obj.values()[0]['attributes'].pop('dn'),
-                            obj.keys()[0]),
-                        transaction=trs,
-                        **obj.values()[0]['attributes'])
+                    LOG.debug('%s AIM object %s in APIC' %
+                              (method, aim_object))
+                    to_push = self.to_aci_converter.convert([aim_object])
+                    # Multiple objects could result from a conversion, push
+                    # them in a single transaction
+                    try:
+                        with self.aci_session.transaction() as trs:
+                            for obj in to_push:
+                                getattr(
+                                    getattr(self.aci_session, obj.keys()[0]),
+                                    method)(
+                                    *self.dn_manager.aci_decompose(
+                                        obj.values()[0]['attributes'].pop(
+                                            'dn'),
+                                        obj.keys()[0]),
+                                    transaction=trs,
+                                    **obj.values()[0]['attributes'])
+                    except apic_exc.ApicResponseNotOk:
+                        # TODO(ivar): Either creation or deletion failed.
+                        # Look at the reason and update the AIM status
+                        # accordingly.
+                        LOG.error("An error as occurred during %s for "
+                                  "object %s" % (method, aim_object.__dict__))
+                        LOG.debug(traceback.format_exc())
 
     def _subscribe_tenant(self):
         # REVISIT(ivar): acitoolkit is missing some features like certificate
@@ -293,11 +326,10 @@ class AciTenantManager(gevent.Greenlet):
         for event in events:
             if (event.values()[0]['attributes'].get(STATUS_FIELD) ==
                     converter.MODIFIED_STATUS):
-                # 'dn' attribute is guaranteed to be there
-                # TODO(ivar): the 'mo/' suffix should be added to APICAPI
                 try:
                     # Remove from extra dns if there
                     resource = event.values()[0]
+                    # 'dn' attribute is guaranteed to be there
                     dn = resource['attributes']['dn']
                     extra_dns.discard(dn)
                     # See if there's any extra object to be retrieved
@@ -305,6 +337,7 @@ class AciTenantManager(gevent.Greenlet):
                         extra_dns.add(dn + '/' + filler if not callable(filler)
                                       else filler(resource))
                     visited.add(dn)
+                    # TODO(ivar): the 'mo/' suffix should be added to APICAPI
                     data = self.aci_session.get_data(
                         'mo/' + dn, rsp_prop_include='config-only')
                     resource['attributes'].update(

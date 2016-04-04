@@ -70,6 +70,10 @@ class TestAciTenant(base.TestAimDBBase):
         self.post_body = mock.patch(
             'apicapi.apic_client.ApicSession.post_body')
         self.post_body.start()
+
+        self.apic_login = mock.patch(
+            'apicapi.apic_client.ApicSession.login')
+        self.apic_login.start()
         apic_client.ApicSession.get_data = mock_get_data
         # Patch currently unimplemented methods
         self.manager = aci_tenant.AciTenantManager('tenant-1',
@@ -79,6 +83,7 @@ class TestAciTenant(base.TestAimDBBase):
         self.old_transaction_commit = apic_client.Transaction.commit
 
         self.addCleanup(self.ws_login.stop)
+        self.addCleanup(self.apic_login.stop)
         self.addCleanup(self.tn_subscribe.stop)
         self.addCleanup(self.process_q.stop)
         self.addCleanup(self.post_body.stop)
@@ -94,20 +99,32 @@ class TestAciTenant(base.TestAimDBBase):
             manager.aci_session._data_stash[
                 'mo/' + resource.values()[0]['attributes']['dn']] = resource
 
-    def _objects_transaction_create(self, transaction, objs):
+    def _objects_transaction_create(self, objs):
+        result = []
         for obj in objs:
-            getattr(transaction, obj.keys()[0]).add(
-                *self.manager.dn_manager.aci_decompose(
-                    obj.values()[0]['attributes'].pop('dn'),
-                    obj.keys()[0]),
-                **obj.values()[0]['attributes'])
+            conversion = converter.AimToAciModelConverter().convert([obj])
+            transaction = apic_client.Transaction(mock.Mock())
+            for item in conversion:
+                getattr(transaction, item.keys()[0]).add(
+                    *self.manager.dn_manager.aci_decompose(
+                        item.values()[0]['attributes'].pop('dn'),
+                        item.keys()[0]),
+                    **item.values()[0]['attributes'])
+            result.append(transaction)
+        return result
 
-    def _objects_transaction_delete(self, transaction, objs):
+    def _objects_transaction_delete(self, objs):
+        result = []
         for obj in objs:
-            getattr(transaction, obj.keys()[0]).remove(
-                *self.manager.dn_manager.aci_decompose(
-                    obj.values()[0]['attributes'].pop('dn'),
-                    obj.keys()[0]))
+            conversion = converter.AimToAciModelConverter().convert([obj])
+            transaction = apic_client.Transaction(mock.Mock())
+            for item in conversion:
+                getattr(transaction, item.keys()[0]).remove(
+                    *self.manager.dn_manager.aci_decompose(
+                        item.values()[0]['attributes'].pop('dn'),
+                        item.keys()[0]))
+            result.append(transaction)
+        return result
 
     def _init_event(self):
         return [
@@ -212,36 +229,51 @@ class TestAciTenant(base.TestAimDBBase):
     def test_push_aim_resources(self):
         # Create some AIM resources
         bd1 = self._get_example_bridge_domain()
-        bd2 = self._get_example_bridge_domain(rn='test2')
+        bd2 = self._get_example_bridge_domain(name='test2')
         self.manager.push_aim_resources({'create': [bd1, bd2]})
-        conversion = converter.AimToAciModelConverter().convert([bd1, bd2])
+        self.manager._push_aim_resources()
         # Verify expected calls
-        trs = apic_client.Transaction(mock.Mock())
-        self._objects_transaction_create(trs, conversion)
-        self.manager.aci_session.post_body.assert_called_once_with(
-            mock.ANY, json.dumps(trs.root), 'test-tenant')
+        transactions = self._objects_transaction_create([bd1, bd2])
+        exp_calls = [
+            mock.call(mock.ANY, json.dumps(transactions[0].root),
+                      'test-tenant'),
+            mock.call(mock.ANY, json.dumps(transactions[1].root),
+                      'test-tenant')]
+        self._check_call_list(exp_calls, self.manager.aci_session.post_body)
 
         # Delete AIM resources
         self.manager.aci_session.post_body.reset_mock()
         self.manager.push_aim_resources({'delete': [bd1, bd2]})
+        self.manager._push_aim_resources()
         # Verify expected calls, add deleted status
-        conversion = converter.AimToAciModelConverter().convert([bd1, bd2])
-        trs = apic_client.Transaction(mock.Mock())
-        self._objects_transaction_delete(trs, conversion)
-        self.manager.aci_session.post_body.assert_called_once_with(
-            mock.ANY, json.dumps(trs.root), 'test-tenant')
+        transactions = self._objects_transaction_delete([bd1, bd2])
+        exp_calls = [
+            mock.call(mock.ANY, json.dumps(transactions[0].root),
+                      'test-tenant'),
+            mock.call(mock.ANY, json.dumps(transactions[1].root),
+                      'test-tenant')]
+        self._check_call_list(exp_calls, self.manager.aci_session.post_body)
 
         # Create AND delete aim resources
         self.manager.aci_session.post_body.reset_mock()
         self.manager.push_aim_resources(collections.OrderedDict(
             [('create', [bd1]), ('delete', [bd2])]))
-        trs = apic_client.Transaction(mock.Mock())
-        conversion = converter.AimToAciModelConverter().convert([bd1])
-        self._objects_transaction_create(trs, conversion)
-        conversion = converter.AimToAciModelConverter().convert([bd2])
-        self._objects_transaction_delete(trs, conversion)
-        self.manager.aci_session.post_body.assert_called_once_with(
-            mock.ANY, json.dumps(trs.root), 'test-tenant')
+        self.manager._push_aim_resources()
+        transactions = self._objects_transaction_create([bd1])
+        transactions.extend(self._objects_transaction_delete([bd2]))
+        exp_calls = [
+            mock.call(mock.ANY, json.dumps(transactions[0].root),
+                      'test-tenant'),
+            mock.call(mock.ANY, json.dumps(transactions[1].root),
+                      'test-tenant')]
+        self._check_call_list(exp_calls, self.manager.aci_session.post_body)
+
+        # Failure in pushing object
+        self.manager.aci_session.post_body = mock.Mock(
+            side_effect=apic_client.cexc.ApicResponseNotOk)
+        # No exception is externally rised
+        self.manager.push_aim_resources({'delete': [bd1, bd2]})
+        self.manager._push_aim_resources()
 
     def test_fill_events_noop(self):
         # On unchanged data, fill events is a noop

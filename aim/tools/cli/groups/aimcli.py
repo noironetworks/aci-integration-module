@@ -19,12 +19,28 @@ import click
 from click import exceptions as exc
 
 
+db_opts = [
+    config.cfg.StrOpt('connection',
+                      deprecated_name='sql_connection',
+                      default='',
+                      secret=True,
+                      help='URL to database'),
+    config.cfg.StrOpt('engine', default='',
+                      help='Database engine for which script will be '
+                           'generated when using offline migration.'),
+]
+
+
 @click.group()
 @click.option('--config-file', '-c', multiple=True,
               help='AIM static configuration file')
 @click.pass_context
 def aim(ctx, config_file):
     """Group for AIM cli."""
+    try:
+        config.CONF.register_opts(db_opts, 'database')
+    except Exception:
+        pass
     if ctx.obj is None:
         ctx.obj = {}
     args = []

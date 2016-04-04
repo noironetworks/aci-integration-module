@@ -13,14 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
 import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import exc as sql_exc
 
+from aim.api import resource as api_res
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim.db import model_base
+
+
+LOG = logging.getLogger(__name__)
 
 
 class AgentToHashTreeAssociation(model_base.Base):
@@ -56,6 +61,8 @@ class TenantTreeManager(object):
 
     @utils.log
     def update_bulk(self, context, hash_trees):
+        # TODO(ivar): When AIM tenant creation is defined, tenant_rn might not
+        # correspond to x.root.key[0] anymore.
         trees = {x.root.key[0]: x for x in hash_trees}
         with context.db_session.begin(subtransactions=True):
             db_objs = self._find_query(context,
@@ -97,25 +104,113 @@ class TenantTreeManager(object):
     @utils.log
     def get(self, context, tenant_rn):
         try:
-            return self._find_query(context, tenant_rn=tenant_rn).one()
+            return self.tree_klass.from_string(str(
+                self._find_query(context, tenant_rn=tenant_rn).one().tree))
         except sql_exc.NoResultFound:
             raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
 
     @utils.log
-    def find_changed(self, context, tenant_hash_map):
-        return [
-            self.tree_klass.from_string(str(x.tree)) for x in self._find_query(
-                context, in_={'tenant_rn': tenant_hash_map.keys()},
-                notin_={'root_full_hash': tenant_hash_map.values()}).all()]
+    def find_changed(self, context, tenant_map):
+        return dict((x.tenant_rn, self.tree_klass.from_string(str(x.tree)))
+                    for x in self._find_query(
+                        context, in_={'tenant_rn': tenant_map.keys()},
+                        notin_={'root_full_hash': tenant_map.values()}).all())
+
+    @utils.log
+    def get_tenants(self, context):
+        return [x[0] for x in
+                context.db_session.query(TenantTree.tenant_rn).all()]
 
     def _find_query(self, context, in_=None, notin_=None, **kwargs):
         query = context.db_session.query(TenantTree)
         for k, v in (in_ or {}).iteritems():
             query = query.filter(getattr(TenantTree, k).in_(v))
         for k, v in (notin_ or {}).iteritems() or {}:
-            query = query.filter(getattr(TenantTree, k).notin_(v))
+            query = query.filter(getattr(TenantTree, k).notin_(
+                [(x or '') for x in v]))
         if kwargs:
             query = query.filter_by(**kwargs)
         return query
 
-TREE_MANAGER = TenantTreeManager(structured_tree.StructuredHashTree)
+
+class TenantHashTreeManager(TenantTreeManager):
+    def __init__(self):
+        super(TenantHashTreeManager, self).__init__(
+            structured_tree.StructuredHashTree)
+
+
+class AimHashTreeMaker(object):
+    """Hash Tree Maker
+
+    Utility class that updates a given Hash Tree with AIM resources following
+    a specific convention. This can be used to maintain consistent
+    representation across different parts of the system
+
+    In our current convention, each node of a given AIM resource is added to
+    the tree with a key represented as follows:
+
+    list('path.to.parent.Class|res-name', 'path.to.child.Class|res-name')
+    """
+
+    def __init__(self):
+        pass
+
+    def _build_hash_tree_key(self, resource):
+        if not isinstance(resource, api_res.AciResourceBase):
+            return None
+
+        cls_list = []
+        klass = type(resource)
+        while klass and hasattr(klass, '_tree_parent'):
+            cls_list.append(klass)
+            klass = klass._tree_parent
+        cls_list.reverse()
+
+        if cls_list[0] != api_res.Tenant:
+            return None
+
+        id_values = resource.identity
+        if len(id_values) != len(cls_list):
+            LOG.warning("Mismatch between number of identity values (%d) and "
+                        "parent classes (%d) for %s",
+                        len(id_values), len(cls_list), resource)
+            return None
+
+        cls_list = ['%s.%s' % (c.__module__, c.__name__) for c in cls_list]
+        key = tuple(['|'.join(x) for x in zip(cls_list, id_values)])
+        return key
+
+    def update(self, tree, updates):
+        """Add/update AIM resource to tree.
+
+        :param tree: ComparableCollection instance
+        :param updates: list of resources *of a single tenant* that should be
+                        added/updated
+        :return: The updated tree (value is also changed)
+        """
+        for resource in updates:
+            key = self._build_hash_tree_key(resource)
+            tree.add(key, **{x: getattr(resource, x, None)
+                             for x in resource.other_attributes})
+        return tree
+
+    def delete(self, tree, deletes):
+        """Delete AIM resources from tree.
+
+        :param tree: ComparableCollection instance
+        :param deletes: list of resources *of a single tenant* that should be
+                        deleted
+        :return: The updated tree (value is also changed)
+        """
+        for resource in deletes:
+            key = self._build_hash_tree_key(resource)
+            tree.pop(key)
+        return tree
+
+    def get_tenant_key(self, resource):
+        key = self._build_hash_tree_key(resource)
+        return key[0] if key else None
+
+
+# TODO(amitbose) Do we need this global?
+TREE_MANAGER = TenantHashTreeManager()

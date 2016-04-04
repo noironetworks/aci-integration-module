@@ -13,11 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
+
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim import config
 
-from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
 
@@ -29,9 +30,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
     from the ACI REST API.
     """
 
-    def initialize(self, db_handler):
-        super(AciUniverse, self).initialize(db_handler)
-        self.apic_config = self._retrieve_apic_config(db_handler)
+    def initialize(self, db_session):
+        super(AciUniverse, self).initialize(db_session)
+        self.apic_config = self._retrieve_apic_config(db_session)
         # dictionary of tenants currently served tenants. Keys are the tenants'
         # name, values the Web Socket interfaces
         self._serving_tenants = {}
@@ -85,6 +86,21 @@ class AciUniverse(base.HashTreeStoredUniverse):
             self._state[tenant] = self._serving_tenants[
                 tenant].get_state_copy()
 
-    def _retrieve_apic_config(self, db_handler):
+    def push_aim_resources(self, resources):
+        # Organize by tenant, and push into APIC
+        by_tenant = {}
+        for method, objects in resources.iteritems():
+            for data in objects:
+                by_tenant.setdefault(
+                    data.tenant_name, {}).setdefault(
+                    method, []).append(data)
+
+        for tenant, conf in by_tenant.iteritems():
+            try:
+                self._serving_tenants[tenant].push_aim_resources(conf)
+            except KeyError:
+                LOG.warn("Tenant %s is not being served anymore" % tenant)
+
+    def _retrieve_apic_config(self, db_session):
         # TODO(ivar): DB oriented config
         return config.CONF.apic
