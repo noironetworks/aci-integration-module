@@ -34,10 +34,10 @@ import sqlalchemy as sa
 def upgrade():
     op.create_table(
         'aim_tenant_trees',
-        sa.Column('rn', sa.String(64), nullable=False),
+        sa.Column('tenant_rn', sa.String(64), nullable=False),
         sa.Column('root_full_hash', sa.String(64), nullable=False),
         sa.Column('tree', sa.LargeBinary, nullable=False),
-        sa.PrimaryKeyConstraint('rn'))
+        sa.PrimaryKeyConstraint('tenant_rn'))
 
 
 def downgrade():
