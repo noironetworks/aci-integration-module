@@ -17,6 +17,7 @@ from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
+from aim.api import resource
 from aim import config
 
 
@@ -92,8 +93,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
         by_tenant = {}
         for method, objects in resources.iteritems():
             for data in objects:
-                by_tenant.setdefault(
-                    data.tenant_name, {}).setdefault(
+                tenant_name = (
+                    data.tenant_name if not isinstance(data, resource.Tenant)
+                    else data.name)
+                by_tenant.setdefault(tenant_name, {}).setdefault(
                     method, []).append(data)
 
         for tenant, conf in by_tenant.iteritems():

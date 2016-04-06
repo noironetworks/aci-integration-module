@@ -50,11 +50,14 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             request[tenant] = None
             if tenant in other_state:
                 try:
-                    request[tenant] = other_state[tenant].root.full_hash
+                    request[tenant] = other_state[tenant].root_full_hash
                 except AttributeError:
                     # Empty tree
                     request[tenant] = None
         return self.tree_manager.find_changed(self.context, request)
+
+    def cleanup_state(self, key):
+        self.tree_manager.delete_by_tenant_rn(self.context, key)
 
     @property
     def state(self):

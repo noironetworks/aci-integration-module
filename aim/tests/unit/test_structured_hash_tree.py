@@ -473,6 +473,15 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.assertEqual(data, data3)
         self.assertNotEqual(data, data2)
 
+        # Empty the tree completely
+        data3.remove(('keyA', ))
+        self.assertEqual(('keyA', ), data3.root_key)
+        self.mgr.update(self.ctx, data3)
+        data4 = self.mgr.find(self.ctx, tenant_rn=['keyA'])[0]
+        # Verify this is an empty tree
+        self.assertIsNone(data4.root)
+        self.assertEqual(data3.root_key, data4.root_key)
+
     def test_update_bulk(self):
         data1 = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
@@ -632,12 +641,10 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
 
     def test_get_tenant_key(self):
         bd = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
-        self.assertEqual('aim.api.resource.Tenant|t1',
-                         self.maker.get_tenant_key(bd))
+        self.assertEqual('t1', self.maker.get_tenant_key(bd))
 
         bd.tenant_name = 't2'
-        self.assertEqual('aim.api.resource.Tenant|t2',
-                         self.maker.get_tenant_key(bd))
+        self.assertEqual('t2', self.maker.get_tenant_key(bd))
 
         class InvalidResource(resource.AciResourceBase):
             _aci_mo_name = 'fvFoo'
@@ -656,7 +663,8 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
 
         bd = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
         attr = {x: getattr(bd, x, None)
-                for x in bd.other_attributes}
+                for x in bd.other_attributes
+                if x not in self.maker._exclude}
 
         self.maker.update(htree, [bd])
 
@@ -675,8 +683,8 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
             **attr)
         self.assertEqual(exp_tree, htree)
 
-        attr['display_name'] = 'myBD'
-        bd.display_name = 'myBD'
+        attr['l2_unknown_unicast_mode'] = 'flood'
+        bd.l2_unknown_unicast_mode = 'flood'
         self.maker.update(htree, [bd])
 
         exp_tree = exp_tree.add(
@@ -689,7 +697,8 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         bd1 = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
         bd2 = self._get_example_bridge_domain(tenant_name='t1', name='bd2')
         attr2 = {x: getattr(bd2, x, None)
-                 for x in bd2.other_attributes}
+                 for x in bd2.other_attributes
+                 if x not in self.maker._exclude}
 
         htree = tree.StructuredHashTree()
         self.maker.update(htree, [bd1, bd2])

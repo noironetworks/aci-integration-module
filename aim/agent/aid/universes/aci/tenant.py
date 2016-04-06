@@ -120,6 +120,7 @@ class AciTenantManager(gevent.Greenlet):
 
     def __init__(self, tenant_name, apic_config, *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
+        LOG.info("Init manager for tenant %s" % tenant_name)
         self.apic_config = apic_config
         # Each tenant has its own sessions
         self.aci_session = self._establish_aci_session(self.apic_config)
@@ -144,7 +145,8 @@ class AciTenantManager(gevent.Greenlet):
     # However, serialization/deserialization of the in-memory tree should not
     # cause I/O operation, therefore this method can't be context switched.
     def get_state_copy(self):
-        return structured_tree.StructuredHashTree.from_string(str(self._state))
+        return structured_tree.StructuredHashTree.from_string(
+            str(self._state), root_key=self._state.root_key)
 
     def _run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
@@ -193,6 +195,7 @@ class AciTenantManager(gevent.Greenlet):
                 if (event.keys()[0] == TENANT_KEY and not
                         event[TENANT_KEY]['attributes'].get(
                             STATUS_FIELD)):
+                    LOG.info("Resetting Tree %s" % self.tenant_name)
                     # This is a full resync, tree needs to be reset
                     self._state = structured_tree.StructuredHashTree()
             LOG.debug("received events: %s", events)
@@ -222,6 +225,7 @@ class AciTenantManager(gevent.Greenlet):
     def _push_aim_resources(self):
         while not self.object_backlog.empty():
             request = self.object_backlog.get()
+            LOG.debug("Requests: %s" % request)
             for method, aim_objects in request.iteritems():
                 # Method will be either "create" or "delete"
                 for aim_object in aim_objects:
@@ -324,6 +328,8 @@ class AciTenantManager(gevent.Greenlet):
 
         self.tree_maker.update(self._state, to_tree['create'])
         self.tree_maker.delete(self._state, to_tree['delete'])
+        LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
+                                                  str(self._state)))
 
     def _fill_events(self, events):
         """Gets incomplete objects from APIC if needed

@@ -15,7 +15,6 @@
 
 from oslo_log import log as logging
 
-from aim.api import resource as api_res
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
 from aim.db import tree_model
@@ -38,7 +37,7 @@ class HashTreeDbListener(object):
         all_updates = [added, updated, deleted]
         for idx in range(len(all_updates)):
             for res in all_updates[idx]:
-                key = self._get_resource_tenant(res)
+                key = self.tt_maker.get_tenant_key(res)
                 if not key:
                     continue
                 updates_by_tenant.setdefault(key, ([], []))
@@ -51,29 +50,16 @@ class HashTreeDbListener(object):
         ctx = DummyContext()
 
         upd_trees = []
-        del_trees = []
         for tenant, upd in updates_by_tenant.iteritems():
-            ttree_exists = True
             try:
                 ttree = self.tt_mgr.get(ctx, tenant)
             except hexc.HashTreeNotFound:
                 ttree = htree.StructuredHashTree()
-                ttree_exists = False
             self.tt_maker.update(ttree, upd[0])
             self.tt_maker.delete(ttree, upd[1])
 
-            if not ttree.has_subtree():
-                if ttree_exists:
-                    del_trees.append(ttree)
-            else:
-                upd_trees.append(ttree)
+            upd_trees.append(ttree)
 
         # Finally save the modified trees
         if upd_trees:
             self.tt_mgr.update_bulk(ctx, upd_trees)
-        if del_trees:
-            self.tt_mgr.delete_bulk(ctx, del_trees)
-
-    def _get_resource_tenant(self, resource):
-        return (resource.name if isinstance(resource, api_res.Tenant) else
-                getattr(resource, 'tenant_name', None))

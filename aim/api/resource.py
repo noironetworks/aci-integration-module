@@ -47,7 +47,7 @@ class ResourceBase(object):
                       if kwargs.get(k) is None and k not in defaults]
         if unset_attr:
             raise exc.IdentityAttributesMissing(attr=unset_attr)
-        if kwargs.pop('set_default', True):
+        if kwargs.pop('_set_default', True):
             for k, v in defaults.iteritems():
                 setattr(self, k, v)
         for k, v in kwargs.iteritems():
@@ -118,7 +118,7 @@ class BridgeDomain(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(BridgeDomain, self).__init__({'display_name': '',
-                                            'vrf_name': None,
+                                            'vrf_name': '',
                                             'enable_arp_flood': False,
                                             'enable_routing': True,
                                             'limit_ip_learn_to_subnets': False,

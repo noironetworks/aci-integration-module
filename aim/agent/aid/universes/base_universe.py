@@ -149,6 +149,14 @@ class AimUniverse(BaseUniverse):
         :return:
         """
 
+    @abc.abstractmethod
+    def cleanup_state(self, key):
+        """Cleanup state entry
+
+        :param key: tenant id
+        :return:
+        """
+
 
 class HashTreeStoredUniverse(AimUniverse):
     """Universe storing state in the form of a Hash Tree."""
@@ -173,7 +181,6 @@ class HashTreeStoredUniverse(AimUniverse):
         my_state = self.state
         other_state = other_universe.get_optimized_state(my_state)
         result = {'create': [], 'delete': []}
-        # TODO(ivar): remove stale tenants
         for tenant, tree in other_state.iteritems():
             my_tenant_state = my_state.get(
                 tenant, structured_tree.StructuredHashTree())
@@ -181,6 +188,13 @@ class HashTreeStoredUniverse(AimUniverse):
             difference = tree.diff(my_tenant_state)
             result['create'].extend(difference['add'])
             result['delete'].extend(difference['remove'])
+        # Remove empty tenants
+        for tenant, tree in my_state.iteritems():
+            if not tree.root:
+                if tenant not in other_state:
+                    LOG.info("Removing tenant from AIM %s" % tenant)
+                    # Empty tenant hasn't changed on AIM, gracefully delete
+                    other_universe.cleanup_state(tenant)
         LOG.debug("Universe differences: %s" % result)
         if not result.get('create') and not result.get('delete'):
             LOG.debug("The Universe is in sync.")
@@ -205,7 +219,8 @@ class HashTreeStoredUniverse(AimUniverse):
                 res_db = self.manager.get(self.context, res)
                 result.append(res_db or res)
             except aim_exc.UnknownResourceType:
-                LOG.debug("Resource %s is not defined in AIM", dissected)
+                LOG.warn("Resource %s is not defined in AIM", dissected)
+                result.append(res)
 
         return result
 
@@ -217,6 +232,9 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def get_optimized_state(self, other_state):
         return self.state
+
+    def cleanup_state(self, key):
+        pass
 
     @property
     def state(self):

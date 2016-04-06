@@ -55,7 +55,7 @@ def default_to_resource(converted, helper, to_aim=True):
     if to_aim:
         # APIC to AIM
         return klass(
-            set_default=False,
+            _set_default=False,
             **dict([(k, v) for k, v in converted.iteritems() if k in
                     (klass.identity_attributes + klass.db_attributes +
                      klass.other_attributes)]))
@@ -81,7 +81,7 @@ def convert_attribute(aim_attribute, to_aim=True):
             result.append(x.lower())
         return ''.join(result)
     else:
-        # _ to Camel (AIM to APIC
+        # _ to Camel (AIM to APIC)
         parts = aim_attribute.split('_')
         result = parts[0]
         for part in parts[1:]:
@@ -173,6 +173,9 @@ resource_map = {
         },
         'to_resource': fv_rs_ctx_to_resource,
     }],
+    'fvTenant': [{
+        'resource': resource.Tenant,
+    }]
 }
 
 # Build the reverse map for reverse translation
@@ -242,7 +245,7 @@ class BaseConverter(object):
             if attribute in source_identity_attributes:
                 continue
             # Verify if it is an exception
-            if attribute in helper['exceptions']:
+            if attribute in helper.get('exceptions', {}):
                 LOG.debug("attribute %s is an exception" % attribute)
                 other = helper['exceptions'][attribute].get(
                     'other', convert_attribute(attribute, to_aim=to_aim))

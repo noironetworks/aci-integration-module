@@ -32,7 +32,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
     def _test_resource_ops(self, tenant, key, resource):
         attr = {x: getattr(resource, x, None)
-                for x in resource.other_attributes}
+                for x in resource.other_attributes if
+                x not in tree_model.AimHashTreeMaker._exclude}
 
         # add
         self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
@@ -52,8 +53,9 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
         # delete
         self.db_l.on_commit(self.ctx.db_session, [], [], [resource])
-        self.assertEqual([],
-                         self.tt_mgr.find(self.ctx, tenant_rn=[tenant]))
+        db_tree = self.tt_mgr.get(self.ctx, tenant)
+        exp_tree = tree.StructuredHashTree().add(key[:-1])
+        self.assertEqual(exp_tree, db_tree)
 
     def test_bd_ops(self):
         bd = self._get_example_bridge_domain(tenant_name='t1', name='bd1')

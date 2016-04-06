@@ -132,9 +132,9 @@ class TestAciClientMixin(object):
     def _set_events(self, event_list, manager=None):
         # Greenlets have their own weird way of calculating bool
         manager = manager if manager is not None else self.manager
-        manager.ws_session.subscription_thread._events[
-            manager.tenant._get_instance_subscription_urls()[0]] = [
-            dict([('imdata', [x])]) for x in event_list]
+        manager.ws_session.subscription_thread._events.setdefault(
+            manager.tenant._get_instance_subscription_urls()[0], []).extend([
+                dict([('imdata', [x])]) for x in event_list])
 
     def _do_aci_mocks(self):
         config.CONF.set_override('apic_hosts', ['1.1.1.1'], 'apic')

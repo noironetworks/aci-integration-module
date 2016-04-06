@@ -33,6 +33,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
         super(TestAgent, self).setUp()
+        config.CONF.set_override('agent_down_time', 3600, 'aim')
+        config.CONF.set_override('agent_polling_interval', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantTreeManager(
             tree.StructuredHashTree)
@@ -64,11 +66,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
     def _tree_to_event(self, root, result, dn):
         if not root:
             return
-        # Detach children and recurse
         children = root.values()[0]['children']
         root.values()[0]['children'] = []
         dn += '/' + root.values()[0]['attributes']['rn']
         root.values()[0]['attributes']['dn'] = dn
+        if root.values()[0]['attributes'].get('status') is None:
+            root.values()[0]['attributes']['status'] = 'created'
         result.append(root)
         for child in children:
             self._tree_to_event(child, result, dn)
@@ -249,7 +252,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                         vrf_name='vrf3')
         self.aim_manager.create(self.ctx, bd2_tn1)
         # Push state
+        current_serving_tenants = {
+            k: v for k, v in
+            agent.current_universe._serving_tenants.iteritems()}
         agent._daemon_loop()
+        self.assertIs(agent.current_universe._serving_tenants['tn1'],
+                      current_serving_tenants['tn1'])
+        self.assertIs(agent.current_universe._serving_tenants['tn2'],
+                      current_serving_tenants['tn2'])
         # There are changes on tn1 only
         self.assertFalse(
             agent.current_universe._serving_tenants['tn1'].
@@ -264,4 +274,54 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         # Everything is in sync again
         self.assertEqual(agent.current_universe.state,
-                         agent.desired_universe.state)
+                         agent.desired_universe.state,
+                         'Not in sync:\n current: %s \n desired: %s' %
+                         ({x: str(y) for x, y in
+                           agent.current_universe.state.iteritems()},
+                          {x: str(y) for x, y in
+                           agent.desired_universe.state.iteritems()}))
+
+        # Delete a tenant
+        self.aim_manager.delete(self.ctx, bd2_tn1)
+        # We don't have Tenant model yet, so just empty its tree
+        tn1_tree = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])[0]
+        tn1_tree.pop((resource.__name__ + '.Tenant|tn1', ))
+
+        agent.tree_manager.update(agent.context, tn1_tree)
+        agent._daemon_loop()
+        # There are changes on tn1 only
+        self.assertFalse(
+            agent.current_universe._serving_tenants['tn1'].
+            object_backlog.empty())
+        self.assertTrue(
+            agent.current_universe._serving_tenants['tn2'].
+            object_backlog.empty())
+        self.assertIs(agent.current_universe._serving_tenants['tn1'],
+                      current_serving_tenants['tn1'])
+        self.assertIs(agent.current_universe._serving_tenants['tn2'],
+                      current_serving_tenants['tn2'])
+        # Get events
+        for tenant in agent.current_universe._serving_tenants.values():
+            self._current_manager = tenant
+            tenant._event_loop()
+        # Depending on the order of operation, we might need another
+        # iteration to cleanup the tree completely
+        if agent.current_universe._serving_tenants['tn1']._state.root:
+            agent._daemon_loop()
+            for tenant in agent.current_universe._serving_tenants.values():
+                self._current_manager = tenant
+                tenant._event_loop()
+        # Tenant still exist on AIM because observe didn't run yet
+        self.assertIsNone(
+            agent.current_universe._serving_tenants['tn1']._state.root)
+        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])
+        self.assertEqual(1, len(tn1))
+        # Now tenant will be deleted (still served)
+        agent._daemon_loop()
+        self.assertIsNone(agent.current_universe.state['tn1'].root)
+        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])
+        self.assertEqual(0, len(tn1))
+
+        # Agent not served anymore
+        agent._daemon_loop()
+        self.assertFalse('tn1' in agent.current_universe.state)

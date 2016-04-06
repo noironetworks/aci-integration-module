@@ -56,10 +56,13 @@ class TenantTree(model_base.Base):
 
 class TenantTreeManager(object):
 
-    def __init__(self, tree_klass, tenant_rn_funct=None):
+    def __init__(self, tree_klass, tenant_rn_funct=None,
+                 tenant_key_funct=None):
         self.tree_klass = tree_klass
         self.tenant_rn_funct = (tenant_rn_funct or
                                 self._default_tenant_rn_funct)
+        self.tenant_key_funct = (tenant_key_funct or
+                                 self._default_tenant_key_funct)
 
     @utils.log
     def update_bulk(self, context, hash_trees):
@@ -69,13 +72,13 @@ class TenantTreeManager(object):
                                        in_={'tenant_rn': trees.keys()}).all()
             for obj in db_objs:
                 hash_tree = trees.pop(obj.tenant_rn)
-                obj.root_full_hash = hash_tree.root.full_hash
+                obj.root_full_hash = hash_tree.root_full_hash
                 obj.tree = str(hash_tree)
                 context.db_session.add(obj)
 
             for hash_tree in trees.values():
                 obj = TenantTree(tenant_rn=self.tenant_rn_funct(hash_tree),
-                                 root_full_hash=hash_tree.root.full_hash,
+                                 root_full_hash=hash_tree.root_full_hash,
                                  tree=str(hash_tree))
                 context.db_session.add(obj)
 
@@ -97,15 +100,25 @@ class TenantTreeManager(object):
         return self.delete_bulk(context, [hash_tree])
 
     @utils.log
+    def delete_by_tenant_rn(self, context, tenant_rn):
+        with context.db_session.begin(subtransactions=True):
+            db_objs = self._find_query(
+                context, in_={'tenant_rn': [tenant_rn]}).all()
+            for db_obj in db_objs:
+                context.db_session.delete(db_obj)
+
+    @utils.log
     def find(self, context, **kwargs):
         result = self._find_query(context, in_=kwargs).all()
-        return [self.tree_klass.from_string(str(x.tree)) for x in result]
+        return [self.tree_klass.from_string(
+            str(x.tree), self.tenant_key_funct(x.tenant_rn)) for x in result]
 
     @utils.log
     def get(self, context, tenant_rn):
         try:
             return self.tree_klass.from_string(str(
-                self._find_query(context, tenant_rn=tenant_rn).one().tree))
+                self._find_query(context, tenant_rn=tenant_rn).one().tree),
+                self.tenant_key_funct(tenant_rn))
         except sql_exc.NoResultFound:
             raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
 
@@ -113,7 +126,9 @@ class TenantTreeManager(object):
     def find_changed(self, context, tenant_map):
         if not tenant_map:
             return {}
-        return dict((x.tenant_rn, self.tree_klass.from_string(str(x.tree)))
+        return dict((x.tenant_rn,
+                     self.tree_klass.from_string(
+                         str(x.tree), self.tenant_key_funct(x.tenant_rn)))
                     for x in self._find_query(
                         context, in_={'tenant_rn': tenant_map.keys()},
                         notin_={'root_full_hash': tenant_map.values()}).all())
@@ -135,7 +150,10 @@ class TenantTreeManager(object):
         return query
 
     def _default_tenant_rn_funct(self, tree):
-        return tree.root.key[0]
+        return tree.root_key[0]
+
+    def _default_tenant_key_funct(self, rn):
+        return rn,
 
 
 class AimHashTreeMaker(object):
@@ -151,18 +169,24 @@ class AimHashTreeMaker(object):
     list('path.to.parent.Class|res-name', 'path.to.child.Class|res-name')
     """
 
+    # Change this to be by object type if ever needed
+    _exclude = ['display_name']
+
     def __init__(self):
         pass
 
-    def _build_hash_tree_key(self, resource):
+    @staticmethod
+    def _build_hash_tree_key(resource):
         if not isinstance(resource, api_res.AciResourceBase):
             return None
 
         cls_list = []
         klass = type(resource)
-        while klass and hasattr(klass, '_tree_parent'):
+        while klass:
             cls_list.append(klass)
             klass = klass._tree_parent
+            if not hasattr(klass, '_tree_parent'):
+                break
         cls_list.reverse()
 
         if cls_list[0] != api_res.Tenant:
@@ -179,6 +203,10 @@ class AimHashTreeMaker(object):
         key = tuple(['|'.join(x) for x in zip(cls_list, id_values)])
         return key
 
+    @staticmethod
+    def _extract_tenant_name(root_key):
+        return root_key[0][root_key[0].find('|') + 1:]
+
     def update(self, tree, updates):
         """Add/update AIM resource to tree.
 
@@ -190,7 +218,8 @@ class AimHashTreeMaker(object):
         for resource in updates:
             key = self._build_hash_tree_key(resource)
             tree.add(key, **{x: getattr(resource, x, None)
-                             for x in resource.other_attributes})
+                             for x in resource.other_attributes
+                             if x not in self._exclude})
         return tree
 
     def delete(self, tree, deletes):
@@ -208,7 +237,7 @@ class AimHashTreeMaker(object):
 
     def get_tenant_key(self, resource):
         key = self._build_hash_tree_key(resource)
-        return key[0] if key else None
+        return self._extract_tenant_name(key) if key else None
 
     @staticmethod
     def tenant_rn_funct(tree):
@@ -218,11 +247,22 @@ class AimHashTreeMaker(object):
         :param tree:
         :return:
         """
-        return tree.root.key[0][tree.root.key[0].find('|') + 1:]
+        return AimHashTreeMaker._extract_tenant_name(tree.root_key)
+
+    @staticmethod
+    def tenant_key_funct(key):
+        """Key funct for Tree Maker
+
+        Utility function for TreeManager initialization
+        :param tree:
+        :return:
+        """
+        return AimHashTreeMaker._build_hash_tree_key(api_res.Tenant(name=key))
 
 
 class TenantHashTreeManager(TenantTreeManager):
     def __init__(self):
         super(TenantHashTreeManager, self).__init__(
             structured_tree.StructuredHashTree,
-            AimHashTreeMaker.tenant_rn_funct)
+            AimHashTreeMaker.tenant_rn_funct,
+            AimHashTreeMaker.tenant_key_funct)

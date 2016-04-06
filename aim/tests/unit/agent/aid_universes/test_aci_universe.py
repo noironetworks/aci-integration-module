@@ -32,11 +32,22 @@ class TestAciUniverse(base.TestAimDBBase):
         # Patch currently unimplemented methods
         self.universe = aci_universe.AciUniverse().initialize(self.ctx)
         # Mock ACI tenant manager
-        aci_tenant.AciTenantManager.start = mock.Mock()
-        aci_tenant.AciTenantManager.is_dead = mock.Mock(return_value=False)
+        self.mock_start = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.start')
+        self.mock_start.start()
+        self.mock_is_dead = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_dead',
+            return_value=False)
+        self.mock_is_dead.start()
+        self.mock_aci_session = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.'
+            '_establish_aci_session')
+        self.mock_aci_session.start()
         aci_tenant.AciTenantManager.health_state = True
         aci_tenant.AciTenantManager.kill = _kill_thread
-        aci_tenant.AciTenantManager._establish_aci_session = mock.Mock()
+        self.addCleanup(self.mock_start.stop)
+        self.addCleanup(self.mock_is_dead.stop)
+        self.addCleanup(self.mock_aci_session.stop)
 
     def test_serve(self):
         tenant_list = ['tn%s' % x for x in range(10)]

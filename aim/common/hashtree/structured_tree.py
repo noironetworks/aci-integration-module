@@ -181,19 +181,32 @@ class StructuredHashTree(base.ComparableCollection):
     tree.pop(('tn-tenant', 'bd-bridge3'))
     """
 
-    def __init__(self, root=None):
+    def __init__(self, root=None, root_key=None):
         """Initialize a Structured Hash Tree.
 
         Initial data can be passed to initialize the tree
         :param root
         """
         self.root = root
+        self.root_key = root_key
+        if self.root:
+            # Ignore the value passed in the constructor
+            self.root_key = self.root.key
+
+    @property
+    def root_full_hash(self):
+        if self.root:
+            return self.root.full_hash
+        elif self.root_key:
+            return self._hash(str(self.root_key))
+        else:
+            return None
 
     @staticmethod
-    def from_string(string):
+    def from_string(string, root_key=None):
         to_dict = json.loads(string)
         return (StructuredHashTree(StructuredHashTree._build_tree(to_dict)) if
-                to_dict else StructuredHashTree())
+                to_dict else StructuredHashTree(root_key=root_key))
 
     @staticmethod
     def _build_tree(root_dict):
@@ -212,7 +225,9 @@ class StructuredHashTree(base.ComparableCollection):
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
             LOG.debug("Root initialized")
-            self.root = StructuredTreeNode((key[0],))
+            self.root = StructuredTreeNode(
+                (key[0],), self._hash_attributes(key=(key[0],)))
+            self.root_key = self.root.key
         else:
             # With the first element of the key, verify that this is not an
             # attempt of creating a hydra (tree with multiple roots)
@@ -227,7 +242,9 @@ class StructuredHashTree(base.ComparableCollection):
         for part in key[1:]:
             partial_key += (part, )
             # Get child or set it with a placeholder if it doesn't exist
-            node = node.set_child(partial_key)
+            node = node.set_child(
+                partial_key, StructuredTreeNode(
+                    partial_key, self._hash_attributes(key=partial_key)))
             stack.append(node)
         # Node is the last added element at this point
         node.partial_hash = self._hash_attributes(key=key, **kwargs)

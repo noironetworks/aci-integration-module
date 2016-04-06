@@ -133,3 +133,16 @@ class TestAimDbUniverse(base.TestAimDBBase):
                                                  diff_tn_2.get('remove', []))
         self.assertTrue(bd1 in result)
         self.assertTrue(bd2 in result)
+
+    def test_cleanup_state(self):
+        tree_mgr = tree_model.TenantHashTreeManager()
+        aim_mgr = aim_manager.AimManager()
+        bd1 = resource.BridgeDomain(
+            tenant_name='t1', name='bd1', display_name='somestuff',
+            vrf_name='vrf')
+
+        aim_mgr.create(self.ctx, bd1)
+        self.universe.cleanup_state('t1')
+
+        trees = tree_mgr.find(self.ctx)
+        self.assertEqual(0, len(trees))
