@@ -45,7 +45,7 @@ class StructuredTreeNode:
         self._children = ChildrenList()
 
     def __cmp__(self, other):
-        return cmp(self.key, other.key)
+        return cmp(self.key, getattr(other, 'key', other))
 
     def set_child(self, key, default=None):
         return self._children.setdefault(key, default)

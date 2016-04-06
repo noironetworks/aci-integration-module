@@ -16,11 +16,6 @@
 import click
 
 from aim.agent.aid import service
-from aim.db import agent_model  # noqa
-from aim.db import api
-from aim.db import model_base
-from aim.db import models  # noqa
-from aim.db import tree_model  # noqa
 from aim.tools.cli.groups import aimcli
 
 
@@ -28,8 +23,6 @@ from aim.tools.cli.groups import aimcli
 @click.pass_context
 # Debug utility for ACI web socket
 def aid(ctx):
-    engine = api.get_engine()
-    model_base.Base.metadata.create_all(engine)
     try:
         agent = service.AID(ctx.obj['conf'])
     except (RuntimeError, ValueError) as e:
