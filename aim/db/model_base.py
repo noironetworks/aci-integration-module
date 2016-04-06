@@ -19,6 +19,10 @@ from sqlalchemy.ext import declarative
 from aim.common import utils
 
 
+def name_column(**kwargs):
+    return sa.Column(sa.String(64), **kwargs)
+
+
 class AimBase(object):
     """Base class for AIM DB models.
 
@@ -35,8 +39,7 @@ class AimBase(object):
 
 class HasName(object):
 
-    name = sa.Column(sa.String(64), primary_key=True)
-    display_name = sa.Column(sa.String(256))
+    name = name_column(primary_key=True)
 
 
 class HasId(object):
@@ -45,6 +48,14 @@ class HasId(object):
     id = sa.Column(sa.String(36),
                    primary_key=True,
                    default=utils.generate_uuid)
+
+
+class HasDisplayName(object):
+    display_name = sa.Column(sa.String(256))
+
+
+class HasTenantNameKey(object):
+    tenant_name = name_column(primary_key=True)
 
 
 class AttributeMixin(object):
