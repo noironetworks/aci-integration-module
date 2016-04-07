@@ -34,6 +34,7 @@ import sqlalchemy as sa
 def upgrade():
     op.create_table(
         'aim_bridge_domains',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
@@ -43,7 +44,10 @@ def upgrade():
         sa.Column('limit_ip_learn_to_subnets', sa.Boolean),
         sa.Column('l2_unknown_unicast_mode', sa.String(16)),
         sa.Column('ep_move_detect_mode', sa.String(16)),
-        sa.PrimaryKeyConstraint('tenant_name', 'name'))
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('tenant_name', 'name',
+                            name='uniq_aim_bridge_domains_identity'),
+        sa.Index('idx_aim_bridge_domains_identity', 'tenant_name', 'name'))
 
 
 def downgrade():

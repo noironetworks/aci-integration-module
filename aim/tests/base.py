@@ -13,6 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import logging      # noqa
 import os
 
 from oslo_config import cfg
@@ -33,14 +34,20 @@ def etcdir(*p):
     return os.path.join(ETCDIR, *p)
 
 
+def sort_if_list(attr):
+    return sorted(attr) if isinstance(attr, list) else attr
+
+
 def resource_equal(self, other):
+
     if type(self) != type(other):
         return False
     for attr in self.identity_attributes:
         if getattr(self, attr) != getattr(other, attr):
             return False
     for attr in self.other_attributes:
-        if getattr(self, attr, None) != getattr(other, attr, None):
+        if (sort_if_list(getattr(self, attr, None)) !=
+                sort_if_list(getattr(other, attr, None))):
             return False
     return True
 
@@ -91,6 +98,11 @@ class TestAimDBBase(BaseTestCase):
         self.session = api.get_session(expire_on_commit=True)
         self.ctx = context.AimContext(db_session=self.session)
         resource.ResourceBase.__eq__ = resource_equal
+
+        # Uncomment the line below to log SQL statements. Additionally, to
+        # log results of queries, change INFO to DEBUG
+        #
+        # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
         def clear_tables():
             with self.engine.begin() as conn:

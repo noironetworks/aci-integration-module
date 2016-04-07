@@ -31,6 +31,10 @@ from aim import exceptions as exc
 from aim.tests import base
 
 
+def getattr_canonical(obj, attr):
+    return base.sort_if_list(getattr(obj, attr))
+
+
 class TestAimManager(base.TestAimDBBase):
 
     def setUp(self):
@@ -119,7 +123,7 @@ class TestResourceOpsBase(object):
         res = resource(**creation_attributes)
 
         for k, v in test_default_values.iteritems():
-            self.assertEqual(v, getattr(res, k))
+            self.assertEqual(v, getattr_canonical(res, k))
 
         if test_dn:
             self.assertEqual(test_dn, res.dn)
@@ -127,11 +131,11 @@ class TestResourceOpsBase(object):
         # Verify successful creation
         r1 = self.mgr.create(self.ctx, res)
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr(r1, k))
+            self.assertEqual(v, getattr_canonical(r1, k))
         # Verify get
         r1 = self.mgr.get(self.ctx, res)
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr(r1, k))
+            self.assertEqual(v, getattr_canonical(r1, k))
 
         # Verify overwrite
         for k, v in test_search_attributes.iteritems():
@@ -139,24 +143,24 @@ class TestResourceOpsBase(object):
         r2 = self.mgr.create(self.ctx, res, overwrite=True)
 
         for k, v in test_search_attributes.iteritems():
-            self.assertEqual(v, getattr(r2, k))
+            self.assertEqual(v, getattr_canonical(r2, k))
 
         # Test search by identity
         rs1 = self.mgr.find(self.ctx, resource, **test_identity_attributes)
         self.assertEqual(1, len(rs1))
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr(rs1[0], k))
+            self.assertEqual(v, getattr_canonical(rs1[0], k))
 
         # Test search by other attributes
         rs2 = self.mgr.find(self.ctx, resource, **test_search_attributes)
         self.assertEqual(1, len(rs2))
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr(rs2[0], k))
+            self.assertEqual(v, getattr_canonical(rs2[0], k))
 
         # Test update
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
         for k, v in test_update_attributes.iteritems():
-            self.assertEqual(v, getattr(r3, k))
+            self.assertEqual(v, getattr_canonical(r3, k))
 
         # Test empty update
         r31 = self.mgr.update(self.ctx, res, **{})
@@ -237,7 +241,7 @@ class TestResourceOpsBase(object):
         for obj in (self.prereq_objects or []):
             self.mgr.create(self.ctx, obj)
 
-    def test_lifecyle(self):
+    def test_lifecycle(self):
         self._create_prerequisite_objects()
         self._test_resource_ops(
             self.resource_class,
@@ -292,10 +296,21 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
     test_required_attributes = {'agent_type': 'aid',
                                 'host': 'h1',
                                 'binary_file': 'aid.py',
-                                'version': '1.0'}
+                                'version': '1.0',
+                                'hash_trees': ['t1']}
     test_search_attributes = {'host': 'h1'}
     test_update_attributes = {'host': 'h2',
-                              'version': '2.0'}
+                              'version': '2.0',
+                              'hash_trees': ['t2']}
+
+    def setUp(self):
+        super(TestAgent, self).setUp()
+        self.ctx.db_session.add(
+            tree_model.TenantTree(tenant_rn='t1', root_full_hash='',
+                                  tree='{}'))
+        self.ctx.db_session.add(
+            tree_model.TenantTree(tenant_rn='t2', root_full_hash='',
+                                  tree='{}'))
 
     def test_timestamp(self):
         agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
@@ -380,8 +395,12 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
                                 'name': 'web'}
     test_required_attributes = {'tenant_name': 'tenant1',
                                 'app_profile_name': 'lab',
-                                'name': 'web'}
+                                'name': 'web',
+                                'provided_contract_names': ['k', 'p1', 'p2'],
+                                'consumed_contract_names': ['c1', 'c2', 'k']}
     test_search_attributes = {'name': 'web'}
     test_update_attributes = {'bd_name': 'net1',
-                              'bd_tenant_name': 'common'}
+                              'bd_tenant_name': 'common',
+                              'provided_contract_names': ['c2', 'k', 'p1'],
+                              'consumed_contract_names': ['c1', 'k', 'p2']}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
