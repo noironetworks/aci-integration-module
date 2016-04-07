@@ -39,6 +39,9 @@ class ResourceBase(object):
     Class property 'db_attributes' gives a list of resource attributes
     that are managed by the database layer, eg: timestamp, incremental counter.
     """
+
+    db_attributes = []
+
     def __init__(self, defaults, **kwargs):
         unset_attr = [k for k in self.identity_attributes
                       if kwargs.get(k) is None and k not in defaults]
@@ -86,7 +89,6 @@ class Tenant(AciResourceBase):
 
     identity_attributes = ['name']
     other_attributes = ['display_name']
-    db_attributes = []
 
     _aci_mo_name = 'fvTenant'
     _tree_parent = None
@@ -109,8 +111,6 @@ class BridgeDomain(AciResourceBase):
                         'limit_ip_learn_to_subnets',
                         'l2_unknown_unicast_mode',
                         'ep_move_detect_mode']
-    # Attrbutes completely managed by the DB (eg. timestamps)
-    db_attributes = []
 
     _aci_mo_name = 'fvBD'
     _tree_parent = Tenant
@@ -148,3 +148,89 @@ class Agent(ResourceBase):
                   (self.id, self.heartbeat_timestamp))
         return timeutils.is_older_than(self.heartbeat_timestamp,
                                        cfg.CONF.aim.agent_down_time)
+
+
+class Subnet(AciResourceBase):
+    """Resource representing a Subnet in ACI.
+
+    Identity attributes: name of ACI tenant, name of bridge-domain and
+    IP-address & mask of the default gateway in CIDR format (that is
+    <gateway-address>/<prefix-len>). Helper function 'to_gw_ip_mask'
+    may be used to construct the IP-address & mask value.
+    """
+
+    identity_attributes = ['tenant_name', 'bd_name', 'gw_ip_mask']
+    other_attributes = ['scope',
+                        'display_name']
+
+    _aci_mo_name = 'fvSubnet'
+    _tree_parent = BridgeDomain
+
+    SCOPE_PRIVATE = 'private'
+    SCOPE_PUBLIC = 'public'
+
+    def __init__(self, **kwargs):
+        super(Subnet, self).__init__({'scope': self.SCOPE_PRIVATE}, **kwargs)
+
+    @staticmethod
+    def to_gw_ip_mask(gateway_ip_address, prefix_len):
+        return '%s/%d' % (gateway_ip_address, prefix_len)
+
+
+class VRF(AciResourceBase):
+    """Resource representing a VRF (Layer3 network context) in ACI.
+
+    Identity attributes: name of ACI tenant, name of VRF.
+    """
+
+    identity_attributes = ['tenant_name', 'name']
+    other_attributes = ['display_name',
+                        'policy_enforcement_pref']
+
+    _aci_mo_name = 'fvCtx'
+    _tree_parent = Tenant
+
+    POLICY_ENFORCED = 1
+    POLICY_UNENFORCED = 2
+
+    def __init__(self, **kwargs):
+        super(VRF, self).__init__(
+            {'policy_enforcement_pref': self.POLICY_ENFORCED},
+            **kwargs)
+
+
+class ApplicationProfile(AciResourceBase):
+    """Resource representing an application-profile in ACI.
+
+    Identity attributes: name of ACI tenant, name of app-profile.
+    """
+
+    identity_attributes = ['tenant_name', 'name']
+    other_attributes = ['display_name']
+
+    _aci_mo_name = 'fvAp'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        super(ApplicationProfile, self).__init__({}, **kwargs)
+
+
+class EndpointGroup(AciResourceBase):
+    """Resource representing an endpoint-group in ACI.
+
+    Identity attributes: name of ACI tenant, name of application-profile
+    and name of endpoint-group.
+    """
+
+    identity_attributes = ['tenant_name', 'app_profile_name', 'name']
+    other_attributes = ['display_name',
+                        'bd_name',
+                        'bd_tenant_name',
+                        'provided_contract_names',
+                        'consumed_contract_names']
+
+    _aci_mo_name = 'fvAEPg'
+    _tree_parent = ApplicationProfile
+
+    def __init__(self, **kwargs):
+        super(EndpointGroup, self).__init__({}, **kwargs)

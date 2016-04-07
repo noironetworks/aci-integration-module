@@ -50,7 +50,12 @@ class AimManager(object):
     """
 
     _db_model_map = {api_res.BridgeDomain: models.BridgeDomain,
-                     api_res.Agent: agent_model.Agent}
+                     api_res.Agent: agent_model.Agent,
+                     api_res.Tenant: models.Tenant,
+                     api_res.Subnet: models.Subnet,
+                     api_res.VRF: models.VRF,
+                     api_res.ApplicationProfile: models.ApplicationProfile,
+                     api_res.EndpointGroup: models.EndpointGroup, }
 
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff

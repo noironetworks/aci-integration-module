@@ -37,10 +37,58 @@ class TestAimManager(base.TestAimDBBase):
         super(TestAimManager, self).setUp()
         self.mgr = aim_manager.AimManager()
 
+    def test_resource_negative(self):
+
+        class bad_resource(object):
+            pass
+
+        self.assertRaises(
+            exc.UnknownResourceType, self.mgr.create, self.ctx, bad_resource())
+
+        self.assertRaises(
+            exc.UnknownResourceType, self.mgr.update, self.ctx, bad_resource())
+
+        self.assertRaises(
+            exc.UnknownResourceType, self.mgr.delete, self.ctx, bad_resource())
+
+        self.assertRaises(
+            exc.UnknownResourceType, self.mgr.get, self.ctx, bad_resource())
+
+        self.assertRaises(
+            exc.UnknownResourceType, self.mgr.find, self.ctx, bad_resource)
+
+    def test_bad_aci_resource_definition(self):
+
+        class bad_resource_1(resource.AciResourceBase):
+            pass
+
+        class bad_resource_2(bad_resource_1):
+            _aci_mo_name = 'fvMagic'
+
+        def create_obj(klass):
+            return klass({})
+
+        self.assertRaises(exc.AciResourceDefinitionError, create_obj,
+                          bad_resource_1)
+        self.assertRaises(exc.AciResourceDefinitionError, create_obj,
+                          bad_resource_2)
+
+
+class TestResourceOpsBase(object):
+    test_default_values = {}
+    test_dn = None
+    prereq_objects = None
+
+    def setUp(self):
+        super(TestResourceOpsBase, self).setUp()
+        self.mgr = aim_manager.AimManager()
+        self.mgr._update_listeners = []
+
     def _test_resource_ops(self, resource, test_identity_attributes,
                            test_required_attributes, test_search_attributes,
                            test_update_attributes,
-                           test_dn=None):
+                           test_default_values,
+                           test_dn):
         """Test basic operations for resources
 
         :param resource: resource type, eg: BridgeDomain
@@ -53,6 +101,8 @@ class TestAimManager(base.TestAimDBBase):
         search. eg: {'vrf_rn': 'shared'}
         :param test_update_attributes: some attributes already present in
         one of the previously specified ones that hold a different value.
+        :param test_default_values: dictionary of default values to verify
+        after object has been created
         :param test_dn: expected DN of created resource, if any.
         :return:
         """
@@ -67,6 +117,9 @@ class TestAimManager(base.TestAimDBBase):
         creation_attributes.update(test_required_attributes),
         creation_attributes.update(test_identity_attributes)
         res = resource(**creation_attributes)
+
+        for k, v in test_default_values.iteritems():
+            self.assertEqual(v, getattr(res, k))
 
         if test_dn:
             self.assertEqual(test_dn, res.dn)
@@ -122,42 +175,6 @@ class TestAimManager(base.TestAimDBBase):
 
         # Test delete nonexisting object (no error)
         self.mgr.delete(self.ctx, res)
-
-    def test_resource_negative(self):
-
-        class bad_resource(object):
-            pass
-
-        self.assertRaises(
-            exc.UnknownResourceType, self.mgr.create, self.ctx, bad_resource())
-
-        self.assertRaises(
-            exc.UnknownResourceType, self.mgr.update, self.ctx, bad_resource())
-
-        self.assertRaises(
-            exc.UnknownResourceType, self.mgr.delete, self.ctx, bad_resource())
-
-        self.assertRaises(
-            exc.UnknownResourceType, self.mgr.get, self.ctx, bad_resource())
-
-        self.assertRaises(
-            exc.UnknownResourceType, self.mgr.find, self.ctx, bad_resource)
-
-    def test_bad_aci_resource_definition(self):
-
-        class bad_resource_1(resource.AciResourceBase):
-            pass
-
-        class bad_resource_2(bad_resource_1):
-            _aci_mo_name = 'fvMagic'
-
-        def create_obj(klass):
-            return klass({})
-
-        self.assertRaises(exc.AciResourceDefinitionError, create_obj,
-                          bad_resource_1)
-        self.assertRaises(exc.AciResourceDefinitionError, create_obj,
-                          bad_resource_2)
 
     def _test_commit_hook(self, resource, test_identity_attributes,
                           test_required_attributes, test_update_attributes):
@@ -216,58 +233,71 @@ class TestAimManager(base.TestAimDBBase):
         status.sync_message = "some message"
         self.mgr.update_status(self.ctx, res, status)
 
-    def test_bridge_domain_ops(self):
+    def _create_prerequisite_objects(self):
+        for obj in (self.prereq_objects or []):
+            self.mgr.create(self.ctx, obj)
+
+    def test_lifecyle(self):
+        self._create_prerequisite_objects()
         self._test_resource_ops(
-            resource.BridgeDomain,
-            test_identity_attributes={'tenant_name': 'tenant1',
-                                      'name': 'net1'},
-            test_required_attributes={'tenant_name': 'tenant1',
-                                      'name': 'net1'},
-            test_search_attributes={'l2_unknown_unicast_mode': 'proxy'},
-            test_update_attributes={'l2_unknown_unicast_mode': 'private',
-                                    'display_name': 'pretty-net1',
-                                    'vrf_name': 'default'},
-            test_dn='uni/tn-tenant1/BD-net1')
+            self.resource_class,
+            self.test_identity_attributes,
+            self.test_required_attributes,
+            self.test_search_attributes,
+            self.test_update_attributes,
+            self.test_default_values,
+            self.test_dn)
 
-    def test_bridge_domain_hooks(self):
+    def test_hooks(self):
+        self._create_prerequisite_objects()
         self._test_commit_hook(
-            resource.BridgeDomain,
-            test_identity_attributes={'tenant_name': 'tenant1',
-                                      'name': 'net1'},
-            test_required_attributes={'tenant_name': 'tenant1',
-                                      'name': 'net1'},
-            test_update_attributes={'l2_unknown_unicast_mode': 'private',
-                                    'vrf_name': 'private'})
+            self.resource_class,
+            self.test_identity_attributes,
+            self.test_required_attributes,
+            self.test_update_attributes)
 
-    def test_bridge_domain_status(self):
+
+class TestAciResourceOpsBase(TestResourceOpsBase):
+
+    def test_status(self):
         self._test_resource_status(
-            resource.BridgeDomain,
-            test_identity_attributes={'tenant_name': 'tenant1',
-                                      'name': 'net1'})
+            self.resource_class, self.test_identity_attributes)
 
-    def test_agent_ops(self):
-        self._test_resource_ops(
-            resource.Agent,
-            test_identity_attributes={'id': 'myuuid'},
-            test_required_attributes={'agent_type': 'aid',
-                                      'host': 'h1',
-                                      'binary_file': 'aid.py',
-                                      'version': '1.0'},
-            test_search_attributes={'host': 'h1'},
-            test_update_attributes={'host': 'h2',
-                                    'version': '2.0'})
 
-    def test_agent_commit_hook(self):
-        self._test_commit_hook(
-            resource.Agent,
-            test_identity_attributes={'id': 'myuuid'},
-            test_required_attributes={'agent_type': 'aid',
-                                      'host': 'h1',
-                                      'binary_file': 'aid.py',
-                                      'version': '1.0'},
-            test_update_attributes={'host': 'h2'})
+class TestTenant(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.Tenant
+    test_identity_attributes = {'name': 'tenant1'}
+    test_required_attributes = {'name': 'tenant1'}
+    test_search_attributes = {'name': 'tenant1'}
+    test_update_attributes = {'display_name': 'pepsi'}
+    test_dn = 'uni/tn-tenant1'
 
-    def test_agent_timestamp(self):
+
+class TestBridgeDomain(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.BridgeDomain
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'net1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'net1'}
+    test_search_attributes = {'l2_unknown_unicast_mode': 'proxy'}
+    test_update_attributes = {'l2_unknown_unicast_mode': 'private',
+                              'display_name': 'pretty-net1',
+                              'vrf_name': 'default'}
+    test_dn = 'uni/tn-tenant1/BD-net1'
+
+
+class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.Agent
+    test_identity_attributes = {'id': 'myuuid'}
+    test_required_attributes = {'agent_type': 'aid',
+                                'host': 'h1',
+                                'binary_file': 'aid.py',
+                                'version': '1.0'}
+    test_search_attributes = {'host': 'h1'}
+    test_update_attributes = {'host': 'h2',
+                              'version': '2.0'}
+
+    def test_timestamp(self):
         agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
                                binary_file='binary_file', version='1.0')
 
@@ -294,3 +324,64 @@ class TestAimManager(base.TestAimDBBase):
         self.assertFalse(agent.is_down())
         config.cfg.CONF.set_override('agent_down_time', 0, 'aim')
         self.assertTrue(agent.is_down())
+
+
+class TestSubnet(TestAciResourceOpsBase, base.TestAimDBBase):
+    prereq_objects = [
+        resource.BridgeDomain(tenant_name='tenant1', name='net1')]
+    gw_ip = resource.Subnet.to_gw_ip_mask('192.168.10.1', 28)
+    resource_class = resource.Subnet
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'bd_name': 'net1',
+                                'gw_ip_mask': gw_ip}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'bd_name': 'net1',
+                                'gw_ip_mask': gw_ip}
+    test_search_attributes = {'bd_name': 'net1'}
+    test_update_attributes = {'display_name': 'sub1',
+                              'scope': resource.Subnet.SCOPE_PUBLIC}
+    test_default_values = {
+        'scope': resource.Subnet.SCOPE_PRIVATE}
+    test_dn = 'uni/tn-tenant1/BD-net1/subnet-[192.168.10.1/28]'
+
+
+class TestVRF(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.VRF
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'shared'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'shared'}
+    test_search_attributes = {'name': 'shared'}
+    test_update_attributes = {'display_name': 'shared',
+                              'policy_enforcement_pref':
+                                  resource.VRF.POLICY_UNENFORCED}
+    test_default_values = {
+        'policy_enforcement_pref': resource.VRF.POLICY_ENFORCED}
+    test_dn = 'uni/tn-tenant1/ctx-shared'
+
+
+class TestApplicationProfile(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.ApplicationProfile
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'lab'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'lab'}
+    test_search_attributes = {'name': 'lab'}
+    test_update_attributes = {'display_name': 'lab101'}
+    test_dn = 'uni/tn-tenant1/ap-lab'
+
+
+class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.EndpointGroup
+    prereq_objects = [
+        resource.ApplicationProfile(tenant_name='tenant1', name='lab')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'app_profile_name': 'lab',
+                                'name': 'web'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'app_profile_name': 'lab',
+                                'name': 'web'}
+    test_search_attributes = {'name': 'web'}
+    test_update_attributes = {'bd_name': 'net1',
+                              'bd_tenant_name': 'common'}
+    test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
