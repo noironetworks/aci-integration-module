@@ -27,6 +27,7 @@ from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
 from aim.common.hashtree import structured_tree
+from aim.db import tree_model
 from aim import exceptions
 
 LOG = logging.getLogger(__name__)
@@ -72,7 +73,6 @@ class Tenant(acitoolkit.Tenant):
                'subscription=yes'.format(self.name))
         if self.filtered_children:
             url += '&target-subtree-class=' + ','.join(self.filtered_children)
-        LOG.debug("Subscription url: %s", url)
         return [url]
 
     def instance_subscribe(self, session):
@@ -87,6 +87,7 @@ class Tenant(acitoolkit.Tenant):
 
     def instance_unsubscribe(self, session):
         urls = self._get_instance_subscription_urls()
+        LOG.debug("Subscription urls: %s", urls)
         for url in urls:
             session.unsubscribe(url)
 
@@ -119,6 +120,7 @@ class AciTenantManager(gevent.Greenlet):
 
     def __init__(self, tenant_name, apic_config, *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
+        LOG.info("Init manager for tenant %s" % tenant_name)
         self.apic_config = apic_config
         # Each tenant has its own sessions
         self.aci_session = self._establish_aci_session(self.apic_config)
@@ -133,6 +135,7 @@ class AciTenantManager(gevent.Greenlet):
         self.to_aim_converter = converter.AciToAimModelConverter()
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
+        self.tree_maker = tree_model.AimHashTreeMaker()
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
@@ -142,9 +145,11 @@ class AciTenantManager(gevent.Greenlet):
     # However, serialization/deserialization of the in-memory tree should not
     # cause I/O operation, therefore this method can't be context switched.
     def get_state_copy(self):
-        return structured_tree.StructuredHashTree.from_string(str(self._state))
+        return structured_tree.StructuredHashTree.from_string(
+            str(self._state), root_key=self._state.root_key)
 
     def _run(self):
+        LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
         try:
             while True:
                 self._main_loop()
@@ -163,9 +168,13 @@ class AciTenantManager(gevent.Greenlet):
     def _main_loop(self):
         try:
             # tenant subscription is redone upon exception
+            LOG.debug("Starting event loop for tenant %s" % self.tenant_name)
             self._subscribe_tenant()
             while True:
+                start = time.time()
                 self._event_loop()
+                LOG.debug("Event loop for tenant %s completed in %s "
+                          "seconds" % (self.tenant_name, time.time() - start))
         except gevent.GreenletExit:
             raise
         except Exception as e:
@@ -186,9 +195,9 @@ class AciTenantManager(gevent.Greenlet):
                 if (event.keys()[0] == TENANT_KEY and not
                         event[TENANT_KEY]['attributes'].get(
                             STATUS_FIELD)):
+                    LOG.info("Resetting Tree %s" % self.tenant_name)
                     # This is a full resync, tree needs to be reset
-                    self._state = (
-                        structured_tree.StructuredHashTree())
+                    self._state = structured_tree.StructuredHashTree()
             LOG.debug("received events: %s", events)
             # Pull incomplete objects
             self._fill_events(events)
@@ -216,6 +225,7 @@ class AciTenantManager(gevent.Greenlet):
     def _push_aim_resources(self):
         while not self.object_backlog.empty():
             request = self.object_backlog.get()
+            LOG.debug("Requests: %s" % request)
             for method, aim_objects in request.iteritems():
                 # Method will be either "create" or "delete"
                 for aim_object in aim_objects:
@@ -302,8 +312,24 @@ class AciTenantManager(gevent.Greenlet):
         :param events: an ACI event in the form of a list of objects
         :return:
         """
-        # aim_objects = self.to_aim_converter.convert(events)
-        # TODO(ivar): add nodes to the tree or remove them if needed
+        # TODO(ivar): filter faults when we support them
+        to_tree = {'create': [], 'delete': []}
+        for event in events:
+            aci_resource = event.values()[0]
+            if (aci_resource['attributes'].get(STATUS_FIELD) ==
+                    converter.DELETED_STATUS):
+                to_tree['delete'].append(event)
+            else:
+                to_tree['create'].append(event)
+
+        # Convert objects
+        to_tree['create'] = self.to_aim_converter.convert(to_tree['create'])
+        to_tree['delete'] = self.to_aim_converter.convert(to_tree['delete'])
+
+        self.tree_maker.update(self._state, to_tree['create'])
+        self.tree_maker.delete(self._state, to_tree['delete'])
+        LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
+                                                  str(self._state)))
 
     def _fill_events(self, events):
         """Gets incomplete objects from APIC if needed
@@ -333,7 +359,7 @@ class AciTenantManager(gevent.Greenlet):
                     dn = resource['attributes']['dn']
                     extra_dns.discard(dn)
                     # See if there's any extra object to be retrieved
-                    for filler in RS_FILL_DICT[event.keys()[0]]:
+                    for filler in RS_FILL_DICT.get(event.keys()[0], []):
                         extra_dns.add(dn + '/' + filler if not callable(filler)
                                       else filler(resource))
                     visited.add(dn)

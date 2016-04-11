@@ -30,15 +30,15 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.tt_mgr = tree_model.TenantHashTreeManager()
         self.db_l = ht_db_l.HashTreeDbListener(mock.Mock())
 
-    def _test_resource_ops(self, key, resource):
+    def _test_resource_ops(self, tenant, key, resource):
         attr = {x: getattr(resource, x, None)
-                for x in resource.other_attributes}
+                for x in resource.other_attributes if
+                x not in tree_model.AimHashTreeMaker._exclude}
 
         # add
-        with self.ctx.db_session.begin(subtransactions=True):
-            self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
+        self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
 
-        db_tree = self.tt_mgr.get(self.ctx, key[0])
+        db_tree = self.tt_mgr.get(self.ctx, tenant)
         exp_tree = tree.StructuredHashTree().add(key, **attr)
         self.assertEqual(exp_tree, db_tree)
 
@@ -47,17 +47,19 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         resource.vrf_name = attr['vrf_name']
         self.db_l.on_commit(self.ctx.db_session, [], [resource], [])
 
-        db_tree = self.tt_mgr.get(self.ctx, key[0])
+        db_tree = self.tt_mgr.get(self.ctx, tenant)
         exp_tree = tree.StructuredHashTree().add(key, **attr)
         self.assertEqual(exp_tree, db_tree)
 
         # delete
         self.db_l.on_commit(self.ctx.db_session, [], [], [resource])
-        self.assertEqual([],
-                         self.tt_mgr.find(self.ctx, tenant_rn=[key[0]]))
+        db_tree = self.tt_mgr.get(self.ctx, tenant)
+        exp_tree = tree.StructuredHashTree().add(key[:-1])
+        self.assertEqual(exp_tree, db_tree)
 
     def test_bd_ops(self):
         bd = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
         self._test_resource_ops(
+            't1',
             ('aim.api.resource.Tenant|t1',
              'aim.api.resource.BridgeDomain|bd1'), bd)

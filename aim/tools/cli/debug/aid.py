@@ -13,32 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Create TenantTree table
+import click
 
-Revision ID: 72fa5bce100b
-Revises:
-Create Date: 2016-03-15 16:29:57.408348
-
-"""
-
-# revision identifiers, used by Alembic.
-revision = '72fa5bce100b'
-down_revision = '40855b7eb958'
-branch_labels = None
-depends_on = None
-
-from alembic import op
-import sqlalchemy as sa
+from aim.agent.aid import service
+from aim.tools.cli.groups import aimcli
 
 
-def upgrade():
-    op.create_table(
-        'aim_tenant_trees',
-        sa.Column('tenant_rn', sa.String(64), nullable=False),
-        sa.Column('root_full_hash', sa.String(64), nullable=False),
-        sa.Column('tree', sa.LargeBinary, nullable=False),
-        sa.PrimaryKeyConstraint('tenant_rn'))
-
-
-def downgrade():
-    pass
+@aimcli.aim.command(name='aid')
+@click.pass_context
+# Debug utility for ACI web socket
+def aid(ctx):
+    try:
+        agent = service.AID(ctx.obj['conf'])
+    except (RuntimeError, ValueError) as e:
+        click.echo("%s Agent terminated!" % e)
+        return
+    agent.daemon_loop()

@@ -50,25 +50,16 @@ class HashTreeDbListener(object):
         ctx = DummyContext()
 
         upd_trees = []
-        del_trees = []
         for tenant, upd in updates_by_tenant.iteritems():
-            ttree_exists = True
             try:
                 ttree = self.tt_mgr.get(ctx, tenant)
             except hexc.HashTreeNotFound:
                 ttree = htree.StructuredHashTree()
-                ttree_exists = False
             self.tt_maker.update(ttree, upd[0])
             self.tt_maker.delete(ttree, upd[1])
 
-            if not ttree.has_subtree():
-                if ttree_exists:
-                    del_trees.append(ttree)
-            else:
-                upd_trees.append(ttree)
+            upd_trees.append(ttree)
 
         # Finally save the modified trees
         if upd_trees:
             self.tt_mgr.update_bulk(ctx, upd_trees)
-        if del_trees:
-            self.tt_mgr.delete_bulk(ctx, del_trees)

@@ -13,7 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 import time
+
+from apicapi import apic_client
+import mock
 
 from aim.agent.aid import service
 from aim import aim_manager
@@ -22,14 +26,55 @@ from aim.common.hashtree import structured_tree as tree
 from aim import config
 from aim.db import tree_model
 from aim.tests import base
+from aim.tests.unit.agent.aid_universes import test_aci_tenant
 
 
-class TestAgent(base.TestAimDBBase):
+class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        self.manager = aim_manager.AimManager()
-        self.tree_manager = tree_model.TREE_MANAGER
+        config.CONF.set_override('agent_down_time', 3600, 'aim')
+        config.CONF.set_override('agent_polling_interval', 0, 'aim')
+        self.aim_manager = aim_manager.AimManager()
+        self.tree_manager = tree_model.TenantTreeManager(
+            tree.StructuredHashTree)
+        self.old_post = apic_client.ApicSession.post_body
+
+        self.addCleanup(self._reset_apic_client)
+        self._do_aci_mocks()
+        self.tenant_thread = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager._run')
+        self.tenant_thread.start()
+
+        self.thread_dead = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_dead',
+            return_value=False)
+        self.thread_dead.start()
+        self.addCleanup(self.tenant_thread.stop)
+        self.addCleanup(self.thread_dead.stop)
+
+    def _reset_apic_client(self):
+        apic_client.ApicSession.post_body = self.old_post
+
+    def _mock_current_manager_post(self, mo, data, *params):
+        # Each post, generates the same set of events for the WS interface
+        data = json.loads(data)
+        events = []
+        self._tree_to_event(data, events, 'uni')
+        self._set_events(events, manager=self._current_manager)
+
+    def _tree_to_event(self, root, result, dn):
+        if not root:
+            return
+        children = root.values()[0]['children']
+        root.values()[0]['children'] = []
+        dn += '/' + root.values()[0]['attributes']['rn']
+        root.values()[0]['attributes']['dn'] = dn
+        if root.values()[0]['attributes'].get('status') is None:
+            root.values()[0]['attributes']['status'] = 'created'
+        result.append(root)
+        for child in children:
+            self._tree_to_event(child, result, dn)
 
     def _create_agent(self, host='h1'):
         config.CONF.set_override('host', host)
@@ -39,7 +84,7 @@ class TestAgent(base.TestAimDBBase):
         agent = self._create_agent()
         self.assertEqual('h1', agent.host)
         # Agent is registered
-        agents = self.manager.find(self.ctx, resource.Agent)
+        agents = self.aim_manager.find(self.ctx, resource.Agent)
         self.assertEqual(1, len(agents))
         self.assertEqual('aid-h1', agents[0].id)
 
@@ -117,7 +162,7 @@ class TestAgent(base.TestAimDBBase):
 
         # Bring agent administratively down
         agent.agent.admin_state_up = False
-        self.manager.create(agent.context, agent.agent, overwrite=True)
+        self.aim_manager.create(agent.context, agent.agent, overwrite=True)
         result = agent._calculate_tenants(agent.context)
         result2 = agent2._calculate_tenants(agent2.context)
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']),
@@ -127,7 +172,7 @@ class TestAgent(base.TestAimDBBase):
 
         # Fix agent1
         agent.agent.admin_state_up = True
-        self.manager.create(agent.context, agent.agent, overwrite=True)
+        self.aim_manager.create(agent.context, agent.agent, overwrite=True)
         result = agent._calculate_tenants(agent.context)
         result2 = agent2._calculate_tenants(agent2.context)
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']),
@@ -138,7 +183,7 @@ class TestAgent(base.TestAimDBBase):
 
         # Upgrade agent2 version
         agent2.agent.version = "2.0.0"
-        self.manager.create(agent2.context, agent2.agent, overwrite=True)
+        self.aim_manager.create(agent2.context, agent2.agent, overwrite=True)
         result = agent._calculate_tenants(agent.context)
         result2 = agent2._calculate_tenants(agent2.context)
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']),
@@ -148,7 +193,7 @@ class TestAgent(base.TestAimDBBase):
 
         # Upgrade agent1 version
         agent.agent.version = "2.0.0"
-        self.manager.create(agent.context, agent.agent, overwrite=True)
+        self.aim_manager.create(agent.context, agent.agent, overwrite=True)
         result = agent._calculate_tenants(agent.context)
         result2 = agent2._calculate_tenants(agent2.context)
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']),
@@ -156,3 +201,127 @@ class TestAgent(base.TestAimDBBase):
         # neither agent has empty configuration
         self.assertNotEqual([], result)
         self.assertNotEqual([], result2)
+
+    def test_main_loop(self):
+        agent = self._create_agent()
+        # Create 2 tenants by initiating their objects
+        bd1_tn1 = resource.BridgeDomain(tenant_name='tn1', name='bd1',
+                                        vrf_name='vrf1')
+        bd1_tn2 = resource.BridgeDomain(tenant_name='tn2', name='bd1',
+                                        vrf_name='vrf2')
+        self.aim_manager.create(self.ctx, bd1_tn2)
+        self.aim_manager.create(self.ctx, bd1_tn1)
+
+        # ACI universe is empty right now, one cycle of the main loop will
+        # reconcile the state
+        agent._daemon_loop()
+
+        for tenant in agent.current_universe._serving_tenants.values():
+            tenant._subscribe_tenant()
+            tenant.health_state = True
+        # The ACI universe will not push the configuration unless explicitly
+        # called
+        self.assertFalse(
+            agent.current_universe._serving_tenants['tn1'].
+            object_backlog.empty())
+        self.assertFalse(
+            agent.current_universe._serving_tenants['tn2'].
+            object_backlog.empty())
+
+        # Events around the BD creation are now sent to the ACI universe, add
+        # them to the observed tree
+        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        for tenant in agent.current_universe._serving_tenants.values():
+            self._current_manager = tenant
+            tenant._event_loop()
+
+        # Now, the two trees are in sync
+        agent._daemon_loop()
+        self.assertEqual(agent.current_universe.state,
+                         agent.desired_universe.state)
+        self.assertTrue(
+            agent.current_universe._serving_tenants['tn1'].
+            object_backlog.empty())
+        self.assertTrue(
+            agent.current_universe._serving_tenants['tn2'].
+            object_backlog.empty())
+
+        # Delete object and create a new one on tn1
+        self.aim_manager.delete(self.ctx, bd1_tn1)
+        bd2_tn1 = resource.BridgeDomain(tenant_name='tn1', name='bd2',
+                                        vrf_name='vrf3')
+        self.aim_manager.create(self.ctx, bd2_tn1)
+        # Push state
+        current_serving_tenants = {
+            k: v for k, v in
+            agent.current_universe._serving_tenants.iteritems()}
+        agent._daemon_loop()
+        self.assertIs(agent.current_universe._serving_tenants['tn1'],
+                      current_serving_tenants['tn1'])
+        self.assertIs(agent.current_universe._serving_tenants['tn2'],
+                      current_serving_tenants['tn2'])
+        # There are changes on tn1 only
+        self.assertFalse(
+            agent.current_universe._serving_tenants['tn1'].
+            object_backlog.empty())
+        self.assertTrue(
+            agent.current_universe._serving_tenants['tn2'].
+            object_backlog.empty())
+        # Get events
+        for tenant in agent.current_universe._serving_tenants.values():
+            self._current_manager = tenant
+            tenant._event_loop()
+        agent._daemon_loop()
+        # Everything is in sync again
+        self.assertEqual(agent.current_universe.state,
+                         agent.desired_universe.state,
+                         'Not in sync:\n current: %s \n desired: %s' %
+                         ({x: str(y) for x, y in
+                           agent.current_universe.state.iteritems()},
+                          {x: str(y) for x, y in
+                           agent.desired_universe.state.iteritems()}))
+
+        # Delete a tenant
+        self.aim_manager.delete(self.ctx, bd2_tn1)
+        # We don't have Tenant model yet, so just empty its tree
+        tn1_tree = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])[0]
+        tn1_tree.pop((resource.__name__ + '.Tenant|tn1', ))
+
+        agent.tree_manager.update(agent.context, tn1_tree)
+        agent._daemon_loop()
+        # There are changes on tn1 only
+        self.assertFalse(
+            agent.current_universe._serving_tenants['tn1'].
+            object_backlog.empty())
+        self.assertTrue(
+            agent.current_universe._serving_tenants['tn2'].
+            object_backlog.empty())
+        self.assertIs(agent.current_universe._serving_tenants['tn1'],
+                      current_serving_tenants['tn1'])
+        self.assertIs(agent.current_universe._serving_tenants['tn2'],
+                      current_serving_tenants['tn2'])
+        # Get events
+        for tenant in agent.current_universe._serving_tenants.values():
+            self._current_manager = tenant
+            tenant._event_loop()
+        # Depending on the order of operation, we might need another
+        # iteration to cleanup the tree completely
+        if agent.current_universe._serving_tenants['tn1']._state.root:
+            agent._daemon_loop()
+            for tenant in agent.current_universe._serving_tenants.values():
+                self._current_manager = tenant
+                tenant._event_loop()
+        # Tenant still exist on AIM because observe didn't run yet
+        self.assertIsNone(
+            agent.current_universe._serving_tenants['tn1']._state.root)
+        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])
+        self.assertEqual(1, len(tn1))
+        # Now tenant will be deleted (still served)
+        agent._daemon_loop()
+        self.assertIsNone(agent.current_universe.state['tn1'].root)
+        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])
+        self.assertEqual(0, len(tn1))
+
+        # Agent not served anymore
+        agent._daemon_loop()
+        self.assertFalse('tn1' in agent.current_universe.state)

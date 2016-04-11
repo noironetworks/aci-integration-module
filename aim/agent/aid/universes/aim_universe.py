@@ -32,7 +32,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
 
     def initialize(self, db_session):
         super(AimDbUniverse, self).initialize(db_session)
-        self.tree_manager = tree_model.TREE_MANAGER
+        self.tree_manager = tree_model.TenantHashTreeManager()
         self.context = context.AimContext(db_session)
         self._served_tenants = set()
         return self
@@ -40,10 +40,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def serve(self, tenants):
         LOG.debug('Serving tenants: %s' % tenants)
         self._served_tenants = set(tenants)
-
-    def get_aim_resources(self, resource_keys):
-        # TODO(ivar): This depends on how the HashTree Keys are stored
-        pass
 
     def observe(self):
         pass
@@ -53,8 +49,15 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         for tenant in self._served_tenants:
             request[tenant] = None
             if tenant in other_state:
-                request[tenant] = other_state[tenant].root.full_hash
+                try:
+                    request[tenant] = other_state[tenant].root_full_hash
+                except AttributeError:
+                    # Empty tree
+                    request[tenant] = None
         return self.tree_manager.find_changed(self.context, request)
+
+    def cleanup_state(self, key):
+        self.tree_manager.delete_by_tenant_rn(self.context, key)
 
     @property
     def state(self):
