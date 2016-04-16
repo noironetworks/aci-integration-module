@@ -115,7 +115,8 @@ class TestAimDBBase(BaseTestCase):
         return context.AimContext(
             db_session=sa_sessionmaker(bind=self.engine)())
 
-    def _get_example_aim_bd(self, **kwargs):
+    @classmethod
+    def _get_example_aim_bd(cls, **kwargs):
         example = resource.BridgeDomain(tenant_name='test-tenant',
                                         vrf_name='default',
                                         name='test', enable_arp_flood=False,
@@ -126,7 +127,8 @@ class TestAimDBBase(BaseTestCase):
         example.__dict__.update(kwargs)
         return example
 
-    def _get_example_aci_bd(self, **kwargs):
+    @classmethod
+    def _get_example_aci_bd(cls, **kwargs):
         example_bd = {
             "fvBD": {
                 "attributes": {
@@ -144,16 +146,21 @@ class TestAimDBBase(BaseTestCase):
         example_bd['fvBD']['attributes'].update(kwargs)
         return example_bd
 
-    def _get_example_aim_vrf(self, **kwargs):
-        example = resource.VRF(tenant_name='test-tenant',
-                               name='test', policy_enforcement_pref=1)
+    @classmethod
+    def _get_example_aim_vrf(cls, **kwargs):
+        example = resource.VRF(
+            tenant_name='test-tenant',
+            name='test',
+            policy_enforcement_pref=resource.VRF.POLICY_ENFORCED)
         example.__dict__.update(kwargs)
         return example
 
-    def _get_example_aci_vrf(self, **kwargs):
+    @classmethod
+    def _get_example_aci_vrf(cls, **kwargs):
         example_vrf = {
             "fvCtx": {
                 "attributes": {
+                    "dn": "uni/tn-test-tenant/ctx-test",
                     "descr": "",
                     "knwMcastAct": "permit",
                     "name": "default",
@@ -166,3 +173,83 @@ class TestAimDBBase(BaseTestCase):
         }
         example_vrf['fvCtx']['attributes'].update(kwargs)
         return example_vrf
+
+    @classmethod
+    def _get_example_aim_app_profile(cls, **kwargs):
+        example = resource.ApplicationProfile(
+            tenant_name='test-tenant', name='test')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_app_profile(cls, **kwargs):
+        example_ap = {
+            "fvAp": {
+                "attributes": {
+                    "dn": "uni/tn-test-tenant/ap-test",
+                    "descr": ""
+                }
+            }
+        }
+        example_ap['fvAp']['attributes'].update(kwargs)
+        return example_ap
+
+    @classmethod
+    def _get_example_aim_subnet(cls, **kwargs):
+        example = resource.Subnet(
+            tenant_name='t1', bd_name='test', gw_ip_mask='10.10.10.0/28')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_subnet(cls, **kwargs):
+        example_sub = {
+            "fvSubnet": {
+                "attributes": {
+                    "dn": "uni/tn-t1/BD-test/subnet-[10.10.10.0/28]",
+                    "scope": "private"
+                }
+            }
+        }
+        example_sub['fvSubnet']['attributes'].update(kwargs)
+        return example_sub
+
+    @classmethod
+    def _get_example_aim_tenant(cls, **kwargs):
+        example = resource.Tenant(name='test-tenant')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_tenant(cls, **kwargs):
+        example_tenant = {
+            "fvTenant": {
+                "attributes": {
+                    "dn": "uni/tn-test-tenant",
+                    "descr": ""
+                }
+            }
+        }
+        example_tenant['fvTenant']['attributes'].update(kwargs)
+        return example_tenant
+
+    @classmethod
+    def _get_example_aim_epg(cls, **kwargs):
+        example = resource.EndpointGroup(
+            tenant_name='t1', app_profile_name='a1', name='test',
+            bd_name='net1')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_epg(cls, **kwargs):
+        example_epg = {
+            "fvAEPg": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test",
+                    "descr": ""
+                }
+            }
+        }
+        example_epg['fvAEPg']['attributes'].update(kwargs)
+        return example_epg
