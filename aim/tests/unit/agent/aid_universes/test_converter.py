@@ -64,20 +64,6 @@ class TestAciToAimConverter(base.TestAimDBBase):
         self.assertEqual(1, len(result))
         self.assertEqual(expected, result[0])
 
-    def test_non_uni_dn(self):
-        example_bd = self._get_example_bd(dn='tn-test-tenant/BD-test')
-        result = self.converter.convert([example_bd])
-        expected = resource.BridgeDomain(tenant_name='test-tenant',
-                                         name='test',
-                                         enable_arp_flood=False,
-                                         enable_routing=True,
-                                         limit_ip_learn_to_subnets=False,
-                                         l2_unknown_unicast_mode='proxy',
-                                         ep_move_detect_mode='')
-        # Extra resource is ignored
-        self.assertEqual(1, len(result))
-        self.assertEqual(expected, result[0])
-
     def test_reverse_map(self):
         # test based on the BD resource
         bd_reverse = converter.reverse_resource_map[resource.BridgeDomain]
