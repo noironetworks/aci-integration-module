@@ -43,7 +43,7 @@ def upgrade():
         sa.Column('limit_ip_learn_to_subnets', sa.Boolean),
         sa.Column('l2_unknown_unicast_mode', sa.String(16)),
         sa.Column('ep_move_detect_mode', sa.String(16)),
-        sa.PrimaryKeyConstraint('name', 'tenant_name'))
+        sa.PrimaryKeyConstraint('tenant_name', 'name'))
 
 
 def downgrade():

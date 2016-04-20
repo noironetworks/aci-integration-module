@@ -64,7 +64,7 @@ def upgrade():
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
-        sa.PrimaryKeyConstraint('name', 'tenant_name'))
+        sa.PrimaryKeyConstraint('tenant_name', 'name'))
 
     op.create_table(
         'aim_endpoint_groups',
