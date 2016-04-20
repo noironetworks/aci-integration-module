@@ -42,7 +42,7 @@ def upgrade():
         sa.Column('binary_file', sa.String(255), nullable=False),
         sa.Column('admin_state_up', sa.Boolean, default=True, nullable=False),
         sa.Column('created_at', sa.TIMESTAMP, server_default=func.now()),
-        sa.Column('heartbeat_timestamp', sa.DateTime,
+        sa.Column('heartbeat_timestamp', sa.TIMESTAMP,
                   server_default=func.now(), onupdate=func.now()),
         sa.Column('beat_count', sa.Integer, default=0),
         sa.Column('description', sa.String(255)),
