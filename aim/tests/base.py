@@ -115,7 +115,7 @@ class TestAimDBBase(BaseTestCase):
         return context.AimContext(
             db_session=sa_sessionmaker(bind=self.engine)())
 
-    def _get_example_bridge_domain(self, **kwargs):
+    def _get_example_aim_bd(self, **kwargs):
         example = resource.BridgeDomain(tenant_name='test-tenant',
                                         vrf_name='default',
                                         name='test', enable_arp_flood=False,
@@ -126,7 +126,7 @@ class TestAimDBBase(BaseTestCase):
         example.__dict__.update(kwargs)
         return example
 
-    def _get_example_bd(self, **kwargs):
+    def _get_example_aci_bd(self, **kwargs):
         example_bd = {
             "fvBD": {
                 "attributes": {
@@ -143,3 +143,26 @@ class TestAimDBBase(BaseTestCase):
                     "vmac": "not-applicable"}}}
         example_bd['fvBD']['attributes'].update(kwargs)
         return example_bd
+
+    def _get_example_aim_vrf(self, **kwargs):
+        example = resource.VRF(tenant_name='test-tenant',
+                               name='test', policy_enforcement_pref=1)
+        example.__dict__.update(kwargs)
+        return example
+
+    def _get_example_aci_vrf(self, **kwargs):
+        example_vrf = {
+            "fvCtx": {
+                "attributes": {
+                    "descr": "",
+                    "knwMcastAct": "permit",
+                    "name": "default",
+                    "ownerKey": "",
+                    "ownerTag": "",
+                    "pcEnfDir": "ingress",
+                    "pcEnfPref": "enforced"
+                }
+            }
+        }
+        example_vrf['fvCtx']['attributes'].update(kwargs)
+        return example_vrf
