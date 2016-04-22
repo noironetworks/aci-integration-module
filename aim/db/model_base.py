@@ -38,8 +38,8 @@ class AimBase(object):
 
 
 class HasName(object):
-
-    name = name_column(primary_key=True)
+    """Add to subclasses that have a name (identifier)."""
+    name = name_column(nullable=False)
 
 
 class HasId(object):
@@ -50,12 +50,19 @@ class HasId(object):
                    default=utils.generate_uuid)
 
 
+class HasAimId(object):
+    """Add to subclasses that have an internal-id."""
+    aim_id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+
+
 class HasDisplayName(object):
+    """Add to subclasses that have a display name."""
     display_name = sa.Column(sa.String(256))
 
 
-class HasTenantNameKey(object):
-    tenant_name = name_column(primary_key=True)
+class HasTenantName(object):
+    """Add to subclasses that reference a tenant."""
+    tenant_name = name_column(nullable=False)
 
 
 class AttributeMixin(object):

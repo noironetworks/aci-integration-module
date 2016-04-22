@@ -40,12 +40,17 @@ def upgrade():
 
     op.create_table(
         'aim_subnets',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('bd_name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('gw_ip_mask', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
         sa.Column('scope', sa.String(16)),
-        sa.PrimaryKeyConstraint('gw_ip_mask', 'bd_name', 'tenant_name'),
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('tenant_name', 'bd_name', 'gw_ip_mask',
+                            name='uniq_aim_subnets_identity'),
+        sa.Index('idx_aim_subnets_identity',
+                 'tenant_name', 'bd_name', 'gw_ip_mask'),
         sa.ForeignKeyConstraint(
             ['tenant_name', 'bd_name'],
             ['aim_bridge_domains.tenant_name', 'aim_bridge_domains.name'],
@@ -53,32 +58,54 @@ def upgrade():
 
     op.create_table(
         'aim_vrfs',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
         sa.Column('policy_enforcement_pref', sa.Integer),
-        sa.PrimaryKeyConstraint('name', 'tenant_name'))
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('tenant_name', 'name',
+                            name='uniq_aim_vrf_identity'),
+        sa.Index('idx_aim_vrf_identity', 'tenant_name', 'name'))
 
     op.create_table(
         'aim_app_profiles',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
-        sa.PrimaryKeyConstraint('tenant_name', 'name'))
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('tenant_name', 'name',
+                            name='uniq_aim_app_profiles_identity'),
+        sa.Index('idx_aim_app_profiles_identity', 'tenant_name', 'name'))
 
     op.create_table(
         'aim_endpoint_groups',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('app_profile_name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
         sa.Column('bd_name', sa.String(64)),
         sa.Column('bd_tenant_name', sa.String(64)),
-        sa.PrimaryKeyConstraint('name', 'app_profile_name', 'tenant_name'),
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('tenant_name', 'app_profile_name', 'name',
+                            name='uniq_aim_endpoint_groups_identity'),
+        sa.Index('idx_aim_endpoint_groups_identity',
+                 'tenant_name', 'app_profile_name', 'name'),
         sa.ForeignKeyConstraint(
             ['tenant_name', 'app_profile_name'],
             ['aim_app_profiles.tenant_name', 'aim_app_profiles.name'],
             name='fk_app_profile'))
+
+    op.create_table(
+        'aim_endpoint_group_contracts',
+        sa.Column('epg_aim_id', sa.Integer, nullable=False),
+        sa.Column('name', sa.String(64), nullable=False),
+        sa.Column('provides', sa.Boolean, nullable=False),
+        sa.PrimaryKeyConstraint('epg_aim_id', 'name', 'provides'),
+        sa.ForeignKeyConstraint(
+            ['epg_aim_id'], ['aim_endpoint_groups.aim_id']))
 
 
 def downgrade():
