@@ -58,7 +58,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.assertEqual(exp_tree, db_tree)
 
     def test_bd_ops(self):
-        bd = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
+        bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')
         self._test_resource_ops(
             't1',
             ('aim.api.resource.Tenant|t1',

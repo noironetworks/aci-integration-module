@@ -151,14 +151,14 @@ class TestAciUniverse(base.TestAimDBBase):
 
     def test_push_aim_resources(self):
         # Create some resources
-        bd1_tn1 = self._get_example_bridge_domain(tenant_name='tn1',
-                                                  name='bd1')
-        bd2_tn1 = self._get_example_bridge_domain(tenant_name='tn1',
-                                                  name='bd2')
-        bd1_tn2 = self._get_example_bridge_domain(tenant_name='tn2',
-                                                  name='bd1')
-        bd2_tn2 = self._get_example_bridge_domain(tenant_name='tn2',
-                                                  name='bd2')
+        bd1_tn1 = self._get_example_aim_bd(tenant_name='tn1',
+                                           name='bd1')
+        bd2_tn1 = self._get_example_aim_bd(tenant_name='tn1',
+                                           name='bd2')
+        bd1_tn2 = self._get_example_aim_bd(tenant_name='tn2',
+                                           name='bd1')
+        bd2_tn2 = self._get_example_aim_bd(tenant_name='tn2',
+                                           name='bd2')
 
         self.universe.serve(['tn1', 'tn2'])
         self.universe.push_aim_resources(

@@ -175,7 +175,7 @@ resource_map = {
     }],
     'fvTenant': [{
         'resource': resource.Tenant,
-    }]
+    }],
 }
 
 # Build the reverse map for reverse translation

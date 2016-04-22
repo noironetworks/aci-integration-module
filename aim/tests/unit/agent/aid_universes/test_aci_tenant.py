@@ -235,8 +235,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
     def test_push_aim_resources(self):
         # Create some AIM resources
-        bd1 = self._get_example_bridge_domain()
-        bd2 = self._get_example_bridge_domain(name='test2')
+        bd1 = self._get_example_aim_bd()
+        bd2 = self._get_example_aim_bd(name='test2')
         self.manager.push_aim_resources({'create': [bd1, bd2]})
         self.manager._push_aim_resources()
         # Verify expected calls
@@ -298,7 +298,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         complete = {"fvRsCtx": {"attributes": {
             "dn": "uni/tn-test-tenant/BD-test/rsctx", "status": "modified",
             "tnFvCtxName": "test", "extra": "something_important"}}}
-        parent_bd = self._get_example_bd()
+        parent_bd = self._get_example_aci_bd()
         self._add_server_data([complete, parent_bd])
         self.manager._fill_events(events)
         self.assertEqual([complete, parent_bd], events)
@@ -317,7 +317,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 "dn": "uni/tn-test-tenant/BD-test/rsctx",
                 "tnFvCtxName": "test", "status": "modified"}}},
         ]
-        parent_bd = self._get_example_bd()
+        parent_bd = self._get_example_aci_bd()
         # fvRsCtx is missing on server side
         self._add_server_data([parent_bd])
         self.manager._fill_events(events)

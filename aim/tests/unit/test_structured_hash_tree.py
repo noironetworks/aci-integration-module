@@ -640,7 +640,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         self.maker = tree_model.AimHashTreeMaker()
 
     def test_get_tenant_key(self):
-        bd = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
+        bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')
         self.assertEqual('t1', self.maker.get_tenant_key(bd))
 
         bd.tenant_name = 't2'
@@ -661,7 +661,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         htree = tree.StructuredHashTree()
         exp_tree = tree.StructuredHashTree()
 
-        bd = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
+        bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')
         attr = {x: getattr(bd, x, None)
                 for x in bd.other_attributes
                 if x not in self.maker._exclude}
@@ -694,8 +694,8 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         self.assertEqual(exp_tree, htree)
 
     def test_delete(self):
-        bd1 = self._get_example_bridge_domain(tenant_name='t1', name='bd1')
-        bd2 = self._get_example_bridge_domain(tenant_name='t1', name='bd2')
+        bd1 = self._get_example_aim_bd(tenant_name='t1', name='bd1')
+        bd2 = self._get_example_aim_bd(tenant_name='t1', name='bd2')
         attr2 = {x: getattr(bd2, x, None)
                  for x in bd2.other_attributes
                  if x not in self.maker._exclude}
