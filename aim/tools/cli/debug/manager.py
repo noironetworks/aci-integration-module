@@ -15,12 +15,36 @@
 
 import click
 from oslo_utils import importutils
+from tabulate import tabulate
 
 from aim import aim_manager
 from aim.api import resource
 from aim import context
 from aim.db import api
 from aim.tools.cli.groups import aimcli
+
+
+def print_resource(res):
+    if res:
+        rows = [[a, getattr(res, a, None)] for a in res.attributes()]
+        if isinstance(res, resource.AciResourceBase):
+            rows.append(['dn', res.dn])
+        click.echo(tabulate(rows, headers=['Property', 'Value'],
+                            tablefmt='psql'))
+
+
+def print_resources(res_list, attrs=None):
+    if not res_list:
+        return
+    if attrs:
+        header = ['Identity'] + attrs
+        rows = [([','.join(res.identity)] +
+                 [getattr(res, a, None) for a in attrs])
+                for res in res_list]
+    else:
+        header = res_list[0].identity_attributes
+        rows = [res.identity for res in res_list]
+    click.echo(tabulate(rows, headers=header, tablefmt='psql'))
 
 
 @aimcli.aim.group(name='manager')
@@ -34,6 +58,17 @@ def manager(ctx):
     ctx.obj['aim_ctx'] = aim_ctx
 
 
+def validate_attributes(klass, attributes, param_name, dn_is_valid=False):
+    valid_attr = klass.attributes()
+    if dn_is_valid and issubclass(klass, resource.AciResourceBase):
+        valid_attr.append('dn')
+    bad_attr = [a for a in attributes if a not in valid_attr]
+    if bad_attr:
+        raise click.BadParameter(
+            'Invalid attribute(s): %s' % ', '.join(bad_attr),
+            param_hint=param_name)
+
+
 @manager.command(name='create')
 @click.argument('type', required=True)
 @click.option('--attribute', '-a', multiple=True)
@@ -43,8 +78,9 @@ def create(ctx, type, attribute):
     aim_ctx = ctx.obj['aim_ctx']
     klass = importutils.import_class(resource.__name__ + '.%s' % type)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
+    validate_attributes(klass, attribute.keys(), '--attribute/-a')
     res = klass(**attribute)
-    manager.create(aim_ctx, res)
+    print_resource(manager.create(aim_ctx, res))
 
 
 @manager.command(name='delete')
@@ -56,6 +92,7 @@ def delete(ctx, type, attribute):
     aim_ctx = ctx.obj['aim_ctx']
     klass = importutils.import_class(resource.__name__ + '.%s' % type)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
+    validate_attributes(klass, attribute.keys(), '--attribute/-a')
     res = klass(**attribute)
     manager.delete(aim_ctx, res)
 
@@ -70,6 +107,51 @@ def update(ctx, type, attribute, modify):
     aim_ctx = ctx.obj['aim_ctx']
     klass = importutils.import_class(resource.__name__ + '.%s' % type)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
+    validate_attributes(klass, attribute.keys(), '--attribute/-a')
     modify = {x.split('=')[0]: x.split('=')[1] for x in modify}
+    validate_attributes(klass, modify.keys(), '--modify/-m')
     res = klass(**attribute)
-    manager.update(aim_ctx, res, **modify)
+    print_resource(manager.update(aim_ctx, res, **modify))
+
+
+@manager.command(name='find')
+@click.argument('type', required=True)
+@click.option('--attribute', '-a', multiple=True)
+@click.option('--column', '-c', multiple=True)
+@click.pass_context
+def find(ctx, type, attribute, column):
+    manager = ctx.obj['manager']
+    aim_ctx = ctx.obj['aim_ctx']
+    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    column = list(column) if column else []
+    validate_attributes(klass, column, '--column/-c', dn_is_valid=True)
+    attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
+    validate_attributes(klass, attribute.keys(), '--attribute/-a')
+    results = manager.find(aim_ctx, klass, **attribute)
+    print_resources(results, attrs=column)
+
+
+@manager.command(name='get')
+@click.argument('type', required=True)
+@click.option('--attribute', '-a', multiple=True)
+@click.pass_context
+def get(ctx, type, attribute):
+    manager = ctx.obj['manager']
+    aim_ctx = ctx.obj['aim_ctx']
+    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
+    validate_attributes(klass, attribute.keys(), '--attribute/-a')
+    res = klass(**attribute)
+    res = manager.get(aim_ctx, res)
+    print_resource(res)
+
+
+@manager.command(name='describe')
+@click.argument('type', required=True)
+@click.pass_context
+def describe(ctx, type):
+    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    rows = [[set_type, ', '.join(getattr(klass, set_type))]
+            for set_type in [
+                'identity_attributes', 'other_attributes', 'db_attributes']]
+    click.echo(tabulate(rows, tablefmt='psql'))

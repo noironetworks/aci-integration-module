@@ -124,6 +124,34 @@ def fv_rs_ctx_to_resource(converted, helper, to_aim=True):
             return None
 
 
+def fv_aepg_to_resource(converted, helper, to_aim=True):
+    if to_aim:
+        # Nothing fancy to do
+        return default_to_resource(converted, helper, to_aim=to_aim)
+    else:
+        # Exclude bd_name, provided_contract_names, consumed_contract_names
+        result = default_to_resource(converted, helper, to_aim=to_aim)
+        attr = result[helper['resource']]['attributes']
+        attr.pop('bdName', None)
+        attr.pop('providedContractNames', None)
+        attr.pop('consumedContractNames', None)
+        return result
+
+
+def fv_rs_bd_to_resource(converted, helper, to_aim=True):
+    if to_aim:
+        # Nothing fancy to do
+        return default_to_resource(converted, helper, to_aim=to_aim)
+    else:
+        # Only include bd_name
+        if converted['tnFvBDName'] is not None:
+            return {helper['resource']: {'attributes': {
+                'dn': converted['dn'],
+                'tnFvBDName': converted['tnFvBDName']}}}
+        else:
+            return None
+
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -175,6 +203,33 @@ resource_map = {
     }],
     'fvTenant': [{
         'resource': resource.Tenant,
+    }],
+    'fvSubnet': [{
+        'resource': resource.Subnet,
+    }],
+    'fvCtx': [{
+        'resource': resource.VRF,
+        'exceptions': {
+            'pcEnfPref': {
+                'other': 'policy_enforcement_pref',
+            }
+        },
+    }],
+    'fvAp': [{
+        'resource': resource.ApplicationProfile,
+    }],
+    'fvAEPg': [{
+        'resource': resource.EndpointGroup,
+        'to_resource': fv_aepg_to_resource,
+    }],
+    'fvRsBd': [{
+        'resource': resource.EndpointGroup,
+        'exceptions': {
+            'tnFvBDName': {
+                'other': 'bd_name',
+            }
+        },
+        'to_resource': fv_rs_bd_to_resource,
     }],
 }
 

@@ -400,7 +400,6 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
                                 'consumed_contract_names': ['c1', 'c2', 'k']}
     test_search_attributes = {'name': 'web'}
     test_update_attributes = {'bd_name': 'net1',
-                              'bd_tenant_name': 'common',
                               'provided_contract_names': ['c2', 'k', 'p1'],
                               'consumed_contract_names': ['c1', 'k', 'p2']}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'

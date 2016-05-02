@@ -86,7 +86,7 @@ class VRF(model_base.Base, model_base.HasAimId,
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
                       to_tuple(model_base.Base.__table_args__))
 
-    policy_enforcement_pref = sa.Column(sa.Integer)
+    policy_enforcement_pref = sa.Column(sa.String(16))
 
 
 class ApplicationProfile(model_base.Base, model_base.HasAimId,
@@ -129,7 +129,6 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
     app_profile_name = model_base.name_column(nullable=False)
 
     bd_name = model_base.name_column()
-    bd_tenant_name = model_base.name_column()
 
     contracts = orm.relationship(EndpointGroupContract,
                                  backref='epg',

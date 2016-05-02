@@ -57,8 +57,13 @@ class ResourceBase(object):
     def identity(self):
         return [getattr(self, x) for x in self.identity_attributes]
 
+    @classmethod
+    def attributes(cls):
+        return (cls.identity_attributes + cls.other_attributes +
+                cls.db_attributes)
+
     def __str__(self):
-        return '%s%s' % (type(self), self.identity)
+        return '%s(%s)' % (type(self).__name__, ','.join(self.identity))
 
 
 class AciResourceBase(ResourceBase):
@@ -198,8 +203,8 @@ class VRF(AciResourceBase):
     _aci_mo_name = 'fvCtx'
     _tree_parent = Tenant
 
-    POLICY_ENFORCED = 1
-    POLICY_UNENFORCED = 2
+    POLICY_ENFORCED = 'enforced'
+    POLICY_UNENFORCED = 'unenforced'
 
     def __init__(self, **kwargs):
         super(VRF, self).__init__(
@@ -233,7 +238,6 @@ class EndpointGroup(AciResourceBase):
     identity_attributes = ['tenant_name', 'app_profile_name', 'name']
     other_attributes = ['display_name',
                         'bd_name',
-                        'bd_tenant_name',
                         'provided_contract_names',
                         'consumed_contract_names']
 
@@ -241,4 +245,7 @@ class EndpointGroup(AciResourceBase):
     _tree_parent = ApplicationProfile
 
     def __init__(self, **kwargs):
-        super(EndpointGroup, self).__init__({}, **kwargs)
+        super(EndpointGroup, self).__init__({'bd_name': '',
+                                             'provided_contract_names': [],
+                                             'consumed_contract_names': []},
+                                            **kwargs)
