@@ -17,6 +17,7 @@ from aim import config
 
 import click
 from click import exceptions as exc
+import logging
 
 
 db_opts = [
@@ -35,9 +36,14 @@ db_opts = [
 @click.option('--config-file', '-c', multiple=True,
               help='AIM static configuration file')
 @click.option('--db/--no-db', default=True)
+@click.option('--debug/--no-debug', default=True)
 @click.pass_context
-def aim(ctx, config_file, db):
+def aim(ctx, config_file, db, debug):
     """Group for AIM cli."""
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.INFO)
     if db:
         try:
             config.CONF.register_opts(db_opts, 'database')

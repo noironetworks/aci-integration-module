@@ -280,7 +280,10 @@ class AciTenantManager(gevent.Greenlet):
             raise WebSocketSessionLoginFailed(tn_name=self.tenant_name,
                                               code=resp.status_code,
                                               text=resp.text)
+        current = time.time()
         self.tenant.instance_subscribe(self.ws_session)
+        LOG.info('Subscription to tenant %s took %s seconds' % (
+            self.tenant_name, time.time() - current))
         self.health_state = True
 
     def _establish_aci_session(self, apic_config):

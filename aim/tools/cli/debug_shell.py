@@ -13,14 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import logging
-
 from aim.tools.cli.groups import aimcli
 from aim.tools.cli.commands import *  # noqa
 from aim.tools.cli.debug import *  # noqa
 
 aim_debug = aimcli.aim
-logging.getLogger().setLevel(logging.DEBUG)
 
 
 def run():
