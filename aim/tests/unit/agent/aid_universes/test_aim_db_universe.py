@@ -127,10 +127,10 @@ class TestAimDbUniverse(base.TestAimDBBase):
         diff_tn_1 = trees[0].diff(tree.StructuredHashTree())
         diff_tn_2 = trees[1].diff(tree.StructuredHashTree())
 
-        result = self.universe.get_aim_resources(diff_tn_1.get('add', []) +
-                                                 diff_tn_1.get('remove', []) +
-                                                 diff_tn_2.get('add', []) +
-                                                 diff_tn_2.get('remove', []))
+        result = self.universe.get_resources(diff_tn_1.get('add', []) +
+                                             diff_tn_1.get('remove', []) +
+                                             diff_tn_2.get('add', []) +
+                                             diff_tn_2.get('remove', []))
         self.assertTrue(bd1 in result)
         self.assertTrue(bd2 in result)
 

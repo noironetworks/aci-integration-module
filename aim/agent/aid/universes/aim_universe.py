@@ -15,9 +15,11 @@
 
 from oslo_log import log as logging
 
+from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe as base
 from aim import context
 from aim.db import tree_model
+from aim import exceptions as aim_exc
 
 
 LOG = logging.getLogger(__name__)
@@ -36,6 +38,11 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self.context = context.AimContext(db_session)
         self._served_tenants = set()
         return self
+
+    def _dissect_key(self, key):
+        # Returns ('path.to.Class', [identity list])
+        return (key[-1][:key[-1].find('|')],
+                [x[x.find('|') + 1:] for x in key])
 
     def serve(self, tenants):
         LOG.debug('Serving tenants: %s' % tenants)
@@ -72,3 +79,26 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def reconcile(self, other_universe):
         # For now, reconciliation into AIM cannot be done
         raise NotImplementedError
+
+    def get_resources(self, resource_keys):
+        result = []
+        for key in resource_keys:
+            dissected = self._dissect_key(key)
+            klass = converter.resource_map[dissected[0]][0]['resource']
+            res = klass(
+                **dict([(y, dissected[1][x])
+                        for x, y in enumerate(klass.identity_attributes)]))
+            try:
+                res_db = self.manager.get(self.context, res)
+                result.append(res_db or res)
+            except aim_exc.UnknownResourceType:
+                LOG.warn("Resource %s is not defined in AIM", dissected)
+                result.append(res)
+
+        return result
+
+    def get_resources_for_delete(self, resource_keys):
+        return self.get_resources(resource_keys)
+
+    def push_resources(self, resources):
+        pass

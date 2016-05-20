@@ -33,7 +33,6 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
     def _test_resource_ops(self, resource, tenant, tree_objects,
                            tree_objects_update, **updates):
-        obj_hash_key = tree_objects[0]['key']
         # add
         self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
 
@@ -52,7 +51,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # delete
         self.db_l.on_commit(self.ctx.db_session, [], [], [resource])
         db_tree = self.tt_mgr.get(self.ctx, tenant)
-        exp_tree = tree.StructuredHashTree().add((obj_hash_key[0],))
+        exp_tree = tree.StructuredHashTree()
         self.assertEqual(exp_tree, db_tree)
 
     def test_bd_ops(self):

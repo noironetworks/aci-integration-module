@@ -34,7 +34,9 @@ from aim import exceptions
 
 LOG = logging.getLogger(__name__)
 TENANT_KEY = 'fvTenant'
+FAULT_KEY = 'faultInst'
 STATUS_FIELD = 'status'
+CHILDREN_FIELD = 'children'
 CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant'])
 
 
@@ -74,7 +76,7 @@ class Tenant(acitoolkit.Tenant):
 
     def _get_instance_subscription_urls(self):
         url = ('/api/mo/uni/tn-{}.json?query-target=subtree&'
-               'rsp-prop-include=config-only&'
+               'rsp-prop-include=config-only&rsp-subtree-include=faults&'
                'subscription=yes'.format(self.name))
         if self.filtered_children:
             url += '&target-subtree-class=' + ','.join(self.filtered_children)
@@ -135,6 +137,7 @@ class AciTenantManager(gevent.Greenlet):
         # thread altogether
         self.tenant = Tenant(self.tenant_name, filtered_children=CHILDREN_LIST)
         self._state = structured_tree.StructuredHashTree()
+        self._operational_state = structured_tree.StructuredHashTree()
         self.health_state = False
         self.polling_yield = 1
         self.to_aim_converter = converter.AciToAimModelConverter()
@@ -146,12 +149,17 @@ class AciTenantManager(gevent.Greenlet):
         # Wrapping the greenlet property for easier testing
         return self.dead
 
-    # This method is dangerous if run concurrently with _event_to_tree.
+    # These methods are dangerous if run concurrently with _event_to_tree.
     # However, serialization/deserialization of the in-memory tree should not
-    # cause I/O operation, therefore this method can't be context switched.
+    # cause I/O operation, therefore they can't be context switched.
     def get_state_copy(self):
         return structured_tree.StructuredHashTree.from_string(
             str(self._state), root_key=self._state.root_key)
+
+    def get_operational_state_copy(self):
+        return structured_tree.StructuredHashTree.from_string(
+            str(self._operational_state),
+            root_key=self._operational_state.root_key)
 
     def _run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
@@ -203,7 +211,12 @@ class AciTenantManager(gevent.Greenlet):
                     LOG.info("Resetting Tree %s" % self.tenant_name)
                     # This is a full resync, tree needs to be reset
                     self._state = structured_tree.StructuredHashTree()
+                    self._operational_state = (
+                        structured_tree.StructuredHashTree())
+                    break
             LOG.debug("received events: %s", events)
+            # Make events list flat
+            self._flat_events(events)
             # Pull incomplete objects
             self._fill_events(events)
             LOG.debug("Filled events: %s", events)
@@ -328,23 +341,30 @@ class AciTenantManager(gevent.Greenlet):
         :return:
         """
         # TODO(ivar): filter faults when we support them
-        to_tree = {'create': [], 'delete': []}
+        config_tree = {'create': [], 'delete': []}
+        operational_tree = {'create': [], 'delete': []}
+        trees = {True: operational_tree, False: config_tree}
+        states = {id(operational_tree): self._operational_state,
+                  id(config_tree): self._state}
         for event in events:
             aci_resource = event.values()[0]
             if (aci_resource['attributes'].get(STATUS_FIELD) ==
                     converter.DELETED_STATUS):
-                to_tree['delete'].append(event)
+                trees[event.keys()[0] == FAULT_KEY]['delete'].append(event)
             else:
-                to_tree['create'].append(event)
+                trees[event.keys()[0] == FAULT_KEY]['create'].append(event)
 
         # Convert objects
-        to_tree['create'] = self.to_aim_converter.convert(to_tree['create'])
-        to_tree['delete'] = self.to_aim_converter.convert(to_tree['delete'])
+        for tree in trees.values():
+            state = states[id(tree)]
+            tree['create'] = self.to_aim_converter.convert(tree['create'])
+            tree['delete'] = self.to_aim_converter.convert(tree['delete'])
 
-        self.tree_maker.update(self._state, to_tree['create'])
-        self.tree_maker.delete(self._state, to_tree['delete'])
-        LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
-                                                  str(self._state)))
+            self.tree_maker.update(state, tree['create'])
+            self.tree_maker.delete(state, tree['delete'])
+
+            LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
+                                                      str(state)))
 
     def _fill_events(self, events):
         """Gets incomplete objects from APIC if needed
@@ -384,7 +404,7 @@ class AciTenantManager(gevent.Greenlet):
                                 {t: {'attributes': {'dn': id,
                                                     'status': status}}})
                     visited.add(dn)
-                    # TODO(ivar): the 'mo/' suffix should be added to APICAPI
+                    # TODO(ivar): the 'mo/' suffix should be added by APICAPI
                     data = self.aci_session.get_data(
                         'mo/' + dn, rsp_prop_include='config-only')
                     resource['attributes'].update(
@@ -402,3 +422,22 @@ class AciTenantManager(gevent.Greenlet):
                         raise
         LOG.debug('Filling procedure took %s for tenant %s' %
                   (time.time() - start, self.tenant.name))
+
+    def _flat_events(self, events):
+        # If there are children objects, put them at the top level
+        for event in events:
+            if event.values()[0].get(CHILDREN_FIELD):
+                # Rebuild the DN
+                children = event.values()[0].pop(CHILDREN_FIELD)
+                for child in children:
+                    attrs = child.values()[0]['attributes']
+                    name_or_code = attrs.get('name', attrs.get('code'))
+                    # Set DN of this object the the parent DN plus
+                    # the proper prefix followed by the name or code (in case
+                    # of faultInst)
+                    attrs['dn'] = (
+                        event.values()[0]['attributes']['dn'] + '/' +
+                        apic_client.ManagedObjectClass.mos_to_prefix[
+                            child.keys()[0]] + (('-' + name_or_code)
+                                                if name_or_code else ''))
+                events.extend(children)

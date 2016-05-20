@@ -37,7 +37,8 @@ class TestStructuredNode(base.BaseTestCase):
         self.assertTrue(isinstance(node.get_children(), tuple))
         self.assertEqual(
             ('{"key": ["key"], "partial_hash": "partial_hash", '
-             '"full_hash": "partial_hash", "_children": []}'), str(node))
+             '"full_hash": "partial_hash", "dummy": true, "_children": []}'),
+            str(node))
 
     def test_set_child(self):
         # Test with default
@@ -310,6 +311,19 @@ class TestStructuredHashTree(base.BaseTestCase):
 
         # Key not found
         self.assertIsNone(data.pop(('keyA', 'keyF', 'keyE')))
+
+    def test_pop_dummies(self):
+        data = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC', 'keyD')}])
+        # Removing keyD, keyC will also be removed
+        data.pop(('keyA', 'keyC', 'keyD'))
+        expected = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}])
+        self.assertEqual(expected, data)
+
+        # Popping keyB will now also pop the root
+        data.pop(('keyA', 'keyB'))
+        self.assertIsNone(data.root)
 
     def test_find(self):
         data = tree.StructuredHashTree()
