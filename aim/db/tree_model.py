@@ -239,13 +239,17 @@ class AimHashTreeMaker(object):
         :return: The updated tree (value is also changed)
         """
         aci_objects = converter.AimToAciModelConverter().convert(updates)
+        to_update = {}
         for obj in aci_objects:
             for mo, v in obj.iteritems():
                 attr = v.get('attributes', {})
                 dn = attr.pop('dn', None)
                 key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
                 if key:
-                    tree.add(key, **attr)
+                    tree.pop(key)   # delete the tree node to remove subtree
+                    to_update[key] = attr
+        for k, v in to_update.iteritems():
+            tree.add(k, **v)
         return tree
 
     def delete(self, tree, deletes):

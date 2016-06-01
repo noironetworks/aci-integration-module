@@ -26,6 +26,7 @@ MODIFIED_STATUS = "modified"
 
 
 def default_identity_converter(object_dict, otype, helper,
+                               extra_attributes=None,
                                to_aim=True):
     """Default identity converter
 
@@ -43,8 +44,10 @@ def default_identity_converter(object_dict, otype, helper,
     if to_aim:
         return apic_client.DNManager().aci_decompose(object_dict['dn'], otype)
     else:
-        return [apic_client.ManagedObjectClass(helper['resource']).dn(
-            *[object_dict[x] for x in otype.identity_attributes])]
+        attr = [object_dict[x] for x in otype.identity_attributes]
+        if extra_attributes:
+            attr.extend(extra_attributes)
+        return [apic_client.ManagedObjectClass(helper['resource']).dn(*attr)]
 
 
 def fault_identity_converter(object_dict, otype, helper,
@@ -177,6 +180,36 @@ def fault_inst_to_resource(converted, helper, to_aim=True):
         attr['code'] = attr['dn'].split('/')[-1][len(fault_prefix):]
         return result
 
+
+def rs_prov_cons_converter(object_dict, otype, helper,
+                           source_identity_attributes,
+                           destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        id = default_identity_converter(object_dict, otype, helper,
+                                        to_aim=True)
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict.get('tnVzBrCPName'):
+            res_attr = ('provided_contract_names' if otype == 'fvRsProv' else
+                        'consumed_contract_names')
+            res_dict[res_attr] = [object_dict['tnVzBrCPName']]
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        aci_type = helper['resource']
+        contracts = (object_dict['provided_contract_names']
+                     if aci_type == 'fvRsProv' else
+                     object_dict['consumed_contract_names'])
+        for c in contracts:
+            dn = default_identity_converter(
+                object_dict, otype, helper, extra_attributes=[c],
+                to_aim=False)[0]
+            result.append({aci_type: {'attributes': {'dn': dn,
+                                                     'tnVzBrCPName': c}}})
+    return result
+
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -268,7 +301,15 @@ resource_map = {
         },
         'identity_converter': fault_identity_converter,
         'to_resource': fault_inst_to_resource,
-    }]
+    }],
+    'fvRsProv': [{
+        'resource': resource.EndpointGroup,
+        'converter': rs_prov_cons_converter,
+    }],
+    'fvRsCons': [{
+        'resource': resource.EndpointGroup,
+        'converter': rs_prov_cons_converter,
+    }],
 }
 
 # Build the reverse map for reverse translation
@@ -405,7 +446,11 @@ class AciToAimModelConverter(BaseConverter):
                 tuple(res.identity),
                 klass(**dict([(y, res.identity[x]) for x, y in
                               enumerate(klass.identity_attributes)])))
-            current.__dict__.update(res.__dict__)
+            for k, v in res.__dict__.iteritems():
+                if isinstance(v, list):
+                    current.__dict__.setdefault(k, []).extend(v)
+                else:
+                    setattr(current, k, v)
         return res_map.values()
 
 
