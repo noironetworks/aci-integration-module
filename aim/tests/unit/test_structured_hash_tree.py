@@ -662,53 +662,56 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree = tree.StructuredHashTree()
 
         bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')
-        attr = {x: getattr(bd, x, None)
-                for x in bd.other_attributes
-                if x not in self.maker._exclude}
+
+        fvBD_attr = {'arpFlood': 'no',
+                     'epMoveDetectMode': '',
+                     'limitIpLearnToSubnets': 'no',
+                     'unicastRoute': 'yes',
+                     'unkMacUcastAct': 'proxy'}
+        fvRsCtx_attr = {'tnFvCtxName': 'default'}
 
         self.maker.update(htree, [bd])
 
-        exp_tree = exp_tree.add(
-            ('aim.api.resource.Tenant|t1',
-             'aim.api.resource.BridgeDomain|bd1'),
-            **attr)
+        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd1'), **fvBD_attr)
+        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd1', 'fvRsCtx|rsctx'),
+                                **fvRsCtx_attr)
         self.assertEqual(exp_tree, htree)
 
         bd.name = 'bd2'
         self.maker.update(htree, [bd])
 
-        exp_tree = exp_tree.add(
-            ('aim.api.resource.Tenant|t1',
-             'aim.api.resource.BridgeDomain|bd2'),
-            **attr)
+        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2'), **fvBD_attr)
+        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2', 'fvRsCtx|rsctx'),
+                                **fvRsCtx_attr)
         self.assertEqual(exp_tree, htree)
 
-        attr['l2_unknown_unicast_mode'] = 'flood'
+        fvBD_attr['unkMacUcastAct'] = 'flood'
         bd.l2_unknown_unicast_mode = 'flood'
         self.maker.update(htree, [bd])
 
-        exp_tree = exp_tree.add(
-            ('aim.api.resource.Tenant|t1',
-             'aim.api.resource.BridgeDomain|bd2'),
-            **attr)
+        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2'), **fvBD_attr)
         self.assertEqual(exp_tree, htree)
 
     def test_delete(self):
         bd1 = self._get_example_aim_bd(tenant_name='t1', name='bd1')
         bd2 = self._get_example_aim_bd(tenant_name='t1', name='bd2')
-        attr2 = {x: getattr(bd2, x, None)
-                 for x in bd2.other_attributes
-                 if x not in self.maker._exclude}
 
         htree = tree.StructuredHashTree()
         self.maker.update(htree, [bd1, bd2])
 
         self.maker.delete(htree, [bd1])
 
-        exp_tree = tree.StructuredHashTree().add(
-            ('aim.api.resource.Tenant|t1',
-             'aim.api.resource.BridgeDomain|bd2'),
-            **attr2)
+        fvBD_attr = {'arpFlood': 'no',
+                     'epMoveDetectMode': '',
+                     'limitIpLearnToSubnets': 'no',
+                     'unicastRoute': 'yes',
+                     'unkMacUcastAct': 'proxy'}
+        fvRsCtx_attr = {'tnFvCtxName': 'default'}
+
+        exp_tree = tree.StructuredHashTree()
+        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2'), **fvBD_attr)
+        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2', 'fvRsCtx|rsctx'),
+                                **fvRsCtx_attr)
         self.assertEqual(exp_tree, htree)
 
         self.maker.delete(htree, [bd2])
