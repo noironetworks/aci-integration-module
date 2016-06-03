@@ -27,6 +27,8 @@ from aim import exceptions as aim_exc
 
 
 LOG = logging.getLogger(__name__)
+CREATE = 'create'
+DELETE = 'delete'
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -108,7 +110,27 @@ class AimUniverse(BaseUniverse):
 
         In case the AIM resource doesn't exist in the DB, a non-persistent
         resource will be fine as well as long as the identity attributes
-        are correctly set (useful for objects deletion).
+        are correctly set.
+
+        :param resource_keys: List of keys representing the AIM resource.
+        The format of the key can be defined by the Universe specialization.
+        Comparable Universes must have the same key format.
+        :return:
+        """
+
+    @abc.abstractmethod
+    def get_resource_for_delete(self, resource_key):
+        """Given a resource key, returns resource for delete
+
+        :param resource_key: Key representing the resource. The format
+        of the key can be defined by the Universe specialization. Comparable
+        Universes must have the same key format.
+        :return:
+        """
+
+    @abc.abstractmethod
+    def get_resources_for_delete(self, resource_keys):
+        """Given a resource key list, returns resources for delete
 
         :param resource_keys: List of keys representing the AIM resource.
         The format of the key can be defined by the Universe specialization.
@@ -180,14 +202,14 @@ class HashTreeStoredUniverse(AimUniverse):
     def reconcile(self, other_universe):
         my_state = self.state
         other_state = other_universe.get_optimized_state(my_state)
-        result = {'create': [], 'delete': []}
+        result = {CREATE: [], DELETE: []}
         for tenant, tree in other_state.iteritems():
             my_tenant_state = my_state.get(
                 tenant, structured_tree.StructuredHashTree())
             # Retrieve difference to transform self into other
             difference = tree.diff(my_tenant_state)
-            result['create'].extend(difference['add'])
-            result['delete'].extend(difference['remove'])
+            result[CREATE].extend(difference['add'])
+            result[DELETE].extend(difference['remove'])
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
             if not tree.root:
@@ -196,16 +218,16 @@ class HashTreeStoredUniverse(AimUniverse):
                     # Empty tenant hasn't changed on AIM, gracefully delete
                     other_universe.cleanup_state(tenant)
         LOG.debug("Universe differences: %s" % result)
-        if not result.get('create') and not result.get('delete'):
+        if not result.get(CREATE) and not result.get(DELETE):
             LOG.debug("The Universe is in sync.")
         # Get AIM resources at the end to reduce the number of transactions
-        result['create'] = self.get_aim_resources(result['create'])
-        result['delete'] = self.get_aim_resources(result['delete'])
+        result[CREATE] = self.get_aim_resources(result[CREATE])
+        result[DELETE] = self.get_aim_resources(result[DELETE])
         # Reconciliation method for pushing changes
         self.push_aim_resources(result)
 
     def get_aim_resource(self, resource_key):
-        self.get_aim_resources([resource_key])
+        return self.get_aim_resources([resource_key])
 
     def get_aim_resources(self, resource_keys):
         result = []
@@ -223,6 +245,13 @@ class HashTreeStoredUniverse(AimUniverse):
                 result.append(res)
 
         return result
+
+    def get_resource_for_delete(self, resource_key):
+        self.get_resources_for_delete([resource_key])
+
+    def get_resources_for_delete(self, resource_keys):
+        # TODO(ivar): build the APIC object for deletion.
+        pass
 
     def push_aim_resources(self, resources):
         pass

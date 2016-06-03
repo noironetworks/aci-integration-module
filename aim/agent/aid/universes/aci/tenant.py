@@ -26,6 +26,7 @@ import gevent
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
+from aim.agent.aid.universes import base_universe
 from aim.common.hashtree import structured_tree
 from aim.db import tree_model
 from aim import exceptions
@@ -233,7 +234,12 @@ class AciTenantManager(gevent.Greenlet):
                     # push the new body
                     LOG.debug('%s AIM object %s in APIC' %
                               (method, aim_object))
-                    to_push = self.to_aci_converter.convert([aim_object])
+                    if method == base_universe.DELETE:
+                        # TODO(ivar): use the below when intergration completes
+                        # to_push = aim_object
+                        to_push = self.to_aci_converter.convert([aim_object])
+                    else:
+                        to_push = self.to_aci_converter.convert([aim_object])
                     # Multiple objects could result from a conversion, push
                     # them in a single transaction
                     try:
