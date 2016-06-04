@@ -14,6 +14,7 @@
 #    under the License.
 
 import collections
+import copy
 import json
 import Queue
 import time
@@ -235,9 +236,7 @@ class AciTenantManager(gevent.Greenlet):
                     LOG.debug('%s AIM object %s in APIC' %
                               (method, aim_object))
                     if method == base_universe.DELETE:
-                        # TODO(ivar): use the below when intergration completes
-                        # to_push = aim_object
-                        to_push = self.to_aci_converter.convert([aim_object])
+                        to_push = [copy.deepcopy(aim_object)]
                     else:
                         to_push = self.to_aci_converter.convert([aim_object])
                     # Multiple objects could result from a conversion, push
@@ -258,8 +257,12 @@ class AciTenantManager(gevent.Greenlet):
                         # TODO(ivar): Either creation or deletion failed.
                         # Look at the reason and update the AIM status
                         # accordingly.
+                        try:
+                            printable = aim_object.__dict__
+                        except AttributeError:
+                            printable = aim_object
                         LOG.error("An error as occurred during %s for "
-                                  "object %s" % (method, aim_object.__dict__))
+                                  "object %s" % (method, printable))
                         LOG.debug(traceback.format_exc())
 
     def _subscribe_tenant(self):

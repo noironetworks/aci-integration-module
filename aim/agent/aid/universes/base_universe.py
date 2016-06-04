@@ -18,8 +18,8 @@ import abc
 import six
 
 from oslo_log import log as logging
-from oslo_utils import importutils
 
+from aim.agent.aid.universes.aci import converter
 from aim import aim_manager
 from aim.common.hashtree import structured_tree
 from aim import context
@@ -193,8 +193,8 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _dissect_key(self, key):
         # Returns ('path.to.Class', [identity list])
-        return (key[-1][:key[-1].find('|')],
-                [x[x.find('|') + 1:] for x in key])
+        aci_type = key[-1][:key[-1].find('|')]
+        return (aci_type, [x[x.find('|') + 1:] for x in key])
 
     def observe(self):
         pass
@@ -222,7 +222,7 @@ class HashTreeStoredUniverse(AimUniverse):
             LOG.debug("The Universe is in sync.")
         # Get AIM resources at the end to reduce the number of transactions
         result[CREATE] = self.get_aim_resources(result[CREATE])
-        result[DELETE] = self.get_aim_resources(result[DELETE])
+        result[DELETE] = self.get_resources_for_delete(result[DELETE])
         # Reconciliation method for pushing changes
         self.push_aim_resources(result)
 
@@ -233,7 +233,7 @@ class HashTreeStoredUniverse(AimUniverse):
         result = []
         for key in resource_keys:
             dissected = self._dissect_key(key)
-            klass = importutils.import_class(dissected[0])
+            klass = converter.resource_map[dissected[0]][0]['resource']
             res = klass(
                 **dict([(y, dissected[1][x])
                         for x, y in enumerate(klass.identity_attributes)]))
@@ -250,7 +250,6 @@ class HashTreeStoredUniverse(AimUniverse):
         self.get_resources_for_delete([resource_key])
 
     def get_resources_for_delete(self, resource_keys):
-        # TODO(ivar): build the APIC object for deletion.
         pass
 
     def push_aim_resources(self, resources):

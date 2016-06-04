@@ -13,8 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from apicapi import apic_client
 from oslo_log import log as logging
 
+from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource
@@ -34,6 +36,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def initialize(self, db_session):
         super(AciUniverse, self).initialize(db_session)
         self.apic_config = self._retrieve_apic_config(db_session)
+        self._aim_converter = converter.AciToAimModelConverter()
         # dictionary of tenants currently served tenants. Keys are the tenants'
         # name, values the Web Socket interfaces
         self._serving_tenants = {}
@@ -93,9 +96,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         by_tenant = {}
         for method, objects in resources.iteritems():
             for data in objects:
-                tenant_name = (
-                    data.tenant_name if not isinstance(data, resource.Tenant)
-                    else data.name)
+                tenant_name = self._retrieve_tenant_name(data)
                 by_tenant.setdefault(tenant_name, {}).setdefault(
                     method, []).append(data)
 
@@ -108,3 +109,19 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def _retrieve_apic_config(self, db_session):
         # TODO(ivar): DB oriented config
         return config.CONF.apic
+
+    def _retrieve_tenant_name(self, data):
+        if isinstance(data, dict):
+            data = self._aim_converter.convert([data])[0]
+        if isinstance(data, resource.Tenant):
+            return data.name
+        elif isinstance(data, resource.ResourceBase):
+            return data.tenant_name
+
+    def get_resources_for_delete(self, resource_keys):
+        result = []
+        for key in resource_keys:
+            dissected = self._dissect_key(key)
+            dn = apic_client.ManagedObjectClass(dissected[0]).dn(*dissected[1])
+            result.append({dissected[0]: {'attributes': {'dn': dn}}})
+        return result
