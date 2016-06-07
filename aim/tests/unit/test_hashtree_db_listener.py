@@ -14,6 +14,7 @@
 #    under the License.
 
 
+import copy
 import mock
 
 from aim.common.hashtree import structured_tree as tree
@@ -30,36 +31,42 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.tt_mgr = tree_model.TenantHashTreeManager()
         self.db_l = ht_db_l.HashTreeDbListener(mock.Mock())
 
-    def _test_resource_ops(self, tenant, key, resource):
-        attr = {x: getattr(resource, x, None)
-                for x in resource.other_attributes if
-                x not in tree_model.AimHashTreeMaker._exclude}
-
+    def _test_resource_ops(self, resource, tenant, tree_objects,
+                           tree_objects_update, **updates):
+        obj_hash_key = tree_objects[0]['key']
         # add
         self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
 
         db_tree = self.tt_mgr.get(self.ctx, tenant)
-        exp_tree = tree.StructuredHashTree().add(key, **attr)
+        exp_tree = tree.StructuredHashTree().include(tree_objects)
         self.assertEqual(exp_tree, db_tree)
 
         # update
-        attr['vrf_name'] = 'shared'
-        resource.vrf_name = attr['vrf_name']
+        resource.__dict__.update(**updates)
         self.db_l.on_commit(self.ctx.db_session, [], [resource], [])
 
         db_tree = self.tt_mgr.get(self.ctx, tenant)
-        exp_tree = tree.StructuredHashTree().add(key, **attr)
+        exp_tree = tree.StructuredHashTree().include(tree_objects_update)
         self.assertEqual(exp_tree, db_tree)
 
         # delete
         self.db_l.on_commit(self.ctx.db_session, [], [], [resource])
         db_tree = self.tt_mgr.get(self.ctx, tenant)
-        exp_tree = tree.StructuredHashTree().add(key[:-1])
+        exp_tree = tree.StructuredHashTree().add((obj_hash_key[0],))
         self.assertEqual(exp_tree, db_tree)
 
     def test_bd_ops(self):
         bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')
+        tree_objects = [
+            {'key': ('fvTenant|t1', 'fvBD|bd1'),
+             'arpFlood': 'no',
+             'epMoveDetectMode': '',
+             'limitIpLearnToSubnets': 'no',
+             'unicastRoute': 'yes',
+             'unkMacUcastAct': 'proxy'},
+            {'key': ('fvTenant|t1', 'fvBD|bd1', 'fvRsCtx|rsctx'),
+             'tnFvCtxName': 'default'}]
+        tree_objects_update = copy.deepcopy(tree_objects)
+        tree_objects_update[1]['tnFvCtxName'] = 'shared'
         self._test_resource_ops(
-            't1',
-            ('aim.api.resource.Tenant|t1',
-             'aim.api.resource.BridgeDomain|bd1'), bd)
+            bd, 't1', tree_objects, tree_objects_update, vrf_name='shared')

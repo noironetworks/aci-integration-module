@@ -80,13 +80,12 @@ class TestAciClientMixin(object):
     def _objects_transaction_delete(self, objs):
         result = []
         for obj in objs:
-            conversion = converter.AimToAciModelConverter().convert([obj])
             transaction = apic_client.Transaction(mock.Mock())
-            for item in conversion:
-                getattr(transaction, item.keys()[0]).remove(
-                    *self.manager.dn_manager.aci_decompose(
-                        item.values()[0]['attributes'].pop('dn'),
-                        item.keys()[0]))
+            item = copy.deepcopy(obj)
+            getattr(transaction, obj.keys()[0]).remove(
+                *self.manager.dn_manager.aci_decompose(
+                    item.values()[0]['attributes'].pop('dn'),
+                    item.keys()[0]))
             result.append(transaction)
         return result
 
@@ -237,6 +236,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         # Create some AIM resources
         bd1 = self._get_example_aim_bd()
         bd2 = self._get_example_aim_bd(name='test2')
+        bda1 = self._get_example_aci_bd()
+        bda2 = self._get_example_aci_bd(descr='test2')
         self.manager.push_aim_resources({'create': [bd1, bd2]})
         self.manager._push_aim_resources()
         # Verify expected calls
@@ -250,10 +251,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
         # Delete AIM resources
         self.manager.aci_session.post_body.reset_mock()
-        self.manager.push_aim_resources({'delete': [bd1, bd2]})
+        self.manager.push_aim_resources({'delete': [bda1, bda2]})
         self.manager._push_aim_resources()
         # Verify expected calls, add deleted status
-        transactions = self._objects_transaction_delete([bd1, bd2])
+        transactions = self._objects_transaction_delete([bda1, bda2])
         exp_calls = [
             mock.call(mock.ANY, json.dumps(transactions[0].root),
                       'test-tenant'),
@@ -264,10 +265,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         # Create AND delete aim resources
         self.manager.aci_session.post_body.reset_mock()
         self.manager.push_aim_resources(collections.OrderedDict(
-            [('create', [bd1]), ('delete', [bd2])]))
+            [('create', [bd1]), ('delete', [bda2])]))
         self.manager._push_aim_resources()
         transactions = self._objects_transaction_create([bd1])
-        transactions.extend(self._objects_transaction_delete([bd2]))
+        transactions.extend(self._objects_transaction_delete([bda2]))
         exp_calls = [
             mock.call(mock.ANY, json.dumps(transactions[0].root),
                       'test-tenant'),
@@ -279,7 +280,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.manager.aci_session.post_body = mock.Mock(
             side_effect=apic_client.cexc.ApicResponseNotOk)
         # No exception is externally rised
-        self.manager.push_aim_resources({'delete': [bd1, bd2]})
+        self.manager.push_aim_resources({'delete': [bda1, bda2]})
         self.manager._push_aim_resources()
 
     def test_fill_events_noop(self):

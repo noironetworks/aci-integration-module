@@ -275,7 +275,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Everything is in sync again
         self.assertEqual(agent.current_universe.state,
                          agent.desired_universe.state,
-                         'Not in sync:\n current: %s \n desired: %s' %
+                         'Not in sync:\n current: %s \n\n desired: %s' %
                          ({x: str(y) for x, y in
                            agent.current_universe.state.iteritems()},
                           {x: str(y) for x, y in
@@ -285,7 +285,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.delete(self.ctx, bd2_tn1)
         # We don't have Tenant model yet, so just empty its tree
         tn1_tree = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])[0]
-        tn1_tree.pop((resource.__name__ + '.Tenant|tn1', ))
+        tn1_tree.pop(('fvTenant|tn1',))
 
         agent.tree_manager.update(agent.context, tn1_tree)
         agent._daemon_loop()

@@ -18,12 +18,14 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import exc as sql_exc
 
+from aim.agent.aid.universes.aci import converter
 from aim.api import resource as api_res
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim.db import model_base
 
+from apicapi import apic_client
 
 LOG = logging.getLogger(__name__)
 
@@ -179,29 +181,21 @@ class AimHashTreeMaker(object):
     def _build_hash_tree_key(resource):
         if not isinstance(resource, api_res.AciResourceBase):
             return None
+        try:
+            return AimHashTreeMaker._dn_to_key(resource._aci_mo_name,
+                                               resource.dn)
+        except Exception as e:
+            LOG.warning("Failed to get DN for resource %s: %s", resource, e)
 
-        cls_list = []
-        klass = type(resource)
-        while klass:
-            cls_list.append(klass)
-            klass = klass._tree_parent
-            if not hasattr(klass, '_tree_parent'):
-                break
-        cls_list.reverse()
-
-        if cls_list[0] != api_res.Tenant:
-            return None
-
-        id_values = resource.identity
-        if len(id_values) != len(cls_list):
-            LOG.warning("Mismatch between number of identity values (%d) and "
-                        "parent classes (%d) for %s",
-                        len(id_values), len(cls_list), resource)
-            return None
-
-        cls_list = ['%s.%s' % (c.__module__, c.__name__) for c in cls_list]
-        key = tuple(['|'.join(x) for x in zip(cls_list, id_values)])
-        return key
+    @staticmethod
+    def _dn_to_key(mo_type, dn):
+        try:
+            type_and_dn = apic_client.DNManager().aci_decompose_with_type(
+                dn, mo_type)
+            return tuple(['|'.join(x) for x in type_and_dn])
+        except apic_client.DNManager.InvalidNameFormat:
+            LOG.warning("Failed to transform DN %s to key for hash-tree", dn)
+            return
 
     @staticmethod
     def _extract_tenant_name(root_key):
@@ -215,11 +209,14 @@ class AimHashTreeMaker(object):
                         added/updated
         :return: The updated tree (value is also changed)
         """
-        for resource in updates:
-            key = self._build_hash_tree_key(resource)
-            tree.add(key, **{x: getattr(resource, x, None)
-                             for x in resource.other_attributes
-                             if x not in self._exclude})
+        aci_objects = converter.AimToAciModelConverter().convert(updates)
+        for obj in aci_objects:
+            for mo, v in obj.iteritems():
+                attr = v.get('attributes', {})
+                dn = attr.pop('dn', None)
+                key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
+                if key:
+                    tree.add(key, **attr)
         return tree
 
     def delete(self, tree, deletes):
@@ -232,7 +229,8 @@ class AimHashTreeMaker(object):
         """
         for resource in deletes:
             key = self._build_hash_tree_key(resource)
-            tree.pop(key)
+            if key:
+                tree.pop(key)
         return tree
 
     def get_tenant_key(self, resource):
