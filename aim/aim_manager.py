@@ -21,6 +21,7 @@ from aim.api import status as api_status
 from aim.db import agent_model
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import models
+from aim.db import status_model
 from aim import exceptions as exc
 
 
@@ -55,7 +56,9 @@ class AimManager(object):
                      api_res.Subnet: models.Subnet,
                      api_res.VRF: models.VRF,
                      api_res.ApplicationProfile: models.ApplicationProfile,
-                     api_res.EndpointGroup: models.EndpointGroup, }
+                     api_res.EndpointGroup: models.EndpointGroup,
+                     api_status.AciStatus: status_model.Status,
+                     api_status.AciFault: status_model.Fault}
 
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff
@@ -167,8 +170,17 @@ class AimManager(object):
         """
 
         if isinstance(resource, api_res.AciResourceBase):
-            # TODO(amitbose) Fetch status from DB
-            return api_status.AciStatus()
+            res_type, res_id = self._get_status_params(context, resource)
+            if res_type and res_id:
+                status = self.get(context, api_status.AciStatus(
+                    resource_type=res_type, resource_id=res_id))
+                if not status:
+                    # Create one with default values
+                    return self.update_status(context, resource,
+                                              api_status.AciStatus())
+                status.faults = self.find(context, api_status.AciFault,
+                                          status_id=status.id)
+                return status
         return None
 
     def update_status(self, context, resource, status):
@@ -180,8 +192,27 @@ class AimManager(object):
         """
 
         if isinstance(resource, api_res.AciResourceBase):
-            # TODO(amitbose) Update status to DB
-            pass
+            res_type, res_id = self._get_status_params(context, resource)
+            if res_type and res_id:
+                status.resource_type = res_type
+                status.resource_id = res_id
+                return self.create(context, status, overwrite=True)
+
+    def set_fault(self, context, resource, fault):
+        status = self.get_status(context, resource)
+        if status:
+            fault.status_id = status.id
+            self.create(context, fault, overwrite=True)
+
+    def clear_fault(self, context, resource, fault):
+        status = self.get_status(context, resource)
+        if status:
+            db_fault = self._query_db(
+                context.db_session, api_status.AciFault,
+                status_id=status.id, fault_code=fault.fault_code).first()
+            if db_fault:
+                context.db_session.delete(db_fault)
+                self._add_commit_hook(context.db_session)
 
     def register_update_listener(self, func):
         """Register callback for update to AIM objects.
@@ -274,3 +305,17 @@ class AimManager(object):
                       "%d update(s), %d delete(s)",
                       func.__name__, len(added), len(updated), len(deleted))
             func(session, added, updated, deleted)
+
+    def _get_status_params(self, context, resource):
+            res_type = type(resource).__name__
+            db_obj = self._query_db_obj(context.db_session, resource)
+            if db_obj is None:
+                # TODO(ivar): should we raise a proper exception?
+                return None, None
+            try:
+                res_id = db_obj.aim_id
+            except AttributeError:
+                LOG.warn("Resource with type %s doesn't support status" %
+                         res_type)
+                return None, None
+            return res_type, res_id

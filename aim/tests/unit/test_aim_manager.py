@@ -25,6 +25,7 @@ import time
 
 from aim import aim_manager
 from aim.api import resource
+from aim.api import status as aim_status
 from aim import config  # noqa
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
@@ -226,16 +227,33 @@ class TestResourceOpsBase(object):
         self.assertFalse(listener.called)
 
     def _test_resource_status(self, resource, test_identity_attributes):
+        self._create_prerequisite_objects()
         creation_attributes = {}
         creation_attributes.update(test_identity_attributes)
         res = resource(**creation_attributes)
 
+        self.mgr.create(self.ctx, res, overwrite=True)
         status = self.mgr.get_status(self.ctx, res)
+        self.assertTrue(isinstance(status, aim_status.AciStatus))
         self.assertFalse(status.is_build())
         self.assertFalse(status.is_error())
 
         status.sync_message = "some message"
         self.mgr.update_status(self.ctx, res, status)
+
+        # Add a fault
+        fault = aim_status.AciFault(
+            fault_code='412', external_identifier='dn',
+            severity=aim_status.AciFault.SEV_CRITICAL)
+        self.mgr.set_fault(self.ctx, res, fault)
+        status = self.mgr.get_status(self.ctx, res)
+        self.assertEqual(1, len(status.faults))
+        self.assertEqual(aim_status.AciFault.SEV_CRITICAL,
+                         status.faults[0].severity)
+
+        self.mgr.clear_fault(self.ctx, res, fault)
+        status = self.mgr.get_status(self.ctx, res)
+        self.assertEqual(0, len(status.faults))
 
     def _create_prerequisite_objects(self):
         for obj in (self.prereq_objects or []):
@@ -275,6 +293,9 @@ class TestTenant(TestAciResourceOpsBase, base.TestAimDBBase):
     test_search_attributes = {'name': 'tenant1'}
     test_update_attributes = {'display_name': 'pepsi'}
     test_dn = 'uni/tn-tenant1'
+
+    def test_status(self):
+        pass
 
 
 class TestBridgeDomain(TestAciResourceOpsBase, base.TestAimDBBase):
@@ -339,6 +360,9 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
         self.assertFalse(agent.is_down())
         config.cfg.CONF.set_override('agent_down_time', 0, 'aim')
         self.assertTrue(agent.is_down())
+
+    def test_status(self):
+        pass
 
 
 class TestSubnet(TestAciResourceOpsBase, base.TestAimDBBase):
