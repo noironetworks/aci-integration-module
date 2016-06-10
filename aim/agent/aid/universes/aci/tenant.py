@@ -340,7 +340,6 @@ class AciTenantManager(gevent.Greenlet):
         :param events: an ACI event in the form of a list of objects
         :return:
         """
-        # TODO(ivar): filter faults when we support them
         config_tree = {'create': [], 'delete': []}
         operational_tree = {'create': [], 'delete': []}
         trees = {True: operational_tree, False: config_tree}
@@ -348,6 +347,7 @@ class AciTenantManager(gevent.Greenlet):
                   id(config_tree): self._state}
         for event in events:
             aci_resource = event.values()[0]
+            # TODO(ivar): consider 'cleared' severity
             if (aci_resource['attributes'].get(STATUS_FIELD) ==
                     converter.DELETED_STATUS):
                 trees[event.keys()[0] == FAULT_KEY]['delete'].append(event)

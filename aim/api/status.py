@@ -99,13 +99,12 @@ class AciFault(resource.ResourceBase, OperationalResource):
     identity_attributes = ['fault_code', 'external_identifier']
     other_attributes = ['severity',
                         'status_id',
-                        'lifecycle_status',
-                        'cause_code',
+                        'cause',
                         'description']
     db_attributes = ['last_update_timestamp']
 
     def __init__(self, **kwargs):
         super(AciFault, self).__init__(
             {'severity': self.SEV_INFO, 'lifecycle_status': self.LC_UNKNOWN,
-             'cause_code': 0, 'description': "",
+             'cause': '', 'description': "",
              'last_update_timestamp': None}, **kwargs)

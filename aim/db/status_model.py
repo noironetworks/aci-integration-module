@@ -38,6 +38,7 @@ class Fault(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     fault_code = sa.Column(sa.Integer, nullable=False)
     severity = sa.Column(sa.Integer, nullable=False)
     description = sa.Column(sa.String(255), default='')
+    cause = sa.Column(sa.String(255), default='')
     last_update_timestamp = sa.Column(sa.TIMESTAMP, server_default=func.now(),
                                       onupdate=func.now())
     # external_identifier is an ID used by external entities to easily

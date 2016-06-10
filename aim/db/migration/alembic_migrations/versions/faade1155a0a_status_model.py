@@ -54,6 +54,7 @@ def upgrade():
         sa.Column('fault_code', sa.Integer, nullable=False),
         sa.Column('severity', sa.Integer, nullable=False),
         sa.Column('description', sa.String(255), default=''),
+        sa.Column('cause', sa.String(255), default=''),
         sa.Column('last_update_timestamp', sa.TIMESTAMP,
                   server_default=func.now(), onupdate=func.now()),
         sa.Column('external_identifier', sa.String(512), nullable=False),

@@ -21,6 +21,7 @@ from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
 from aim.api import resource
+from aim.api import status as aim_status
 from aim import context
 from aim.db import api
 from aim.db import model_base
@@ -252,4 +253,29 @@ class TestAimDBBase(BaseTestCase):
             }
         }
         example_epg['fvAEPg']['attributes'].update(kwargs)
+        return example_epg
+
+    @classmethod
+    def _get_example_aim_fault(cls, **kwargs):
+        example = aim_status.AciFault(
+            fault_code='951',
+            external_identifier='uni/tn-t1/ap-a1/epg-test/fault-951',
+            severity='warning')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_fault(cls, **kwargs):
+        example_epg = {
+            "faultInst": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test/fault-951",
+                    "descr": "cannot resolve",
+                    "code": "951",
+                    "severity": "warning",
+                    "cause": "resolution-failed",
+                }
+            }
+        }
+        example_epg['faultInst']['attributes'].update(kwargs)
         return example_epg

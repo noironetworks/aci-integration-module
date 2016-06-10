@@ -413,3 +413,22 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 'code': 'F0952', 'type': 'config'}}}
         ]
         self.assertEqual(expected, events)
+
+    def test_operational_tree(self):
+        events = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                               'tnFvCtxName': 'asasa'},
+                'children': [{'faultInst': {
+                    'attributes': {'ack': 'no', 'delegated': 'no',
+                                   'code': 'F0952', 'type': 'config'}}}]}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'tnFvCtxName': 'test'},
+                'children': [{'faultInst': {'attributes': {
+                    'ack': 'no', 'delegated': 'no',
+                    'code': 'F0952', 'type': 'config'}}}]}}]
+        self.manager._subscribe_tenant()
+        self._set_events(events)
+        self.manager._event_loop()
+        self.assertIsNotNone(self.manager._operational_state)
