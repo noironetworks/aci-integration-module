@@ -21,6 +21,7 @@ from aim.api import status as aim_status
 
 LOG = logging.getLogger(__name__)
 DELETED_STATUS = "deleted"
+CLEARED_SEVERITY = "cleared"
 MODIFIED_STATUS = "modified"
 
 
@@ -351,7 +352,6 @@ class BaseConverter(object):
             # Identity was already converted
             if other not in destination_identity_attributes:
                 res_dict[other] = converted
-        LOG.debug("Converted %s into %s" % (object_dict, res_dict))
         result = (helper.get('to_resource') or default_to_resource)(
             res_dict, helper, to_aim=to_aim)
         return [result] if result else []
@@ -386,7 +386,10 @@ class AciToAimModelConverter(BaseConverter):
                         # Set deleted status for updating the tree correctly
                         x.__dict__['_status'] = 'deleted'
                 result.extend(converted)
-        return self._squash(result)
+        squashed = self._squash(result)
+        LOG.debug("Converted:\n %s\n into:\n %s" %
+                  (aci_objects, squashed))
+        return squashed
 
     def _squash(self, converted_list):
         """Squash objects with same identity into one
@@ -409,16 +412,15 @@ class AciToAimModelConverter(BaseConverter):
 class AimToAciModelConverter(BaseConverter):
     """Converts ACI model to AIM resource."""
 
-    def convert(self, aci_objects):
+    def convert(self, aim_objects):
         """Converter main method
 
-        :param aci_objects: list of ACI objects in the form of a dictionary
-        which has the object type as the first key
+        :param aim_objects: list of AIM objects
         :return: list of AIM resources
         """
-        LOG.debug("converting aim objects %s" % aci_objects)
+        LOG.debug("converting aim objects %s" % aim_objects)
         result = []
-        for object in aci_objects:
+        for object in aim_objects:
             klass = type(object)
             if klass not in reverse_resource_map:
                 # Ignore unmanaged object
@@ -431,7 +433,10 @@ class AimToAciModelConverter(BaseConverter):
                     ['dn'], to_aim=False)
                 result.extend(converted)
 
-        return self._squash(result)
+        squashed = self._squash(result)
+        LOG.debug("Converted:\n %s\n into:\n %s" %
+                  (aim_objects, squashed))
+        return squashed
 
     def _squash(self, converted_list):
         """Squash objects with same identity into one

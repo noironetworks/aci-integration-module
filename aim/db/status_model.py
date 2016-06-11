@@ -35,8 +35,8 @@ class Fault(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     status_id = sa.Column(sa.String(36), sa.ForeignKey('aim_statuses.id',
                                                        ondelete='CASCADE'),
                           nullable=False)
-    fault_code = sa.Column(sa.Integer, nullable=False)
-    severity = sa.Column(sa.Integer, nullable=False)
+    fault_code = sa.Column(sa.String(25), nullable=False)
+    severity = sa.Column(sa.String(25), nullable=False)
     description = sa.Column(sa.String(255), default='')
     cause = sa.Column(sa.String(255), default='')
     last_update_timestamp = sa.Column(sa.TIMESTAMP, server_default=func.now(),

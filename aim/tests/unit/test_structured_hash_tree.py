@@ -424,9 +424,9 @@ class TestStructuredHashTree(base.BaseTestCase):
              {'key': ('keyA1', 'keyC', 'keyD')}])
 
         # The whole tree needs to be modified for going from data3 to data
-        self.assertEqual({"add": [('keyA', ), ('keyA', 'keyB'),
+        self.assertEqual({"add": [('keyA', 'keyB'),
                                   ('keyA', 'keyC'), ('keyA', 'keyC', 'keyD')],
-                          "remove": [('keyA1', ), ('keyA1', 'keyB'),
+                          "remove": [('keyA1', 'keyB'),
                                      ('keyA1', 'keyC'),
                                      ('keyA1', 'keyC', 'keyD')]},
                          data.diff(data3))

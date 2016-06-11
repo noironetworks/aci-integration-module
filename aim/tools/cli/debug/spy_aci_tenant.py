@@ -17,6 +17,7 @@ import time
 
 import click
 
+from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.tools.cli.groups import aimcli
 
@@ -32,7 +33,9 @@ from aim.tools.cli.groups import aimcli
 @click.pass_context
 # Debug utility for ACI web socket
 def spy_aci_tenant(ctx, tenant):
-    tn = aci_tenant.AciTenantManager(tenant, ctx.obj['conf'].apic)
+    conf = ctx.obj['conf'].apic
+    tn = aci_tenant.AciTenantManager(
+        tenant, conf, aci_universe.AciUniverse.establish_aci_session(conf))
     tn._run()
     prev_state = None
     while True:

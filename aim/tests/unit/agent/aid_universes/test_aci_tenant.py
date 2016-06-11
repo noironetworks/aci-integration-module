@@ -21,6 +21,7 @@ import gevent
 import json
 import mock
 
+from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim import config
@@ -173,8 +174,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def setUp(self):
         super(TestAciTenant, self).setUp()
         self._do_aci_mocks()
-        self.manager = aci_tenant.AciTenantManager('tenant-1',
-                                                   config.CONF.apic)
+        conf = config.CONF.apic
+        self.manager = aci_tenant.AciTenantManager(
+            'tenant-1', conf,
+            aci_universe.AciUniverse.establish_aci_session(conf))
 
     def test_event_loop(self):
         self.manager._subscribe_tenant()
@@ -201,7 +204,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.assertFalse(self.manager.is_dead())
 
     def test_event_loop_failure(self):
-        manager = aci_tenant.AciTenantManager('tenant-1', config.CONF.apic)
+        conf = config.CONF.apic
+        manager = aci_tenant.AciTenantManager(
+            'tenant-1', conf,
+            aci_universe.AciUniverse.establish_aci_session(conf))
         manager.tenant.instance_has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
@@ -341,7 +347,6 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         ]
         self.manager._fill_events(events)
         self.assertEqual([complete, missing], events)
-
 
     def test_flat_events(self):
         events = [

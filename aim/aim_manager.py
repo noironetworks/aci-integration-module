@@ -169,18 +169,19 @@ class AimManager(object):
         be left unspecified.
         """
 
-        if isinstance(resource, api_res.AciResourceBase):
-            res_type, res_id = self._get_status_params(context, resource)
-            if res_type and res_id:
-                status = self.get(context, api_status.AciStatus(
-                    resource_type=res_type, resource_id=res_id))
-                if not status:
-                    # Create one with default values
-                    return self.update_status(context, resource,
-                                              api_status.AciStatus())
-                status.faults = self.find(context, api_status.AciFault,
-                                          status_id=status.id)
-                return status
+        with context.db_session.begin(subtransactions=True):
+            if isinstance(resource, api_res.AciResourceBase):
+                res_type, res_id = self._get_status_params(context, resource)
+                if res_type and res_id:
+                    status = self.get(context, api_status.AciStatus(
+                        resource_type=res_type, resource_id=res_id))
+                    if not status:
+                        # Create one with default values
+                        return self.update_status(context, resource,
+                                                  api_status.AciStatus())
+                    status.faults = self.find(context, api_status.AciFault,
+                                              status_id=status.id)
+                    return status
         return None
 
     def update_status(self, context, resource, status):
@@ -190,29 +191,31 @@ class AimManager(object):
         to determine the object whose status will be updated; other
         attributes may be left unspecified.
         """
-
-        if isinstance(resource, api_res.AciResourceBase):
-            res_type, res_id = self._get_status_params(context, resource)
-            if res_type and res_id:
-                status.resource_type = res_type
-                status.resource_id = res_id
-                return self.create(context, status, overwrite=True)
+        with context.db_session.begin(subtransactions=True):
+            if isinstance(resource, api_res.AciResourceBase):
+                res_type, res_id = self._get_status_params(context, resource)
+                if res_type and res_id:
+                    status.resource_type = res_type
+                    status.resource_id = res_id
+                    return self.create(context, status, overwrite=True)
 
     def set_fault(self, context, resource, fault):
-        status = self.get_status(context, resource)
-        if status:
-            fault.status_id = status.id
-            self.create(context, fault, overwrite=True)
+        with context.db_session.begin(subtransactions=True):
+            status = self.get_status(context, resource)
+            if status:
+                fault.status_id = status.id
+                self.create(context, fault, overwrite=True)
 
     def clear_fault(self, context, resource, fault):
-        status = self.get_status(context, resource)
-        if status:
-            db_fault = self._query_db(
-                context.db_session, api_status.AciFault,
-                status_id=status.id, fault_code=fault.fault_code).first()
-            if db_fault:
-                context.db_session.delete(db_fault)
-                self._add_commit_hook(context.db_session)
+        with context.db_session.begin(subtransactions=True):
+            status = self.get_status(context, resource)
+            if status:
+                db_fault = self._query_db(
+                    context.db_session, api_status.AciFault,
+                    status_id=status.id, fault_code=fault.fault_code).first()
+                if db_fault:
+                    context.db_session.delete(db_fault)
+                    self._add_commit_hook(context.db_session)
 
     def register_update_listener(self, func):
         """Register callback for update to AIM objects.

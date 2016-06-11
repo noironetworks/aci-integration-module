@@ -42,12 +42,21 @@ AGENT_DESCRIPTION = ('This Agent synchronizes the AIM state with ACI for a '
 class AID(object):
 
     def __init__(self, conf):
-        # Have 3 sessions
+        # Have 5 sessions
         self.session = api.get_session()
         self.desired_universe = aim_universe.AimDbUniverse().initialize(
             api.get_session())
         self.current_universe = aci_universe.AciUniverse().initialize(
             api.get_session())
+        # Operational Universes. ACI operational info will be synchronized into
+        # AIM's
+        self.desired_operational_universe = (
+            aci_universe.AciOperationalUniverse().initialize(
+                api.get_session()))
+        self.current_operational_universe = (
+            aim_universe.AimDbOperationalUniverse().initialize(
+                api.get_session()))
+
         self.context = context.AimContext(self.session)
         self.manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantHashTreeManager()
@@ -79,6 +88,9 @@ class AID(object):
         # Serve tenants
         self.desired_universe.serve(tenants)
         self.current_universe.serve(tenants)
+
+        self.desired_operational_universe.serve(tenants)
+        self.current_operational_universe.serve(tenants)
         # REVISIT(ivar) Might be wise to wait here upon tenant serving to allow
         # time for events to happen
 
@@ -86,11 +98,13 @@ class AID(object):
         self.desired_universe.observe()
         self.current_universe.observe()
 
+        self.desired_operational_universe.observe()
+        self.current_operational_universe.observe()
+
         # Reconcile everything
         self.current_universe.reconcile(self.desired_universe)
-
-        # TODO(ivar): retrieve status for objects. Collecting status
-        # should happen asynchronously as should be pushing it to AIM.
+        self.current_operational_universe.reconcile(
+            self.desired_operational_universe)
 
     def _heartbeat_loop(self, interval):
         while True:

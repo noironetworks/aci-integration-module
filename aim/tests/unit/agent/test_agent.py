@@ -22,6 +22,7 @@ import mock
 from aim.agent.aid import service
 from aim import aim_manager
 from aim.api import resource
+from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim import config
 from aim.db import tree_model
@@ -50,8 +51,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_dead',
             return_value=False)
         self.thread_dead.start()
+
+        self.thread_warm = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_warm',
+            return_value=True)
+        self.thread_warm.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
+        self.addCleanup(self.thread_warm.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body = self.old_post
@@ -212,6 +220,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
 
+        self.aim_manager.set_fault(
+            self.ctx, bd1_tn1, aim_status.AciFault(
+                fault_code='516',
+                external_identifier='uni/tn-tn1/BD-bd1/fault-516'))
+        # Fault has been registered in the DB
+        status = self.aim_manager.get_status(self.ctx, bd1_tn1)
+        self.assertEqual(1, len(status.faults))
+
         # ACI universe is empty right now, one cycle of the main loop will
         # reconcile the state
         agent._daemon_loop()
@@ -227,6 +243,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertFalse(
             agent.current_universe.serving_tenants['tn2'].
             object_backlog.empty())
+
+        # Meanwhile, Operational state has been cleaned from AIM
+        status = self.aim_manager.get_status(self.ctx, bd1_tn1)
+        self.assertEqual(0, len(status.faults))
 
         # Events around the BD creation are now sent to the ACI universe, add
         # them to the observed tree

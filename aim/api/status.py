@@ -89,13 +89,14 @@ class AciFault(resource.ResourceBase, OperationalResource):
     LC_SOAKING_CLEARING = 0x4
     LC_RAISED_CLEARING = 0x8
 
-    SEV_CLEARED = 0
-    SEV_INFO = 1
-    SEV_WARNING = 2
-    SEV_MINOR = 3
-    SEV_MAJOR = 4
-    SEV_CRITICAL = 5
+    SEV_CLEARED = 'cleared'
+    SEV_INFO = 'info'
+    SEV_WARNING = 'warning'
+    SEV_MINOR = 'minor'
+    SEV_MAJOR = 'major'
+    SEV_CRITICAL = 'critical'
 
+    _aci_mo_name = 'faultInst'
     identity_attributes = ['fault_code', 'external_identifier']
     other_attributes = ['severity',
                         'status_id',

@@ -190,7 +190,7 @@ class HashTreeStoredUniverse(AimUniverse):
         return self
 
     def _dissect_key(self, key):
-        # Returns ('path.to.Class', [identity list])
+        # Returns ('apicType', [identity list])
         aci_type = key[-1][:key[-1].find('|')]
         return aci_type, [x[x.find('|') + 1:] for x in key]
 
@@ -201,13 +201,17 @@ class HashTreeStoredUniverse(AimUniverse):
         my_state = self.state
         other_state = other_universe.get_optimized_state(my_state)
         result = {CREATE: [], DELETE: []}
-        for tenant, tree in other_state.iteritems():
+        for tenant in set(my_state.keys()) & set(other_state.keys()):
+            tree = other_state[tenant]
             my_tenant_state = my_state.get(
                 tenant, structured_tree.StructuredHashTree())
             # Retrieve difference to transform self into other
             difference = tree.diff(my_tenant_state)
             result[CREATE].extend(difference['add'])
             result[DELETE].extend(difference['remove'])
+            if result[CREATE] or result[DELETE]:
+                LOG.debug("There are differences between:\n %s\n and\n %s" %
+                          (str(my_tenant_state), str(tree)))
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
             if not tree.root:
@@ -225,13 +229,13 @@ class HashTreeStoredUniverse(AimUniverse):
         self.push_resources(result)
 
     def get_resource_for_delete(self, resource_key):
-        self.get_resources_for_delete([resource_key])
+        return self.get_resources_for_delete([resource_key])
 
     def get_resources_for_delete(self, resource_keys):
         pass
 
     def get_resource(self, resource_key):
-        self.get_resources([resource_key])
+        return self.get_resources([resource_key])
 
     def serve(self, tenants):
         pass

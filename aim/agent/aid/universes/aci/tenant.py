@@ -36,8 +36,10 @@ LOG = logging.getLogger(__name__)
 TENANT_KEY = 'fvTenant'
 FAULT_KEY = 'faultInst'
 STATUS_FIELD = 'status'
+SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
 CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant'])
+OPERATIONAL_LIST = [FAULT_KEY]
 
 
 # Dictionary with all the needed RS objects of a given APIC object type.
@@ -125,12 +127,13 @@ class Tenant(acitoolkit.Tenant):
 
 class AciTenantManager(gevent.Greenlet):
 
-    def __init__(self, tenant_name, apic_config, *args, **kwargs):
+    def __init__(self, tenant_name, apic_config, apic_session, *args,
+                 **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
         LOG.info("Init manager for tenant %s" % tenant_name)
         self.apic_config = apic_config
         # Each tenant has its own sessions
-        self.aci_session = self._establish_aci_session(self.apic_config)
+        self.aci_session = apic_session
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
         # TODO(ivar): subscribe on faults as well, this might be a different
@@ -144,10 +147,16 @@ class AciTenantManager(gevent.Greenlet):
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
         self.tree_maker = tree_model.AimHashTreeMaker()
+        # Warm bit to avoid rushed synchronization before receiving the first
+        # batch of APIC events
+        self._warm = False
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
         return self.dead
+
+    def is_warm(self):
+        return self._warm
 
     # These methods are dangerous if run concurrently with _event_to_tree.
     # However, serialization/deserialization of the in-memory tree should not
@@ -183,11 +192,28 @@ class AciTenantManager(gevent.Greenlet):
             # tenant subscription is redone upon exception
             LOG.debug("Starting event loop for tenant %s" % self.tenant_name)
             self._subscribe_tenant()
+            count = 3
+            last_time = 0
+            epsilon = 0.5
             while True:
                 start = time.time()
                 self._event_loop()
-                LOG.debug("Event loop for tenant %s completed in %s "
-                          "seconds" % (self.tenant_name, time.time() - start))
+                if count == 0:
+                    LOG.debug("Setting tenant %s to warm state" %
+                              self.tenant_name)
+                    self._warm = True
+                    count -= 1
+                elif count > 0:
+                    count -= 1
+                curr_time = time.time() - start
+                if abs(curr_time - last_time) > epsilon:
+                    # Only log significant differences
+                    LOG.debug("Event loop for tenant %s completed in %s "
+                              "seconds" % (self.tenant_name,
+                                           time.time() - start))
+                    last_time = curr_time
+                if not last_time:
+                    last_time = curr_time
         except gevent.GreenletExit:
             raise
         except Exception as e:
@@ -201,13 +227,14 @@ class AciTenantManager(gevent.Greenlet):
         # all the events we generate here are likely caught in this iteration.
         self._push_aim_resources()
         if self.tenant.instance_has_event(self.ws_session):
+            LOG.debug("Event for tenant %s in warm state %s" %
+                      (self.tenant_name, self._warm))
             # Continuously check for events
             events = self.tenant.instance_get_event_data(
                 self.ws_session)
             for event in events:
                 if (event.keys()[0] == TENANT_KEY and not
-                        event[TENANT_KEY]['attributes'].get(
-                            STATUS_FIELD)):
+                        event[TENANT_KEY]['attributes'].get(STATUS_FIELD)):
                     LOG.info("Resetting Tree %s" % self.tenant_name)
                     # This is a full resync, tree needs to be reset
                     self._state = structured_tree.StructuredHashTree()
@@ -311,27 +338,6 @@ class AciTenantManager(gevent.Greenlet):
             self.tenant_name, time.time() - current))
         self.health_state = True
 
-    def _establish_aci_session(self, apic_config):
-        # TODO(IVAR): unnecessary things will be removed once apicapi gets its
-        # own refactor.
-        return apic_client.RestClient(
-            logging,
-            # TODO(ivar): retrieve APIC system ID
-            '',
-            apic_config.apic_hosts,
-            apic_config.apic_username,
-            apic_config.apic_password,
-            apic_config.apic_use_ssl,
-            scope_names=False,
-            scope_infra=apic_config.scope_infra,
-            renew_names=False,
-            verify=apic_config.verify_ssl_certificate,
-            request_timeout=apic_config.apic_request_timeout,
-            cert_name=apic_config.certificate_name,
-            private_key_file=apic_config.private_key_file,
-            sign_algo=apic_config.signature_verification_algorithm,
-            sign_hash=apic_config.signature_hash_type)
-
     def _event_to_tree(self, events):
         """Parse the event and push it into the tree
 
@@ -347,9 +353,10 @@ class AciTenantManager(gevent.Greenlet):
                   id(config_tree): self._state}
         for event in events:
             aci_resource = event.values()[0]
-            # TODO(ivar): consider 'cleared' severity
             if (aci_resource['attributes'].get(STATUS_FIELD) ==
-                    converter.DELETED_STATUS):
+                    converter.DELETED_STATUS or
+                    aci_resource['attributes'].get(SEVERITY_FIELD) ==
+                    converter.CLEARED_SEVERITY):
                 trees[event.keys()[0] == FAULT_KEY]['delete'].append(event)
             else:
                 trees[event.keys()[0] == FAULT_KEY]['create'].append(event)
@@ -362,6 +369,9 @@ class AciTenantManager(gevent.Greenlet):
 
             self.tree_maker.update(state, tree['create'])
             self.tree_maker.delete(state, tree['delete'])
+            if state is self._state:
+                # Delete also from Operational tree for branch cleanup
+                self.tree_maker.delete(self._operational_state, tree['delete'])
 
             LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
                                                       str(state)))
@@ -386,8 +396,10 @@ class AciTenantManager(gevent.Greenlet):
         start = time.time()
         for event in events:
             resource = event.values()[0]
+            res_type = event.keys()[0]
             status = resource['attributes'].get(STATUS_FIELD)
-            if status == converter.MODIFIED_STATUS:
+            if (status == converter.MODIFIED_STATUS or
+                    res_type in OPERATIONAL_LIST):
                 try:
                     # Remove from extra dns if there
                     # 'dn' attribute is guaranteed to be there
@@ -395,7 +407,7 @@ class AciTenantManager(gevent.Greenlet):
                     if dn in visited:
                         continue
                     # See if there's any extra object to be retrieved
-                    for filler in RS_FILL_DICT.get(event.keys()[0], []):
+                    for filler in RS_FILL_DICT.get(res_type, []):
                         t, id = ((filler[0], dn + '/' + filler[1])
                                  if not callable(filler) else filler(resource))
                         if id not in dns:
@@ -404,9 +416,12 @@ class AciTenantManager(gevent.Greenlet):
                                 {t: {'attributes': {'dn': id,
                                                     'status': status}}})
                     visited.add(dn)
+                    kargs = {'rsp_prop_include': 'config-only'}
+                    # Operational state need full configuration
+                    if event.keys()[0] in OPERATIONAL_LIST:
+                        kargs.pop('rsp_prop_include')
                     # TODO(ivar): the 'mo/' suffix should be added by APICAPI
-                    data = self.aci_session.get_data(
-                        'mo/' + dn, rsp_prop_include='config-only')
+                    data = self.aci_session.get_data('mo/' + dn, **kargs)
                     resource['attributes'].update(
                         data[0].values()[0]['attributes'])
                     # Status not needed unless deleted

@@ -19,17 +19,18 @@ from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.common.hashtree import structured_tree
 from aim.tests import base
+from aim.tests.unit.agent.aid_universes import test_aci_tenant
 
 
 def _kill_thread(inst):
     inst.is_dead = mock.Mock(return_value=True)
 
 
-class TestAciUniverseMixin(object):
+class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
     def setUp(self, universe_klass=None):
         super(TestAciUniverseMixin, self).setUp()
-        # Patch currently unimplemented methods
+        self._do_aci_mocks()
         self.universe = (universe_klass or
                          aci_universe.AciUniverse)().initialize(self.ctx)
         # Mock ACI tenant manager
@@ -40,15 +41,15 @@ class TestAciUniverseMixin(object):
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_dead',
             return_value=False)
         self.mock_is_dead.start()
-        self.mock_aci_session = mock.patch(
-            'aim.agent.aid.universes.aci.tenant.AciTenantManager.'
-            '_establish_aci_session')
-        self.mock_aci_session.start()
+        self.mock_is_warm = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_warm',
+            return_value=True)
+        self.mock_is_warm.start()
         aci_tenant.AciTenantManager.health_state = True
         aci_tenant.AciTenantManager.kill = _kill_thread
         self.addCleanup(self.mock_start.stop)
         self.addCleanup(self.mock_is_dead.stop)
-        self.addCleanup(self.mock_aci_session.stop)
+        self.addCleanup(self.mock_is_warm.stop)
 
     def test_serve(self):
         tenant_list = ['tn%s' % x for x in range(10)]
@@ -175,6 +176,22 @@ class TestAciUniverseMixin(object):
             self.universe.serving_tenants['tn1'].object_backlog.empty())
         self.assertTrue(
             self.universe.serving_tenants['tn2'].object_backlog.empty())
+
+    def test_get_resource_fault(self):
+        fault = self._get_example_aci_fault()
+        self._add_server_data([fault], self.universe)
+        key = ('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951')
+        result = self.universe.get_resource(key)
+        self.assertEqual(fault, result[0])
+
+    def test_get_resources(self):
+        fault = self._get_example_aci_fault()
+        bd = self._get_example_aci_bd()
+        self._add_server_data([fault, bd], self.universe)
+        keys = [('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951'),
+                ('fvTenant|test-tenant', 'fvBD|test')]
+        result = self.universe.get_resources(keys)
+        self.assertEqual(sorted([bd, fault]), sorted(result))
 
 
 class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):

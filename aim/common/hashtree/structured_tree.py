@@ -364,6 +364,7 @@ class StructuredHashTree(base.ComparableCollection):
 
     @utils.log
     def diff(self, other):
+        # TODO(ivar): exclude dummy nodes
         if not self.root:
             return {"add": [], "remove": self._get_subtree_keys(other.root)}
         if not other.root:
@@ -406,7 +407,7 @@ class StructuredHashTree(base.ComparableCollection):
         # traverse the tree and returns all its keys
         if not root:
             return []
-        result = [root.key]
+        result = [root.key] if not root.dummy else []
         for node in root.get_children():
             result += self._get_subtree_keys(node)
         return result
