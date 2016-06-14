@@ -35,10 +35,11 @@ from aim import exceptions
 LOG = logging.getLogger(__name__)
 TENANT_KEY = 'fvTenant'
 FAULT_KEY = 'faultInst'
+TAG_KEY = 'tagInst'
 STATUS_FIELD = 'status'
 SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
-CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant'])
+CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
 OPERATIONAL_LIST = [FAULT_KEY]
 
 
@@ -147,6 +148,9 @@ class AciTenantManager(gevent.Greenlet):
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
         self.tree_maker = tree_model.AimHashTreeMaker()
+        # TODO(ivar): retrieve apic_system_id
+        self.tag_name = 'openstack_aid'
+        self.tag_set = set()
         # Warm bit to avoid rushed synchronization before receiving the first
         # batch of APIC events
         self._warm = False
@@ -244,6 +248,9 @@ class AciTenantManager(gevent.Greenlet):
             LOG.debug("received events: %s", events)
             # Make events list flat
             self._flat_events(events)
+            # Manage Tags
+            events = self._filter_ownership(events)
+            LOG.debug("Filtered events: %s", events)
             # Pull incomplete objects
             self._fill_events(events)
             LOG.debug("Filled events: %s", events)
@@ -282,11 +289,21 @@ class AciTenantManager(gevent.Greenlet):
                         to_push = [copy.deepcopy(aim_object)]
                     else:
                         to_push = self.to_aci_converter.convert([aim_object])
+                    # Set TAGs before pushing the request
+                    tags = []
+                    if method == base_universe.CREATE:
+                        # No need to deal with tags on deletion
+                        for obj in to_push:
+                            dn = obj.values()[0]['attributes']['dn']
+                            dn += '/tag-%s' % self.tag_name
+                            tags.append({"tagInst__%s" % obj.keys()[0]:
+                                         {"attributes": {"dn": dn}}})
+                    LOG.debug("Pushing into APIC: %s" % (to_push + tags))
                     # Multiple objects could result from a conversion, push
                     # them in a single transaction
                     try:
                         with self.aci_session.transaction() as trs:
-                            for obj in to_push:
+                            for obj in to_push + tags:
                                 getattr(
                                     getattr(self.aci_session, obj.keys()[0]),
                                     method)(
@@ -353,11 +370,11 @@ class AciTenantManager(gevent.Greenlet):
                   id(config_tree): self._state}
         for event in events:
             aci_resource = event.values()[0]
-            if (aci_resource['attributes'].get(STATUS_FIELD) ==
-                    converter.DELETED_STATUS or
-                    aci_resource['attributes'].get(SEVERITY_FIELD) ==
-                    converter.CLEARED_SEVERITY):
+            if self._is_deleting(event):
                 trees[event.keys()[0] == FAULT_KEY]['delete'].append(event)
+                # Pop deleted object from the TAG list
+                dn = aci_resource['attributes']['dn']
+                self.tag_set.discard(dn)
             else:
                 trees[event.keys()[0] == FAULT_KEY]['create'].append(event)
 
@@ -456,3 +473,31 @@ class AciTenantManager(gevent.Greenlet):
                             child.keys()[0]] + (('-' + name_or_code)
                                                 if name_or_code else ''))
                 events.extend(children)
+
+    def _filter_ownership(self, events):
+        result = []
+        for event in events:
+            if event.keys()[0] == TAG_KEY:
+                decomposed = event.values()[0]['attributes']['dn'].split('/')
+                if decomposed[-1] == 'tag-' + self.tag_name:
+                    if self._is_deleting(event):
+                        self.tag_set.discard('/'.join(decomposed[:-1]))
+                    else:
+                        self.tag_set.add('/'.join(decomposed[:-1]))
+            else:
+                result.append(event)
+        return [x for x in result if self._is_owned(x) or self._is_deleting(x)]
+
+    def _is_owned(self, aci_object):
+        dn = aci_object.values()[0]['attributes']['dn']
+        if aci_object.keys()[0] in apic_client.MULTI_PARENT:
+            decomposed = dn.split('/')
+            # Check for parent ownership
+            return '/'.join(decomposed[:-1]) in self.tag_set
+        else:
+            return dn in self.tag_set
+
+    def _is_deleting(self, aci_object):
+        attrs = aci_object.values()[0]['attributes']
+        status = attrs.get(STATUS_FIELD, attrs.get(SEVERITY_FIELD))
+        return status in [converter.DELETED_STATUS, converter.CLEARED_SEVERITY]
