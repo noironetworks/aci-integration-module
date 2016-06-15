@@ -49,8 +49,11 @@ def parent_dn(resource):
     return dn[:dn.rfind('/')]
 
 
-RS_FILL_DICT = {'fvBD': ['rsctx'],
-                'fvRsCtx': [parent_dn]}
+def bd_dn(resource):
+    return 'fvBD', parent_dn(resource)
+
+RS_FILL_DICT = {'fvBD': [('fvRsCtx', 'rsctx')],
+                'fvRsCtx': [bd_dn]}
 
 
 class WebSocketSessionLoginFailed(exceptions.AimException):
@@ -358,28 +361,36 @@ class AciTenantManager(gevent.Greenlet):
         :param events: List of events to retrieve
         :return:
         """
-        extra_dns = set()
         visited = set()
+        dns = {x.values()[0]['attributes']['dn'] for x in events}
         start = time.time()
         for event in events:
-            if (event.values()[0]['attributes'].get(STATUS_FIELD) ==
-                    converter.MODIFIED_STATUS):
+            resource = event.values()[0]
+            status = resource['attributes'].get(STATUS_FIELD)
+            if status == converter.MODIFIED_STATUS:
                 try:
                     # Remove from extra dns if there
-                    resource = event.values()[0]
                     # 'dn' attribute is guaranteed to be there
                     dn = resource['attributes']['dn']
-                    extra_dns.discard(dn)
+                    if dn in visited:
+                        continue
                     # See if there's any extra object to be retrieved
                     for filler in RS_FILL_DICT.get(event.keys()[0], []):
-                        extra_dns.add(dn + '/' + filler if not callable(filler)
-                                      else filler(resource))
+                        t, id = ((filler[0], dn + '/' + filler[1])
+                                 if not callable(filler) else filler(resource))
+                        if id not in dns:
+                            # Avoid duplicate lookups
+                            events.append(
+                                {t: {'attributes': {'dn': id,
+                                                    'status': status}}})
                     visited.add(dn)
                     # TODO(ivar): the 'mo/' suffix should be added to APICAPI
                     data = self.aci_session.get_data(
                         'mo/' + dn, rsp_prop_include='config-only')
                     resource['attributes'].update(
                         data[0].values()[0]['attributes'])
+                    # Status not needed unless deleted
+                    resource['attributes'].pop('status')
                 except apic_exc.ApicResponseNotOk as e:
                     # Object might have been deleted
                     if str(e.err_code) == '404':
@@ -389,31 +400,5 @@ class AciTenantManager(gevent.Greenlet):
                     else:
                         LOG.error(e.message)
                         raise
-        # Process Extra DNs
-        while extra_dns:
-            try:
-                # Get one DN
-                dn = extra_dns.pop()
-                if dn in visited:
-                    # Avoid loops
-                    continue
-                # In case of IndexError, let's just rise and have the upper
-                # layer taking care of the problem.
-                data = self.aci_session.get_data(
-                    'mo/' + dn, rsp_prop_include='config-only')[0]
-                events.append(data)
-                # See if there's any extra object to be retrieved
-                for suffix in RS_FILL_DICT.get(data.keys()[0], []):
-                    extra_dns.add(dn + '/' + suffix if not callable(suffix)
-                                  else suffix(data.values()[0]))
-                visited.add(dn)
-            except apic_exc.ApicResponseNotOk as e:
-                # Object might have been deleted or didn't exist
-                # in a first place
-                if str(e.err_code) == '404':
-                    LOG.debug("Resource %s not found", dn)
-                else:
-                    LOG.error(e.message)
-                    raise
         LOG.debug('Filling procedure took %s for tenant %s' %
                   (time.time() - start, self.tenant.name))

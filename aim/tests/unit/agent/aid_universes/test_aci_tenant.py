@@ -297,7 +297,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 "tnFvCtxName": "test", "status": "modified"}}},
         ]
         complete = {"fvRsCtx": {"attributes": {
-            "dn": "uni/tn-test-tenant/BD-test/rsctx", "status": "modified",
+            "dn": "uni/tn-test-tenant/BD-test/rsctx",
             "tnFvCtxName": "test", "extra": "something_important"}}}
         parent_bd = self._get_example_aci_bd()
         self._add_server_data([complete, parent_bd])
@@ -308,7 +308,6 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         events = [{"fvBD": {"attributes": {
             "arpFlood": "yes", "descr": "test",
             "dn": "uni/tn-test-tenant/BD-test", "status": "modified"}}}]
-        parent_bd['fvBD']['attributes']['status'] = 'modified'
         self.manager._fill_events(events)
         self.assertEqual([parent_bd, complete], events)
 
@@ -329,8 +328,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
         # Test missing counterpart
         complete = {"fvRsCtx": {"attributes": {
-            "dn": "uni/tn-test-tenant/BD-test/rsctx", "status": "modified",
+            "dn": "uni/tn-test-tenant/BD-test/rsctx",
             "tnFvCtxName": "test", "extra": "something_important"}}}
+        missing = {'fvBD': {'attributes': {
+            'dn': 'uni/tn-test-tenant/BD-test', 'status': 'deleted'}}}
         self.manager.aci_session._data_stash = {}
         self._add_server_data([complete])
         events = [
@@ -339,4 +340,4 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 "tnFvCtxName": "test", "status": "modified"}}},
         ]
         self.manager._fill_events(events)
-        self.assertEqual([complete], events)
+        self.assertEqual([complete, missing], events)
