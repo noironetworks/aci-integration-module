@@ -13,22 +13,22 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import mock
 
 from aim.agent.aid.universes import aim_universe
 from aim import aim_manager
 from aim.api import resource
+from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.db import agent_model  # noqa
 from aim.db import tree_model
 from aim.tests import base
 
 
-class TestAimDbUniverse(base.TestAimDBBase):
+class TestAimDbUniverseBase(object):
 
-    def setUp(self):
-        super(TestAimDbUniverse, self).setUp()
-        self.universe = aim_universe.AimDbUniverse().initialize(self.session)
+    def setUp(self, klass=aim_universe.AimDbUniverse):
+        super(TestAimDbUniverseBase, self).setUp()
+        self.universe = klass().initialize(self.session)
         self.tree_mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
 
     def test_serve(self):
@@ -37,7 +37,7 @@ class TestAimDbUniverse(base.TestAimDBBase):
         self.universe.serve(tenants)
         self.assertEqual(set(tenants), set(self.universe._served_tenants))
 
-    def test_state(self):
+    def test_state(self, operational=False):
         # Create some trees in the AIM DB
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
@@ -48,7 +48,8 @@ class TestAimDbUniverse(base.TestAimDBBase):
         data3 = tree.StructuredHashTree().include(
             [{'key': ('tnA2', 'keyB')}, {'key': ('tnA2', 'keyC')},
              {'key': ('tnA2', 'keyC', 'keyD')}])
-        self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3])
+        self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
+                                  operational=operational)
         # Serve tnA, tnA2 and tnExtra
         self.universe.serve(['tnA', 'tnA2', 'tnExtra'])
         # Now observe
@@ -60,17 +61,13 @@ class TestAimDbUniverse(base.TestAimDBBase):
 
         # Change tree in the DB
         data1.add(('tnA', 'keyB'), attribute='something')
-        self.tree_mgr.update_bulk(self.ctx, [data1])
+        self.tree_mgr.update_bulk(self.ctx, [data1], operational=operational)
         # Observe and verify that trees are back in sync
         self.assertNotEqual(data1, state['tnA'])
         state = self.universe.state
         self.assertEqual(data1, state['tnA'])
 
-    def test_reconcile_raises(self):
-        self.assertRaises(NotImplementedError, self.universe.reconcile,
-                          mock.Mock())
-
-    def test_get_optimized_state(self):
+    def test_get_optimized_state(self, operational=False):
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
              {'key': ('tnA', 'keyC', 'keyD')}])
@@ -80,7 +77,8 @@ class TestAimDbUniverse(base.TestAimDBBase):
         data3 = tree.StructuredHashTree().include(
             [{'key': ('tnA2', 'keyB')}, {'key': ('tnA2', 'keyC')},
              {'key': ('tnA2', 'keyC', 'keyD')}])
-        self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3])
+        self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
+                                  operational=operational)
 
         self.universe.serve(['tnA', 'tnA1', 'tnA2', 'tnA3'])
         # Other state is in sync
@@ -95,54 +93,139 @@ class TestAimDbUniverse(base.TestAimDBBase):
         data4 = tree.StructuredHashTree().include(
             [{'key': ('tnA3', 'keyB')}, {'key': ('tnA3', 'keyC')},
              {'key': ('tnA3', 'keyC', 'keyD')}])
-        self.tree_mgr.update_bulk(self.ctx, [data4])
+        self.tree_mgr.update_bulk(self.ctx, [data4], operational=operational)
         self.assertEqual({'tnA3': data4},
                          self.universe.get_optimized_state(other_state))
         # Modify data1
         data1.add(('tnA', 'keyZ'), attribute='something')
-        self.tree_mgr.update_bulk(self.ctx, [data1])
+        self.tree_mgr.update_bulk(self.ctx, [data1], operational=operational)
         # Now Data1 is included too
         self.assertEqual({'tnA3': data4, 'tnA': data1},
                          self.universe.get_optimized_state(other_state))
 
-    def test_get_aim_resources(self):
+    def test_get_aim_resources(self, operational=False):
         tree_mgr = tree_model.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
         # Create Resources on a couple of tenants
         bd1 = resource.BridgeDomain(
             tenant_name='t1', name='bd1', display_name='somestuff',
             vrf_name='vrf')
+        bd1_fault = aim_status.AciFault(
+            fault_code='901', external_identifier='uni/tn-t1/BD-bd1/fault-901',
+            description='failure901')
+        bd1_fault2 = aim_status.AciFault(
+            fault_code='902', external_identifier='uni/tn-t1/BD-bd1/fault-902',
+            description='failure902')
         bd2 = resource.BridgeDomain(
             tenant_name='t2', name='bd1', display_name='somestuff',
             vrf_name='vrf2')
 
         aim_mgr.create(self.ctx, bd1)
+        aim_mgr.set_fault(self.ctx, bd1, bd1_fault)
+        aim_mgr.set_fault(self.ctx, bd1, bd1_fault2)
+
         aim_mgr.create(self.ctx, bd2)
 
         # Two trees exist
-        trees = tree_mgr.find(self.ctx)
+        trees = tree_mgr.find(self.ctx, operational=operational)
         self.assertEqual(2, len(trees))
 
         # Calculate the different with empty trees to retrieve missing keys
         diff_tn_1 = trees[0].diff(tree.StructuredHashTree())
         diff_tn_2 = trees[1].diff(tree.StructuredHashTree())
 
-        result = self.universe.get_aim_resources(diff_tn_1.get('add', []) +
-                                                 diff_tn_1.get('remove', []) +
-                                                 diff_tn_2.get('add', []) +
-                                                 diff_tn_2.get('remove', []))
-        self.assertTrue(bd1 in result)
-        self.assertTrue(bd2 in result)
+        result = self.universe.get_resources(diff_tn_1.get('add', []) +
+                                             diff_tn_1.get('remove', []) +
+                                             diff_tn_2.get('add', []) +
+                                             diff_tn_2.get('remove', []))
+        self.assertEqual(2, len(result))
+        if not operational:
+            self.assertTrue(bd1 in result)
+            self.assertTrue(bd2 in result)
+        else:
+            self.assertTrue(bd1_fault in result)
+            self.assertTrue(bd1_fault2 in result)
 
-    def test_cleanup_state(self):
+    def test_cleanup_state(self, operational=False):
         tree_mgr = tree_model.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
         bd1 = resource.BridgeDomain(
             tenant_name='t1', name='bd1', display_name='somestuff',
             vrf_name='vrf')
+        bd1_fault = aim_status.AciFault(
+            fault_code='901', external_identifier='uni/tn-t1/bd-bd1/fault-901',
+            description='failure901')
 
         aim_mgr.create(self.ctx, bd1)
+        aim_mgr.set_fault(self.ctx, bd1, bd1_fault)
         self.universe.cleanup_state('t1')
 
-        trees = tree_mgr.find(self.ctx)
+        trees = tree_mgr.find(self.ctx, operational=operational)
         self.assertEqual(0, len(trees))
+
+    def test_push_resources(self):
+        aim_mgr = aim_manager.AimManager()
+        ap = self._get_example_aci_app_profile(dn='uni/tn-t1/ap-a1')
+        ap_aim = resource.ApplicationProfile(tenant_name='t1', name='a1')
+        epg = self._get_example_aci_epg(
+            dn='uni/tn-t1/ap-a1/epg-test')
+        epg_aim = resource.EndpointGroup(
+            tenant_name='t1', app_profile_name='a1', name='test')
+        fault = self._get_example_aci_fault(
+            dn='uni/tn-t1/ap-a1/epg-test/fault-951')
+        faul_aim = aim_status.AciFault(
+            fault_code='951',
+            external_identifier='uni/tn-t1/ap-a1/epg-test/fault-951')
+        self.universe.push_resources({'create': [ap, epg, fault],
+                                      'delete': []})
+        res = aim_mgr.get(self.ctx, resource.EndpointGroup(
+            tenant_name='t1', app_profile_name='a1', name='test'))
+        status = aim_mgr.get_status(self.ctx, res)
+        self.assertEqual(1, len(status.faults))
+        self.assertEqual('951', status.faults[0].fault_code)
+
+        # Unset fault
+        self.universe.push_resources({'create': [],
+                                      'delete': [faul_aim]})
+        status = aim_mgr.get_status(self.ctx, res)
+        self.assertEqual(0, len(status.faults))
+
+        # Delete AP before EPG (AP can't be deleted)
+        self.universe.push_resources({'create': [],
+                                      'delete': [ap_aim, epg_aim]})
+        res = aim_mgr.get(self.ctx, epg_aim)
+        self.assertIsNone(res)
+        res = aim_mgr.get(self.ctx, ap_aim)
+        self.assertIsNotNone(res)
+
+        # Second time around, AP deletion works
+        self.universe.push_resources({'create': [],
+                                      'delete': [ap_aim]})
+        res = aim_mgr.get(self.ctx, ap_aim)
+        self.assertIsNone(res)
+
+
+class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
+    pass
+
+
+class TestAimDbOperationalUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestAimDbOperationalUniverse, self).setUp(
+            klass=aim_universe.AimDbOperationalUniverse)
+
+    def test_state(self):
+        super(TestAimDbOperationalUniverse, self).test_state(operational=True)
+
+    def test_get_optimized_state(self):
+        super(TestAimDbOperationalUniverse, self).test_get_optimized_state(
+            operational=True)
+
+    def test_get_aim_resources(self):
+        super(TestAimDbOperationalUniverse, self).test_get_aim_resources(
+            operational=True)
+
+    def test_cleanup_state(self):
+        super(TestAimDbOperationalUniverse, self).test_cleanup_state(
+            operational=True)

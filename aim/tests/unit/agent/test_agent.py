@@ -22,6 +22,7 @@ import mock
 from aim.agent.aid import service
 from aim import aim_manager
 from aim.api import resource
+from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim import config
 from aim.db import tree_model
@@ -50,8 +51,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_dead',
             return_value=False)
         self.thread_dead.start()
+
+        self.thread_warm = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_warm',
+            return_value=True)
+        self.thread_warm.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
+        self.addCleanup(self.thread_warm.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body = self.old_post
@@ -212,26 +220,38 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
 
+        self.aim_manager.set_fault(
+            self.ctx, bd1_tn1, aim_status.AciFault(
+                fault_code='516',
+                external_identifier='uni/tn-tn1/BD-bd1/fault-516'))
+        # Fault has been registered in the DB
+        status = self.aim_manager.get_status(self.ctx, bd1_tn1)
+        self.assertEqual(1, len(status.faults))
+
         # ACI universe is empty right now, one cycle of the main loop will
         # reconcile the state
         agent._daemon_loop()
 
-        for tenant in agent.current_universe._serving_tenants.values():
+        for tenant in agent.current_universe.serving_tenants.values():
             tenant._subscribe_tenant()
             tenant.health_state = True
         # The ACI universe will not push the configuration unless explicitly
         # called
         self.assertFalse(
-            agent.current_universe._serving_tenants['tn1'].
+            agent.current_universe.serving_tenants['tn1'].
             object_backlog.empty())
         self.assertFalse(
-            agent.current_universe._serving_tenants['tn2'].
+            agent.current_universe.serving_tenants['tn2'].
             object_backlog.empty())
+
+        # Meanwhile, Operational state has been cleaned from AIM
+        status = self.aim_manager.get_status(self.ctx, bd1_tn1)
+        self.assertEqual(0, len(status.faults))
 
         # Events around the BD creation are now sent to the ACI universe, add
         # them to the observed tree
         apic_client.ApicSession.post_body = self._mock_current_manager_post
-        for tenant in agent.current_universe._serving_tenants.values():
+        for tenant in agent.current_universe.serving_tenants.values():
             self._current_manager = tenant
             tenant._event_loop()
 
@@ -240,10 +260,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(agent.current_universe.state,
                          agent.desired_universe.state)
         self.assertTrue(
-            agent.current_universe._serving_tenants['tn1'].
+            agent.current_universe.serving_tenants['tn1'].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe._serving_tenants['tn2'].
+            agent.current_universe.serving_tenants['tn2'].
             object_backlog.empty())
 
         # Delete object and create a new one on tn1
@@ -252,23 +272,23 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                         vrf_name='vrf3')
         self.aim_manager.create(self.ctx, bd2_tn1)
         # Push state
-        current_serving_tenants = {
+        currentserving_tenants = {
             k: v for k, v in
-            agent.current_universe._serving_tenants.iteritems()}
+            agent.current_universe.serving_tenants.iteritems()}
         agent._daemon_loop()
-        self.assertIs(agent.current_universe._serving_tenants['tn1'],
-                      current_serving_tenants['tn1'])
-        self.assertIs(agent.current_universe._serving_tenants['tn2'],
-                      current_serving_tenants['tn2'])
+        self.assertIs(agent.current_universe.serving_tenants['tn1'],
+                      currentserving_tenants['tn1'])
+        self.assertIs(agent.current_universe.serving_tenants['tn2'],
+                      currentserving_tenants['tn2'])
         # There are changes on tn1 only
         self.assertFalse(
-            agent.current_universe._serving_tenants['tn1'].
+            agent.current_universe.serving_tenants['tn1'].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe._serving_tenants['tn2'].
+            agent.current_universe.serving_tenants['tn2'].
             object_backlog.empty())
         # Get events
-        for tenant in agent.current_universe._serving_tenants.values():
+        for tenant in agent.current_universe.serving_tenants.values():
             self._current_manager = tenant
             tenant._event_loop()
         agent._daemon_loop()
@@ -291,29 +311,29 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         # There are changes on tn1 only
         self.assertFalse(
-            agent.current_universe._serving_tenants['tn1'].
+            agent.current_universe.serving_tenants['tn1'].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe._serving_tenants['tn2'].
+            agent.current_universe.serving_tenants['tn2'].
             object_backlog.empty())
-        self.assertIs(agent.current_universe._serving_tenants['tn1'],
-                      current_serving_tenants['tn1'])
-        self.assertIs(agent.current_universe._serving_tenants['tn2'],
-                      current_serving_tenants['tn2'])
+        self.assertIs(agent.current_universe.serving_tenants['tn1'],
+                      currentserving_tenants['tn1'])
+        self.assertIs(agent.current_universe.serving_tenants['tn2'],
+                      currentserving_tenants['tn2'])
         # Get events
-        for tenant in agent.current_universe._serving_tenants.values():
+        for tenant in agent.current_universe.serving_tenants.values():
             self._current_manager = tenant
             tenant._event_loop()
         # Depending on the order of operation, we might need another
         # iteration to cleanup the tree completely
-        if agent.current_universe._serving_tenants['tn1']._state.root:
+        if agent.current_universe.serving_tenants['tn1']._state.root:
             agent._daemon_loop()
-            for tenant in agent.current_universe._serving_tenants.values():
+            for tenant in agent.current_universe.serving_tenants.values():
                 self._current_manager = tenant
                 tenant._event_loop()
         # Tenant still exist on AIM because observe didn't run yet
         self.assertIsNone(
-            agent.current_universe._serving_tenants['tn1']._state.root)
+            agent.current_universe.serving_tenants['tn1']._state.root)
         tn1 = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])
         self.assertEqual(1, len(tn1))
         # Now tenant will be deleted (still served)

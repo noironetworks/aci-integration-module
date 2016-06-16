@@ -15,6 +15,7 @@
 
 from aim.agent.aid.universes.aci import converter
 from aim.api import resource
+from aim.api import status as aim_status
 from aim.tests import base
 
 
@@ -285,6 +286,34 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                                name='test-1')]
 
 
+class TestAciToAimConverterFault(TestAciToAimConverterBase,
+                                 base.TestAimDBBase):
+    resource_type = aim_status.AciFault
+    reverse_map_output = [{
+        'resource': 'faultInst',
+        'exceptions': {'fault_code': {'other': 'code'},
+                       'description': {'other': 'descr'}},
+        'to_resource': converter.fault_inst_to_resource,
+        'identity_converter': converter.fault_identity_converter}]
+    sample_input = [base.TestAimDBBase._get_example_aci_fault(),
+                    base.TestAimDBBase._get_example_aci_fault(
+                        dn='uni/tn-t1/ap-a1/epg-test-1/fault-500',
+                        code='500')]
+    sample_output = [
+        aim_status.AciFault(
+            fault_code='951',
+            external_identifier='uni/tn-t1/ap-a1/epg-test/fault-951',
+            description='cannot resolve',
+            severity='warning',
+            cause='resolution-failed'),
+        aim_status.AciFault(
+            fault_code='500',
+            external_identifier='uni/tn-t1/ap-a1/epg-test-1/fault-500',
+            description='cannot resolve',
+            severity='warning',
+            cause='resolution-failed')]
+
+
 class TestAimToAciConverterBase(object):
     sample_input = []
     sample_output = []
@@ -485,3 +514,24 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
     missing_ref_output = [{
         "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test", }}}]
+
+
+class TestAimToAciConverterFault(TestAimToAciConverterBase,
+                                 base.TestAimDBBase):
+    sample_output = [[base.TestAimDBBase._get_example_aci_fault()],
+                     [base.TestAimDBBase._get_example_aci_fault(
+                         dn='uni/tn-t1/ap-a1/epg-test-1/fault-500',
+                         code='500')]]
+    sample_input = [
+        aim_status.AciFault(
+            fault_code='951',
+            external_identifier='uni/tn-t1/ap-a1/epg-test/fault-951',
+            description='cannot resolve',
+            severity='warning',
+            cause='resolution-failed'),
+        aim_status.AciFault(
+            fault_code='500',
+            external_identifier='uni/tn-t1/ap-a1/epg-test-1/fault-500',
+            description='cannot resolve',
+            severity='warning',
+            cause='resolution-failed')]

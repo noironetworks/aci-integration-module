@@ -20,6 +20,7 @@ from sqlalchemy.orm import exc as sql_exc
 
 from aim.agent.aid.universes.aci import converter
 from aim.api import resource as api_res
+from aim.api import status as aim_status
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree
 from aim.common import utils
@@ -48,8 +49,10 @@ class TenantTree(model_base.Base):
     __tablename__ = 'aim_tenant_trees'
 
     tenant_rn = sa.Column(sa.String(64), primary_key=True)
-    root_full_hash = sa.Column(sa.String(256), nullable=False)
-    tree = sa.Column(sa.LargeBinary, nullable=False)
+    root_full_hash = sa.Column(sa.String(256), nullable=True)
+    operational_root_full_hash = sa.Column(sa.String(256), nullable=True)
+    tree = sa.Column(sa.LargeBinary, nullable=True)
+    operational_tree = sa.Column(sa.LargeBinary, nullable=True)
     agents = orm.relationship(AgentToHashTreeAssociation,
                               backref='hash_trees',
                               cascade='all, delete-orphan',
@@ -57,6 +60,9 @@ class TenantTree(model_base.Base):
 
 
 class TenantTreeManager(object):
+
+    trees = {False: 'tree', True: 'operational_tree'}
+    hashes = {False: 'root_full_hash', True: 'operational_root_full_hash'}
 
     def __init__(self, tree_klass, tenant_rn_funct=None,
                  tenant_key_funct=None):
@@ -67,21 +73,30 @@ class TenantTreeManager(object):
                                  self._default_tenant_key_funct)
 
     @utils.log
-    def update_bulk(self, context, hash_trees):
+    def update_bulk(self, context, hash_trees, operational=False):
         trees = {self.tenant_rn_funct(x): x for x in hash_trees}
         with context.db_session.begin(subtransactions=True):
             db_objs = self._find_query(context,
                                        in_={'tenant_rn': trees.keys()}).all()
             for obj in db_objs:
                 hash_tree = trees.pop(obj.tenant_rn)
-                obj.root_full_hash = hash_tree.root_full_hash
-                obj.tree = str(hash_tree)
+                setattr(obj, self.hashes[operational],
+                        hash_tree.root_full_hash)
+                setattr(obj, self.trees[operational], str(hash_tree))
                 context.db_session.add(obj)
 
             for hash_tree in trees.values():
-                obj = TenantTree(tenant_rn=self.tenant_rn_funct(hash_tree),
-                                 root_full_hash=hash_tree.root_full_hash,
-                                 tree=str(hash_tree))
+                # Tree creation
+                empty_tree = structured_tree.StructuredHashTree()
+                key_args = {
+                    self.trees[operational]: str(hash_tree),
+                    self.hashes[operational]: (hash_tree.root_full_hash or
+                                               'none'),
+                    self.trees[not operational]: str(empty_tree),
+                    self.hashes[not operational]: (empty_tree.root_full_hash or
+                                                   'none'),
+                    'tenant_rn': self.tenant_rn_funct(hash_tree)}
+                obj = TenantTree(**key_args)
                 context.db_session.add(obj)
 
     @utils.log
@@ -110,30 +125,36 @@ class TenantTreeManager(object):
                 context.db_session.delete(db_obj)
 
     @utils.log
-    def find(self, context, **kwargs):
+    def find(self, context, operational=False, **kwargs):
         result = self._find_query(context, in_=kwargs).all()
         return [self.tree_klass.from_string(
-            str(x.tree), self.tenant_key_funct(x.tenant_rn)) for x in result]
+            str(getattr(x, self.trees[operational])),
+            self.tenant_key_funct(x.tenant_rn)) for x in result]
 
     @utils.log
-    def get(self, context, tenant_rn):
+    def get(self, context, tenant_rn, operational=False):
         try:
             return self.tree_klass.from_string(str(
-                self._find_query(context, tenant_rn=tenant_rn).one().tree),
+                getattr(self._find_query(context, tenant_rn=tenant_rn).one(),
+                        self.trees[operational])),
                 self.tenant_key_funct(tenant_rn))
         except sql_exc.NoResultFound:
             raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
 
     @utils.log
-    def find_changed(self, context, tenant_map):
+    def find_changed(self, context, tenant_map, operational=False):
         if not tenant_map:
             return {}
+        full_hash = {False: 'root_full_hash',
+                     True: 'operational_root_full_hash'}
         return dict((x.tenant_rn,
                      self.tree_klass.from_string(
-                         str(x.tree), self.tenant_key_funct(x.tenant_rn)))
+                         str(getattr(x, self.trees[operational])),
+                         self.tenant_key_funct(x.tenant_rn)))
                     for x in self._find_query(
                         context, in_={'tenant_rn': tenant_map.keys()},
-                        notin_={'root_full_hash': tenant_map.values()}).all())
+                        notin_={full_hash[operational]:
+                                tenant_map.values()}).all())
 
     @utils.log
     def get_tenants(self, context):
@@ -168,7 +189,7 @@ class AimHashTreeMaker(object):
     In our current convention, each node of a given AIM resource is added to
     the tree with a key represented as follows:
 
-    list('path.to.parent.Class|res-name', 'path.to.child.Class|res-name')
+    list('apicType|res-name', 'apicChildType|res-name')
     """
 
     # Change this to be by object type if ever needed
@@ -179,13 +200,20 @@ class AimHashTreeMaker(object):
 
     @staticmethod
     def _build_hash_tree_key(resource):
-        if not isinstance(resource, api_res.AciResourceBase):
+        def _key_by_dn(dn=None):
+            try:
+                return AimHashTreeMaker._dn_to_key(resource._aci_mo_name,
+                                                   dn or resource.dn)
+            except Exception as e:
+                LOG.warning("Failed to get DN for resource %s: %s",
+                            resource, e)
+
+        if isinstance(resource, aim_status.AciFault):
+            return _key_by_dn(resource.external_identifier)
+        elif isinstance(resource, api_res.AciResourceBase):
+            return _key_by_dn()
+        else:
             return None
-        try:
-            return AimHashTreeMaker._dn_to_key(resource._aci_mo_name,
-                                               resource.dn)
-        except Exception as e:
-            LOG.warning("Failed to get DN for resource %s: %s", resource, e)
 
     @staticmethod
     def _dn_to_key(mo_type, dn):
@@ -193,7 +221,8 @@ class AimHashTreeMaker(object):
             type_and_dn = apic_client.DNManager().aci_decompose_with_type(
                 dn, mo_type)
             return tuple(['|'.join(x) for x in type_and_dn])
-        except apic_client.DNManager.InvalidNameFormat:
+        except (apic_client.DNManager.InvalidNameFormat,
+                apic_client.cexc.ApicManagedObjectNotSupported):
             LOG.warning("Failed to transform DN %s to key for hash-tree", dn)
             return
 

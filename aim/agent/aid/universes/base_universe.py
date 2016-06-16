@@ -19,11 +19,9 @@ import six
 
 from oslo_log import log as logging
 
-from aim.agent.aid.universes.aci import converter
 from aim import aim_manager
 from aim.common.hashtree import structured_tree
 from aim import context
-from aim import exceptions as aim_exc
 
 
 LOG = logging.getLogger(__name__)
@@ -95,7 +93,7 @@ class AimUniverse(BaseUniverse):
     """Universe based on the ACI Integration Module."""
 
     @abc.abstractmethod
-    def get_aim_resource(self, resource_key):
+    def get_resource(self, resource_key):
         """Given a resource key, returns the AIM resource
 
         :param resource_key: Key representing the AIM resource. The format
@@ -105,8 +103,8 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def get_aim_resources(self, resource_keys):
-        """Given a resource key list, returns the corresponding AIM resources
+    def get_resources(self, resource_keys):
+        """Given a resource key list, returns this universe's resources
 
         In case the AIM resource doesn't exist in the DB, a non-persistent
         resource will be fine as well as long as the identity attributes
@@ -139,12 +137,12 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def push_aim_resources(self, resources):
-        """Given an AIM resource map, push it in the current Universe
+    def push_resources(self, resources):
+        """Given a resource map, push it in the current Universe
 
-        This method will transform the AIM resources into a format that the
-        current Universe understands, and the push them.
-        :param resources: The AIM resource map to be pushed. map will organize
+        This method will transform the desired Universe's resources into a
+        format that the current Universe understands, and the push them.
+        :param resources: The resource map to be pushed. map will organize
         the resources by "create" and "delete"
         :return:
         """
@@ -192,9 +190,9 @@ class HashTreeStoredUniverse(AimUniverse):
         return self
 
     def _dissect_key(self, key):
-        # Returns ('path.to.Class', [identity list])
+        # Returns ('apicType', [identity list])
         aci_type = key[-1][:key[-1].find('|')]
-        return (aci_type, [x[x.find('|') + 1:] for x in key])
+        return aci_type, [x[x.find('|') + 1:] for x in key]
 
     def observe(self):
         pass
@@ -203,13 +201,17 @@ class HashTreeStoredUniverse(AimUniverse):
         my_state = self.state
         other_state = other_universe.get_optimized_state(my_state)
         result = {CREATE: [], DELETE: []}
-        for tenant, tree in other_state.iteritems():
+        for tenant in set(my_state.keys()) & set(other_state.keys()):
+            tree = other_state[tenant]
             my_tenant_state = my_state.get(
                 tenant, structured_tree.StructuredHashTree())
             # Retrieve difference to transform self into other
             difference = tree.diff(my_tenant_state)
             result[CREATE].extend(difference['add'])
             result[DELETE].extend(difference['remove'])
+            if result[CREATE] or result[DELETE]:
+                LOG.debug("There are differences between:\n %s\n and\n %s" %
+                          (str(my_tenant_state), str(tree)))
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
             if not tree.root:
@@ -221,39 +223,19 @@ class HashTreeStoredUniverse(AimUniverse):
         if not result.get(CREATE) and not result.get(DELETE):
             LOG.debug("The Universe is in sync.")
         # Get AIM resources at the end to reduce the number of transactions
-        result[CREATE] = self.get_aim_resources(result[CREATE])
+        result[CREATE] = other_universe.get_resources(result[CREATE])
         result[DELETE] = self.get_resources_for_delete(result[DELETE])
         # Reconciliation method for pushing changes
-        self.push_aim_resources(result)
-
-    def get_aim_resource(self, resource_key):
-        return self.get_aim_resources([resource_key])
-
-    def get_aim_resources(self, resource_keys):
-        result = []
-        for key in resource_keys:
-            dissected = self._dissect_key(key)
-            klass = converter.resource_map[dissected[0]][0]['resource']
-            res = klass(
-                **dict([(y, dissected[1][x])
-                        for x, y in enumerate(klass.identity_attributes)]))
-            try:
-                res_db = self.manager.get(self.context, res)
-                result.append(res_db or res)
-            except aim_exc.UnknownResourceType:
-                LOG.warn("Resource %s is not defined in AIM", dissected)
-                result.append(res)
-
-        return result
+        self.push_resources(result)
 
     def get_resource_for_delete(self, resource_key):
-        self.get_resources_for_delete([resource_key])
+        return self.get_resources_for_delete([resource_key])
 
     def get_resources_for_delete(self, resource_keys):
         pass
 
-    def push_aim_resources(self, resources):
-        pass
+    def get_resource(self, resource_key):
+        return self.get_resources([resource_key])
 
     def serve(self, tenants):
         pass

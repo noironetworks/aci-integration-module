@@ -14,6 +14,7 @@
 #    under the License.
 
 from apicapi import apic_client
+from apicapi import exceptions as apic_exc
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
@@ -24,6 +25,16 @@ from aim import config
 
 
 LOG = logging.getLogger(__name__)
+
+# Dictionary of currently served tenants. For each tenant defined by name,
+# we store the corresponding TenantManager.
+# To avoid websocket subscription duplication, share the serving tenants
+# between config and operational ACI universes
+# REVISIT(ivar): we are assuming that one single AciUniverse instance will
+# access this at any time. This is realistic today, because AciUniverse and
+# AciOperationalUniverse won't run in parallel, and there will be only one
+# instance of each per AID agent.
+serving_tenants = {}
 
 
 class AciUniverse(base.HashTreeStoredUniverse):
@@ -37,16 +48,20 @@ class AciUniverse(base.HashTreeStoredUniverse):
         super(AciUniverse, self).initialize(db_session)
         self.apic_config = self._retrieve_apic_config(db_session)
         self._aim_converter = converter.AciToAimModelConverter()
-        # dictionary of tenants currently served tenants. Keys are the tenants'
-        # name, values the Web Socket interfaces
-        self._serving_tenants = {}
+        self.aci_session = self.establish_aci_session(self.apic_config)
         return self
+
+    @property
+    def serving_tenants(self):
+        global serving_tenants
+        return serving_tenants
 
     def serve(self, tenants):
         # Verify differences
+        global serving_tenants
         try:
-            serving_tenant_copy = self._serving_tenants
-            self._serving_tenants = {}
+            serving_tenant_copy = serving_tenants
+            serving_tenants = {}
             remove = set(serving_tenant_copy.keys()) - set(tenants)
             for removed in remove:
                 # pop from the current state. This is not thread safe, but the
@@ -63,36 +78,38 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     # Move it back to serving tenant, no need to restart
                     # the Thread
                     try:
-                        self._serving_tenants[added] = serving_tenant_copy[
+                        serving_tenants[added] = serving_tenant_copy[
                             added]
                     except KeyError:
                         LOG.debug("%s not found in %s during serving copy" %
                                   (added, serving_tenant_copy))
-                if (added not in self._serving_tenants or not
-                        self._serving_tenants[added].health_state or
-                        self._serving_tenants[added].is_dead()):
+                if (added not in serving_tenants or not
+                        serving_tenants[added].health_state or
+                        serving_tenants[added].is_dead()):
                     LOG.debug("Adding new tenant %s" % added)
                     # Start thread or replace broken one
                     # Checking the 'dead' state helps those cases in which
                     # a kill successfully happened but then  the state was
                     # rolled back by a further exception
-                    self._serving_tenants[added] = aci_tenant.AciTenantManager(
-                        added, self.apic_config)
-                    self._serving_tenants[added].start()
+                    serving_tenants[added] = aci_tenant.AciTenantManager(
+                        added, self.apic_config, self.aci_session)
+                    serving_tenants[added].start()
         except Exception as e:
             LOG.error('Failed to serve new tenants %s' % tenants)
             # Rollback served tenants
-            self._serving_tenants = serving_tenant_copy
+            serving_tenants = serving_tenant_copy
             raise e
 
     def observe(self):
         # Copy state accumulated so far
-        for tenant in self._serving_tenants:
-            self._state[tenant] = self._serving_tenants[
-                tenant].get_state_copy()
+        for tenant in serving_tenants:
+            # Only copy state if the tenant is warm
+            if serving_tenants[tenant].is_warm():
+                self._state[tenant] = self._get_state_copy(tenant)
 
-    def push_aim_resources(self, resources):
+    def push_resources(self, resources):
         # Organize by tenant, and push into APIC
+        global serving_tenants
         by_tenant = {}
         for method, objects in resources.iteritems():
             for data in objects:
@@ -102,9 +119,33 @@ class AciUniverse(base.HashTreeStoredUniverse):
 
         for tenant, conf in by_tenant.iteritems():
             try:
-                self._serving_tenants[tenant].push_aim_resources(conf)
+                serving_tenants[tenant].push_aim_resources(conf)
             except KeyError:
                 LOG.warn("Tenant %s is not being served anymore" % tenant)
+
+    def get_resources(self, resource_keys):
+        result = []
+        for key in resource_keys:
+            fault_code = None
+            dissected = self._dissect_key(key)
+            if dissected[0] == 'faultInst':
+                fault_code = dissected[1][-1]
+                dissected = self._dissect_key(key[:-1])
+            aci_type = dissected[0]
+            dn = getattr(self.aci_session, aci_type).dn(*dissected[1])
+            if fault_code:
+                dn += '/fault-%s' % fault_code
+            try:
+                data = self.aci_session.get_data('mo/' + dn)
+                result.append(data[0])
+            except apic_exc.ApicResponseNotOk as e:
+                if str(e.err_code) == '404':
+                    LOG.debug("Resource %s not found", dn)
+                    continue
+                else:
+                    LOG.error(e.message)
+                    raise
+        return result
 
     def _retrieve_apic_config(self, db_session):
         # TODO(ivar): DB oriented config
@@ -125,3 +166,37 @@ class AciUniverse(base.HashTreeStoredUniverse):
             dn = apic_client.ManagedObjectClass(dissected[0]).dn(*dissected[1])
             result.append({dissected[0]: {'attributes': {'dn': dn}}})
         return result
+
+    def _get_state_copy(self, tenant):
+        global serving_tenants
+        return serving_tenants[tenant].get_state_copy()
+
+    @staticmethod
+    def establish_aci_session(apic_config):
+        # TODO(IVAR): unnecessary things will be removed once apicapi gets its
+        # own refactor.
+        return apic_client.RestClient(
+            logging,
+            # TODO(ivar): retrieve APIC system ID
+            '',
+            apic_config.apic_hosts,
+            apic_config.apic_username,
+            apic_config.apic_password,
+            apic_config.apic_use_ssl,
+            scope_names=False,
+            scope_infra=apic_config.scope_infra,
+            renew_names=False,
+            verify=apic_config.verify_ssl_certificate,
+            request_timeout=apic_config.apic_request_timeout,
+            cert_name=apic_config.certificate_name,
+            private_key_file=apic_config.private_key_file,
+            sign_algo=apic_config.signature_verification_algorithm,
+            sign_hash=apic_config.signature_hash_type)
+
+
+class AciOperationalUniverse(AciUniverse):
+    """ACI Universe for operational state."""
+
+    def _get_state_copy(self, tenant):
+        global serving_tenants
+        return serving_tenants[tenant].get_operational_state_copy()

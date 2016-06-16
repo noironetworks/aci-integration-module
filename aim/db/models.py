@@ -23,9 +23,11 @@ def to_tuple(obj):
     return obj if isinstance(obj, tuple) else (obj,)
 
 
-def uniq_column(table, *args):
-    return (sa.UniqueConstraint(*args, name=('uniq_%s_identity' % table)),
-            sa.Index('idx_%s_identity' % table, *args))
+def uniq_column(table, *args, **kwargs):
+    name = kwargs.pop('name', None)
+    return (sa.UniqueConstraint(
+        *args, name=('uniq_' + (name or ('%s_identity' % table)))),
+        sa.Index('idx_' + (name or ('%s_identity' % table)), *args))
 
 
 class Tenant(model_base.Base, model_base.HasDisplayName,

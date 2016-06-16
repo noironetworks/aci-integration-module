@@ -21,6 +21,7 @@ import gevent
 import json
 import mock
 
+from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim import config
@@ -173,8 +174,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def setUp(self):
         super(TestAciTenant, self).setUp()
         self._do_aci_mocks()
-        self.manager = aci_tenant.AciTenantManager('tenant-1',
-                                                   config.CONF.apic)
+        conf = config.CONF.apic
+        self.manager = aci_tenant.AciTenantManager(
+            'tenant-1', conf,
+            aci_universe.AciUniverse.establish_aci_session(conf))
 
     def test_event_loop(self):
         self.manager._subscribe_tenant()
@@ -201,7 +204,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.assertFalse(self.manager.is_dead())
 
     def test_event_loop_failure(self):
-        manager = aci_tenant.AciTenantManager('tenant-1', config.CONF.apic)
+        conf = config.CONF.apic
+        manager = aci_tenant.AciTenantManager(
+            'tenant-1', conf,
+            aci_universe.AciUniverse.establish_aci_session(conf))
         manager.tenant.instance_has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
@@ -341,3 +347,93 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         ]
         self.manager._fill_events(events)
         self.assertEqual([complete, missing], events)
+
+    def test_flat_events(self):
+        events = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                               'tnFvCtxName': 'asasa'},
+                'children': [{'faultInst': {
+                    'attributes': {'ack': 'no', 'delegated': 'no',
+                                   'code': 'F0952', 'type': 'config'}}}]}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'tnFvCtxName': 'test'},
+                'children': [{'faultInst': {'attributes': {
+                    'ack': 'no', 'delegated': 'no',
+                    'code': 'F0952', 'type': 'config'}}}]}}]
+
+        self.manager._flat_events(events)
+        expected = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                               'tnFvCtxName': 'asasa'}}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'tnFvCtxName': 'test'}}},
+            {'faultInst': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/fault-F0952',
+                'ack': 'no', 'delegated': 'no',
+                'code': 'F0952', 'type': 'config'}}},
+            {'faultInst': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx/fault-F0952',
+                'ack': 'no', 'delegated': 'no',
+                'code': 'F0952', 'type': 'config'}}}
+        ]
+        self.assertEqual(expected, events)
+
+    def test_flat_events_nested(self):
+        events = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                               'tnFvCtxName': 'asasa'},
+                'children': [
+                    {'faultInst': {
+                        'attributes': {'ack': 'no', 'delegated': 'no',
+                                       'code': 'F0952', 'type': 'config'},
+                        'children': [{'faultInst': {
+                            'attributes': {
+                                'ack': 'no', 'delegated': 'no',
+                                'code': 'F0952', 'type': 'config'}}}]}}]}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'tnFvCtxName': 'test'}}}]
+
+        self.manager._flat_events(events)
+        expected = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                               'tnFvCtxName': 'asasa'}}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'tnFvCtxName': 'test'}}},
+            {'faultInst': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/fault-F0952',
+                'ack': 'no', 'delegated': 'no',
+                'code': 'F0952', 'type': 'config'}}},
+            {'faultInst': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/fault-F0952/'
+                      'fault-F0952',
+                'ack': 'no', 'delegated': 'no',
+                'code': 'F0952', 'type': 'config'}}}
+        ]
+        self.assertEqual(expected, events)
+
+    def test_operational_tree(self):
+        events = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                               'tnFvCtxName': 'asasa'},
+                'children': [{'faultInst': {
+                    'attributes': {'ack': 'no', 'delegated': 'no',
+                                   'code': 'F0952', 'type': 'config'}}}]}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'tnFvCtxName': 'test'},
+                'children': [{'faultInst': {'attributes': {
+                    'ack': 'no', 'delegated': 'no',
+                    'code': 'F0952', 'type': 'config'}}}]}}]
+        self.manager._subscribe_tenant()
+        self._set_events(events)
+        self.manager._event_loop()
+        self.assertIsNotNone(self.manager._operational_state)

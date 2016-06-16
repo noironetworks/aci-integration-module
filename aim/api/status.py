@@ -13,19 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
-class Status(object):
-
-    def is_build(self):
-        """Returns True if the current status is transient."""
-        raise
-
-    def is_error(self):
-        """Returns True if current status is an error state."""
-        raise
+from aim.api import resource
 
 
-class AciStatus(Status):
+class OperationalResource(object):
+    pass
+
+
+class AciStatus(resource.ResourceBase, OperationalResource):
     """Status of an AIM resource that is mapped to ACI object.
 
     Following attributes are available:
@@ -37,23 +32,32 @@ class AciStatus(Status):
     * faults - List of AciFault objects as reported by APIC
     """
 
+    identity_attributes = ['resource_type', 'resource_id']
+    other_attributes = ['sync_status',
+                        'sync_message',
+                        'health_score',
+                        'faults']
+    db_attributes = ['id']
+
     # ACI object create/update is pending
-    SYNC_PENDING = 0
+    SYNC_PENDING = 'sync_pending'
     # ACI object was created/updated. It may or may not be in healthy state
-    SYNCED = 1
+    SYNCED = 'synced'
     # Create/update of ACI object failed
-    SYNC_FAILED = 2
+    SYNC_FAILED = 'sync_failed'
 
     HEALTH_POOR = "Poor Health Score"
     HEALTH_FAIR = "Fair Health Score"
     HEALTH_GOOD = "Good Health Score"
     HEALTH_EXCELLENT = "Excellent Health Score"
 
-    def __init__(self):
-        self.sync_status = self.SYNCED
-        self.sync_message = ''
-        self.health_score = 100
-        self.faults = []
+    def __init__(self, **kwargs):
+        super(AciStatus, self).__init__({'resource_type': None,
+                                         'resource_id': None,
+                                         'sync_status': self.SYNCED,
+                                         'sync_message': '',
+                                         'health_score': 100,
+                                         'faults': []}, **kwargs)
 
     @property
     def health_level(self):
@@ -75,7 +79,7 @@ class AciStatus(Status):
                 [f for f in self.faults if f.severity > AciFault.SEV_MINOR])
 
 
-class AciFault(object):
+class AciFault(resource.ResourceBase, OperationalResource):
     """Fault information reported by ACI."""
 
     LC_UNKNOWN = 0x0
@@ -85,17 +89,23 @@ class AciFault(object):
     LC_SOAKING_CLEARING = 0x4
     LC_RAISED_CLEARING = 0x8
 
-    SEV_CLEARED = 0
-    SEV_INFO = 1
-    SEV_WARNING = 2
-    SEV_MINOR = 3
-    SEV_MAJOR = 4
-    SEV_CRITICAL = 5
+    SEV_CLEARED = 'cleared'
+    SEV_INFO = 'info'
+    SEV_WARNING = 'warning'
+    SEV_MINOR = 'minor'
+    SEV_MAJOR = 'major'
+    SEV_CRITICAL = 'critical'
 
-    def __init__(self, code):
-        self.fault_code = code
-        self.severity = self.SEV_INFO
-        self.lifecycle_status = self.LC_UNKNOWN
-        self.cause_code = 0         # unknown
-        self.description = ""
-        self.last_update_timestamp = None
+    _aci_mo_name = 'faultInst'
+    identity_attributes = ['fault_code', 'external_identifier']
+    other_attributes = ['severity',
+                        'status_id',
+                        'cause',
+                        'description']
+    db_attributes = ['last_update_timestamp']
+
+    def __init__(self, **kwargs):
+        super(AciFault, self).__init__(
+            {'severity': self.SEV_INFO, 'lifecycle_status': self.LC_UNKNOWN,
+             'cause': '', 'description': "",
+             'last_update_timestamp': None}, **kwargs)

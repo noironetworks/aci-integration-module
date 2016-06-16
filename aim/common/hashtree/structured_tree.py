@@ -34,15 +34,17 @@ class StructuredTreeNode:
         'partial_hash',  # hash of the attributes originally belonging
                          # to the resource from which this node was generated
         'full_hash',  # hash(partial_hash, children.full_hash)
+        'dummy',  # whether or not this node is dummy
         '_children',  # underlying nodes
     ]
 
-    def __init__(self, key, partial_hash=None, full_hash=None):
+    def __init__(self, key, partial_hash=None, full_hash=None, dummy=True):
         self.key = key
         self.partial_hash = partial_hash
         # Same as partial hash by default
         self.full_hash = full_hash or self.partial_hash
         self._children = ChildrenList()
+        self.dummy = dummy
 
     def __cmp__(self, other):
         return cmp(self.key, getattr(other, 'key', other))
@@ -68,7 +70,8 @@ class StructuredTreeNode:
     def to_dict(self):
         root = collections.OrderedDict(
             [('key', self.key), ('partial_hash', self.partial_hash),
-             ('full_hash', self.full_hash), ('_children', [])])
+             ('full_hash', self.full_hash), ('dummy', self.dummy),
+             ('_children', [])])
         for children in self.get_children():
             root['_children'].append(children.to_dict())
         return root
@@ -144,6 +147,9 @@ class ChildrenList:
     def __cmp__(self, other):
         return cmp(self._stash, other._stash)
 
+    def __nonzero__(self):
+        return len(self) != 0
+
 
 class StructuredHashTree(base.ComparableCollection):
     """Structured Hash Tree.
@@ -212,7 +218,8 @@ class StructuredHashTree(base.ComparableCollection):
     def _build_tree(root_dict):
         root = StructuredTreeNode(tuple(root_dict['key']),
                                   root_dict['partial_hash'],
-                                  root_dict['full_hash'])
+                                  root_dict['full_hash'],
+                                  dummy=root_dict['dummy'])
         for child in root_dict['_children']:
             root._children.add(StructuredHashTree._build_tree(child))
         return root
@@ -248,6 +255,8 @@ class StructuredHashTree(base.ComparableCollection):
             stack.append(node)
         # Node is the last added element at this point
         node.partial_hash = self._hash_attributes(key=key, **kwargs)
+        # When a node is explicitly added, it is not dummy anymore
+        node.dummy = False
         # Recalculate full hashes navigating the stack backwards
         self._recalculate_parents_stack(stack)
         return self
@@ -307,7 +316,26 @@ class StructuredHashTree(base.ComparableCollection):
                 # Subtree is returned as StructuredTree
                 result = StructuredHashTree(current)
                 parent.remove_child(current.key)
-                self._recalculate_parents_stack(stack)
+                # Remove empty nodes in from the stack
+                for i in range(len(stack) - 1, -1, -1):
+                    node = stack[i]
+                    if self._is_node_removable(node):
+                        # Nodes with no partial hash and no children are
+                        # considered dummies and should be removed
+                        if i == 0:
+                            # This is the root node
+                            self.root = None
+                        else:
+                            # Remove from parent
+                            stack[i - 1].remove_child(node.key)
+                        # A node was removed and can be popped from the stack
+                        stack.pop()
+                    else:
+                        # One single non-dummy node in the stack is enough to
+                        # guarantee that there are no more
+                        break
+                if stack:
+                    self._recalculate_parents_stack(stack)
         return result
 
     @utils.log
@@ -336,6 +364,7 @@ class StructuredHashTree(base.ComparableCollection):
 
     @utils.log
     def diff(self, other):
+        # TODO(ivar): exclude dummy nodes
         if not self.root:
             return {"add": [], "remove": self._get_subtree_keys(other.root)}
         if not other.root:
@@ -378,7 +407,7 @@ class StructuredHashTree(base.ComparableCollection):
         # traverse the tree and returns all its keys
         if not root:
             return []
-        result = [root.key]
+        result = [root.key] if not root.dummy else []
         for node in root.get_children():
             result += self._get_subtree_keys(node)
         return result
@@ -416,3 +445,7 @@ class StructuredHashTree(base.ComparableCollection):
             return True
         # This also guarantees that Subtrees are identical
         return first.full_hash == second.full_hash
+
+    def _is_node_removable(self, node):
+        # A removable node has no children, and dummy
+        return node.dummy and not node.get_children()

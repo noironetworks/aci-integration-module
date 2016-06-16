@@ -15,6 +15,7 @@
 
 from oslo_log import log as logging
 
+from aim.api import status as aim_status
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
 from aim.db import tree_model
@@ -40,8 +41,11 @@ class HashTreeDbListener(object):
                 key = self.tt_maker.get_tenant_key(res)
                 if not key:
                     continue
-                updates_by_tenant.setdefault(key, ([], []))
-                updates_by_tenant[key][0 if idx < 2 else 1].append(res)
+                updates_by_tenant.setdefault(key, ([], [], [], []))
+                updates_by_tenant[key][
+                    (0 if idx < 2 else 1) +
+                    (2 if isinstance(res, aim_status.OperationalResource)
+                     else 0)].append(res)
 
         # Query hash-tree for each tenant and modify the tree based on DB
         # updates
@@ -49,17 +53,27 @@ class HashTreeDbListener(object):
             db_session = session
         ctx = DummyContext()
 
-        upd_trees = []
+        upd_trees, udp_op_trees = [], []
         for tenant, upd in updates_by_tenant.iteritems():
             try:
                 ttree = self.tt_mgr.get(ctx, tenant)
+                ttree_operational = self.tt_mgr.get(ctx, tenant,
+                                                    operational=True)
             except hexc.HashTreeNotFound:
                 ttree = htree.StructuredHashTree()
+                ttree_operational = htree.StructuredHashTree()
             self.tt_maker.update(ttree, upd[0])
             self.tt_maker.delete(ttree, upd[1])
+            self.tt_maker.update(ttree_operational, upd[2])
+            self.tt_maker.delete(ttree_operational, upd[3])
 
-            upd_trees.append(ttree)
+            if ttree.root_key:
+                upd_trees.append(ttree)
+            if ttree_operational.root_key:
+                udp_op_trees.append(ttree_operational)
 
         # Finally save the modified trees
         if upd_trees:
             self.tt_mgr.update_bulk(ctx, upd_trees)
+        if udp_op_trees:
+            self.tt_mgr.update_bulk(ctx, udp_op_trees, operational=True)

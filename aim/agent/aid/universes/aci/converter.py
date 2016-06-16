@@ -17,9 +17,11 @@ from apicapi import apic_client
 from oslo_log import log as logging
 
 from aim.api import resource
+from aim.api import status as aim_status
 
 LOG = logging.getLogger(__name__)
 DELETED_STATUS = "deleted"
+CLEARED_SEVERITY = "cleared"
 MODIFIED_STATUS = "modified"
 
 
@@ -43,6 +45,14 @@ def default_identity_converter(object_dict, otype, helper,
     else:
         return [apic_client.ManagedObjectClass(helper['resource']).dn(
             *[object_dict[x] for x in otype.identity_attributes])]
+
+
+def fault_identity_converter(object_dict, otype, helper,
+                             to_aim=True):
+    if to_aim:
+        return object_dict['code'], object_dict['dn']
+    else:
+        return [object_dict['external_identifier']]
 
 
 def default_attribute_converter(object_dict, attribute,
@@ -152,6 +162,21 @@ def fv_rs_bd_to_resource(converted, helper, to_aim=True):
             return None
 
 
+def fault_inst_to_resource(converted, helper, to_aim=True):
+    fault_prefix = 'fault-'
+    if to_aim:
+        # Nothing fancy to do
+        return default_to_resource(converted, helper, to_aim=to_aim)
+    else:
+        # Exclude status_id, last_update_timestamp
+        result = default_to_resource(converted, helper, to_aim=to_aim)
+        attr = result[helper['resource']]['attributes']
+        attr.pop('statusId', None)
+        attr.pop('lastUpdateTimestamp', None)
+        attr.pop('lifecycleStatus', None)
+        attr['code'] = attr['dn'].split('/')[-1][len(fault_prefix):]
+        return result
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -231,6 +256,19 @@ resource_map = {
         },
         'to_resource': fv_rs_bd_to_resource,
     }],
+    'faultInst': [{
+        'resource': aim_status.AciFault,
+        'exceptions': {
+            'code': {
+                'other': 'fault_code'
+            },
+            'descr': {
+                'other': 'description'
+            }
+        },
+        'identity_converter': fault_identity_converter,
+        'to_resource': fault_inst_to_resource,
+    }]
 }
 
 # Build the reverse map for reverse translation
@@ -314,7 +352,6 @@ class BaseConverter(object):
             # Identity was already converted
             if other not in destination_identity_attributes:
                 res_dict[other] = converted
-        LOG.debug("Converted %s into %s" % (object_dict, res_dict))
         result = (helper.get('to_resource') or default_to_resource)(
             res_dict, helper, to_aim=to_aim)
         return [result] if result else []
@@ -349,7 +386,10 @@ class AciToAimModelConverter(BaseConverter):
                         # Set deleted status for updating the tree correctly
                         x.__dict__['_status'] = 'deleted'
                 result.extend(converted)
-        return self._squash(result)
+        squashed = self._squash(result)
+        LOG.debug("Converted:\n %s\n into:\n %s" %
+                  (aci_objects, squashed))
+        return squashed
 
     def _squash(self, converted_list):
         """Squash objects with same identity into one
@@ -372,16 +412,15 @@ class AciToAimModelConverter(BaseConverter):
 class AimToAciModelConverter(BaseConverter):
     """Converts ACI model to AIM resource."""
 
-    def convert(self, aci_objects):
+    def convert(self, aim_objects):
         """Converter main method
 
-        :param aci_objects: list of ACI objects in the form of a dictionary
-        which has the object type as the first key
+        :param aim_objects: list of AIM objects
         :return: list of AIM resources
         """
-        LOG.debug("converting aim objects %s" % aci_objects)
+        LOG.debug("converting aim objects %s" % aim_objects)
         result = []
-        for object in aci_objects:
+        for object in aim_objects:
             klass = type(object)
             if klass not in reverse_resource_map:
                 # Ignore unmanaged object
@@ -394,7 +433,10 @@ class AimToAciModelConverter(BaseConverter):
                     ['dn'], to_aim=False)
                 result.extend(converted)
 
-        return self._squash(result)
+        squashed = self._squash(result)
+        LOG.debug("Converted:\n %s\n into:\n %s" %
+                  (aim_objects, squashed))
+        return squashed
 
     def _squash(self, converted_list):
         """Squash objects with same identity into one
