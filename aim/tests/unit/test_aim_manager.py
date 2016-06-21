@@ -352,7 +352,6 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
 
         # Verify successful creation
         agent = self.mgr.create(self.ctx, agent, overwrite=True)
-        created = agent.created_at
         hbeat = agent.heartbeat_timestamp
 
         # DB side timestamp has granularity in seconds
@@ -360,8 +359,6 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
         # Update and verify that timestamp changed
         agent = self.mgr.update(self.ctx, agent,
                                 beat_count=agent.beat_count + 1)
-        # Create didn't change
-        self.assertEqual(created, agent.created_at)
         # Hbeat is updated
         self.assertTrue(hbeat < agent.heartbeat_timestamp)
 

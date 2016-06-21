@@ -43,7 +43,6 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     binary_file = sa.Column(sa.String(255), nullable=False)
     admin_state_up = sa.Column(sa.Boolean, default=True,
                                nullable=False)
-    created_at = sa.Column(sa.TIMESTAMP, server_default=func.now())
     heartbeat_timestamp = sa.Column(
         sa.TIMESTAMP, server_default=func.now(), onupdate=func.now())
     description = sa.Column(sa.String(255))

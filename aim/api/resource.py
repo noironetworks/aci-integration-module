@@ -148,8 +148,7 @@ class Agent(ResourceBase):
                         'beat_count',
                         'version']
     # Attrbutes completely managed by the DB (eg. timestamps)
-    db_attributes = ['created_at',
-                     'heartbeat_timestamp']
+    db_attributes = ['heartbeat_timestamp']
 
     def __init__(self, **kwargs):
         super(Agent, self).__init__({'admin_state_up': True,
