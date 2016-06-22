@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Create Agent table
+"""Create Status and Fault model
 
 Revision ID: accfe645090a
 Revises:
@@ -57,7 +57,7 @@ def upgrade():
         sa.Column('cause', sa.String(255), default=''),
         sa.Column('last_update_timestamp', sa.TIMESTAMP,
                   server_default=func.now(), onupdate=func.now()),
-        sa.Column('external_identifier', sa.String(512), nullable=False),
+        sa.Column('external_identifier', sa.String(255), nullable=False),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['status_id'],
                                 ['aim_statuses.id'],

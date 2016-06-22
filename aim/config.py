@@ -13,12 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import socket
+
 from apicapi import config as apic_config  # noqa
 from oslo_config import cfg
 from oslo_log import log as logging
 
 default_opts = [
-    cfg.StrOpt('host', help=("Host where this agent/controller is running"))
+    cfg.StrOpt('host', default=socket.gethostname(),
+               help="Host where this agent/controller is running")
 ]
 
 cfg.CONF.register_opts(default_opts)
@@ -44,3 +47,9 @@ CONF = cfg.CONF
 
 def init(args, **kwargs):
     CONF(args=args, project='aim')
+
+
+def setup_logging():
+    """Sets up the logging options for a log with supplied name."""
+    product_name = "aim"
+    logging.setup(cfg.CONF, product_name)

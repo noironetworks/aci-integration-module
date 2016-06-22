@@ -161,8 +161,10 @@ class Agent(ResourceBase):
     def is_down(self):
         LOG.debug("Checking whether agent %s (timestamp %s) is down" %
                   (self.id, self.heartbeat_timestamp))
-        return timeutils.is_older_than(self.heartbeat_timestamp,
-                                       cfg.CONF.aim.agent_down_time)
+        result = timeutils.is_older_than(self.heartbeat_timestamp,
+                                         cfg.CONF.aim.agent_down_time)
+        LOG.debug("Agent %s is down: %s" % (self.id, result))
+        return result
 
 
 class Subnet(AciResourceBase):

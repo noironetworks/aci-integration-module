@@ -187,6 +187,7 @@ class AID(object):
 
 def main():
     config.init(sys.argv[1:])
+    config.setup_logging()
     try:
         agent = AID(config.CONF)
     except (RuntimeError, ValueError) as e:

@@ -136,8 +136,6 @@ class AciTenantManager(gevent.Greenlet):
         self.aci_session = apic_session
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
-        # TODO(ivar): subscribe on faults as well, this might be a different
-        # thread altogether
         self.tenant = Tenant(self.tenant_name, filtered_children=CHILDREN_LIST)
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
