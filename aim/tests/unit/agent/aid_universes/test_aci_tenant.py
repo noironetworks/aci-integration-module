@@ -64,12 +64,20 @@ class TestAciClientMixin(object):
             manager.aci_session._data_stash[
                 'mo/' + resource.values()[0]['attributes']['dn']] = resource
 
-    def _objects_transaction_create(self, objs):
+    def _objects_transaction_create(self, objs, create=True,
+                                    tag='openstack_aid'):
         result = []
         for obj in objs:
             conversion = converter.AimToAciModelConverter().convert([obj])
             transaction = apic_client.Transaction(mock.Mock())
-            for item in conversion:
+            tags = []
+            if create:
+                for item in conversion:
+                    dn = item.values()[0]['attributes']['dn']
+                    dn += '/tag-%s' % tag
+                    tags.append({"tagInst__%s" % item.keys()[0]:
+                                 {"attributes": {"dn": dn}}})
+            for item in conversion + tags:
                 getattr(transaction, item.keys()[0]).add(
                     *self.manager.dn_manager.aci_decompose(
                         item.values()[0]['attributes'].pop('dn'),
@@ -437,3 +445,51 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self._set_events(events)
         self.manager._event_loop()
         self.assertIsNotNone(self.manager._operational_state)
+
+    def test_filter_ownership(self):
+        events = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                               'tnFvCtxName': 'asasa'}}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'tnFvCtxName': 'test'}}},
+            {'faultInst': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/fault-F0952',
+                'ack': 'no', 'delegated': 'no',
+                'code': 'F0952', 'type': 'config'}}},
+            {'faultInst': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx/fault-F0952/'
+                      'fault-F0952',
+                'ack': 'no', 'delegated': 'no',
+                'code': 'F0952', 'type': 'config'}}}
+        ]
+        result = self.manager._filter_ownership(events)
+        self.assertEqual(set(), self.manager.tag_set)
+        self.assertEqual([], result)
+
+        # Now a tag is added to set ownership of one of the to contexts
+        tag = {'tagInst': {
+               'attributes': {
+                   'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/'
+                         'tag-openstack_aid'}}}
+        events.append(tag)
+        result = self.manager._filter_ownership(events)
+        self.assertEqual(set(['uni/tn-ivar-wstest/BD-test-2/rsctx']),
+                         self.manager.tag_set)
+        self.assertEqual(
+            sorted([
+                {'fvRsCtx': {
+                    'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                                   'tnFvCtxName': 'asasa'}}},
+                {'faultInst': {'attributes': {
+                    'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/fault-F0952',
+                    'ack': 'no', 'delegated': 'no',
+                    'code': 'F0952', 'type': 'config'}}}]),
+            sorted(result))
+
+        # Now delete the tag
+        tag['tagInst']['attributes']['status'] = 'deleted'
+        result = self.manager._filter_ownership(events)
+        self.assertEqual(set(), self.manager.tag_set)
+        self.assertEqual([], result)
