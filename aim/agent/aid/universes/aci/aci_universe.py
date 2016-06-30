@@ -128,7 +128,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         for key in resource_keys:
             fault_code = None
             dissected = self._dissect_key(key)
-            if dissected[0] == 'faultInst':
+            if dissected[0] in aci_tenant.OPERATIONAL_LIST:
                 fault_code = dissected[1][-1]
                 dissected = self._dissect_key(key[:-1])
             aci_type = dissected[0]

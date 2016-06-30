@@ -35,7 +35,8 @@ from aim.tools.cli.groups import aimcli
 def spy_aci_tenant(ctx, tenant):
     conf = ctx.obj['conf'].apic
     tn = aci_tenant.AciTenantManager(
-        tenant, conf, aci_universe.AciUniverse.establish_aci_session(conf))
+        tenant, conf, aci_universe.AciUniverse.establish_aci_session(conf),
+        ownership_filter=False)
     tn._run()
     prev_state = None
     while True:

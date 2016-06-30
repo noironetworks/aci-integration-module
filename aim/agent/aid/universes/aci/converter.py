@@ -268,6 +268,16 @@ resource_map = {
         },
         'identity_converter': fault_identity_converter,
         'to_resource': fault_inst_to_resource,
+    }],
+    'healthInst': [{
+        'resource': aim_status.AciStatus,
+        'exceptions': {
+            'cur': {
+                'other': 'health_score'
+            }
+        },
+        'identity_converter': fault_identity_converter,
+        'to_resource': fault_inst_to_resource,
     }]
 }
 

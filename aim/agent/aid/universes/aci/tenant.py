@@ -35,12 +35,13 @@ from aim import exceptions
 LOG = logging.getLogger(__name__)
 TENANT_KEY = 'fvTenant'
 FAULT_KEY = 'faultInst'
+HEALTH_KEY = 'healthInst'
 TAG_KEY = 'tagInst'
 STATUS_FIELD = 'status'
 SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
 CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
-OPERATIONAL_LIST = [FAULT_KEY]
+OPERATIONAL_LIST = [FAULT_KEY, HEALTH_KEY]
 
 
 # Dictionary with all the needed RS objects of a given APIC object type.
@@ -79,7 +80,8 @@ class Tenant(acitoolkit.Tenant):
 
     def _get_instance_subscription_urls(self):
         url = ('/api/mo/uni/tn-{}.json?query-target=subtree&'
-               'rsp-prop-include=config-only&rsp-subtree-include=faults&'
+               'rsp-prop-include=config-only&'
+               'rsp-subtree-include=faults,health&'
                'subscription=yes'.format(self.name))
         if self.filtered_children:
             url += '&target-subtree-class=' + ','.join(self.filtered_children)
@@ -128,8 +130,8 @@ class Tenant(acitoolkit.Tenant):
 
 class AciTenantManager(gevent.Greenlet):
 
-    def __init__(self, tenant_name, apic_config, apic_session, *args,
-                 **kwargs):
+    def __init__(self, tenant_name, apic_config, apic_session,
+                 ownership_filter=True, *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
         LOG.info("Init manager for tenant %s" % tenant_name)
         self.apic_config = apic_config
@@ -152,6 +154,8 @@ class AciTenantManager(gevent.Greenlet):
         # Warm bit to avoid rushed synchronization before receiving the first
         # batch of APIC events
         self._warm = False
+        # Debug option
+        self._apply_filer = ownership_filter
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
@@ -369,12 +373,14 @@ class AciTenantManager(gevent.Greenlet):
         for event in events:
             aci_resource = event.values()[0]
             if self._is_deleting(event):
-                trees[event.keys()[0] == FAULT_KEY]['delete'].append(event)
+                trees[event.keys()[0] in OPERATIONAL_LIST]['delete'].append(
+                    event)
                 # Pop deleted object from the TAG list
                 dn = aci_resource['attributes']['dn']
                 self.tag_set.discard(dn)
             else:
-                trees[event.keys()[0] == FAULT_KEY]['create'].append(event)
+                trees[event.keys()[0] in OPERATIONAL_LIST]['create'].append(
+                    event)
 
         # Convert objects
         for tree in trees.values():
@@ -437,8 +443,12 @@ class AciTenantManager(gevent.Greenlet):
                         kargs.pop('rsp_prop_include')
                     # TODO(ivar): the 'mo/' suffix should be added by APICAPI
                     data = self.aci_session.get_data('mo/' + dn, **kargs)
-                    resource['attributes'].update(
-                        data[0].values()[0]['attributes'])
+                    try:
+                        resource['attributes'].update(
+                            data[0].values()[0]['attributes'])
+                    except IndexError:
+                        LOG.debug("Response %s for DN %s" % (data, dn))
+                        raise
                     # Status not needed unless deleted
                     resource['attributes'].pop('status')
                 except apic_exc.ApicResponseNotOk as e:
@@ -473,6 +483,8 @@ class AciTenantManager(gevent.Greenlet):
                 events.extend(children)
 
     def _filter_ownership(self, events):
+        if not self._apply_filer:
+            return events
         result = []
         for event in events:
             if event.keys()[0] == TAG_KEY:

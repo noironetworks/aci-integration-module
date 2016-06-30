@@ -28,6 +28,7 @@ from aim import exceptions as aim_exc
 
 LOG = logging.getLogger(__name__)
 ACI_FAULT = 'faultInst'
+ACI_STATUS = 'healthInst'
 
 
 class AimDbUniverse(base.HashTreeStoredUniverse):

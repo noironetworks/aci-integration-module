@@ -32,6 +32,7 @@ class AciStatus(resource.ResourceBase, OperationalResource):
     * faults - List of AciFault objects as reported by APIC
     """
 
+    _aci_mo_name = 'healthInst'
     identity_attributes = ['resource_type', 'resource_id']
     other_attributes = ['sync_status',
                         'sync_message',
