@@ -365,11 +365,11 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
     def test_agent_down(self):
         agent = resource.Agent(agent_type='aid', host='host',
                                binary_file='binary_file', version='1.0')
-        self.assertRaises(AttributeError, agent.is_down)
+        self.assertRaises(AttributeError, agent.is_down, self.ctx)
         agent = self.mgr.create(self.ctx, agent)
-        self.assertFalse(agent.is_down())
+        self.assertFalse(agent.is_down(self.ctx))
         config.cfg.CONF.set_override('agent_down_time', 0, 'aim')
-        self.assertTrue(agent.is_down())
+        self.assertTrue(agent.is_down(self.ctx))
 
     def test_status(self):
         pass

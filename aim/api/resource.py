@@ -13,9 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import datetime
+
 from oslo_config import cfg
 from oslo_log import log as logging
-from oslo_utils import timeutils
+from sqlalchemy.sql.expression import func
 
 from aim.common import utils
 from aim import exceptions as exc
@@ -158,11 +160,12 @@ class Agent(ResourceBase):
     def __eq__(self, other):
         return self.id == other.id
 
-    def is_down(self):
+    def is_down(self, context):
         LOG.debug("Checking whether agent %s (timestamp %s) is down" %
                   (self.id, self.heartbeat_timestamp))
-        result = timeutils.is_older_than(self.heartbeat_timestamp,
-                                         cfg.CONF.aim.agent_down_time)
+        current = context.db_session.query(func.now()).scalar()
+        result = current - self.heartbeat_timestamp >= datetime.timedelta(
+            seconds=cfg.CONF.aim.agent_down_time)
         LOG.debug("Agent %s is down: %s" % (self.id, result))
         return result
 

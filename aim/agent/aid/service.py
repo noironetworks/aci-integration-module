@@ -127,7 +127,7 @@ class AID(object):
             agents = [
                 x for x in self.manager.find(context, resource.Agent,
                                              admin_state_up=True)
-                if not x.is_down()]
+                if not x.is_down(context)]
             # Validate agent version
             if not agents:
                 return []
