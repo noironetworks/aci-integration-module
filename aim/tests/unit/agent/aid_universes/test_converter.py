@@ -81,6 +81,9 @@ class TestAciToAimConverterBase(object):
             self.assertTrue(expected[idx] in reverse,
                             'Expected %s not in %s' % (expected[idx], reverse))
 
+    def _to_list(self, obj):
+        return obj if isinstance(obj, list) else [obj]
+
     def test_reverse_map(self):
         self._test_reverse_map(self.resource_type, self.reverse_map_output)
 
@@ -88,11 +91,13 @@ class TestAciToAimConverterBase(object):
         self.assertEqual(2, len(self.sample_input))
         self.assertEqual(2, len(self.sample_output))
 
-        self._test_convert([self.sample_input[0]], [self.sample_output[0]],
-                           [self.sample_input[1]], [self.sample_output[1]])
+        self._test_convert(self._to_list(self.sample_input[0]),
+                           [self.sample_output[0]],
+                           self._to_list(self.sample_input[1]),
+                           [self.sample_output[1]])
 
     def test_non_existing_resource(self):
-        self._test_non_existing_resource([self.sample_input[0]],
+        self._test_non_existing_resource(self._to_list(self.sample_input[0]),
                                          [self.sample_output[0]])
 
     def test_partial_change(self):
@@ -100,7 +105,7 @@ class TestAciToAimConverterBase(object):
                                   [self.partial_change_output])
 
     def test_deleted_object(self):
-        self._test_deleted_object([self.sample_input[0]],
+        self._test_deleted_object(self._to_list(self.sample_input[0]),
                                   [self.sample_output[0]])
 
 
@@ -272,15 +277,43 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                 'other': 'tnFvBDName'
             },
         },
-        'to_resource': converter.fv_rs_bd_to_resource,
+        'to_resource': converter.fv_rs_bd_to_resource, }, {
+        'resource': 'fvRsProv',
+        'exceptions': {},
+        'converter': converter.rs_prov_cons_converter, }, {
+        'resource': 'fvRsCons',
+        'exceptions': {},
+        'converter': converter.rs_prov_cons_converter,
     }]
-    sample_input = [base.TestAimDBBase._get_example_aci_epg(),
+    sample_input = [[base.TestAimDBBase._get_example_aci_epg(),
+                     {'fvRsBd':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/rsbd',
+                        'tnFvBDName': 'bd1', }}},
+                     {'fvRsProv':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/rsprov-p1',
+                        'tnVzBrCPName': 'p1', }}},
+                     {'fvRsProv':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/rsprov-k',
+                        'tnVzBrCPName': 'k', }}},
+                     {'fvRsCons':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/rscons-c1',
+                        'tnVzBrCPName': 'c1', }}},
+                     {'fvRsCons':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/rscons-k',
+                        'tnVzBrCPName': 'k', }}}],
                     base.TestAimDBBase._get_example_aci_epg(
                         dn='uni/tn-t1/ap-a1/epg-test-1')]
     sample_output = [
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
-                               name='test'),
+                               name='test', bd_name='bd1',
+                               provided_contract_names=['p1', 'k'],
+                               consumed_contract_names=['c1', 'k']),
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
                                name='test-1')]
@@ -493,7 +526,9 @@ class TestAimToAciConverterTenant(TestAimToAciConverterBase,
 class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
     sample_input = [base.TestAimDBBase._get_example_aim_epg(),
                     base.TestAimDBBase._get_example_aim_epg(
-                        name='test-1', bd_name='net2')]
+                        name='test-1', bd_name='net2',
+                        provided_contract_names=['k', 'p1'],
+                        consumed_contract_names=['c1', 'k'])]
     sample_output = [
         [{
             "fvAEPg": {
@@ -510,7 +545,23 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
             "fvRsBd": {
                 "attributes": {
                     "dn": "uni/tn-t1/ap-a1/epg-test-1/rsbd",
-                    "tnFvBDName": "net2"}}}]]
+                    "tnFvBDName": "net2"}}}, {
+            "fvRsProv": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-1/rsprov-k",
+                    "tnVzBrCPName": "k"}}}, {
+            "fvRsProv": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-1/rsprov-p1",
+                    "tnVzBrCPName": "p1"}}}, {
+            "fvRsCons": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-1/rscons-c1",
+                    "tnVzBrCPName": "c1"}}}, {
+            "fvRsCons": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-1/rscons-k",
+                    "tnVzBrCPName": "k"}}}]]
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
     missing_ref_output = [{
         "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test", }}}]
