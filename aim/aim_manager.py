@@ -206,16 +206,14 @@ class AimManager(object):
                 fault.status_id = status.id
                 self.create(context, fault, overwrite=True)
 
-    def clear_fault(self, context, resource, fault):
+    def clear_fault(self, context, fault, **kwargs):
         with context.db_session.begin(subtransactions=True):
-            status = self.get_status(context, resource)
-            if status:
-                db_fault = self._query_db(
-                    context.db_session, api_status.AciFault,
-                    status_id=status.id, fault_code=fault.fault_code).first()
-                if db_fault:
-                    context.db_session.delete(db_fault)
-                    self._add_commit_hook(context.db_session)
+            db_fault = self._query_db(
+                context.db_session, api_status.AciFault,
+                external_identifier=fault.external_identifier).first()
+            if db_fault:
+                context.db_session.delete(db_fault)
+                self._add_commit_hook(context.db_session)
 
     def register_update_listener(self, func):
         """Register callback for update to AIM objects.

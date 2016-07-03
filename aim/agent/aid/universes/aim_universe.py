@@ -143,8 +143,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                 "%s for object %s: %s" %
                                 (fault_method[method].__name__,
                                  parent.__dict__, resource.__dict__))
-                            fault_method[method](self.context, parent,
-                                                 resource)
+                            fault_method[method](self.context,
+                                                 resource=parent,
+                                                 fault=resource)
                         else:
                             LOG.debug(
                                 "%s object %s" %
