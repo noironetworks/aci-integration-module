@@ -446,3 +446,24 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
                               'provided_contract_names': ['c2', 'k', 'p1'],
                               'consumed_contract_names': ['c1', 'k', 'p2']}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
+
+    def test_update_other_attributes(self):
+        self._create_prerequisite_objects()
+
+        res = resource.EndpointGroup(**self.test_required_attributes)
+        r0 = self.mgr.create(self.ctx, res)
+        self.assertEqual(['k', 'p1', 'p2'],
+                         getattr_canonical(r0, 'provided_contract_names'))
+
+        r1 = self.mgr.update(self.ctx, res, bd_name='net1')
+        self.assertEqual('net1', r1.bd_name)
+        self.assertEqual(['k', 'p1', 'p2'],
+                         getattr_canonical(r1, 'provided_contract_names'))
+        self.assertEqual(['c1', 'c2', 'k'],
+                         getattr_canonical(r1, 'consumed_contract_names'))
+
+        r2 = self.mgr.update(self.ctx, res, provided_contract_names=[])
+        self.assertEqual('net1', r2.bd_name)
+        self.assertEqual([], getattr_canonical(r2, 'provided_contract_names'))
+        self.assertEqual(['c1', 'c2', 'k'],
+                         getattr_canonical(r2, 'consumed_contract_names'))
