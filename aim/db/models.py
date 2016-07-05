@@ -138,13 +138,20 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                                  lazy='joined')
 
     def from_attr(self, session, res_attr):
-        self.contracts = []
-        for c in (res_attr.pop('provided_contract_names', []) or []):
-            self.contracts.append(EndpointGroupContract(name=c,
-                                                        provides=True))
-        for c in (res_attr.pop('consumed_contract_names', []) or []):
-            self.contracts.append(EndpointGroupContract(name=c,
-                                                        provides=False))
+        provided = [c for c in self.contracts if c.provides]
+        consumed = [c for c in self.contracts if not c.provides]
+
+        if 'provided_contract_names' in res_attr:
+            provided = []
+            for c in (res_attr.pop('provided_contract_names', []) or []):
+                provided.append(EndpointGroupContract(name=c,
+                                                      provides=True))
+        if 'consumed_contract_names' in res_attr:
+            consumed = []
+            for c in (res_attr.pop('consumed_contract_names', []) or []):
+                consumed.append(EndpointGroupContract(name=c,
+                                                      provides=False))
+        self.contracts = provided + consumed
         # map remaining attributes to model
         super(EndpointGroup, self).from_attr(session, res_attr)
 
