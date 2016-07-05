@@ -49,7 +49,6 @@ def upgrade():
 
     op.create_table(
         'aim_faults',
-        sa.Column('id', sa.String(36), primary_key=True),
         sa.Column('status_id', sa.String(length=36), nullable=False),
         sa.Column('fault_code', sa.String(25), nullable=False),
         sa.Column('severity', sa.String(25), nullable=False),
@@ -57,17 +56,12 @@ def upgrade():
         sa.Column('cause', sa.String(255), default=''),
         sa.Column('last_update_timestamp', sa.TIMESTAMP,
                   server_default=func.now(), onupdate=func.now()),
-        sa.Column('external_identifier', sa.String(255), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
+        sa.Column('external_identifier', sa.String(255), primary_key=True),
+        sa.PrimaryKeyConstraint('external_identifier'),
         sa.ForeignKeyConstraint(['status_id'],
                                 ['aim_statuses.id'],
                                 ondelete='CASCADE'),
-        sa.UniqueConstraint('external_identifier',
-                            name='uniq_aim_faults_ext_id'),
-        sa.UniqueConstraint('status_id', 'fault_code',
-                            name='uniq_aim_faults_identity'),
-        sa.Index('idx_aim_faults_ext_id', 'external_identifier'),
-        sa.Index('idx_aim_faults_identity', 'status_id', 'fault_code'))
+        sa.Index('idx_aim_faults_status_id', 'status_id'))
 
 
 def downgrade():

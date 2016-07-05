@@ -25,12 +25,9 @@ from aim.db import models
 LOG = logging.getLogger(__name__)
 
 
-class Fault(model_base.Base, model_base.HasId, model_base.AttributeMixin):
+class Fault(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_faults'
-    __table_args__ = (models.uniq_column(__tablename__, 'status_id',
-                                         'fault_code') +
-                      models.uniq_column(__tablename__, 'external_identifier',
-                                         name='aim_faults_ext_id') +
+    __table_args__ = ((sa.Index('idx_aim_faults_status_id', 'status_id'), ) +
                       models.to_tuple(model_base.Base.__table_args__))
     status_id = sa.Column(sa.String(36), sa.ForeignKey('aim_statuses.id',
                                                        ondelete='CASCADE'),
@@ -43,7 +40,8 @@ class Fault(model_base.Base, model_base.HasId, model_base.AttributeMixin):
                                       onupdate=func.now())
     # external_identifier is an ID used by external entities to easily
     # correlate the fault to the proper external object
-    external_identifier = sa.Column(sa.String(255), nullable=False)
+    external_identifier = sa.Column(sa.String(255), nullable=False,
+                                    primary_key=True)
 
 
 class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
@@ -63,4 +61,4 @@ class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
 
     def get_faults(self, session):
         # Only return the faults' identifier
-        return [getattr(x, 'id') for x in self.faults or []]
+        return [getattr(x, 'external_identifier') for x in self.faults or []]
