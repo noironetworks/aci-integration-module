@@ -250,6 +250,7 @@ class TestResourceOpsBase(object):
         self.assertEqual(1, len(status.faults))
         self.assertEqual(aim_status.AciFault.SEV_CRITICAL,
                          status.faults[0].severity)
+        self.assertTrue(status.is_error())
         timestamp = status.faults[0].last_update_timestamp
         self.assertIsNotNone(timestamp)
 
@@ -263,14 +264,16 @@ class TestResourceOpsBase(object):
                          status.faults[0].severity)
         new_timestamp = status.faults[0].last_update_timestamp
         self.assertTrue(new_timestamp > timestamp)
+        self.assertFalse(status.is_error())
 
         # Add fault with same code
         fault_2 = aim_status.AciFault(
             fault_code='412', external_identifier='dn-2',
-            severity=aim_status.AciFault.SEV_CRITICAL)
+            severity=aim_status.AciFault.SEV_MAJOR)
         self.mgr.set_fault(self.ctx, res, fault_2)
         status = self.mgr.get_status(self.ctx, res)
         self.assertEqual(2, len(status.faults))
+        self.assertTrue(status.is_error())
 
         self.mgr.clear_fault(self.ctx, fault)
         self.mgr.clear_fault(self.ctx, fault_2)
