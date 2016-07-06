@@ -345,3 +345,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Agent not served anymore
         agent._daemon_loop()
         self.assertFalse('tn1' in agent.current_universe.state)
+
+    def test_handle_sigterm(self):
+        agent = self._create_agent()
+        self.assertTrue(agent.run_daemon_loop)
+        agent._handle_sigterm(mock.Mock(), mock.Mock())
+        self.assertFalse(agent.run_daemon_loop)

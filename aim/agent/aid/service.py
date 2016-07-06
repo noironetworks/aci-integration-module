@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import signal
 import sys
 import time
 import traceback
@@ -42,6 +43,7 @@ AGENT_DESCRIPTION = ('This Agent synchronizes the AIM state with ACI for a '
 class AID(object):
 
     def __init__(self, conf):
+        self.run_daemon_loop = True
         # Have 5 sessions
         self.session = api.get_session()
         self.desired_universe = aim_universe.AimDbUniverse().initialize(
@@ -74,7 +76,7 @@ class AID(object):
         gevent.spawn(self._heartbeat_loop, report_interval)
 
     def daemon_loop(self):
-        while True:
+        while self.run_daemon_loop:
             try:
                 start_time = time.time()
                 self._daemon_loop()
@@ -184,6 +186,10 @@ class AID(object):
         return (semantic_version.Version(x).major -
                 semantic_version.Version(y).major)
 
+    def _handle_sigterm(self, signum, frame):
+        LOG.debug("Agent caught SIGTERM, quitting daemon loop.")
+        self.run_daemon_loop = False
+
 
 def main():
     config.init(sys.argv[1:])
@@ -193,6 +199,8 @@ def main():
     except (RuntimeError, ValueError) as e:
         LOG.error("%s Agent terminated!" % e)
         sys.exit(1)
+
+    signal.signal(signal.SIGTERM, agent._handle_sigterm)
     agent.daemon_loop()
 
 
