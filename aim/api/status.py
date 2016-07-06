@@ -76,7 +76,7 @@ class AciStatus(resource.ResourceBase, OperationalResource):
     def is_error(self):
         return (self.sync_status == self.SYNC_FAILED or
                 self.health_level == self.HEALTH_POOR or
-                [f for f in self.faults if f.severity > AciFault.SEV_MINOR])
+                [f for f in self.faults if f.is_error()])
 
 
 class AciFault(resource.ResourceBase, OperationalResource):
@@ -109,3 +109,6 @@ class AciFault(resource.ResourceBase, OperationalResource):
             {'severity': self.SEV_INFO, 'lifecycle_status': self.LC_UNKNOWN,
              'cause': '', 'description': "",
              'last_update_timestamp': None}, **kwargs)
+
+    def is_error(self):
+        return self.severity in [self.SEV_MAJOR, self.SEV_CRITICAL]
