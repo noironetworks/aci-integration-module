@@ -57,6 +57,10 @@ class AimManager(object):
                      api_res.VRF: models.VRF,
                      api_res.ApplicationProfile: models.ApplicationProfile,
                      api_res.EndpointGroup: models.EndpointGroup,
+                     api_res.Filter: models.Filter,
+                     api_res.FilterEntry: models.FilterEntry,
+                     api_res.Contract: models.Contract,
+                     api_res.ContractSubject: models.ContractSubject,
                      api_status.AciStatus: status_model.Status,
                      api_status.AciFault: status_model.Fault}
 

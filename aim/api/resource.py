@@ -256,3 +256,113 @@ class EndpointGroup(AciResourceBase):
                                              'provided_contract_names': [],
                                              'consumed_contract_names': []},
                                             **kwargs)
+
+
+class Filter(AciResourceBase):
+    """Resource representing a contract filter in ACI.
+
+    Identity attributes: name of ACI tenant and name of filter.
+    """
+
+    identity_attributes = ['tenant_name', 'name']
+    other_attributes = ['display_name']
+
+    _aci_mo_name = 'vzFilter'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        super(Filter, self).__init__({}, **kwargs)
+
+
+class FilterEntry(AciResourceBase):
+    """Resource representing a classifier entry of a filter in ACI.
+
+    Identity attributes: name of ACI tenant, name of filter and name of entry.
+
+    Values for classification fields may be integers as per standards
+    (e.g. ip_protocol = 6 for TCP, 17 for UDP), or special strings listed
+    below. UNSPECIFIED may be used to indicate that a particular
+    field should be ignored.
+
+    Field             | Special string values
+    --------------------------------------------------------------------------
+    arp_opcode        | req, reply
+    ether_type        | trill, arp, mpls_ucast, mac_security, fcoe, ip
+    ip_protocol       | icmp, igmp, tcp, egp, igp, udp, icmpv6, eigrp, ospfigp
+    icmpv4_type       | echo-rep, dst-unreach, src-quench, echo, time-exceeded
+    icmpv6_type       | dst-unreach, time-exceeded, echo-req, echo-rep,
+                      | nbr-solicit, nbr-advert, redirect
+    source_from_port, | ftpData, smtp, dns, http, pop3, https, rtsp
+    source_to_port,   |
+    dest_from_port,   |
+    dest_to_port      |
+
+    """
+
+    identity_attributes = ['tenant_name', 'filter_name', 'name']
+    other_attributes = ['display_name',
+                        'arp_opcode', 'ether_type', 'ip_protocol',
+                        'icmpv4_type', 'icmpv6_type',
+                        'source_from_port', 'source_to_port',
+                        'dest_from_port', 'dest_to_port',
+                        'stateful', 'fragment_only']
+
+    _aci_mo_name = 'vzEntry'
+    _tree_parent = Filter
+
+    UNSPECIFIED = 'unspecified'
+
+    def __init__(self, **kwargs):
+        super(FilterEntry, self).__init__(
+            {'arp_opcode': self.UNSPECIFIED,
+             'ether_type': self.UNSPECIFIED,
+             'ip_protocol': self.UNSPECIFIED,
+             'icmpv4_type': self.UNSPECIFIED,
+             'icmpv6_type': self.UNSPECIFIED,
+             'source_from_port': self.UNSPECIFIED,
+             'source_to_port': self.UNSPECIFIED,
+             'dest_from_port': self.UNSPECIFIED,
+             'dest_to_port': self.UNSPECIFIED,
+             'stateful': False,
+             'fragment_only': False},
+            **kwargs)
+
+
+class Contract(AciResourceBase):
+    """Resource representing a contract in ACI.
+
+    Identity attributes: name of ACI tenant and name of contract.
+    """
+
+    identity_attributes = ['tenant_name', 'name']
+    other_attributes = ['display_name', 'scope']
+
+    _aci_mo_name = 'vzBrCP'
+    _tree_parent = Tenant
+
+    SCOPE_APP_PROFILE = 'application-profile'
+    SCOPE_TENANT = 'tenant'
+    SCOPE_CONTEXT = 'context'
+    SCOPE_GLOBAL = 'global'
+
+    def __init__(self, **kwargs):
+        super(Contract, self).__init__({'scope': self.SCOPE_CONTEXT}, **kwargs)
+
+
+class ContractSubject(AciResourceBase):
+    """Resource representing a subject within a contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = ['tenant_name', 'contract_name', 'name']
+    other_attributes = ['display_name',
+                        'in_filters', 'out_filters', 'bi_filters']
+
+    _aci_mo_name = 'vzSubj'
+    _tree_parent = Contract
+
+    def __init__(self, **kwargs):
+        super(ContractSubject, self).__init__(
+            {'in_filters': [], 'out_filters': [], 'bi_filters': []}, **kwargs)

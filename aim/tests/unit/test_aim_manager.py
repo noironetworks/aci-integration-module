@@ -162,6 +162,11 @@ class TestResourceOpsBase(object):
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
         for k, v in test_update_attributes.iteritems():
             self.assertEqual(v, getattr_canonical(r3, k))
+        # check other attributes are unaffected
+        for attr in r1.attributes():
+            if attr not in test_update_attributes:
+                self.assertEqual(getattr_canonical(r1, attr),
+                                 getattr_canonical(r3, attr))
 
         # Test empty update
         r31 = self.mgr.update(self.ctx, res, **{})
@@ -467,3 +472,67 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
         self.assertEqual([], getattr_canonical(r2, 'provided_contract_names'))
         self.assertEqual(['c1', 'c2', 'k'],
                          getattr_canonical(r2, 'consumed_contract_names'))
+
+
+class TestFilter(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.Filter
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'filter1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'filter1'}
+    test_search_attributes = {'name': 'filter1'}
+    test_update_attributes = {'display_name': 'uv-filter'}
+    test_dn = 'uni/tn-tenant1/flt-filter1'
+
+
+class TestFilterEntry(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.FilterEntry
+    prereq_objects = [
+        resource.Filter(tenant_name='tenant1', name='filter1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'filter_name': 'filter1',
+                                'name': 'entry1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'filter_name': 'filter1',
+                                'name': 'entry1',
+                                'arp_opcode': 'reply',
+                                'ether_type': 'arp',
+                                'ip_protocol': '6',
+                                'dest_to_port': '443',
+                                'source_from_port': 'dns'}
+    test_search_attributes = {'ip_protocol': '6'}
+    test_update_attributes = {'ether_type': 'ip',
+                              'dest_to_port': resource.FilterEntry.UNSPECIFIED,
+                              'icmpv4_type': 'echo'}
+    test_dn = 'uni/tn-tenant1/flt-filter1/e-entry1'
+
+
+class TestContract(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.Contract
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'contract1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'contract1',
+                                'scope': resource.Contract.SCOPE_TENANT}
+    test_search_attributes = {'scope': resource.Contract.SCOPE_TENANT}
+    test_update_attributes = {'scope': resource.Contract.SCOPE_CONTEXT}
+    test_dn = 'uni/tn-tenant1/brc-contract1'
+
+
+class TestContractSubject(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.ContractSubject
+    prereq_objects = [
+        resource.Contract(tenant_name='tenant1', name='contract1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'name': 'subject1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'name': 'subject1',
+                                'in_filters': ['f1', 'f2'],
+                                'out_filters': ['f2', 'f3'],
+                                'bi_filters': ['f1', 'f3', 'f4']}
+    test_search_attributes = {'name': 'subject1'}
+    test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
+                              'out_filters': []}
+    test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
