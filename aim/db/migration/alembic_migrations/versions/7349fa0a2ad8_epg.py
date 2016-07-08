@@ -65,8 +65,8 @@ def upgrade():
         sa.Column('policy_enforcement_pref', sa.String(16)),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
-                            name='uniq_aim_vrf_identity'),
-        sa.Index('idx_aim_vrf_identity', 'tenant_name', 'name'))
+                            name='uniq_aim_vrfs_identity'),
+        sa.Index('idx_aim_vrfs_identity', 'tenant_name', 'name'))
 
     op.create_table(
         'aim_app_profiles',
