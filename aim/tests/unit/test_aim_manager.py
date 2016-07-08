@@ -163,7 +163,7 @@ class TestResourceOpsBase(object):
         for k, v in test_update_attributes.iteritems():
             self.assertEqual(v, getattr_canonical(r3, k))
         # check other attributes are unaffected
-        for attr in r1.attributes():
+        for attr in r1.identity_attributes + r1.other_attributes:
             if attr not in test_update_attributes:
                 self.assertEqual(getattr_canonical(r1, attr),
                                  getattr_canonical(r3, attr))
