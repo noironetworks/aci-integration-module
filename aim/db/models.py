@@ -199,6 +199,7 @@ class FilterEntry(model_base.Base, model_base.HasAimId,
     source_to_port = sa.Column(sa.String(16))
     dest_from_port = sa.Column(sa.String(16))
     dest_to_port = sa.Column(sa.String(16))
+    tcp_flags = sa.Column(sa.String(16))
     stateful = sa.Column(sa.Boolean)
     fragment_only = sa.Column(sa.Boolean)
 

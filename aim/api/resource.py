@@ -296,6 +296,7 @@ class FilterEntry(AciResourceBase):
     source_to_port,   |
     dest_from_port,   |
     dest_to_port      |
+    tcp_flags         | est, syn, ack, fin, rst
 
     """
 
@@ -305,7 +306,7 @@ class FilterEntry(AciResourceBase):
                         'icmpv4_type', 'icmpv6_type',
                         'source_from_port', 'source_to_port',
                         'dest_from_port', 'dest_to_port',
-                        'stateful', 'fragment_only']
+                        'tcp_flags', 'stateful', 'fragment_only']
 
     _aci_mo_name = 'vzEntry'
     _tree_parent = Filter
@@ -323,6 +324,7 @@ class FilterEntry(AciResourceBase):
              'source_to_port': self.UNSPECIFIED,
              'dest_from_port': self.UNSPECIFIED,
              'dest_to_port': self.UNSPECIFIED,
+             'tcp_flags': self.UNSPECIFIED,
              'stateful': False,
              'fragment_only': False},
             **kwargs)

@@ -59,6 +59,7 @@ def upgrade():
         sa.Column('source_to_port', sa.String(16)),
         sa.Column('dest_from_port', sa.String(16)),
         sa.Column('dest_to_port', sa.String(16)),
+        sa.Column('tcp_flags', sa.String(16)),
         sa.Column('stateful', sa.Boolean),
         sa.Column('fragment_only', sa.Boolean),
         sa.PrimaryKeyConstraint('aim_id'),
