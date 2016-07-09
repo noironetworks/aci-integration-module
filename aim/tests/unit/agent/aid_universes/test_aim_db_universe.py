@@ -19,6 +19,7 @@ from aim import aim_manager
 from aim.api import resource
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
+from aim import config as aim_cfg
 from aim.db import agent_model  # noqa
 from aim.db import tree_model
 from aim.tests import base
@@ -28,7 +29,8 @@ class TestAimDbUniverseBase(object):
 
     def setUp(self, klass=aim_universe.AimDbUniverse):
         super(TestAimDbUniverseBase, self).setUp()
-        self.universe = klass().initialize(self.session)
+        self.universe = klass().initialize(
+            self.session, aim_cfg.ConfigManager(context=self.ctx))
         self.tree_mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
 
     def test_serve(self):

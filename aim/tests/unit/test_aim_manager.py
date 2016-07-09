@@ -385,7 +385,7 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
         self.assertRaises(AttributeError, agent.is_down, self.ctx)
         agent = self.mgr.create(self.ctx, agent)
         self.assertFalse(agent.is_down(self.ctx))
-        config.cfg.CONF.set_override('agent_down_time', 0, 'aim')
+        self.set_override('agent_down_time', 0, 'aim')
         self.assertTrue(agent.is_down(self.ctx))
 
     def test_status(self):

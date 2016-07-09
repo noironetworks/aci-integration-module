@@ -37,8 +37,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     from the AIM database.
     """
 
-    def initialize(self, db_session):
-        super(AimDbUniverse, self).initialize(db_session)
+    def initialize(self, db_session, conf_mgr):
+        super(AimDbUniverse, self).initialize(db_session, conf_mgr)
         self.tree_manager = tree_model.TenantHashTreeManager()
         self.context = context.AimContext(db_session)
         self._converter = converter.AciToAimModelConverter()

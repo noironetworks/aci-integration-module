@@ -27,7 +27,7 @@ from aim.agent.aid.universes import aim_universe
 from aim import aim_manager
 from aim.api import resource
 from aim.common import hashring
-from aim import config
+from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim.db import tree_model
@@ -44,26 +44,27 @@ class AID(object):
 
     def __init__(self, conf):
         self.run_daemon_loop = True
-        # Have 5 sessions
+        self.host = conf.host
         self.session = api.get_session()
+        self.context = context.AimContext(self.session)
+        self.conf_manager = aim_cfg.ConfigManager(context=self.context,
+                                                  host=self.host)
+        # Have 5 sessions
         self.desired_universe = aim_universe.AimDbUniverse().initialize(
-            api.get_session())
+            api.get_session(), self.conf_manager)
         self.current_universe = aci_universe.AciUniverse().initialize(
-            api.get_session())
+            api.get_session(), self.conf_manager)
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
         self.desired_operational_universe = (
             aci_universe.AciOperationalUniverse().initialize(
-                api.get_session()))
+                api.get_session(), self.conf_manager))
         self.current_operational_universe = (
             aim_universe.AimDbOperationalUniverse().initialize(
-                api.get_session()))
+                api.get_session(), self.conf_manager))
 
-        self.context = context.AimContext(self.session)
         self.manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantHashTreeManager()
-        self.polling_interval = conf.aim.agent_polling_interval
-        self.host = conf.host
         self.agent_id = 'aid-%s' % self.host
         self.agent = resource.Agent(id=self.agent_id, agent_type=AGENT_TYPE,
                                     host=self.host, binary_file=AGENT_BINARY,
@@ -72,7 +73,10 @@ class AID(object):
         # Register agent
         self._send_heartbeat()
         # Report procedure should happen asynchronously
-        report_interval = conf.aim.agent_report_interval
+        self.polling_interval = self.conf_manager.get_option(
+            'agent_polling_interval', group='aim')
+        report_interval = self.conf_manager.get_option(
+            'agent_report_interval', group='aim')
         gevent.spawn(self._heartbeat_loop, report_interval)
 
     def daemon_loop(self):
@@ -192,10 +196,10 @@ class AID(object):
 
 
 def main():
-    config.init(sys.argv[1:])
-    config.setup_logging()
+    aim_cfg.init(sys.argv[1:])
+    aim_cfg.setup_logging()
     try:
-        agent = AID(config.CONF)
+        agent = AID(aim_cfg.CONF)
     except (RuntimeError, ValueError) as e:
         LOG.error("%s Agent terminated!" % e)
         sys.exit(1)
