@@ -25,7 +25,6 @@ from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.api import resource as a_res
-from aim import config
 from aim.tests import base
 
 
@@ -152,7 +151,7 @@ class TestAciClientMixin(object):
                 dict([('imdata', [x])]) for x in event_list])
 
     def _do_aci_mocks(self):
-        config.CONF.set_override('apic_hosts', ['1.1.1.1'], 'apic')
+        self.set_override('apic_hosts', ['1.1.1.1'], 'apic')
         self.ws_login = mock.patch('acitoolkit.acitoolkit.Session.login')
         self.ws_login.start()
 
@@ -189,10 +188,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def setUp(self):
         super(TestAciTenant, self).setUp()
         self._do_aci_mocks()
-        conf = config.CONF.apic
         self.manager = aci_tenant.AciTenantManager(
-            'tenant-1', conf,
-            aci_universe.AciUniverse.establish_aci_session(conf))
+            'tenant-1', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager))
 
     def test_event_loop(self):
         self.manager._subscribe_tenant()
@@ -219,10 +217,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.assertFalse(self.manager.is_dead())
 
     def test_event_loop_failure(self):
-        conf = config.CONF.apic
         manager = aci_tenant.AciTenantManager(
-            'tenant-1', conf,
-            aci_universe.AciUniverse.establish_aci_session(conf))
+            'tenant-1', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager))
         manager.tenant.instance_has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()

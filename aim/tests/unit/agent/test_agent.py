@@ -34,8 +34,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        config.CONF.set_override('agent_down_time', 3600, 'aim')
-        config.CONF.set_override('agent_polling_interval', 0, 'aim')
+        self.set_override('agent_down_time', 3600, 'aim')
+        self.set_override('agent_polling_interval', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantTreeManager(
             tree.StructuredHashTree)
@@ -85,7 +85,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._tree_to_event(child, result, dn)
 
     def _create_agent(self, host='h1'):
-        config.CONF.set_override('host', host)
+        self.set_override('host', host)
         return service.AID(config.CONF)
 
     def test_init(self):
@@ -351,3 +351,17 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertTrue(agent.run_daemon_loop)
         agent._handle_sigterm(mock.Mock(), mock.Mock())
         self.assertFalse(agent.run_daemon_loop)
+
+    def test_change_polling_interval(self):
+        agent = self._create_agent()
+        self.set_override('agent_polling_interval', 130, 'aim')
+        self.assertNotEqual(130, agent.polling_interval)
+        agent.conf_manager.subs_mgr._poll_and_execute()
+        self.assertEqual(130, agent.polling_interval)
+
+    def test_change_report_interval(self):
+        agent = self._create_agent()
+        self.set_override('agent_report_interval', 130, 'aim')
+        self.assertNotEqual(130, agent.report_interval)
+        agent.conf_manager.subs_mgr._poll_and_execute()
+        self.assertEqual(130, agent.report_interval)

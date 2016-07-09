@@ -21,7 +21,6 @@ from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource
-from aim import config
 
 
 LOG = logging.getLogger(__name__)
@@ -44,11 +43,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
     from the ACI REST API.
     """
 
-    def initialize(self, db_session):
-        super(AciUniverse, self).initialize(db_session)
-        self.apic_config = self._retrieve_apic_config(db_session)
+    def initialize(self, db_session, conf_mgr):
+        super(AciUniverse, self).initialize(db_session, conf_mgr)
         self._aim_converter = converter.AciToAimModelConverter()
-        self.aci_session = self.establish_aci_session(self.apic_config)
+        self.aci_session = self.establish_aci_session(self.conf_manager)
         return self
 
     @property
@@ -92,7 +90,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     # a kill successfully happened but then  the state was
                     # rolled back by a further exception
                     serving_tenants[added] = aci_tenant.AciTenantManager(
-                        added, self.apic_config, self.aci_session)
+                        added, self.conf_manager, self.aci_session)
                     serving_tenants[added].start()
         except Exception as e:
             LOG.error('Failed to serve new tenants %s' % tenants)
@@ -149,10 +147,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     raise
         return result
 
-    def _retrieve_apic_config(self, db_session):
-        # TODO(ivar): DB oriented config
-        return config.CONF.apic
-
     def _retrieve_tenant_name(self, data):
         if isinstance(data, dict):
             data = self._aim_converter.convert([data])[0]
@@ -179,21 +173,26 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # own refactor.
         return apic_client.RestClient(
             logging,
-            # TODO(ivar): retrieve APIC system ID
-            '',
-            apic_config.apic_hosts,
-            apic_config.apic_username,
-            apic_config.apic_password,
-            apic_config.apic_use_ssl,
-            scope_names=False,
-            scope_infra=apic_config.scope_infra,
+            apic_config.get_option('apic_system_id'),
+            apic_config.get_option('apic_hosts', group='apic'),
+            apic_config.get_option('apic_username', group='apic'),
+            apic_config.get_option('apic_password', group='apic'),
+            apic_config.get_option('apic_use_ssl', group='apic'),
+            scope_names=apic_config.get_option('scope_names', group='apic'),
+            scope_infra=apic_config.get_option('scope_infra', group='apic'),
             renew_names=False,
-            verify=apic_config.verify_ssl_certificate,
-            request_timeout=apic_config.apic_request_timeout,
-            cert_name=apic_config.certificate_name,
-            private_key_file=apic_config.private_key_file,
-            sign_algo=apic_config.signature_verification_algorithm,
-            sign_hash=apic_config.signature_hash_type)
+            verify=apic_config.get_option('verify_ssl_certificate',
+                                          group='apic'),
+            request_timeout=apic_config.get_option('apic_request_timeout',
+                                                   group='apic'),
+            cert_name=apic_config.get_option('certificate_name',
+                                             group='apic'),
+            private_key_file=apic_config.get_option('private_key_file',
+                                                    group='apic'),
+            sign_algo=apic_config.get_option(
+                'signature_verification_algorithm', group='apic'),
+            sign_hash=apic_config.get_option(
+                'signature_hash_type', group='apic'))
 
 
 class AciOperationalUniverse(AciUniverse):

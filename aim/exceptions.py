@@ -51,3 +51,23 @@ class AciResourceDefinitionError(AimException):
 
 class InvalidDNForAciResource(AimException):
     message = ("DN %(dn)s is not valid for resource %(cls)s.")
+
+
+class ConfigurationUndefined(AimException):
+    message = ("Configuration %(conf)s undefined in group %(group)s for host "
+               "%(host)s")
+
+
+class UnsupportedAIMConfig(AimException):
+    message = ("Configuration %(conf)s is not supported in AIM mode "
+               "for group %(group)s")
+
+
+class UnsupportedAIMConfigGroup(AimException):
+    message = "Configuration group %(group)s is not supported in AIM mode"
+
+
+class OneHostPerCallbackItemSubscriptionAllowed(AimException):
+    message = ("Host %(tentative_host)s can't subcribe to option %(key)s in "
+               "group %(group)s with callback %(callback)s, as there's "
+               "another host already subscribed for such call: %(curr_hosts)s")

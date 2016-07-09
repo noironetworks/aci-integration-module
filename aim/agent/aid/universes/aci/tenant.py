@@ -186,6 +186,7 @@ class AciTenantManager(gevent.Greenlet):
         except gevent.GreenletExit:
             try:
                 self.tenant.instance_unsubscribe(self.ws_session)
+                # TODO(ivar): unsubscribe from all the DB options
             except Exception as e:
                 LOG.error("An exception has occurred while exiting thread "
                           "for tenant %s: %s" % (self.tenant_name,
@@ -341,16 +342,19 @@ class AciTenantManager(gevent.Greenlet):
         # A decision should be taken whether we want to add features to
         # acitoolkit to at least support certificate identification, or if
         # we want to implement the WS interface in APICAPI altogether
-        protocol = 'https' if self.apic_config.apic_use_ssl else 'http'
+        protocol = 'https' if self.apic_config.get_option(
+            'apic_use_ssl', group='apic') else 'http'
         if not getattr(self, 'ws_urls', None):
             self.ws_urls = collections.deque(
                 ['%s://%s' % (protocol, host) for host in
-                 self.apic_config.apic_hosts])
+                 self.apic_config.get_option('apic_hosts', group='apic')])
         self.ws_urls.rotate(-1)
         self.ws_session = acitoolkit.Session(
-            self.ws_urls[0], self.apic_config.apic_username,
-            self.apic_config.apic_password,
-            verify_ssl=self.apic_config.verify_ssl_certificate)
+            self.ws_urls[0], self.apic_config.get_option(
+                'apic_username', group='apic'),
+            self.apic_config.get_option('apic_password', group='apic'),
+            verify_ssl=self.apic_config.get_option(
+                'verify_ssl_certificate', group='apic'))
         self.health_state = False
         resp = self.ws_session.login()
         if not resp.ok:
