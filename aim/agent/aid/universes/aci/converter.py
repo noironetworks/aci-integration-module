@@ -26,7 +26,7 @@ MODIFIED_STATUS = "modified"
 
 
 def default_identity_converter(object_dict, otype, helper,
-                               extra_attributes=None,
+                               extra_attributes=None, aci_mo_type=None,
                                to_aim=True):
     """Default identity converter
 
@@ -36,6 +36,10 @@ def default_identity_converter(object_dict, otype, helper,
     :param object_dict: dictionarty of the resource to be converted
     :param otype: Type of the object. Can be an AIM resource class or a
                   APIC class name.
+    :param extra_attributes: Ordered list of additional attribute values needed
+                             to create the identity attribute
+    :param aci_mo_type: ACI ManagedObjectType to use when creating ACI identity
+                        attribute
     :param to_aim: Boolean indicating whether we are converting
                    ACI/AIM (True) or AIM/ACi (False)
     :return: list with exactly all the attributes that need to be assigned
@@ -47,7 +51,8 @@ def default_identity_converter(object_dict, otype, helper,
         attr = [object_dict[x] for x in otype.identity_attributes]
         if extra_attributes:
             attr.extend(extra_attributes)
-        return [apic_client.ManagedObjectClass(helper['resource']).dn(*attr)]
+        mo_type = aci_mo_type or helper['resource']
+        return [apic_client.ManagedObjectClass(mo_type).dn(*attr)]
 
 
 def fault_identity_converter(object_dict, otype, helper,
@@ -181,33 +186,47 @@ def fault_inst_to_resource(converted, helper, to_aim=True):
         return result
 
 
-def rs_prov_cons_converter(object_dict, otype, helper,
-                           source_identity_attributes,
-                           destination_identity_attributes, to_aim=True):
-    result = []
+def child_list(aim_attr, aci_attr, aci_mo=None):
+    def func(object_dict, otype, helper, source_identity_attributes,
+             destination_identity_attributes, to_aim=True):
+        result = []
+        if to_aim:
+            res_dict = {}
+            aci_type = aci_mo or otype
+            try:
+                id = default_identity_converter(object_dict, aci_type, helper,
+                                                to_aim=True)
+            except apic_client.DNManager.InvalidNameFormat:
+                return []
+            for index, attr in enumerate(destination_identity_attributes):
+                res_dict[attr] = id[index]
+            if object_dict.get(aci_attr):
+                res_dict[aim_attr] = [object_dict[aci_attr]]
+            result.append(default_to_resource(res_dict, helper, to_aim=True))
+        else:
+            aci_type = aci_mo or helper['resource']
+            child_objs = object_dict[aim_attr]
+            for c in child_objs:
+                dn = default_identity_converter(
+                    object_dict, otype, helper, extra_attributes=[c],
+                    aci_mo_type=aci_type, to_aim=False)[0]
+                result.append({aci_type: {'attributes':
+                                          {'dn': dn, aci_attr: c}}})
+        return result
+    return func
+
+
+def vz_subj_to_resource(converted, helper, to_aim=True):
     if to_aim:
-        res_dict = {}
-        id = default_identity_converter(object_dict, otype, helper,
-                                        to_aim=True)
-        for index, attr in enumerate(destination_identity_attributes):
-            res_dict[attr] = id[index]
-        if object_dict.get('tnVzBrCPName'):
-            res_attr = ('provided_contract_names' if otype == 'fvRsProv' else
-                        'consumed_contract_names')
-            res_dict[res_attr] = [object_dict['tnVzBrCPName']]
-        result.append(default_to_resource(res_dict, helper, to_aim=True))
+        return default_to_resource(converted, helper, to_aim=to_aim)
     else:
-        aci_type = helper['resource']
-        contracts = (object_dict['provided_contract_names']
-                     if aci_type == 'fvRsProv' else
-                     object_dict['consumed_contract_names'])
-        for c in contracts:
-            dn = default_identity_converter(
-                object_dict, otype, helper, extra_attributes=[c],
-                to_aim=False)[0]
-            result.append({aci_type: {'attributes': {'dn': dn,
-                                                     'tnVzBrCPName': c}}})
-    return result
+        # Exclude in_filters, out_filters, bi_filters
+        result = default_to_resource(converted, helper, to_aim=to_aim)
+        attr = result[helper['resource']]['attributes']
+        attr.pop('inFilters', None)
+        attr.pop('outFilters', None)
+        attr.pop('biFilters', None)
+        return result
 
 
 # Resource map maps APIC objects into AIM ones. the key of this map is the
@@ -225,6 +244,13 @@ def rs_prov_cons_converter(object_dict, otype, helper,
 # - To Resource: None or method for filtering unwanted attributes at the end
 # of the conversion for obtaining the final result
 
+fvRsProv_converter = child_list('provided_contract_names', 'tnVzBrCPName')
+fvRsCons_converter = child_list('consumed_contract_names', 'tnVzBrCPName')
+vzRsSubjFiltAtt_converter = child_list('bi_filters', 'tnVzFilterName')
+vzInTerm_vzRsFiltAtt_converter = child_list('in_filters', 'tnVzFilterName',
+                                            aci_mo='vzRsFiltAtt__In')
+vzOutTerm_vzRsFiltAtt_converter = child_list('out_filters', 'tnVzFilterName',
+                                             aci_mo='vzRsFiltAtt__Out')
 
 resource_map = {
     'fvBD': [{
@@ -304,13 +330,50 @@ resource_map = {
     }],
     'fvRsProv': [{
         'resource': resource.EndpointGroup,
-        'converter': rs_prov_cons_converter,
+        'converter': fvRsProv_converter,
     }],
     'fvRsCons': [{
         'resource': resource.EndpointGroup,
-        'converter': rs_prov_cons_converter,
+        'converter': fvRsCons_converter,
     }],
+    'vzFilter': [{
+        'resource': resource.Filter,
+    }],
+    'vzEntry': [{
+        'resource': resource.FilterEntry,
+        'exceptions': {
+            'arpOpc': {'other': 'arp_opcode'},
+            'etherT': {'other': 'ether_type'},
+            'prot': {'other': 'ip_protocol'},
+            'icmpv4T': {'other': 'icmpv4_type'},
+            'icmpv6T': {'other': 'icmpv6_type'},
+            'sFromPort': {'other': 'source_from_port'},
+            'sToPort': {'other': 'source_to_port'},
+            'dFromPort': {'other': 'dest_from_port'},
+            'dToPort': {'other': 'dest_to_port'},
+            'tcpRules': {'other': 'tcp_flags'},
+            'stateful': {'converter': boolean},
+            'applyToFrag': {'other': 'fragment_only',
+                            'converter': boolean}
+        },
+    }],
+    'vzBrCP': [{
+        'resource': resource.Contract,
+    }],
+    'vzSubj': [{
+        'resource': resource.ContractSubject,
+        'to_resource': vz_subj_to_resource,
+    }],
+    'vzRsSubjFiltAtt': [{
+        'resource': resource.ContractSubject,
+        'converter': vzRsSubjFiltAtt_converter
+    }],
+    'vzRsFiltAtt': [{'resource': resource.ContractSubject,
+                     'converter': vzInTerm_vzRsFiltAtt_converter},
+                    {'resource': resource.ContractSubject,
+                     'converter': vzOutTerm_vzRsFiltAtt_converter}],
 }
+
 
 # Build the reverse map for reverse translation
 reverse_resource_map = {}
@@ -339,6 +402,15 @@ for apic_type, rule_list in resource_map.iteritems():
         mapped_klass.append(mapped_rules)
 
 # Special changes to map and the reverse map can be made here
+
+# vzRsFiltAtt__In, vzRsFiltAtt__Out are only added for UTs related
+# to back-and-forth conversion
+resource_map.update({
+    'vzRsFiltAtt__In': [{'resource': resource.ContractSubject,
+                         'converter': vzInTerm_vzRsFiltAtt_converter}],
+    'vzRsFiltAtt__Out': [{'resource': resource.ContractSubject,
+                         'converter': vzOutTerm_vzRsFiltAtt_converter}],
+})
 
 
 class BaseConverter(object):

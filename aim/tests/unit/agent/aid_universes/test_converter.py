@@ -31,28 +31,38 @@ class TestAciToAimConverterBase(object):
         super(TestAciToAimConverterBase, self).setUp()
         self.converter = converter.AciToAimModelConverter()
 
+    def _dump(self, res):
+        return ([r.__dict__ for r in res] if isinstance(res, list)
+                else res.__dict__)
+
     def _test_convert(self, example1, expected1, example2, expected2):
         result = self.converter.convert(example1)
         self.assertEqual(len(expected1), len(result))
         for item in expected1:
-            self.assertTrue(item in result,
-                            'Expected %s not in %s' % (item, result))
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
 
         result = self.converter.convert(example1 + example2)
         self.assertEqual(len(expected1) + len(expected2), len(result))
         for item in expected1:
             self.assertTrue(item in result)
         for item in expected2:
-            self.assertTrue(item in result,
-                            'Expected %s not in %s' % (item, result))
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
 
     def _test_non_existing_resource(self, example, expected):
         result = self.converter.convert(example + [{'fvCtxNonEx': {}}])
         # Extra resource is ignored
         self.assertEqual(len(expected), len(result))
         for item in expected:
-            self.assertTrue(item in result,
-                            'Expected %s not in %s' % (item, result))
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
 
     def _test_partial_change(self, partial, expected):
         if (self.partial_change_input is None or
@@ -60,8 +70,10 @@ class TestAciToAimConverterBase(object):
             return
         result = self.converter.convert(partial)
         for item in expected:
-            self.assertTrue(item in result,
-                            'Expected %s not in %s' % (item, result))
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
 
     def _test_deleted_object(self, example, expected):
         for item in example:
@@ -71,8 +83,10 @@ class TestAciToAimConverterBase(object):
         result = self.converter.convert(example)
         self.assertEqual(len(expected), len(result))
         for item in expected:
-            self.assertTrue(item in result,
-                            'Expected %s not in %s' % (item, result))
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
 
     def _test_reverse_map(self, resource_type, expected):
         reverse = converter.reverse_resource_map[resource_type]
@@ -107,6 +121,10 @@ class TestAciToAimConverterBase(object):
     def test_deleted_object(self):
         self._test_deleted_object(self._to_list(self.sample_input[0]),
                                   [self.sample_output[0]])
+
+
+def _aci_obj(mo_type, **attr):
+    return {mo_type: {'attributes': attr}}
 
 
 class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
@@ -280,10 +298,10 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
         'to_resource': converter.fv_rs_bd_to_resource, }, {
         'resource': 'fvRsProv',
         'exceptions': {},
-        'converter': converter.rs_prov_cons_converter, }, {
+        'converter': converter.fvRsProv_converter, }, {
         'resource': 'fvRsCons',
         'exceptions': {},
-        'converter': converter.rs_prov_cons_converter,
+        'converter': converter.fvRsCons_converter,
     }]
     sample_input = [[base.TestAimDBBase._get_example_aci_epg(),
                      {'fvRsBd':
@@ -317,6 +335,173 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
                                name='test-1')]
+
+
+def get_example_aci_filter(**kwargs):
+    attr = {'name': 'f1',
+            'dn': 'uni/tn-test-tenant/flt-f1'}
+    attr.update(**kwargs)
+    return _aci_obj('vzFilter', **attr)
+
+
+class TestAciToAimConverterFilter(TestAciToAimConverterBase,
+                                  base.TestAimDBBase):
+    resource_type = resource.Filter
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'vzFilter'}]
+    sample_input = [get_example_aci_filter(),
+                    get_example_aci_filter(dn='uni/tn-test-tenant/flt-f2')]
+    sample_output = [
+        resource.Filter(tenant_name='test-tenant', name='f1'),
+        resource.Filter(tenant_name='test-tenant', name='f2')]
+
+
+def get_example_aci_filter_entry(**kwargs):
+    attr = {'name': 'e1',
+            'dn': 'uni/tn-test-tenant/flt-f1/e-e1',
+            'arpOpc': 'req',
+            'etherT': 'arp',
+            'icmpv4T': 'unspecified', 'icmpv6T': 'unspecified',
+            'sFromPort': '200', 'sToPort': 'https',
+            'dFromPort': '2000', 'dToPort': '4000',
+            'tcpRules': 'est',
+            'stateful': 'yes',
+            'applyToFrag': 'no'}
+    attr.update(**kwargs)
+    return _aci_obj('vzEntry', **attr)
+
+
+class TestAciToAimConverterFilterEntry(TestAciToAimConverterBase,
+                                       base.TestAimDBBase):
+    resource_type = resource.FilterEntry
+    reverse_map_output = [{
+        'resource': 'vzEntry',
+        'exceptions': {
+            'arp_opcode': {'other': 'arpOpc'},
+            'ether_type': {'other': 'etherT'},
+            'ip_protocol': {'other': 'prot'},
+            'icmpv4_type': {'other': 'icmpv4T'},
+            'icmpv6_type': {'other': 'icmpv6T'},
+            'source_from_port': {'other': 'sFromPort'},
+            'source_to_port': {'other': 'sToPort'},
+            'dest_from_port': {'other': 'dFromPort'},
+            'dest_to_port': {'other': 'dToPort'},
+            'tcp_flags': {'other': 'tcpRules'},
+            'stateful': {'other': 'stateful',
+                         'converter': converter.boolean},
+            'fragment_only': {'other': 'applyToFrag',
+                              'converter': converter.boolean}
+        },
+    }]
+    sample_input = [get_example_aci_filter_entry(),
+                    get_example_aci_filter_entry(
+                        dn='uni/tn-test-tenant/flt-f1/e-e2',
+                        etherT='unspecified',
+                        dFromPort='unspecified', dToPort='unspecified',
+                        stateful='no',
+                        applyToFrag='yes')]
+    sample_output = [
+        resource.FilterEntry(tenant_name='test-tenant', filter_name='f1',
+                             name='e1', arp_opcode='req', ether_type='arp',
+                             source_from_port='200', source_to_port='https',
+                             dest_from_port='2000', dest_to_port='4000',
+                             tcp_flags='est', stateful=True),
+        resource.FilterEntry(tenant_name='test-tenant', filter_name='f1',
+                             name='e2', arp_opcode='req',
+                             source_from_port='200', source_to_port='https',
+                             tcp_flags='est', fragment_only=True)]
+    partial_change_input = _aci_obj('vzEntry',
+                                    dn='uni/tn-test-tenant/flt-f1/e-e1',
+                                    status='modified',
+                                    prot='icmp',
+                                    tcpRules='rst',
+                                    stateful='yes',
+                                    modTs='2016-03-24T14:55:12.867+00:00',
+                                    rn='', childAction='')
+    partial_change_output = resource.FilterEntry(
+        tenant_name='test-tenant', filter_name='f1', name='e1',
+        ip_protocol='icmp', tcp_flags='rst', stateful=True)
+
+
+def get_example_aci_contract(**kwargs):
+    attr = {'name': 'c1',
+            'dn': 'uni/tn-test-tenant/brc-c1',
+            'scope': 'context'}
+    attr.update(**kwargs)
+    return _aci_obj('vzBrCP', **attr)
+
+
+class TestAciToAimConverterContract(TestAciToAimConverterBase,
+                                    base.TestAimDBBase):
+    resource_type = resource.Contract
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'vzBrCP'}]
+    sample_input = [get_example_aci_contract(),
+                    get_example_aci_contract(dn='uni/tn-test-tenant/brc-c2',
+                                             scope='tenant')]
+    sample_output = [
+        resource.Contract(tenant_name='test-tenant', name='c1'),
+        resource.Contract(tenant_name='test-tenant', name='c2',
+                          scope='tenant')]
+
+
+def get_example_aci_subject(**kwargs):
+    attr = {'name': 's1',
+            'dn': 'uni/tn-t1/brc-c/subj-s'}
+    attr.update(**kwargs)
+    return _aci_obj('vzSubj', **attr)
+
+
+class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
+                                           base.TestAimDBBase):
+    resource_type = resource.ContractSubject
+    reverse_map_output = [
+        {'resource': 'vzSubj',
+         'exceptions': {},
+         'to_resource': converter.vz_subj_to_resource},
+        {'resource': 'vzRsSubjFiltAtt',
+         'exceptions': {},
+         'converter': converter.vzRsSubjFiltAtt_converter},
+        {'resource': 'vzRsFiltAtt',
+         'exceptions': {},
+         'converter': converter.vzInTerm_vzRsFiltAtt_converter},
+        {'resource': 'vzRsFiltAtt',
+         'exceptions': {},
+         'converter': converter.vzOutTerm_vzRsFiltAtt_converter}]
+    sample_input = [[get_example_aci_subject(),
+                     _aci_obj('vzRsSubjFiltAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f1',
+                              tnVzFilterName='f1'),
+                     _aci_obj('vzRsSubjFiltAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f2',
+                              tnVzFilterName='f2'),
+                     _aci_obj('vzInTerm',
+                              dn='uni/tn-t1/brc-c/subj-s/intmnl'),
+                     _aci_obj('vzOutTerm',
+                              dn='uni/tn-t1/brc-c/subj-s/outtmnl'),
+                     _aci_obj('vzRsFiltAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-i1',
+                              tnVzFilterName='i1'),
+                     _aci_obj('vzRsFiltAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-i2',
+                              tnVzFilterName='i2'),
+                     _aci_obj('vzRsFiltAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-o1',
+                              tnVzFilterName='o1'),
+                     _aci_obj('vzRsFiltAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-o2',
+                              tnVzFilterName='o2')],
+                    [get_example_aci_subject(dn='uni/tn-t1/brc-c/subj-s2'),
+                     _aci_obj('vzRsFiltAtt',
+                              dn='uni/tn-t1/brc-c/subj-s2/intmnl/rsfiltAtt-i1',
+                              tnVzFilterName='i1')]]
+    sample_output = [
+        resource.ContractSubject(tenant_name='t1', contract_name='c', name='s',
+                                 in_filters=['i1', 'i2'],
+                                 out_filters=['o1', 'o2'],
+                                 bi_filters=['f1', 'f2']),
+        resource.ContractSubject(tenant_name='t1', contract_name='c',
+                                 name='s2', in_filters=['i1'])]
 
 
 class TestAciToAimConverterFault(TestAciToAimConverterBase,
@@ -586,3 +771,104 @@ class TestAimToAciConverterFault(TestAimToAciConverterBase,
             description='cannot resolve',
             severity='warning',
             cause='resolution-failed')]
+
+
+def get_example_aim_filter(**kwargs):
+    example = resource.Filter(tenant_name='test-tenant', name='f1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterFilter(TestAimToAciConverterBase,
+                                  base.TestAimDBBase):
+    sample_input = [get_example_aim_filter(),
+                    get_example_aim_filter(name='f2')]
+    sample_output = [
+        [_aci_obj('vzFilter', dn='uni/tn-test-tenant/flt-f1')],
+        [_aci_obj('vzFilter', dn='uni/tn-test-tenant/flt-f2')]
+    ]
+
+
+def get_example_aim_filter_entry(**kwargs):
+    example = resource.FilterEntry(
+        tenant_name='test-tenant', filter_name='f1', name='e1',
+        arp_opcode='req', ether_type='arp',
+        source_from_port='200', source_to_port='https',
+        dest_from_port='2000', dest_to_port='4000',
+        tcp_flags='est', stateful=True)
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterFilterEntry(TestAimToAciConverterBase,
+                                       base.TestAimDBBase):
+    sample_input = [get_example_aim_filter_entry(),
+                    get_example_aim_filter_entry(
+                        name='e2', tcp_flags='ack', fragment_only=True)]
+    sample_output = [
+        [_aci_obj('vzEntry', dn='uni/tn-test-tenant/flt-f1/e-e1',
+                  arpOpc='req', etherT='arp', prot='unspecified',
+                  icmpv4T='unspecified', icmpv6T='unspecified',
+                  sFromPort='200', sToPort='https',
+                  dFromPort='2000', dToPort='4000',
+                  tcpRules='est', stateful='yes', applyToFrag='no')],
+        [_aci_obj('vzEntry', dn='uni/tn-test-tenant/flt-f1/e-e2',
+                  arpOpc='req', etherT='arp', prot='unspecified',
+                  icmpv4T='unspecified', icmpv6T='unspecified',
+                  sFromPort='200', sToPort='https',
+                  dFromPort='2000', dToPort='4000',
+                  tcpRules='ack', stateful='yes', applyToFrag='yes')]
+    ]
+
+
+def get_example_aim_contract(**kwargs):
+    example = resource.Contract(tenant_name='test-tenant', name='c1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterContract(TestAimToAciConverterBase,
+                                    base.TestAimDBBase):
+    sample_input = [get_example_aim_contract(),
+                    get_example_aim_contract(
+                        name='c2', scope=resource.Contract.SCOPE_TENANT)]
+    sample_output = [
+        [_aci_obj('vzBrCP', dn='uni/tn-test-tenant/brc-c1', scope='context')],
+        [_aci_obj('vzBrCP', dn='uni/tn-test-tenant/brc-c2', scope='tenant')]
+    ]
+
+
+def get_example_aim_contract_subject(**kwargs):
+    example = resource.ContractSubject(tenant_name='test-tenant',
+                                       contract_name='c1', name='s1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
+                                           base.TestAimDBBase):
+    sample_input = [get_example_aim_contract_subject(in_filters=['i1', 'i2'],
+                                                     out_filters=['o1', 'o2'],
+                                                     bi_filters=['f1', 'f2']),
+                    get_example_aim_contract_subject(name='s2')]
+    sample_output = [
+        [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s1'),
+         _aci_obj('vzRsSubjFiltAtt',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/rssubjFiltAtt-f1',
+                  tnVzFilterName='f1'),
+         _aci_obj('vzRsSubjFiltAtt',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/rssubjFiltAtt-f2',
+                  tnVzFilterName='f2'),
+         _aci_obj('vzRsFiltAtt__In',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl/rsfiltAtt-i1',
+                  tnVzFilterName='i1'),
+         _aci_obj('vzRsFiltAtt__In',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl/rsfiltAtt-i2',
+                  tnVzFilterName='i2'),
+         _aci_obj('vzRsFiltAtt__Out',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl/rsfiltAtt-o1',
+                  tnVzFilterName='o1'),
+         _aci_obj('vzRsFiltAtt__Out',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl/rsfiltAtt-o2',
+                  tnVzFilterName='o2')],
+        [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s2')]]

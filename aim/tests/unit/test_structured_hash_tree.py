@@ -706,6 +706,29 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2'), **fvBD_attr)
         self.assertEqual(exp_tree, htree)
 
+    def test_update_1(self):
+        htree = tree.StructuredHashTree()
+        exp_tree = tree.StructuredHashTree()
+
+        subj = resource.ContractSubject(tenant_name='t1', contract_name='c1',
+                                        name='s1', in_filters=['i1'],
+                                        out_filters=['o1'], bi_filters=['f1'])
+        self.maker.update(htree, [subj])
+
+        exp_tree = exp_tree.add(('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1'))
+        exp_tree = exp_tree.add(
+            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
+             'vzInTerm|intmnl', 'vzRsFiltAtt|i1'),
+            tnVzFilterName='i1')
+        exp_tree = exp_tree.add(
+            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
+             'vzOutTerm|outtmnl', 'vzRsFiltAtt|o1'),
+            tnVzFilterName='o1')
+        exp_tree = exp_tree.add(
+            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzRsSubjFiltAtt|f1'),
+            tnVzFilterName='f1')
+        self.assertEqual(exp_tree, htree)
+
     def test_delete(self):
         bd1 = self._get_example_aim_bd(tenant_name='t1', name='bd1')
         bd2 = self._get_example_aim_bd(tenant_name='t1', name='bd2')
