@@ -47,3 +47,17 @@ class UnknownResourceType(AimException):
 class AciResourceDefinitionError(AimException):
     message = ("Required class attribute %(attr)s not defined for "
                "resource %(klass)s")
+
+
+class ConfigurationUndefined(AimException):
+    message = ("Configuration %(conf)s undefined in group %(group)s for host "
+               "%(host)s")
+
+
+class UnsupportedAIMConfig(AimException):
+    message = ("Configuration %(conf)s is not supported in AIM mode "
+               "for group %(group)s")
+
+
+class UnsupportedAIMConfigGroup(AimException):
+    message = "Configuration group %(group)s is not supported in AIM mode"

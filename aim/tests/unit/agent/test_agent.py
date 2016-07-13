@@ -34,8 +34,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        config.CONF.set_override('agent_down_time', 3600, 'aim')
-        config.CONF.set_override('agent_polling_interval', 0, 'aim')
+        self.set_override('agent_down_time', 3600, 'aim')
+        self.set_override('agent_polling_interval', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantTreeManager(
             tree.StructuredHashTree)
@@ -85,7 +85,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._tree_to_event(child, result, dn)
 
     def _create_agent(self, host='h1'):
-        config.CONF.set_override('host', host)
+        self.set_override('host', host)
         return service.AID(config.CONF)
 
     def test_init(self):

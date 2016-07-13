@@ -22,6 +22,7 @@ from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
 from aim.api import resource
 from aim.api import status as aim_status
+from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim.db import model_base
@@ -29,6 +30,7 @@ from aim.db import model_base
 CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
+CONF.register_opts(aim_cfg.global_opts)
 
 
 def etcdir(*p):
@@ -98,7 +100,9 @@ class TestAimDBBase(BaseTestCase):
             TestAimDBBase._TABLES_ESTABLISHED = True
         self.session = api.get_session(expire_on_commit=True)
         self.ctx = context.AimContext(db_session=self.session)
+        self.cfg_manager = aim_cfg.ConfigManager(self.ctx)
         resource.ResourceBase.__eq__ = resource_equal
+        self.cfg_manager.replace_all(self.ctx, CONF)
 
         # Uncomment the line below to log SQL statements. Additionally, to
         # log results of queries, change INFO to DEBUG
@@ -115,6 +119,14 @@ class TestAimDBBase(BaseTestCase):
     def get_new_context(self):
         return context.AimContext(
             db_session=sa_sessionmaker(bind=self.engine)())
+
+    def set_override(self, item, value, group=None, host=''):
+        # Override DB config as well
+        if group:
+            CONF.set_override(item, value, group)
+        else:
+            CONF.set_override(item, value)
+        self.cfg_manager.to_db(self.ctx, CONF, host=host)
 
     @classmethod
     def _get_example_aim_bd(cls, **kwargs):
