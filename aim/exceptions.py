@@ -46,4 +46,8 @@ class UnknownResourceType(AimException):
 
 class AciResourceDefinitionError(AimException):
     message = ("Required class attribute %(attr)s not defined for "
-               "resource %(klass)s")
+               "resource %(klass)s.")
+
+
+class InvalidDNForAciResource(AimException):
+    message = ("DN %(dn)s is not valid for resource %(cls)s.")

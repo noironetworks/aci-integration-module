@@ -70,6 +70,10 @@ class TestAimManager(base.TestAimDBBase):
         class bad_resource_2(bad_resource_1):
             _aci_mo_name = 'fvMagic'
 
+        class bad_resource_3(bad_resource_1):
+            _aci_mo_name = 'fvTenant'
+            identity_attributes = ['attr1', 'attr2']
+
         def create_obj(klass):
             return klass({})
 
@@ -77,6 +81,8 @@ class TestAimManager(base.TestAimDBBase):
                           bad_resource_1)
         self.assertRaises(exc.AciResourceDefinitionError, create_obj,
                           bad_resource_2)
+        self.assertRaises(exc.InvalidDNForAciResource,
+                          bad_resource_3.from_dn, 'uni/tn-coke')
 
 
 class TestResourceOpsBase(object):
@@ -315,6 +321,18 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
         self._test_resource_status(
             self.resource_class, self.test_identity_attributes)
 
+    def test_dn_op(self):
+        res = self.resource_class(**self.test_required_attributes)
+        self.assertEqual(self.test_dn, res.dn)
+
+        res1 = self.resource_class.from_dn(res.dn)
+        self.assertEqual(res.identity, res1.identity)
+
+        # invalid dn
+        self.assertRaises(exc.InvalidDNForAciResource,
+                          self.resource_class.from_dn,
+                          res.dn + '/foo')
+
 
 class TestTenant(TestAciResourceOpsBase, base.TestAimDBBase):
     resource_class = resource.Tenant
@@ -539,3 +557,22 @@ class TestContractSubject(TestAciResourceOpsBase, base.TestAimDBBase):
     test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
                               'out_filters': []}
     test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
+
+
+class TestEndpoint(TestResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.Endpoint
+    prereq_objects = [
+        resource.ApplicationProfile(tenant_name='t1', name='lab'),
+        resource.ApplicationProfile(tenant_name='t1', name='dept'),
+        resource.EndpointGroup(tenant_name='t1', app_profile_name='lab',
+                               name='g1'),
+        resource.EndpointGroup(tenant_name='t1', app_profile_name='dept',
+                               name='g20')]
+    test_identity_attributes = {'uuid': '1234'}
+    test_required_attributes = {'uuid': '1234',
+                                'epg_tenant_name': 't1',
+                                'epg_app_profile_name': 'lab',
+                                'epg_name': 'g1'}
+    test_search_attributes = {'epg_name': 'g1'}
+    test_update_attributes = {'epg_app_profile_name': 'dept',
+                              'epg_name': 'g20'}
