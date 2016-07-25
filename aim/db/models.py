@@ -280,3 +280,23 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
                 attr = 'bi_filters'
             res_attr.setdefault(attr, []).append(f.name)
         return res_attr
+
+
+class Endpoint(model_base.Base, model_base.HasDisplayName,
+               model_base.AttributeMixin):
+    """DB model for Endpoint."""
+
+    __tablename__ = 'aim_endpoints'
+    __table_args__ = (
+        (sa.ForeignKeyConstraint(
+            ['epg_tenant_name', 'epg_app_profile_name', 'epg_name'],
+            ['aim_endpoint_groups.tenant_name',
+             'aim_endpoint_groups.app_profile_name',
+             'aim_endpoint_groups.name'],
+            name='fk_epg'),) +
+        to_tuple(model_base.Base.__table_args__))
+
+    uuid = sa.Column(sa.String(36), primary_key=True)
+    epg_tenant_name = model_base.name_column()
+    epg_app_profile_name = model_base.name_column()
+    epg_name = model_base.name_column()

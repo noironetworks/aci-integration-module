@@ -62,7 +62,8 @@ class AimManager(object):
                      api_res.Contract: models.Contract,
                      api_res.ContractSubject: models.ContractSubject,
                      api_status.AciStatus: status_model.Status,
-                     api_status.AciFault: status_model.Fault}
+                     api_status.AciFault: status_model.Fault,
+                     api_res.Endpoint: models.Endpoint}
 
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff

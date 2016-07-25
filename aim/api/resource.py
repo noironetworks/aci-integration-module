@@ -91,6 +91,18 @@ class AciResourceBase(ResourceBase):
         return apic_client.ManagedObjectClass(self._aci_mo_name).dn(
             *self.identity)
 
+    @classmethod
+    def from_dn(cls, dn):
+        DNMgr = apic_client.DNManager
+        try:
+            rns = DNMgr().aci_decompose(dn, cls._aci_mo_name)
+            if len(rns) < len(cls.identity_attributes):
+                raise exc.InvalidDNForAciResource(dn=dn, cls=cls)
+            attr = {p[0]: p[1] for p in zip(cls.identity_attributes, rns)}
+            return cls(**attr)
+        except DNMgr.InvalidNameFormat:
+            raise exc.InvalidDNForAciResource(dn=dn, cls=cls)
+
 
 class Tenant(AciResourceBase):
     """Resource representing a Tenant in ACI.
@@ -368,3 +380,17 @@ class ContractSubject(AciResourceBase):
     def __init__(self, **kwargs):
         super(ContractSubject, self).__init__(
             {'in_filters': [], 'out_filters': [], 'bi_filters': []}, **kwargs)
+
+
+class Endpoint(ResourceBase):
+    """Resource representing an endpoint.
+
+    Identity attribute: UUID of the endpoint.
+    """
+
+    identity_attributes = ['uuid']
+    other_attributes = ['display_name',
+                        'epg_tenant_name', 'epg_app_profile_name', 'epg_name']
+
+    def __init__(self, **kwargs):
+        super(Endpoint, self).__init__({}, **kwargs)
