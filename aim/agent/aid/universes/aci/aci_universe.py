@@ -123,16 +123,26 @@ class AciUniverse(base.HashTreeStoredUniverse):
             except KeyError:
                 LOG.warn("Tenant %s is not being served anymore" % tenant)
 
+    def _split_key(self, key):
+        return [k.split('|', 2) for k in key]
+
+    def _dn_from_key_parts(self, parts):
+        rns = ['uni']
+        mo = None
+        for p in parts:
+            mo = apic_client.ManagedObjectClass(p[0])
+            rns.append(mo.rn(p[1]) if mo.rn_param_count else mo.rn())
+        return mo.klass_name, '/'.join(rns)
+
     def get_resources(self, resource_keys):
         result = []
         for key in resource_keys:
             fault_code = None
-            dissected = self._dissect_key(key)
-            if dissected[0] == 'faultInst':
-                fault_code = dissected[1][-1]
-                dissected = self._dissect_key(key[:-1])
-            aci_type = dissected[0]
-            dn = getattr(self.aci_session, aci_type).dn(*dissected[1])
+            key_parts = self._split_key(key)
+            if key_parts[-1][0] == 'faultInst':
+                fault_code = key_parts[-1][1]
+                key_parts = key_parts[:-1]
+            _, dn = self._dn_from_key_parts(key_parts)
             if fault_code:
                 dn += '/fault-%s' % fault_code
             try:
@@ -162,9 +172,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def get_resources_for_delete(self, resource_keys):
         result = []
         for key in resource_keys:
-            dissected = self._dissect_key(key)
-            dn = apic_client.ManagedObjectClass(dissected[0]).dn(*dissected[1])
-            result.append({dissected[0]: {'attributes': {'dn': dn}}})
+            mo, dn = self._dn_from_key_parts(self._split_key(key))
+            result.append({mo: {'attributes': {'dn': dn}}})
         return result
 
     def _get_state_copy(self, tenant):

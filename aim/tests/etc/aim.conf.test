@@ -1,3 +1,6 @@
+[DEFAULT]
+#debug = True
+
 [database]
 connection = 'sqlite://'
 

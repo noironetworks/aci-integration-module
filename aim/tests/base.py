@@ -17,6 +17,7 @@ import logging      # noqa
 import os
 
 from oslo_config import cfg
+from oslo_log import log as o_log
 from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
@@ -66,6 +67,7 @@ class BaseTestCase(base.BaseTestCase):
             CONF(args=args, project='aim')
         else:
             conf(args)
+        o_log.setup(cfg.CONF, 'aim')
 
     def setUp(self):
         super(BaseTestCase, self).setUp()
