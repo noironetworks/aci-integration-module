@@ -24,6 +24,7 @@ import mock
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
+from aim.api import resource as a_res
 from aim import config
 from aim.tests import base
 
@@ -64,6 +65,11 @@ class TestAciClientMixin(object):
             manager.aci_session._data_stash[
                 'mo/' + resource.values()[0]['attributes']['dn']] = resource
 
+    def _extract_rns(self, dn, mo):
+        FIXED_RNS = ['rsctx', 'rsbd', 'intmnl', 'outtmnl']
+        return [rn for rn in self.manager.dn_manager.aci_decompose(dn, mo)
+                if rn not in FIXED_RNS]
+
     def _objects_transaction_create(self, objs, create=True,
                                     tag='openstack_aid'):
         result = []
@@ -77,9 +83,10 @@ class TestAciClientMixin(object):
                     dn += '/tag-%s' % tag
                     tags.append({"tagInst__%s" % item.keys()[0]:
                                  {"attributes": {"dn": dn}}})
+
             for item in conversion + tags:
                 getattr(transaction, item.keys()[0]).add(
-                    *self.manager.dn_manager.aci_decompose(
+                    *self._extract_rns(
                         item.values()[0]['attributes'].pop('dn'),
                         item.keys()[0]),
                     **item.values()[0]['attributes'])
@@ -92,7 +99,7 @@ class TestAciClientMixin(object):
             transaction = apic_client.Transaction(mock.Mock())
             item = copy.deepcopy(obj)
             getattr(transaction, obj.keys()[0]).remove(
-                *self.manager.dn_manager.aci_decompose(
+                *self._extract_rns(
                     item.values()[0]['attributes'].pop('dn'),
                     item.keys()[0]))
             result.append(transaction)
@@ -252,27 +259,41 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         bd2 = self._get_example_aim_bd(name='test2')
         bda1 = self._get_example_aci_bd()
         bda2 = self._get_example_aci_bd(descr='test2')
-        self.manager.push_aim_resources({'create': [bd1, bd2]})
+        subj1 = a_res.ContractSubject(tenant_name='test-tenant',
+                                      contract_name='c', name='s',
+                                      in_filters=['i1', 'i2'],
+                                      out_filters=['o1', 'o2'])
+        self.manager.push_aim_resources({'create': [bd1, bd2, subj1]})
         self.manager._push_aim_resources()
         # Verify expected calls
-        transactions = self._objects_transaction_create([bd1, bd2])
+        transactions = self._objects_transaction_create([bd1, bd2, subj1])
         exp_calls = [
             mock.call(mock.ANY, json.dumps(transactions[0].root),
                       'test-tenant'),
             mock.call(mock.ANY, json.dumps(transactions[1].root),
+                      'test-tenant'),
+            mock.call(mock.ANY, json.dumps(transactions[2].root),
                       'test-tenant')]
         self._check_call_list(exp_calls, self.manager.aci_session.post_body)
 
         # Delete AIM resources
         self.manager.aci_session.post_body.reset_mock()
-        self.manager.push_aim_resources({'delete': [bda1, bda2]})
+        f1 = {'vzRsFiltAtt__In': {'attributes': {
+            'dn': 'uni/tn-test-tenant/brc-c/subj-s/intmnl/rsfiltAtt-i1'}}}
+        f2 = {'vzRsFiltAtt__Out': {'attributes': {
+            'dn': 'uni/tn-test-tenant/brc-c/subj-s/outtmnl/rsfiltAtt-o1'}}}
+        self.manager.push_aim_resources({'delete': [bda1, bda2, f1, f2]})
         self.manager._push_aim_resources()
         # Verify expected calls, add deleted status
-        transactions = self._objects_transaction_delete([bda1, bda2])
+        transactions = self._objects_transaction_delete([bda1, bda2, f1, f2])
         exp_calls = [
             mock.call(mock.ANY, json.dumps(transactions[0].root),
                       'test-tenant'),
             mock.call(mock.ANY, json.dumps(transactions[1].root),
+                      'test-tenant'),
+            mock.call(mock.ANY, json.dumps(transactions[2].root),
+                      'test-tenant'),
+            mock.call(mock.ANY, json.dumps(transactions[3].root),
                       'test-tenant')]
         self._check_call_list(exp_calls, self.manager.aci_session.post_body)
 

@@ -126,14 +126,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def _split_key(self, key):
         return [k.split('|', 2) for k in key]
 
-    def _dn_from_key_parts(self, parts):
-        rns = ['uni']
-        mo = None
-        for p in parts:
-            mo = apic_client.ManagedObjectClass(p[0])
-            rns.append(mo.rn(p[1]) if mo.rn_param_count else mo.rn())
-        return mo.klass_name, '/'.join(rns)
-
     def get_resources(self, resource_keys):
         result = []
         for key in resource_keys:
@@ -142,7 +134,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
             if key_parts[-1][0] == 'faultInst':
                 fault_code = key_parts[-1][1]
                 key_parts = key_parts[:-1]
-            _, dn = self._dn_from_key_parts(key_parts)
+            dn = apic_client.DNManager().build(key_parts)
             if fault_code:
                 dn += '/fault-%s' % fault_code
             try:
@@ -172,8 +164,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def get_resources_for_delete(self, resource_keys):
         result = []
         for key in resource_keys:
-            mo, dn = self._dn_from_key_parts(self._split_key(key))
-            result.append({mo: {'attributes': {'dn': dn}}})
+            key_parts = self._split_key(key)
+            dn = apic_client.DNManager().build(key_parts)
+            result.append({key_parts[-1][0]: {'attributes': {'dn': dn}}})
         return result
 
     def _get_state_copy(self, tenant):

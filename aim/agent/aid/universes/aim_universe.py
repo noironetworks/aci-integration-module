@@ -164,15 +164,12 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def _retrieve_fault_parent(self, fault):
         external = fault.external_identifier
         # external is the DN of the ACI resource
-        decomposed = apic_client.DNManager().aci_decompose_with_type(
-            external, ACI_FAULT)[:-1]
+        dn_mgr = apic_client.DNManager()
+        # this will be enough in order to get the parent
+        decomposed = dn_mgr.aci_decompose_with_type(external, ACI_FAULT)[:-1]
         aci_parent = {
             decomposed[-1][0]: {
-                'attributes': {
-                    'dn': apic_client.ManagedObjectClass(
-                        decomposed[-1][0]).dn(
-                        *[x[1] for x in decomposed])}}}
-        # this will be enough in order to get the parent
+                'attributes': {'dn': dn_mgr.build(decomposed)}}}
         return self._converter.convert([aci_parent])[0]
 
 

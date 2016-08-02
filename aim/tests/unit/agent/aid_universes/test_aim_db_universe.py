@@ -190,6 +190,34 @@ class TestAimDbUniverseBase(object):
         status = aim_mgr.get_status(self.ctx, res)
         self.assertEqual(0, len(status.faults))
 
+        # create subject, and faults for subject-to-filter relation
+        filter_objs = [
+            {'vzBrCP': {'attributes': {'dn': 'uni/tn-t1/brc-c'}}},
+            {'vzSubj': {'attributes': {'dn': 'uni/tn-t1/brc-c/subj-s2'}}},
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/brc-c/subj-s2/intmnl/rsfiltAtt-f/fault-F1111',
+                code='F1111'),
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/brc-c/subj-s2/outtmnl/rsfiltAtt-g/fault-F1112',
+                code='F1112'),
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/brc-c/subj-s2/rssubjFiltAtt-h/fault-F1113',
+                code='F1113')]
+        self.universe.push_resources({'create': filter_objs,
+                                      'delete': []})
+        subj = resource.ContractSubject(tenant_name='t1', contract_name='c',
+                                        name='s2')
+        status = aim_mgr.get_status(self.ctx, subj)
+        self.assertEqual(3, len(status.faults))
+        self.assertEqual(['F1111', 'F1112', 'F1113'],
+                         [f.fault_code for f in status.faults])
+
+        # delete filter faults
+        self.universe.push_resources({'create': [],
+                                      'delete': status.faults})
+        status = aim_mgr.get_status(self.ctx, subj)
+        self.assertEqual(0, len(status.faults))
+
         # Delete AP before EPG (AP can't be deleted)
         self.universe.push_resources({'create': [],
                                       'delete': [ap_aim, epg_aim]})
