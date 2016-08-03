@@ -185,13 +185,44 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.assertEqual(fault, result[0])
 
     def test_get_resources(self):
-        fault = self._get_example_aci_fault()
-        bd = self._get_example_aci_bd()
-        self._add_server_data([fault, bd], self.universe)
+        objs = [
+            self._get_example_aci_fault(),
+            self._get_example_aci_bd(),
+            {'vzRsSubjFiltAtt': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f'}}},
+            {'vzRsFiltAtt': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-g'}}},
+            {'vzRsFiltAtt': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-h'}}}]
+        self._add_server_data(objs, self.universe)
         keys = [('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951'),
-                ('fvTenant|test-tenant', 'fvBD|test')]
+                ('fvTenant|test-tenant', 'fvBD|test'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzRsSubjFiltAtt|f'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
+                 'vzInTerm|intmnl', 'vzRsFiltAtt|g'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
+                 'vzOutTerm|outtmnl', 'vzRsFiltAtt|h'), ]
         result = self.universe.get_resources(keys)
-        self.assertEqual(sorted([bd, fault]), sorted(result))
+        self.assertEqual(sorted(objs), sorted(result))
+
+    def test_get_resources_for_delete(self):
+        objs = [
+            {'fvBD': {'attributes': {
+                'dn': 'uni/tn-t1/BD-test'}}},
+            {'vzRsSubjFiltAtt': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f'}}},
+            {'vzRsFiltAtt': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-g'}}},
+            {'vzRsFiltAtt': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-h'}}}]
+        keys = [('fvTenant|t1', 'fvBD|test'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzRsSubjFiltAtt|f'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
+                 'vzInTerm|intmnl', 'vzRsFiltAtt|g'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
+                 'vzOutTerm|outtmnl', 'vzRsFiltAtt|h'), ]
+        result = self.universe.get_resources_for_delete(keys)
+        self.assertEqual(sorted(objs), sorted(result))
 
 
 class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):

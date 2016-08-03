@@ -278,22 +278,6 @@ class AciTenantManager(gevent.Greenlet):
         # TODO(ivar): improve performance by squashing similar events
         self.object_backlog.put(resources)
 
-    def _decompose_dn_guess(self, dn, mo_type_hint):
-        decompose = self.dn_manager.aci_decompose_with_type
-        MO = apic_client.ManagedObjectClass
-        try:
-            return mo_type_hint, decompose(dn, mo_type_hint)
-        except apic_client.DNManager.InvalidNameFormat:
-            # check if DN fits another MO
-            other_mos = [m for m in MO.supported_mos
-                         if MO(m).klass_name == mo_type_hint]
-            for mo in other_mos:
-                try:
-                    return mo, decompose(dn, mo)
-                except apic_client.DNManager.InvalidNameFormat:
-                    pass
-        raise apic_client.DNManager.InvalidNameFormat()
-
     def _push_aim_resources(self):
         while not self.object_backlog.empty():
             request = self.object_backlog.get()
@@ -323,12 +307,13 @@ class AciTenantManager(gevent.Greenlet):
                     # Multiple objects could result from a conversion, push
                     # them in a single transaction
                     MO = apic_client.ManagedObjectClass
+                    decompose = apic_client.DNManager().aci_decompose_dn_guess
                     try:
                         with self.aci_session.transaction() as trs:
                             for obj in to_push + tags:
                                 attr = obj.values()[0]['attributes']
-                                mo, parents_rns = self._decompose_dn_guess(
-                                    attr.pop('dn'), obj.keys()[0])
+                                mo, parents_rns = decompose(attr.pop('dn'),
+                                                            obj.keys()[0])
                                 # exclude RNs that are fixed
                                 rns = [mr[1] for mr in parents_rns
                                        if (mr[0] not in MO.supported_mos or
