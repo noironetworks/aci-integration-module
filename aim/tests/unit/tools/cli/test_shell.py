@@ -19,7 +19,7 @@ from aim.tests import base
 from aim.tools.cli import shell
 
 
-class TestShell(base.BaseTestCase):
+class TestShell(base.TestAimDBBase):
     """Class for testing AIM """
 
     def setUp(self):
@@ -27,10 +27,12 @@ class TestShell(base.BaseTestCase):
         self.runner = testing.CliRunner()
         self.invoke = self.runner.invoke
 
-    def run_command(self, command, raises=False):
+    def run_command(self, command, raises=False, config_file=None):
+        config_file = self.test_conf_file if not config_file else base.etcdir(
+            config_file)
         result = self.invoke(
             shell.aim,
-            ['--config-file', self.test_conf_file] + command.split(' '))
+            ['--config-file', config_file] + command.split(' '))
         if raises:
             self._assert_command_exception(result)
         else:

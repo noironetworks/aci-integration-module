@@ -19,6 +19,9 @@ import click
 
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
+from aim import config as aim_cfg
+from aim import context
+from aim.db import api
 from aim.tools.cli.groups import aimcli
 
 
@@ -33,7 +36,9 @@ from aim.tools.cli.groups import aimcli
 @click.pass_context
 # Debug utility for ACI web socket
 def spy_aci_tenant(ctx, tenant):
-    conf = ctx.obj['conf'].apic
+    session = api.get_session(expire_on_commit=True)
+    aim_ctx = context.AimContext(db_session=session)
+    conf = aim_cfg.ConfigManager(context=aim_ctx)
     tn = aci_tenant.AciTenantManager(
         tenant, conf, aci_universe.AciUniverse.establish_aci_session(conf))
     tn._run()

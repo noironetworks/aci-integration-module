@@ -27,7 +27,8 @@ from aim.agent.aid.universes import aim_universe
 from aim import aim_manager
 from aim.api import resource
 from aim.common import hashring
-from aim import config
+from aim.common import utils
+from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim.db import tree_model
@@ -44,26 +45,26 @@ class AID(object):
 
     def __init__(self, conf):
         self.run_daemon_loop = True
-        # Have 5 sessions
+        self.host = conf.host
         self.session = api.get_session()
+        self.context = context.AimContext(self.session)
+        self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)
+        # Have 5 sessions
         self.desired_universe = aim_universe.AimDbUniverse().initialize(
-            api.get_session())
+            api.get_session(), self.conf_manager)
         self.current_universe = aci_universe.AciUniverse().initialize(
-            api.get_session())
+            api.get_session(), self.conf_manager)
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
         self.desired_operational_universe = (
             aci_universe.AciOperationalUniverse().initialize(
-                api.get_session()))
+                api.get_session(), self.conf_manager))
         self.current_operational_universe = (
             aim_universe.AimDbOperationalUniverse().initialize(
-                api.get_session()))
+                api.get_session(), self.conf_manager))
 
-        self.context = context.AimContext(self.session)
         self.manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantHashTreeManager()
-        self.polling_interval = conf.aim.agent_polling_interval
-        self.host = conf.host
         self.agent_id = 'aid-%s' % self.host
         self.agent = resource.Agent(id=self.agent_id, agent_type=AGENT_TYPE,
                                     host=self.host, binary_file=AGENT_BINARY,
@@ -72,15 +73,20 @@ class AID(object):
         # Register agent
         self._send_heartbeat()
         # Report procedure should happen asynchronously
-        report_interval = conf.aim.agent_report_interval
-        gevent.spawn(self._heartbeat_loop, report_interval)
+        self.polling_interval = self.conf_manager.get_option_and_subscribe(
+            self._change_polling_interval, 'agent_polling_interval',
+            group='aim')
+        self.report_interval = self.conf_manager.get_option_and_subscribe(
+            self._change_report_interval, 'agent_report_interval', group='aim')
+        gevent.spawn(self._heartbeat_loop)
 
     def daemon_loop(self):
         while self.run_daemon_loop:
             try:
                 start_time = time.time()
                 self._daemon_loop()
-                self._wait_for_next_cycle(start_time)
+                utils.wait_for_next_cycle(start_time, self.polling_interval,
+                                          LOG, readable_caller='AID')
             except Exception:
                 LOG.error('A error occurred in agent')
                 LOG.error(traceback.format_exc())
@@ -108,11 +114,11 @@ class AID(object):
         self.current_operational_universe.reconcile(
             self.desired_operational_universe)
 
-    def _heartbeat_loop(self, interval):
+    def _heartbeat_loop(self):
         while True:
             start = time.time()
             self._send_heartbeat()
-            gevent.sleep(max(0, interval - (time.time() - start)))
+            gevent.sleep(max(0, self.report_interval - (time.time() - start)))
 
     def _send_heartbeat(self):
         LOG.debug("Sending Heartbeat for agent %s" % self.agent_id)
@@ -169,19 +175,6 @@ class AID(object):
                 result.append(tenant)
         return result
 
-    def _wait_for_next_cycle(self, start_time):
-        # sleep till end of polling interval
-        elapsed = time.time() - start_time
-        LOG.debug("AID loop - completed in %(time).3f. ", {'time': elapsed})
-        if elapsed < self.polling_interval:
-            gevent.sleep(self.polling_interval - elapsed)
-        else:
-            LOG.debug("Loop iteration exceeded interval "
-                      "(%(polling_interval)s vs. %(elapsed)s)!",
-                      {'polling_interval': self.polling_interval,
-                       'elapsed': elapsed})
-            gevent.sleep(0)
-
     def _major_vercompare(self, x, y):
         return (semantic_version.Version(x).major -
                 semantic_version.Version(y).major)
@@ -190,12 +183,20 @@ class AID(object):
         LOG.debug("Agent caught SIGTERM, quitting daemon loop.")
         self.run_daemon_loop = False
 
+    def _change_polling_interval(self, new_conf):
+        # TODO(ivar): interrupt current sleep and restart with new value
+        self.polling_interval = new_conf['value']
+
+    def _change_report_interval(self, new_conf):
+        # TODO(ivar): interrupt current sleep and restart with new value
+        self.report_interval = new_conf['value']
+
 
 def main():
-    config.init(sys.argv[1:])
-    config.setup_logging()
+    aim_cfg.init(sys.argv[1:])
+    aim_cfg.setup_logging()
     try:
-        agent = AID(config.CONF)
+        agent = AID(aim_cfg.CONF)
     except (RuntimeError, ValueError) as e:
         LOG.error("%s Agent terminated!" % e)
         sys.exit(1)

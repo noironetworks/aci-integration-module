@@ -18,6 +18,7 @@ import mock
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.common.hashtree import structured_tree
+from aim import config as aim_cfg
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
 
@@ -32,7 +33,8 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         super(TestAciUniverseMixin, self).setUp()
         self._do_aci_mocks()
         self.universe = (universe_klass or
-                         aci_universe.AciUniverse)().initialize(self.ctx)
+                         aci_universe.AciUniverse)().initialize(
+            self.ctx, aim_cfg.ConfigManager(self.ctx, ''))
         # Mock ACI tenant manager
         self.mock_start = mock.patch(
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.start')
@@ -233,7 +235,7 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
 
     def test_shared_served_tenants(self):
         operational = aci_universe.AciOperationalUniverse().initialize(
-            self.ctx)
+            self.ctx, aim_cfg.ConfigManager(self.ctx, ''))
         tenant_list = ['tn%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
         self.assertIs(self.universe.serving_tenants,

@@ -44,13 +44,14 @@ class BaseUniverse(object):
     """
 
     @abc.abstractmethod
-    def initialize(self, db_session):
+    def initialize(self, db_session, conf_mgr):
         """Observer initialization method.
 
         This method will be called before any other.
 
         :param db_session: session to the AIM DB, can be used to retrieve state
         or useful configuration options.
+        :param conf_mgr: configuration manager.
         :returns: self
         """
 
@@ -181,11 +182,12 @@ class AimUniverse(BaseUniverse):
 class HashTreeStoredUniverse(AimUniverse):
     """Universe storing state in the form of a Hash Tree."""
 
-    def initialize(self, db_session):
-        super(HashTreeStoredUniverse, self).initialize(db_session)
+    def initialize(self, db_session, conf_mgr):
+        super(HashTreeStoredUniverse, self).initialize(db_session, conf_mgr)
         self.db = db_session
         self.context = context.AimContext(self.db)
         self.manager = aim_manager.AimManager()
+        self.conf_manager = conf_mgr
         self._state = {}
         return self
 

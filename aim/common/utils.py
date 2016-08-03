@@ -14,9 +14,13 @@
 #    under the License.
 
 import functools
+import time
 import uuid
 
+import gevent
 from oslo_log import log as logging
+
+AIM_LOCK_PREFIX = 'aim_lock'
 
 
 def log(method):
@@ -38,3 +42,18 @@ def log(method):
 
 def generate_uuid():
     return str(uuid.uuid4())
+
+
+def wait_for_next_cycle(start_time, polling_interval, log, readable_caller=''):
+    # sleep till end of polling interval
+    elapsed = time.time() - start_time
+    log.debug("%(caller)s loop - completed in %(time).3f. ",
+              {'caller': readable_caller, 'time': elapsed})
+    if elapsed < polling_interval:
+        gevent.sleep(polling_interval - elapsed)
+    else:
+        log.debug("Loop iteration exceeded interval "
+                  "(%(polling_interval)s vs. %(elapsed)s)!",
+                  {'polling_interval': polling_interval,
+                   'elapsed': elapsed})
+        gevent.sleep(0)
