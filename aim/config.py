@@ -36,11 +36,14 @@ global_opts = [
     cfg.StrOpt('apic_system_id',
                default='openstack',
                help="Prefix for APIC domain/names/profiles created"),
+]
+
+
+common_opts = [
     cfg.StrOpt('host', default=socket.gethostname(),
                help="Host where this agent/controller is running")
 ]
 
-cfg.CONF.register_opts(global_opts)
 
 agent_opts = [
     cfg.IntOpt('agent_down_time', default=75,
