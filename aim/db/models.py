@@ -40,6 +40,17 @@ class Tenant(model_base.Base, model_base.HasDisplayName,
     name = model_base.name_column(primary_key=True)
 
 
+class BridgeDomainL3Out(model_base.Base):
+    """DB model for L3Outs used by a BridgeDomain."""
+
+    __tablename__ = 'aim_bridge_domain_l3outs'
+
+    bd_aim_id = sa.Column(sa.Integer,
+                          sa.ForeignKey('aim_bridge_domains.aim_id'),
+                          primary_key=True)
+    name = model_base.name_column(primary_key=True)
+
+
 class BridgeDomain(model_base.Base, model_base.HasAimId,
                    model_base.HasName, model_base.HasDisplayName,
                    model_base.HasTenantName,
@@ -56,6 +67,26 @@ class BridgeDomain(model_base.Base, model_base.HasAimId,
     limit_ip_learn_to_subnets = sa.Column(sa.Boolean)
     l2_unknown_unicast_mode = sa.Column(sa.String(16))
     ep_move_detect_mode = sa.Column(sa.String(16))
+
+    l3outs = orm.relationship(BridgeDomainL3Out,
+                              backref='bd',
+                              cascade='all, delete-orphan',
+                              lazy='joined')
+
+    def from_attr(self, session, res_attr):
+        if 'l3out_names' in res_attr:
+            l3out_names = []
+            for l in (res_attr.pop('l3out_names', []) or []):
+                l3out_names.append(BridgeDomainL3Out(name=l))
+            self.l3outs = l3out_names
+        # map remaining attributes to model
+        super(BridgeDomain, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(BridgeDomain, self).to_attr(session)
+        for l in res_attr.pop('l3outs', []):
+            res_attr.setdefault('l3out_names', []).append(l.name)
+        return res_attr
 
 
 class Subnet(model_base.Base, model_base.HasAimId,
@@ -161,10 +192,41 @@ class EndpointGroupPhysicalDomain(model_base.Base):
     physdom_name = model_base.name_column(primary_key=True)
 
 
+class ContractRelationMixin(model_base.AttributeMixin):
+    """Mixin for model classes that provide/consume contracts."""
+    _contract_relation_class = None
+
+    def from_attr(self, session, res_attr):
+        provided = [c for c in self.contracts if c.provides]
+        consumed = [c for c in self.contracts if not c.provides]
+
+        if 'provided_contract_names' in res_attr:
+            provided = []
+            for c in (res_attr.pop('provided_contract_names', []) or []):
+                provided.append(self._contract_relation_class(
+                    name=c, provides=True))
+        if 'consumed_contract_names' in res_attr:
+            consumed = []
+            for c in (res_attr.pop('consumed_contract_names', []) or []):
+                consumed.append(self._contract_relation_class(
+                    name=c, provides=False))
+        self.contracts = provided + consumed
+        # map remaining attributes to model
+        super(ContractRelationMixin, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(ContractRelationMixin, self).to_attr(session)
+        for c in res_attr.pop('contracts', []):
+            attr = ('provided_contract_names' if c.provides
+                    else 'consumed_contract_names')
+            res_attr.setdefault(attr, []).append(c.name)
+        return res_attr
+
+
 class EndpointGroup(model_base.Base, model_base.HasAimId,
                     model_base.HasName, model_base.HasDisplayName,
                     model_base.HasTenantName,
-                    model_base.AttributeMixin):
+                    ContractRelationMixin):
     """DB model for EndpointGroup."""
 
     __tablename__ = 'aim_endpoint_groups'
@@ -180,6 +242,7 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
 
     bd_name = model_base.name_column()
 
+    _contract_relation_class = EndpointGroupContract
     contracts = orm.relationship(EndpointGroupContract,
                                  backref='epg',
                                  cascade='all, delete-orphan',
@@ -194,22 +257,8 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                                         lazy='joined')
 
     def from_attr(self, session, res_attr):
-        provided = [c for c in self.contracts if c.provides]
-        consumed = [c for c in self.contracts if not c.provides]
         vmm_domains = self.vmm_domains[:]
         physical_domains = self.physical_domains[:]
-
-        if 'provided_contract_names' in res_attr:
-            provided = []
-            for c in (res_attr.pop('provided_contract_names', []) or []):
-                provided.append(EndpointGroupContract(name=c,
-                                                      provides=True))
-        if 'consumed_contract_names' in res_attr:
-            consumed = []
-            for c in (res_attr.pop('consumed_contract_names', []) or []):
-                consumed.append(EndpointGroupContract(name=c,
-                                                      provides=False))
-        self.contracts = provided + consumed
 
         if 'openstack_vmm_domain_names' in res_attr:
             vmm_domains = []
@@ -230,10 +279,6 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
 
     def to_attr(self, session):
         res_attr = super(EndpointGroup, self).to_attr(session)
-        for c in res_attr.pop('contracts', []):
-            attr = ('provided_contract_names' if c.provides
-                    else 'consumed_contract_names')
-            res_attr.setdefault(attr, []).append(c.name)
         for d in res_attr.pop('vmm_domains', []):
             res_attr.setdefault(
                 'openstack_vmm_domain_names', []).append(d.vmm_name)
@@ -339,11 +384,11 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
         if 'out_filters' in res_attr:
             outs = []
             for f in (res_attr.pop('out_filters', []) or []):
-                ins.append(ContractSubjectFilter(name=f, direction='out'))
+                outs.append(ContractSubjectFilter(name=f, direction='out'))
         if 'bi_filters' in res_attr:
             bis = []
             for f in (res_attr.pop('bi_filters', []) or []):
-                ins.append(ContractSubjectFilter(name=f, direction='bi'))
+                bis.append(ContractSubjectFilter(name=f, direction='bi'))
         self.filters = ins + outs + bis
         # map remaining attributes to model
         super(ContractSubject, self).from_attr(session, res_attr)
@@ -379,3 +424,77 @@ class Endpoint(model_base.Base, model_base.HasDisplayName,
     epg_tenant_name = model_base.name_column()
     epg_app_profile_name = model_base.name_column()
     epg_name = model_base.name_column()
+
+
+class L3Outside(model_base.Base, model_base.HasAimId,
+                model_base.HasName, model_base.HasDisplayName,
+                model_base.HasTenantName, model_base.AttributeMixin):
+    """DB model for L3Outside."""
+
+    __tablename__ = 'aim_l3outsides'
+    __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      to_tuple(model_base.Base.__table_args__))
+
+    pre_existing = sa.Column(sa.Boolean)
+    vrf_name = model_base.name_column()
+    l3_domain_dn = sa.Column(sa.String(1024))
+
+
+class ExternalNetworkContract(model_base.Base):
+    """DB model for Contracts used by ExternalNetwork."""
+    __tablename__ = 'aim_external_network_contracts'
+
+    ext_net_aim_id = sa.Column(sa.Integer,
+                               sa.ForeignKey('aim_external_networks.aim_id'),
+                               primary_key=True)
+    name = model_base.name_column(primary_key=True)
+    provides = sa.Column(sa.Boolean, primary_key=True)
+
+
+class ExternalNetwork(model_base.Base, model_base.HasAimId,
+                      model_base.HasName, model_base.HasDisplayName,
+                      model_base.HasTenantName,
+                      ContractRelationMixin):
+    """DB model for ExternalNetwork."""
+
+    __tablename__ = 'aim_external_networks'
+    __table_args__ = (
+        uniq_column(__tablename__, 'tenant_name', 'l3out_name', 'name') +
+        (sa.ForeignKeyConstraint(
+            ['tenant_name', 'l3out_name'],
+            ['aim_l3outsides.tenant_name', 'aim_l3outsides.name'],
+            name='fk_l3out'),) +
+        to_tuple(model_base.Base.__table_args__))
+
+    l3out_name = model_base.name_column(nullable=False)
+
+    pre_existing = sa.Column(sa.Boolean)
+    nat_epg_dn = sa.Column(sa.String(1024))
+
+    _contract_relation_class = ExternalNetworkContract
+    contracts = orm.relationship(ExternalNetworkContract,
+                                 backref='extnet',
+                                 cascade='all, delete-orphan',
+                                 lazy='joined')
+
+
+class ExternalSubnet(model_base.Base, model_base.HasAimId,
+                     model_base.HasDisplayName,
+                     model_base.HasTenantName, model_base.AttributeMixin):
+    """DB model for ExternalSubnet."""
+
+    __tablename__ = 'aim_external_subnets'
+    __table_args__ = (
+        uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                    'external_network_name', 'cidr') +
+        (sa.ForeignKeyConstraint(
+            ['tenant_name', 'l3out_name', 'external_network_name'],
+            ['aim_external_networks.tenant_name',
+             'aim_external_networks.l3out_name',
+             'aim_external_networks.name'],
+            name='fk_ext_net'),) +
+        to_tuple(model_base.Base.__table_args__))
+
+    l3out_name = model_base.name_column(nullable=False)
+    external_network_name = model_base.name_column(nullable=False)
+    cidr = sa.Column(sa.String(64), nullable=False)

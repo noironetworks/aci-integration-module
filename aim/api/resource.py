@@ -133,7 +133,8 @@ class BridgeDomain(AciResourceBase):
                         'enable_routing',
                         'limit_ip_learn_to_subnets',
                         'l2_unknown_unicast_mode',
-                        'ep_move_detect_mode']
+                        'ep_move_detect_mode',
+                        'l3out_names']
 
     _aci_mo_name = 'fvBD'
     _tree_parent = Tenant
@@ -145,7 +146,8 @@ class BridgeDomain(AciResourceBase):
                                             'enable_routing': True,
                                             'limit_ip_learn_to_subnets': False,
                                             'l2_unknown_unicast_mode': 'proxy',
-                                            'ep_move_detect_mode': ''},
+                                            'ep_move_detect_mode': '',
+                                            'l3out_names': []},
                                            **kwargs)
 
 
@@ -438,3 +440,64 @@ class PhysicalDomain(ResourceBase):
 
     def __init__(self, **kwargs):
         super(PhysicalDomain, self).__init__({}, **kwargs)
+
+
+class L3Outside(AciResourceBase):
+    """Resource representing an L3 Outside.
+
+    Identity attributes: name of ACI tenant, name of L3Out.
+    """
+
+    identity_attributes = ['tenant_name', 'name']
+    other_attributes = ['display_name', 'pre_existing', 'vrf_name',
+                        'l3_domain_dn']
+
+    _aci_mo_name = 'l3extOut'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        super(L3Outside, self).__init__(
+            {'pre_existing': False, 'vrf_name': '', 'l3_domain_dn': ''},
+            **kwargs)
+
+
+class ExternalNetwork(AciResourceBase):
+    """Resource representing an external network instance profile.
+
+    External network is a group of external subnets that have the same
+    security behavior.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of external
+    network.
+    """
+
+    identity_attributes = ['tenant_name', 'l3out_name', 'name']
+    other_attributes = ['display_name', 'pre_existing', 'nat_epg_dn',
+                        'provided_contract_names', 'consumed_contract_names']
+
+    _aci_mo_name = 'l3extInstP'
+    _tree_parent = L3Outside
+
+    def __init__(self, **kwargs):
+        super(ExternalNetwork, self).__init__(
+            {'pre_existing': False, 'nat_epg_dn': '',
+             'provided_contract_names': [], 'consumed_contract_names': []},
+            **kwargs)
+
+
+class ExternalSubnet(AciResourceBase):
+    """Resource representing an external subnet.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of external
+    network, network CIDR of the subnet.
+    """
+
+    identity_attributes = ['tenant_name', 'l3out_name',
+                           'external_network_name', 'cidr']
+    other_attributes = ['display_name']
+
+    _aci_mo_name = 'l3extSubnet'
+    _tree_parent = ExternalNetwork
+
+    def __init__(self, **kwargs):
+        super(ExternalSubnet, self).__init__({}, **kwargs)
