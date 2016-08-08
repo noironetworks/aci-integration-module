@@ -318,8 +318,9 @@ class TestResourceOpsBase(object):
 class TestAciResourceOpsBase(TestResourceOpsBase):
 
     def test_status(self):
-        self._test_resource_status(
-            self.resource_class, self.test_identity_attributes)
+        attr = {k: v for k, v in self.test_identity_attributes.iteritems()}
+        attr.update(self.test_required_attributes)
+        self._test_resource_status(self.resource_class, attr)
 
     def test_dn_op(self):
         res = self.resource_class(**self.test_required_attributes)
@@ -355,7 +356,8 @@ class TestBridgeDomain(TestAciResourceOpsBase, base.TestAimDBBase):
     test_search_attributes = {'l2_unknown_unicast_mode': 'proxy'}
     test_update_attributes = {'l2_unknown_unicast_mode': 'private',
                               'display_name': 'pretty-net1',
-                              'vrf_name': 'default'}
+                              'vrf_name': 'default',
+                              'l3out_names': ['l3out1', 'out2']}
     test_dn = 'uni/tn-tenant1/BD-net1'
 
 
@@ -576,3 +578,53 @@ class TestEndpoint(TestResourceOpsBase, base.TestAimDBBase):
     test_search_attributes = {'epg_name': 'g1'}
     test_update_attributes = {'epg_app_profile_name': 'dept',
                               'epg_name': 'g20'}
+
+
+class TestL3Outside(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.L3Outside
+    test_identity_attributes = {'name': 'l3out1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'l3out1',
+                                'vrf_name': 'ctx1',
+                                'pre_existing': True,
+                                'l3_domain_dn': 'uni/foo'}
+    test_search_attributes = {'vrf_name': 'ctx1'}
+    test_update_attributes = {'pre_existing': True}
+    test_dn = 'uni/tn-tenant1/out-l3out1'
+
+
+class TestExternalNetwork(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.ExternalNetwork
+    prereq_objects = [
+        resource.L3Outside(tenant_name='tenant1', name='l3out1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'name': 'net1',
+                                'pre_existing': True,
+                                'nat_epg_dn': 'uni/tn-1/ap-a1/epg-g1',
+                                'provided_contract_names': ['k', 'p1', 'p2'],
+                                'consumed_contract_names': ['c1', 'c2', 'k']}
+    test_search_attributes = {'name': 'net1'}
+    test_update_attributes = {'provided_contract_names': ['c2', 'k'],
+                              'consumed_contract_names': []}
+    test_dn = 'uni/tn-tenant1/out-l3out1/instP-net1'
+
+
+class TestExternalSubnet(TestAciResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.ExternalSubnet
+    prereq_objects = [
+        resource.L3Outside(tenant_name='tenant1', name='l3out1'),
+        resource.ExternalNetwork(tenant_name='tenant1', l3out_name='l3out1',
+                                 name='net1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'external_network_name': 'net1',
+                                'cidr': '200.200.100.0/24'}
+    test_search_attributes = {'cidr': '200.200.100.0/24'}
+    test_update_attributes = {'display_name': 'home'}
+    test_dn = ('uni/tn-tenant1/out-l3out1/instP-net1/'
+               'extsubnet-[200.200.100.0/24]')
