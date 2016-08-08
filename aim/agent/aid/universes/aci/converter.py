@@ -126,6 +126,7 @@ def fv_bd_to_resource(converted, helper, to_aim=True):
         # Exclude vrf_name
         result = default_to_resource(converted, helper, to_aim=to_aim)
         result[helper['resource']]['attributes'].pop('vrfName', None)
+        result[helper['resource']]['attributes'].pop('l3outNames', None)
         return result
 
 
