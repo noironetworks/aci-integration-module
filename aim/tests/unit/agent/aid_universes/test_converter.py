@@ -129,39 +129,35 @@ def _aci_obj(mo_type, **attr):
 
 class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
     resource_type = resource.BridgeDomain
-    reverse_map_output = [{
-        'resource': 'fvBD',
-        'exceptions': {
-            'enable_arp_flood': {
-                'other': 'arpFlood',
-                'converter': converter.boolean
-            },
-            'enable_routing': {
-                'other': 'unicastRoute',
-                'converter': converter.boolean
-            },
-            'limit_ip_learn_to_subnets': {
-                'other': 'limitIpLearnToSubnets',
-                'converter': converter.boolean
-            },
-            'l2_unknown_unicast_mode': {
-                'other': 'unkMacUcastAct',
-            }
-        },
-        'identity_converter': None,
-        'converter': None,
-        'to_resource': converter.fv_bd_to_resource}, {
-        'resource': 'fvRsCtx',
-        'exceptions': {
-            'vrf_name': {
-                'other': 'tnFvCtxName'
-            },
-        },
-        'to_resource': converter.fv_rs_ctx_to_resource,
-    }]
+    reverse_map_output = [
+        {'resource': 'fvBD',
+         'exceptions': {'enable_arp_flood': {'other': 'arpFlood',
+                                             'converter': converter.boolean},
+                        'enable_routing': {'other': 'unicastRoute',
+                                           'converter': converter.boolean},
+                        'limit_ip_learn_to_subnets': {
+                        'other': 'limitIpLearnToSubnets',
+                        'converter': converter.boolean},
+                        'l2_unknown_unicast_mode': {
+                        'other': 'unkMacUcastAct', }},
+         'identity_converter': None,
+         'converter': None,
+         'skip': ['vrfName', 'l3outNames']},
+        {'resource': 'fvRsCtx',
+         'exceptions': {'vrf_name': {'other': 'tnFvCtxName'}},
+         'to_resource': converter.default_to_resource_strict},
+        {'resource': 'fvRsBDToOut',
+         'exceptions': {},
+         'converter': converter.fvRsBDToOut_converter, }]
     sample_input = [base.TestAimDBBase._get_example_aci_bd(),
-                    base.TestAimDBBase._get_example_aci_bd(
-                        dn='uni/tn-test-tenant/BD-test-1')]
+                    [base.TestAimDBBase._get_example_aci_bd(
+                        dn='uni/tn-test-tenant/BD-test-1'),
+                     _aci_obj('fvRsCtx',
+                              dn='uni/tn-test-tenant/BD-test-1/rsctx',
+                              tnFvCtxName='shared'),
+                     _aci_obj('fvRsBDToOut',
+                              dn='uni/tn-test-tenant/BD-test-1/rsBDToOut-o1',
+                              tnL3extOutName='o1')]]
     sample_output = [
         resource.BridgeDomain(tenant_name='test-tenant',
                               name='test',
@@ -176,7 +172,9 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                               enable_routing=True,
                               limit_ip_learn_to_subnets=False,
                               l2_unknown_unicast_mode='proxy',
-                              ep_move_detect_mode='')]
+                              ep_move_detect_mode='',
+                              vrf_name='shared',
+                              l3out_names=['o1'])]
     partial_change_input = {
         'fvBD': {'attributes': {
             'dn': 'uni/tn-test-tenant/BD-test',
@@ -285,27 +283,26 @@ class TestAciToAimConverterAppProfile(TestAciToAimConverterBase,
 
 class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
     resource_type = resource.EndpointGroup
-    reverse_map_output = [{
-        'resource': 'fvAEPg',
-        'exceptions': {},
-        'to_resource': converter.fv_aepg_to_resource}, {
-        'resource': 'fvRsBd',
-        'exceptions': {
-            'bd_name': {
-                'other': 'tnFvBDName'
-            },
-        },
-        'to_resource': converter.fv_rs_bd_to_resource, }, {
-        'resource': 'fvRsProv',
-        'exceptions': {},
-        'converter': converter.fvRsProv_converter, }, {
-        'resource': 'fvRsCons',
-        'exceptions': {},
-        'converter': converter.fvRsCons_converter, }, {
-        'resource': 'fvRsDomAtt',
-        'exceptions': {},
-        'converter': converter.fv_rs_dom_att_converter,
-    }]
+    reverse_map_output = [
+        {'resource': 'fvAEPg',
+         'exceptions': {},
+         'skip': ['bdName', 'providedContractNames',
+                  'consumedContractNames',
+                  'openstackVmmDomainNames',
+                  'physicalDomainNames']},
+        {'resource': 'fvRsBd',
+         'exceptions': {'bd_name': {'other': 'tnFvBDName'}, },
+         'to_resource': converter.default_to_resource_strict, },
+        {'resource': 'fvRsProv',
+         'exceptions': {},
+         'converter': converter.fvRsProv_converter, },
+        {'resource': 'fvRsCons',
+         'exceptions': {},
+         'converter': converter.fvRsCons_converter, },
+        {'resource': 'fvRsDomAtt',
+         'exceptions': {},
+         'converter': converter.fv_rs_dom_att_converter, }
+    ]
     sample_input = [[base.TestAimDBBase._get_example_aci_epg(),
                      {'fvRsBd':
                       {'attributes':
@@ -476,7 +473,7 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
     reverse_map_output = [
         {'resource': 'vzSubj',
          'exceptions': {},
-         'to_resource': converter.vz_subj_to_resource},
+         'skip': ['inFilters', 'outFilters', 'biFilters']},
         {'resource': 'vzRsSubjFiltAtt',
          'exceptions': {},
          'converter': converter.vzRsSubjFiltAtt_converter},
@@ -550,6 +547,124 @@ class TestAciToAimConverterFault(TestAciToAimConverterBase,
             cause='resolution-failed')]
 
 
+def get_example_aci_l3outside(**kwargs):
+    attr = {'name': 'inet1',
+            'dn': 'uni/tn-t1/out-inet1'}
+    attr.update(**kwargs)
+    return _aci_obj('l3extOut', **attr)
+
+
+class TestAciToAimConverterL3Outside(TestAciToAimConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.L3Outside
+    reverse_map_output = [
+        {'exceptions': {},
+         'resource': 'l3extOut',
+         'skip': ['vrfName', 'l3DomainDn']},
+        {'resource': 'l3extRsEctx',
+         'exceptions': {'vrf_name': {'other': 'tnFvCtxName'}, },
+         'to_resource': converter.default_to_resource_strict,
+         'convert_pre_existing': True},
+        {'resource': 'l3extRsL3DomAtt',
+         'exceptions': {'l3_domain_dn': {'other': 'tDn'}, },
+         'to_resource': converter.default_to_resource_strict}
+    ]
+    sample_input = [[get_example_aci_l3outside(),
+                     _aci_obj('l3extRsEctx',
+                              dn='uni/tn-t1/out-inet1/rsectx',
+                              tnFvCtxName='shared'),
+                     _aci_obj('l3extRsL3DomAtt',
+                              dn='uni/tn-t1/out-inet1/l3extRsL3DomAtt',
+                              tDn='uni/l3dom-l3ext')],
+                    get_example_aci_l3outside(dn='uni/tn-t1/out-inet2')]
+    sample_output = [
+        resource.L3Outside(tenant_name='t1', name='inet1',
+                           vrf_name='shared', l3_domain_dn='uni/l3dom-l3ext'),
+        resource.L3Outside(tenant_name='t1', name='inet2')]
+
+
+def get_example_aci_external_network(**kwargs):
+    attr = {'name': 'inet1',
+            'dn': 'uni/tn-t1/out-o1/instP-inet1'}
+    attr.update(**kwargs)
+    return _aci_obj('l3extInstP', **attr)
+
+
+class TestAciToAimConverterExternalNetwork(TestAciToAimConverterBase,
+                                           base.TestAimDBBase):
+    resource_type = resource.ExternalNetwork
+    reverse_map_output = [
+        {'exceptions': {},
+         'resource': 'l3extInstP',
+         'skip': ['natEpgDn', 'providedContractNames',
+                  'consumedContractNames']},
+        {'resource': 'l3extRsInstPToNatMappingEPg',
+         'exceptions': {'nat_epg_dn': {'other': 'tDn'}, },
+         'to_resource': converter.default_to_resource_strict,
+         'convert_pre_existing': True},
+        {'resource': 'fvRsProv',
+         'exceptions': {},
+         'converter': converter.fvRsProv_Ext_converter,
+         'convert_pre_existing': True},
+        {'resource': 'fvRsCons',
+         'exceptions': {},
+         'converter': converter.fvRsCons_Ext_converter,
+         'convert_pre_existing': True}
+    ]
+    sample_input = [[get_example_aci_external_network(),
+                     _aci_obj('l3extRsInstPToNatMappingEPg',
+                              dn=('uni/tn-t1/out-o1/instP-inet1/'
+                                  'l3extRsInstPToNatMappingEPg'),
+                              tDn='uni/tn-t1/ap-a1/epg-g1'),
+                     _aci_obj('fvRsProv',
+                              dn='uni/tn-t1/out-o1/instP-inet1/rsprov-p1',
+                              tnVzBrCPName='p1'),
+                     _aci_obj('fvRsProv',
+                              dn='uni/tn-t1/out-o1/instP-inet1/rsprov-k',
+                              tnVzBrCPName='k'),
+                     _aci_obj('fvRsCons',
+                              dn='uni/tn-t1/out-o1/instP-inet1/rscons-c1',
+                              tnVzBrCPName='c1'),
+                     _aci_obj('fvRsCons',
+                              dn='uni/tn-t1/out-o1/instP-inet1/rscons-k',
+                              tnVzBrCPName='k')],
+                    get_example_aci_external_network(
+                        dn='uni/tn-t1/out-o2/instP-inet2')]
+    sample_output = [
+        resource.ExternalNetwork(tenant_name='t1', l3out_name='o1',
+                                 name='inet1',
+                                 nat_epg_dn='uni/tn-t1/ap-a1/epg-g1',
+                                 provided_contract_names=['p1', 'k'],
+                                 consumed_contract_names=['c1', 'k']),
+        resource.ExternalNetwork(tenant_name='t1', l3out_name='o2',
+                                 name='inet2')]
+
+
+def get_example_aci_external_subnet(**kwargs):
+    attr = {'name': '20.0.0.0/8',
+            'dn': 'uni/tn-t1/out-o1/instP-inet1/extsubnet-[20.0.0.0/8]'}
+    attr.update(**kwargs)
+    return _aci_obj('l3extSubnet', **attr)
+
+
+class TestAciToAimConverterExternalSubnet(TestAciToAimConverterBase,
+                                          base.TestAimDBBase):
+    resource_type = resource.ExternalSubnet
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'l3extSubnet'}]
+    sample_input = [get_example_aci_external_subnet(),
+                    get_example_aci_external_subnet(
+                        dn=('uni/tn-t1/out-o2/instP-inet2/'
+                            'extsubnet-[30.0.0.0/16]'))]
+    sample_output = [
+        resource.ExternalSubnet(tenant_name='t1', l3out_name='o1',
+                                external_network_name='inet1',
+                                cidr='20.0.0.0/8'),
+        resource.ExternalSubnet(tenant_name='t1', l3out_name='o2',
+                                external_network_name='inet2',
+                                cidr='30.0.0.0/16')]
+
+
 class TestAimToAciConverterBase(object):
     sample_input = []
     sample_output = []
@@ -559,6 +674,10 @@ class TestAimToAciConverterBase(object):
     def setUp(self):
         super(TestAimToAciConverterBase, self).setUp()
         self.converter = converter.AimToAciModelConverter()
+
+    def _dump(self, res):
+        return ([r.__dict__ for r in res] if isinstance(res, list)
+                else res.__dict__)
 
     def _test_convert(self, example1, expected1, example2, expected2):
         result = self.converter.convert([example1])
@@ -583,7 +702,10 @@ class TestAimToAciConverterBase(object):
         result = self.converter.convert([example_resource])
         # Back to AIM
         result = to_aim_converter.convert(result)
-        self.assertEqual([example_resource], result)
+        self.assertEqual(
+            [example_resource], result,
+            'Expected\n%s\nnot in\n%s' % (self._dump(example_resource),
+                                          self._dump(result)))
 
     def _test_non_existing_resource(self, example_resource, expected):
         result = self.converter.convert([example_resource, object()])
@@ -617,23 +739,23 @@ class TestAimToAciConverterBase(object):
 
 
 class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
-    sample_input = [base.TestAimDBBase._get_example_aim_bd(),
-                    base.TestAimDBBase._get_example_aim_bd(
-                        name='test-1', vrf_name='common')]
+    sample_input = [base.TestAimDBBase._get_example_aim_bd(l3out_names=[
+                                                           'l1', 'l2']),
+                    base.TestAimDBBase._get_example_aim_bd(name='test-1',
+                                                           vrf_name='common')]
     sample_output = [
-        [{
-            "fvBD": {
-                "attributes": {
-                    "arpFlood": "no",
-                    "dn": "uni/tn-test-tenant/BD-test",
-                    "epMoveDetectMode": "",
-                    "limitIpLearnToSubnets": "no",
-                    "unicastRoute": "yes",
-                    "unkMacUcastAct": "proxy"}}}, {
-            "fvRsCtx": {
-                "attributes": {
-                    "dn": "uni/tn-test-tenant/BD-test/rsctx",
-                    'tnFvCtxName': 'default'}}}],
+        [_aci_obj('fvBD', dn="uni/tn-test-tenant/BD-test",
+                  arpFlood='no', epMoveDetectMode="",
+                  limitIpLearnToSubnets="no", unicastRoute="yes",
+                  unkMacUcastAct="proxy"),
+         _aci_obj('fvRsCtx', dn="uni/tn-test-tenant/BD-test/rsctx",
+                  tnFvCtxName='default'),
+         _aci_obj('fvRsBDToOut',
+                  dn='uni/tn-test-tenant/BD-test/rsBDToOut-l1',
+                  tnL3extOutName='l1'),
+         _aci_obj('fvRsBDToOut',
+                  dn='uni/tn-test-tenant/BD-test/rsBDToOut-l2',
+                  tnL3extOutName='l2')],
         [{
             "fvBD": {
                 "attributes": {
@@ -904,3 +1026,111 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl/rsfiltAtt-o2',
                   tnVzFilterName='o2')],
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s2')]]
+
+
+def get_example_aim_l3outside(**kwargs):
+    example = resource.L3Outside(tenant_name='t1',
+                                 name='inet1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
+                                     base.TestAimDBBase):
+    sample_input = [get_example_aim_l3outside(name='inet2', vrf_name='l3p',
+                                              l3_domain_dn='uni/foo'),
+                    get_example_aim_l3outside(vrf_name='shared',
+                                              l3_domain_dn='uni/foo',
+                                              pre_existing=True)]
+    sample_output = [
+        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2'),
+         _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
+                  tnFvCtxName='l3p'),
+         _aci_obj('l3extRsL3DomAtt',
+                  dn='uni/tn-t1/out-inet2/l3extRsL3DomAtt',
+                  tDn='uni/foo')],
+        [_aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet1/rsectx',
+                  tnFvCtxName='shared')]]
+    missing_ref_input = get_example_aim_l3outside(vrf_name=None,
+                                                  l3_domain_dn=None)
+    missing_ref_output = [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet1')]
+
+
+def get_example_aim_external_network(**kwargs):
+    example = resource.ExternalNetwork(tenant_name='t1', l3out_name='l1',
+                                       name='inet1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterExternalNetwork(TestAimToAciConverterBase,
+                                           base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_external_network(
+            name='inet2',
+            nat_epg_dn='uni/foo',
+            provided_contract_names=['k', 'p1'],
+            consumed_contract_names=['c1', 'k']),
+        get_example_aim_external_network(
+            nat_epg_dn='uni/foo',
+            provided_contract_names=['k', 'p1'],
+            consumed_contract_names=['c1', 'k'],
+            pre_existing=True)]
+    sample_output = [
+        [_aci_obj('l3extInstP', dn='uni/tn-t1/out-l1/instP-inet2'),
+         _aci_obj('l3extRsInstPToNatMappingEPg',
+                  dn=('uni/tn-t1/out-l1/instP-inet2/'
+                      'l3extRsInstPToNatMappingEPg'),
+                  tDn='uni/foo'),
+         _aci_obj('fvRsProv__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet2/rsprov-k',
+                  tnVzBrCPName='k'),
+         _aci_obj('fvRsProv__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet2/rsprov-p1',
+                  tnVzBrCPName='p1'),
+         _aci_obj('fvRsCons__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet2/rscons-k',
+                  tnVzBrCPName='k'),
+         _aci_obj('fvRsCons__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet2/rscons-c1',
+                  tnVzBrCPName='c1')],
+        [_aci_obj('l3extRsInstPToNatMappingEPg',
+                  dn=('uni/tn-t1/out-l1/instP-inet1/'
+                      'l3extRsInstPToNatMappingEPg'),
+                  tDn='uni/foo'),
+         _aci_obj('fvRsProv__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet1/rsprov-k',
+                  tnVzBrCPName='k'),
+         _aci_obj('fvRsProv__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet1/rsprov-p1',
+                  tnVzBrCPName='p1'),
+         _aci_obj('fvRsCons__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet1/rscons-k',
+                  tnVzBrCPName='k'),
+         _aci_obj('fvRsCons__Ext',
+                  dn='uni/tn-t1/out-l1/instP-inet1/rscons-c1',
+                  tnVzBrCPName='c1')]]
+    missing_ref_input = get_example_aim_external_network(nat_epg_dn=None)
+    missing_ref_output = [_aci_obj('l3extInstP',
+                                   dn='uni/tn-t1/out-l1/instP-inet1')]
+
+
+def get_example_aim_external_subnet(**kwargs):
+    example = resource.ExternalSubnet(
+        tenant_name='t1', l3out_name='l1', external_network_name='inet1',
+        cidr='4.20.0.0/16')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterExternalSubnet(TestAimToAciConverterBase,
+                                          base.TestAimDBBase):
+    sample_input = [get_example_aim_external_subnet(),
+                    get_example_aim_external_subnet(
+                        external_network_name='inet2',
+                        cidr='2.11.0.0/16')]
+    sample_output = [
+        [_aci_obj('l3extSubnet',
+                  dn='uni/tn-t1/out-l1/instP-inet1/extsubnet-[4.20.0.0/16]')],
+        [_aci_obj('l3extSubnet',
+                  dn='uni/tn-t1/out-l1/instP-inet2/extsubnet-[2.11.0.0/16]')]]
