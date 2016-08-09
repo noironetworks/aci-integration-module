@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from acitoolkit import acitoolkit
 from apicapi import apic_client
 from apicapi import exceptions as apic_exc
 from oslo_log import log as logging
@@ -21,6 +22,7 @@ from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource
+from aim import exceptions
 
 
 LOG = logging.getLogger(__name__)
@@ -34,6 +36,89 @@ LOG = logging.getLogger(__name__)
 # AciOperationalUniverse won't run in parallel, and there will be only one
 # instance of each per AID agent.
 serving_tenants = {}
+ws_context = None
+
+
+class WebSocketSessionLoginFailed(exceptions.AimException):
+    message = ("Web socket session failed to login for tenant %(tn_name)s "
+               "with error %(code)s: %(text)s")
+
+
+class WebSocketContext(object):
+    """Placeholder for websocket session"""
+
+    def __init__(self, apic_config):
+        self.apic_config = apic_config
+        self.apic_use_ssl = self.apic_config.get_option_and_subscribe(
+            self._ws_config_callback, 'apic_use_ssl', group='apic')
+        self.apic_hosts = self.apic_config.get_option_and_subscribe(
+            self._ws_config_callback, 'apic_hosts', group='apic')
+        self.apic_username = self.apic_config.get_option_and_subscribe(
+            self._ws_config_callback, 'apic_username', group='apic')
+        self.apic_password = self.apic_config.get_option_and_subscribe(
+            self._ws_config_callback, 'apic_password', group='apic')
+        self.verify_ssl_certificate = (
+            self.apic_config.get_option_and_subscribe(
+                self._ws_config_callback, 'verify_ssl_certificate',
+                group='apic'))
+        protocol = 'https' if self.apic_use_ssl else 'http'
+        self.ws_urls = ['%s://%s' % (protocol, host) for host in
+                        self.apic_hosts]
+        self.establish_ws_session()
+
+    def _reload_websocket_config(self):
+        # Don't subscribe in this case
+        self.apic_use_ssl = self.apic_config.get_option(
+            'apic_use_ssl', group='apic')
+        self.apic_hosts = self.apic_config.get_option(
+            'apic_hosts', group='apic')
+        self.apic_username = self.apic_config.get_option(
+            'apic_username', group='apic')
+        self.apic_password = self.apic_config.get_option(
+            'apic_password', group='apic')
+        self.verify_ssl_certificate = self.apic_config.get_option(
+            'verify_ssl_certificate', group='apic')
+        protocol = 'https' if self.apic_use_ssl else 'http'
+        self.ws_urls = ['%s://%s' % (protocol, host) for host in
+                        self.apic_hosts]
+
+    def establish_ws_session(self):
+        # REVISIT(ivar): acitoolkit is missing some features like certificate
+        # identification and multi controller support.
+        # A decision should be taken whether we want to add features to
+        # acitoolkit to at least support certificate identification, or if
+        # we want to implement the WS interface in APICAPI altogether
+        LOG.debug('Establishing WS connection with parameters: %s',
+                  [self.ws_urls[0], self.apic_username, self.apic_password,
+                   self.verify_ssl_certificate])
+        self.session = acitoolkit.Session(
+            self.ws_urls[0], self.apic_username, self.apic_password,
+            verify_ssl=self.verify_ssl_certificate)
+        resp = self.session.login()
+        if not resp.ok:
+            # TODO(ivar): tenant name doesn't make sense here
+            raise WebSocketSessionLoginFailed(tn_name='',
+                                              code=resp.status_code,
+                                              text=resp.text)
+
+    def _ws_config_callback(self, new_conf):
+        # If any of the WS related configurations changed, reload fresh values
+        # and reconnect the WS
+        if getattr(self, new_conf['key']) != new_conf['value']:
+            LOG.debug("New APIC remote configuration, restarting web socket "
+                      "session.")
+            self._reload_websocket_config()
+            # Log out WS
+            if self.session.session:
+                self.session.close()
+            self.establish_ws_session()
+
+
+def get_websocket_context(apic_config):
+    global ws_context
+    if not ws_context:
+        ws_context = WebSocketContext(apic_config)
+    return ws_context
 
 
 class AciUniverse(base.HashTreeStoredUniverse):
@@ -47,6 +132,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         super(AciUniverse, self).initialize(db_session, conf_mgr)
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
+        self.ws_context = get_websocket_context(self.conf_manager)
         return self
 
     @property
@@ -89,8 +175,19 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     # Checking the 'dead' state helps those cases in which
                     # a kill successfully happened but then  the state was
                     # rolled back by a further exception
+                    if added in serving_tenants:
+                        LOG.debug(
+                            "Tenant %s was served but needs to be replaced: "
+                            "healthy-%s, dead-%s",
+                            added,
+                            serving_tenants[added].health_state,
+                            serving_tenants[added].is_dead())
+                        # Cleanup the tenant's state
+                        serving_tenants[added].kill()
+                        serving_tenants[added]._unsubscribe_tenant()
                     serving_tenants[added] = aci_tenant.AciTenantManager(
-                        added, self.conf_manager, self.aci_session)
+                        added, self.conf_manager, self.aci_session,
+                        self.ws_context)
                     serving_tenants[added].start()
         except Exception as e:
             LOG.error('Failed to serve new tenants %s' % tenants)
@@ -100,6 +197,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
 
     def observe(self):
         # Copy state accumulated so far
+        global serving_tenants
         for tenant in serving_tenants:
             # Only copy state if the tenant is warm
             if serving_tenants[tenant].is_warm():

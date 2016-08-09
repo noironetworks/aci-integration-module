@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import collections
 import copy
 import json
 import Queue
@@ -61,11 +60,6 @@ RS_FILL_DICT = {'fvBD': [('fvRsCtx', 'rsctx')],
                 'fvRsCtx': [bd_dn]}
 
 
-class WebSocketSessionLoginFailed(exceptions.AimException):
-    message = ("Web socket session failed to login for tenant %(tn_name)s "
-               "with error %(code)s: %(text)s")
-
-
 class WebSocketSubscriptionFailed(exceptions.AimException):
     message = ("Web socket session failed to subscribe for tenant %(tn_name)s "
                "with error %(code)s: %(text)s")
@@ -85,15 +79,29 @@ class Tenant(acitoolkit.Tenant):
             url += '&target-subtree-class=' + ','.join(self.filtered_children)
         return [url]
 
+    def _instance_subscribe(self, session, extension=''):
+        """Subscribe to this tenant if not subscribed yet."""
+        urls = self._get_instance_subscription_urls()
+        resp = None
+        for url in urls:
+            if not session.is_subscribed(url + extension):
+                resp = session.subscribe(url + extension)
+                LOG.debug('Subscribed to %s %s %s ', url + extension, resp,
+                          resp.text)
+                if not resp.ok:
+                    return resp
+        return resp
+
     def instance_subscribe(self, session):
         # Have it publicly available
         resp = self._instance_subscribe(session)
-        if resp.ok:
-            return json.loads(resp.text)['imdata']
-        else:
-            raise WebSocketSubscriptionFailed(tn_name=self.name,
-                                              code=resp.status_code,
-                                              text=resp.text)
+        if resp:
+            if resp.ok:
+                return json.loads(resp.text)['imdata']
+            else:
+                raise WebSocketSubscriptionFailed(tn_name=self.name,
+                                                  code=resp.status_code,
+                                                  text=resp.text)
 
     def instance_unsubscribe(self, session):
         urls = self._get_instance_subscription_urls()
@@ -128,8 +136,8 @@ class Tenant(acitoolkit.Tenant):
 
 class AciTenantManager(gevent.Greenlet):
 
-    def __init__(self, tenant_name, apic_config, apic_session, *args,
-                 **kwargs):
+    def __init__(self, tenant_name, apic_config, apic_session, ws_context,
+                 *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
         LOG.info("Init manager for tenant %s" % tenant_name)
         self.apic_config = apic_config
@@ -147,7 +155,7 @@ class AciTenantManager(gevent.Greenlet):
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
         self.health_state = False
-        self.polling_yield = 1
+        self.polling_yield = 2
         self.to_aim_converter = converter.AciToAimModelConverter()
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
@@ -158,6 +166,7 @@ class AciTenantManager(gevent.Greenlet):
         # Warm bit to avoid rushed synchronization before receiving the first
         # batch of APIC events
         self._warm = False
+        self.ws_context = ws_context
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
@@ -185,8 +194,7 @@ class AciTenantManager(gevent.Greenlet):
                 self._main_loop()
         except gevent.GreenletExit:
             try:
-                self.tenant.instance_unsubscribe(self.ws_session)
-                # TODO(ivar): unsubscribe from all the DB options
+                self._unsubscribe_tenant()
             except Exception as e:
                 LOG.error("An exception has occurred while exiting thread "
                           "for tenant %s: %s" % (self.tenant_name,
@@ -200,12 +208,12 @@ class AciTenantManager(gevent.Greenlet):
         try:
             # tenant subscription is redone upon exception
             LOG.debug("Starting event loop for tenant %s" % self.tenant_name)
-            self._subscribe_tenant()
             count = 3
             last_time = 0
             epsilon = 0.5
             while True:
                 start = time.time()
+                self._subscribe_tenant()
                 self._event_loop()
                 if count == 0:
                     LOG.debug("Setting tenant %s to warm state" %
@@ -235,12 +243,12 @@ class AciTenantManager(gevent.Greenlet):
         # Push the backlog at the very start of the event loop, so that
         # all the events we generate here are likely caught in this iteration.
         self._push_aim_resources()
-        if self.tenant.instance_has_event(self.ws_session):
+        if self.tenant.instance_has_event(self.ws_context.session):
             LOG.debug("Event for tenant %s in warm state %s" %
                       (self.tenant_name, self._warm))
             # Continuously check for events
             events = self.tenant.instance_get_event_data(
-                self.ws_session)
+                self.ws_context.session)
             for event in events:
                 if (event.keys()[0] == TENANT_KEY and not
                         event[TENANT_KEY]['attributes'].get(STATUS_FIELD)):
@@ -334,37 +342,11 @@ class AciTenantManager(gevent.Greenlet):
                                   "object %s" % (method, printable))
                         LOG.debug(traceback.format_exc())
 
+    def _unsubscribe_tenant(self):
+        self.tenant.instance_unsubscribe(self.ws_context.session)
+
     def _subscribe_tenant(self):
-        # REVISIT(ivar): acitoolkit is missing some features like certificate
-        # identification and multi controller support. In order to alleviate
-        # this, we can at least simulate the multi controller here with the
-        # following hacky code (which we can limiting to this method for now).
-        # A decision should be taken whether we want to add features to
-        # acitoolkit to at least support certificate identification, or if
-        # we want to implement the WS interface in APICAPI altogether
-        protocol = 'https' if self.apic_config.get_option(
-            'apic_use_ssl', group='apic') else 'http'
-        if not getattr(self, 'ws_urls', None):
-            self.ws_urls = collections.deque(
-                ['%s://%s' % (protocol, host) for host in
-                 self.apic_config.get_option('apic_hosts', group='apic')])
-        self.ws_urls.rotate(-1)
-        self.ws_session = acitoolkit.Session(
-            self.ws_urls[0], self.apic_config.get_option(
-                'apic_username', group='apic'),
-            self.apic_config.get_option('apic_password', group='apic'),
-            verify_ssl=self.apic_config.get_option(
-                'verify_ssl_certificate', group='apic'))
-        self.health_state = False
-        resp = self.ws_session.login()
-        if not resp.ok:
-            raise WebSocketSessionLoginFailed(tn_name=self.tenant_name,
-                                              code=resp.status_code,
-                                              text=resp.text)
-        current = time.time()
-        self.tenant.instance_subscribe(self.ws_session)
-        LOG.info('Subscription to tenant %s took %s seconds' % (
-            self.tenant_name, time.time() - current))
+        self.tenant.instance_subscribe(self.ws_context.session)
         self.health_state = True
 
     def _event_to_tree(self, events):
@@ -451,8 +433,17 @@ class AciTenantManager(gevent.Greenlet):
                         kargs.pop('rsp_prop_include')
                     # TODO(ivar): the 'mo/' suffix should be added by APICAPI
                     data = self.aci_session.get_data('mo/' + dn, **kargs)
-                    resource['attributes'].update(
-                        data[0].values()[0]['attributes'])
+                    if not data:
+                        LOG.debug("Resource %s not found", dn)
+                        resource['attributes'][STATUS_FIELD] = (
+                            converter.DELETED_STATUS)
+                        continue
+                    try:
+                        resource['attributes'].update(
+                            data[0].values()[0]['attributes'])
+                    except IndexError as e:
+                        LOG.debug("Index out of range for data: %s", data)
+                        raise
                     # Status not needed unless deleted
                     resource['attributes'].pop('status')
                 except apic_exc.ApicResponseNotOk as e:
