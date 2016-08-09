@@ -70,6 +70,7 @@ def default_attribute_converter(object_dict, attribute,
 
 def default_to_resource(converted, helper, to_aim=True):
     klass = helper['resource']
+    default_skip = ['displayName', 'preExisting']
     if to_aim:
         # APIC to AIM
         return klass(
@@ -78,9 +79,25 @@ def default_to_resource(converted, helper, to_aim=True):
                     (klass.identity_attributes + klass.db_attributes +
                      klass.other_attributes)]))
     else:
+        for s in default_skip + helper.get('skip', []):
+            converted.pop(s, None)
         result = {klass: {'attributes': converted}}
-        result[klass]['attributes'].pop('displayName', None)
         return result
+
+
+def default_to_resource_strict(converted, helper, to_aim=True):
+    if to_aim:
+        return default_to_resource(converted, helper, to_aim=to_aim)
+    else:
+        # Only include explicitly mentioned attributes
+        values = {}
+        for k, v in helper.get('exceptions', {}).iteritems():
+            attr = v.get('other') or k
+            if converted.get(attr) is not None:
+                values[attr] = converted[attr]
+        if values:
+            values['dn'] = converted['dn']
+            return {helper['resource']: {'attributes': values}}
 
 
 def convert_attribute(aim_attribute, to_aim=True):
@@ -115,60 +132,6 @@ def boolean(resource, attribute, to_aim=True):
     else:
         # AIM to APIC
         return 'yes' if resource[attribute] is True else 'no'
-
-
-def fv_bd_to_resource(converted, helper, to_aim=True):
-    if to_aim:
-        # Nothing fancy to do
-        return default_to_resource(converted, helper, to_aim=to_aim)
-    else:
-        # Exclude vrf_name
-        result = default_to_resource(converted, helper, to_aim=to_aim)
-        result[helper['resource']]['attributes'].pop('vrfName', None)
-        result[helper['resource']]['attributes'].pop('l3outNames', None)
-        return result
-
-
-def fv_rs_ctx_to_resource(converted, helper, to_aim=True):
-    if to_aim:
-        # Nothing fancy to do
-        return default_to_resource(converted, helper, to_aim=to_aim)
-    else:
-        # Only include vrf_name
-        if converted['tnFvCtxName'] is not None:
-            return {helper['resource']: {'attributes': {
-                'dn': converted['dn'],
-                'tnFvCtxName': converted['tnFvCtxName']}}}
-        else:
-            return None
-
-
-def fv_aepg_to_resource(converted, helper, to_aim=True):
-    if to_aim:
-        # Nothing fancy to do
-        return default_to_resource(converted, helper, to_aim=to_aim)
-    else:
-        # Exclude bd_name, provided_contract_names, consumed_contract_names
-        result = default_to_resource(converted, helper, to_aim=to_aim)
-        attr = result[helper['resource']]['attributes']
-        attr.pop('bdName', None)
-        attr.pop('providedContractNames', None)
-        attr.pop('consumedContractNames', None)
-        return result
-
-
-def fv_rs_bd_to_resource(converted, helper, to_aim=True):
-    if to_aim:
-        # Nothing fancy to do
-        return default_to_resource(converted, helper, to_aim=to_aim)
-    else:
-        # Only include bd_name
-        if converted['tnFvBDName'] is not None:
-            return {helper['resource']: {'attributes': {
-                'dn': converted['dn'],
-                'tnFvBDName': converted['tnFvBDName']}}}
-        else:
-            return None
 
 
 def fault_inst_to_resource(converted, helper, to_aim=True):
@@ -217,19 +180,6 @@ def child_list(aim_attr, aci_attr, aci_mo=None):
     return func
 
 
-def vz_subj_to_resource(converted, helper, to_aim=True):
-    if to_aim:
-        return default_to_resource(converted, helper, to_aim=to_aim)
-    else:
-        # Exclude in_filters, out_filters, bi_filters
-        result = default_to_resource(converted, helper, to_aim=to_aim)
-        attr = result[helper['resource']]['attributes']
-        attr.pop('inFilters', None)
-        attr.pop('outFilters', None)
-        attr.pop('biFilters', None)
-        return result
-
-
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -244,7 +194,11 @@ def vz_subj_to_resource(converted, helper, to_aim=True):
 # resource, then a functor can be set here for handling this special case
 # - To Resource: None or method for filtering unwanted attributes at the end
 # of the conversion for obtaining the final result
+# - convert_pre_existing: If True, AIM-to-ACI conversion of the object will
+# be performed when the AIM object is marked "pre-existing". Default is False.
+# - skip: list of AIM resource attributes that should not be converted
 
+fvRsBDToOut_converter = child_list('l3out_names', 'tnL3extOutName')
 fvRsProv_converter = child_list('provided_contract_names', 'tnVzBrCPName')
 fvRsCons_converter = child_list('consumed_contract_names', 'tnVzBrCPName')
 vzRsSubjFiltAtt_converter = child_list('bi_filters', 'tnVzFilterName')
@@ -252,6 +206,10 @@ vzInTerm_vzRsFiltAtt_converter = child_list('in_filters', 'tnVzFilterName',
                                             aci_mo='vzRsFiltAtt__In')
 vzOutTerm_vzRsFiltAtt_converter = child_list('out_filters', 'tnVzFilterName',
                                              aci_mo='vzRsFiltAtt__Out')
+fvRsProv_Ext_converter = child_list('provided_contract_names', 'tnVzBrCPName',
+                                    aci_mo='fvRsProv__Ext')
+fvRsCons_Ext_converter = child_list('consumed_contract_names', 'tnVzBrCPName',
+                                    aci_mo='fvRsCons__Ext')
 
 resource_map = {
     'fvBD': [{
@@ -274,7 +232,7 @@ resource_map = {
         },
         'identity_converter': None,
         'converter': None,
-        'to_resource': fv_bd_to_resource,
+        'skip': ['vrf_name', 'l3out_names']
     }],
     # Extra Object for BridgeDomain reference to tenant context
     'fvRsCtx': [{
@@ -284,7 +242,11 @@ resource_map = {
                 'other': 'vrf_name',
             }
         },
-        'to_resource': fv_rs_ctx_to_resource,
+        'to_resource': default_to_resource_strict,
+    }],
+    'fvRsBDToOut': [{
+        'resource': resource.BridgeDomain,
+        'converter': fvRsBDToOut_converter,
     }],
     'fvTenant': [{
         'resource': resource.Tenant,
@@ -305,7 +267,8 @@ resource_map = {
     }],
     'fvAEPg': [{
         'resource': resource.EndpointGroup,
-        'to_resource': fv_aepg_to_resource,
+        'skip': ['bd_name', 'provided_contract_names',
+                 'consumed_contract_names'],
     }],
     'fvRsBd': [{
         'resource': resource.EndpointGroup,
@@ -314,7 +277,7 @@ resource_map = {
                 'other': 'bd_name',
             }
         },
-        'to_resource': fv_rs_bd_to_resource,
+        'to_resource': default_to_resource_strict,
     }],
     'faultInst': [{
         'resource': aim_status.AciFault,
@@ -329,14 +292,16 @@ resource_map = {
         'identity_converter': fault_identity_converter,
         'to_resource': fault_inst_to_resource,
     }],
-    'fvRsProv': [{
-        'resource': resource.EndpointGroup,
-        'converter': fvRsProv_converter,
-    }],
-    'fvRsCons': [{
-        'resource': resource.EndpointGroup,
-        'converter': fvRsCons_converter,
-    }],
+    'fvRsProv': [{'resource': resource.EndpointGroup,
+                  'converter': fvRsProv_converter},
+                 {'resource': resource.ExternalNetwork,
+                  'converter': fvRsProv_Ext_converter,
+                  'convert_pre_existing': True}],
+    'fvRsCons': [{'resource': resource.EndpointGroup,
+                  'converter': fvRsCons_converter},
+                 {'resource': resource.ExternalNetwork,
+                  'converter': fvRsCons_Ext_converter,
+                  'convert_pre_existing': True}],
     'vzFilter': [{
         'resource': resource.Filter,
     }],
@@ -363,7 +328,7 @@ resource_map = {
     }],
     'vzSubj': [{
         'resource': resource.ContractSubject,
-        'to_resource': vz_subj_to_resource,
+        'skip': ['in_filters', 'out_filters', 'bi_filters'],
     }],
     'vzRsSubjFiltAtt': [{
         'resource': resource.ContractSubject,
@@ -373,6 +338,35 @@ resource_map = {
                      'converter': vzInTerm_vzRsFiltAtt_converter},
                     {'resource': resource.ContractSubject,
                      'converter': vzOutTerm_vzRsFiltAtt_converter}],
+    'l3extOut': [{
+        'resource': resource.L3Outside,
+        'skip': ['vrf_name', 'l3_domain_dn']
+    }],
+    'l3extRsEctx': [{
+        'resource': resource.L3Outside,
+        'exceptions': {'tnFvCtxName': {'other': 'vrf_name'}},
+        'to_resource': default_to_resource_strict,
+        'convert_pre_existing': True
+    }],
+    'l3extRsL3DomAtt': [{
+        'resource': resource.L3Outside,
+        'exceptions': {'tDn': {'other': 'l3_domain_dn'}},
+        'to_resource': default_to_resource_strict,
+    }],
+    'l3extInstP': [{
+        'resource': resource.ExternalNetwork,
+        'skip': ['nat_epg_dn', 'provided_contract_names',
+                 'consumed_contract_names'],
+    }],
+    'l3extRsInstPToNatMappingEPg': [{
+        'resource': resource.ExternalNetwork,
+        'exceptions': {'tDn': {'other': 'nat_epg_dn'}},
+        'to_resource': default_to_resource_strict,
+        'convert_pre_existing': True
+    }],
+    'l3extSubnet': [{
+        'resource': resource.ExternalSubnet,
+    }],
 }
 
 
@@ -390,6 +384,12 @@ for apic_type, rule_list in resource_map.iteritems():
             mapped_rules['converter'] = rules['converter']
         if 'to_resource' in rules:
             mapped_rules['to_resource'] = rules['to_resource']
+        if 'convert_pre_existing' in rules:
+            mapped_rules['convert_pre_existing'] = (
+                rules['convert_pre_existing'])
+        if 'skip' in rules:
+            mapped_rules['skip'] = [convert_attribute(s, to_aim=False)
+                                    for s in rules['skip']]
         # Revert Exceptions
         mapped_rules['exceptions'] = {}
         for exception, value in rules.get('exceptions', {}).iteritems():
@@ -404,13 +404,21 @@ for apic_type, rule_list in resource_map.iteritems():
 
 # Special changes to map and the reverse map can be made here
 
-# vzRsFiltAtt__In, vzRsFiltAtt__Out are only added for UTs related
-# to back-and-forth conversion
+# Rules for these classes are present for UTs related to back-and-forth
+# conversions:
+#  vzRsFiltAtt__In, vzRsFiltAtt__Out
+#  fvRsProv__Ext, fvRsCons__Ext
 resource_map.update({
     'vzRsFiltAtt__In': [{'resource': resource.ContractSubject,
                          'converter': vzInTerm_vzRsFiltAtt_converter}],
     'vzRsFiltAtt__Out': [{'resource': resource.ContractSubject,
                          'converter': vzOutTerm_vzRsFiltAtt_converter}],
+    'fvRsProv__Ext': [{'resource': resource.ExternalNetwork,
+                       'converter': fvRsProv_Ext_converter,
+                       'convert_pre_existing': True}],
+    'fvRsCons__Ext': [{'resource': resource.ExternalNetwork,
+                       'converter': fvRsCons_Ext_converter,
+                       'convert_pre_existing': True}]
 })
 
 
@@ -543,7 +551,11 @@ class AimToAciModelConverter(BaseConverter):
             if klass not in reverse_resource_map:
                 # Ignore unmanaged object
                 continue
+            is_pre = (getattr(object, 'pre_existing', False)
+                      if 'pre_existing' in klass.other_attributes else False)
             for helper in reverse_resource_map[klass]:
+                if is_pre and not helper.get('convert_pre_existing', False):
+                    continue
                 # Use the custom converter, fallback to the default one
                 converted = (
                     helper.get('converter') or self._default_converter)(
