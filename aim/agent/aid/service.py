@@ -40,6 +40,9 @@ AGENT_BINARY = 'aci-inconsistency-detector'
 AGENT_DESCRIPTION = ('This Agent synchronizes the AIM state with ACI for a '
                      'certain amount of Tenants.')
 
+logging.register_options(aim_cfg.CONF)
+aim_cfg.CONF.register_opts(aim_cfg.common_opts)
+
 
 class AID(object):
 

@@ -473,18 +473,27 @@ class AciTenantManager(gevent.Greenlet):
             if event.values()[0].get(CHILDREN_FIELD):
                 # Rebuild the DN
                 children = event.values()[0].pop(CHILDREN_FIELD)
+                valid_children = []
                 for child in children:
                     attrs = child.values()[0]['attributes']
                     name_or_code = attrs.get('name', attrs.get('code'))
                     # Set DN of this object the the parent DN plus
                     # the proper prefix followed by the name or code (in case
                     # of faultInst)
+                    try:
+                        prefix = apic_client.ManagedObjectClass.mos_to_prefix[
+                            child.keys()[0]]
+                    except KeyError:
+                        # We don't manage this object type
+                        LOG.warn("Unmanaged object type: %s" % child.keys()[0])
+                        continue
+
                     attrs['dn'] = (
                         event.values()[0]['attributes']['dn'] + '/' +
-                        apic_client.ManagedObjectClass.mos_to_prefix[
-                            child.keys()[0]] + (('-' + name_or_code)
-                                                if name_or_code else ''))
-                events.extend(children)
+                        prefix + (('-' + name_or_code)
+                                  if name_or_code else ''))
+                    valid_children.append(child)
+                events.extend(valid_children)
 
     def _filter_ownership(self, events):
         result = []

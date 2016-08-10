@@ -65,7 +65,6 @@ agent_opts = [
 ]
 
 cfg.CONF.register_opts(agent_opts, 'aim')
-logging.register_options(cfg.CONF)
 CONF = cfg.CONF
 
 

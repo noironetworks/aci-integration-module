@@ -415,7 +415,6 @@ class StructuredHashTree(base.ComparableCollection):
     def _recalculate_parents_stack(self, parent_stack):
         # Recalculate full hashes navigating the stack backwards
         for node in parent_stack[::-1]:
-            LOG.debug("Recalculating node full hash %s:%s" % (node, node.key))
             node.full_hash = self._hash(
                 ''.join([node.partial_hash or ''] +
                         [x.full_hash for x in node.get_children()]))
