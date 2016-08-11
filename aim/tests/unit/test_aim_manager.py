@@ -220,9 +220,10 @@ class TestResourceOpsBase(object):
         res = self.mgr.create(self.ctx, res)
         listener.assert_called_with(mock.ANY, [res], [], [])
 
-        listener.reset_mock()
-        res = self.mgr.update(self.ctx, res, **test_update_attributes)
-        listener.assert_called_with(mock.ANY, [], [res], [])
+        if test_update_attributes:
+            listener.reset_mock()
+            res = self.mgr.update(self.ctx, res, **test_update_attributes)
+            listener.assert_called_with(mock.ANY, [], [res], [])
 
         listener.reset_mock()
         self.mgr.delete(self.ctx, res)
@@ -576,3 +577,19 @@ class TestEndpoint(TestResourceOpsBase, base.TestAimDBBase):
     test_search_attributes = {'epg_name': 'g1'}
     test_update_attributes = {'epg_app_profile_name': 'dept',
                               'epg_name': 'g20'}
+
+
+class TestVMMDomain(TestResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.VMMDomain
+    test_identity_attributes = {'type': 'OpenStack', 'name': 'openstack'}
+    test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
+    test_search_attributes = {'name': 'openstack'}
+    test_update_attributes = {}
+
+
+class TestPhysicalDomain(TestResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.PhysicalDomain
+    test_identity_attributes = {'name': 'phys'}
+    test_required_attributes = {'name': 'phys'}
+    test_search_attributes = {}
+    test_update_attributes = {}

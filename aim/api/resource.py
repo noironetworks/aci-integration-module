@@ -258,7 +258,9 @@ class EndpointGroup(AciResourceBase):
     other_attributes = ['display_name',
                         'bd_name',
                         'provided_contract_names',
-                        'consumed_contract_names']
+                        'consumed_contract_names',
+                        'openstack_vmm_domain_names',
+                        'physical_domain_names']
 
     _aci_mo_name = 'fvAEPg'
     _tree_parent = ApplicationProfile
@@ -266,7 +268,9 @@ class EndpointGroup(AciResourceBase):
     def __init__(self, **kwargs):
         super(EndpointGroup, self).__init__({'bd_name': '',
                                              'provided_contract_names': [],
-                                             'consumed_contract_names': []},
+                                             'consumed_contract_names': [],
+                                             'openstack_vmm_domain_names': [],
+                                             'physical_domain_names': []},
                                             **kwargs)
 
 
@@ -394,3 +398,43 @@ class Endpoint(ResourceBase):
 
     def __init__(self, **kwargs):
         super(Endpoint, self).__init__({}, **kwargs)
+
+
+class VMMDomain(ResourceBase):
+    """Resource representing a VMM domain.
+
+    Identity attributes: VMM type (eg. Openstack) and name
+    """
+
+    identity_attributes = ['type', 'name']
+    # REVISIT(ivar): A VMM has a plethora of attributes, references and child
+    # objects that needs to be created. For now, this will however be just
+    # the stub connecting what is explicitly created through the Infra and
+    # what is managed by AIM, therefore we keep the stored information to
+    # the very minimum
+    other_attributes = []
+    _aci_mo_name = 'vmmDomP'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(VMMDomain, self).__init__({}, **kwargs)
+
+
+class PhysicalDomain(ResourceBase):
+    """Resource representing a Physical domain.
+
+    Identity attributes: name
+    """
+
+    identity_attributes = ['name']
+    # REVISIT(ivar): A Physical Domain has a plethora of attributes, references
+    # and child objects that needs to be created. For now, this will however be
+    # just the stub connecting what is explicitly created through the Infra and
+    # what is managed by AIM, therefore we keep the stored information to
+    # the very minimum
+    other_attributes = []
+    _aci_mo_name = 'physDomP'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(PhysicalDomain, self).__init__({}, **kwargs)
