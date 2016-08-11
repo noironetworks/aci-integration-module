@@ -153,6 +153,8 @@ def fv_aepg_to_resource(converted, helper, to_aim=True):
         attr.pop('bdName', None)
         attr.pop('providedContractNames', None)
         attr.pop('consumedContractNames', None)
+        attr.pop('openstackVmmDomainNames', None)
+        attr.pop('physicalDomainNames', None)
         return result
 
 
