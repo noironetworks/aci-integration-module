@@ -13,9 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
+
+from aim import config as aim_cfg
 from aim.tools.cli.groups import aimcli
 from aim.tools.cli.commands import *  # noqa
 
+logging.register_options(aim_cfg.CONF)
 aim = aimcli.aim
 
 
