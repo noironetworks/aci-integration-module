@@ -13,12 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from apicapi import config
 import click
 from oslo_utils import importutils
 from tabulate import tabulate
 
 from aim import aim_manager
 from aim.api import resource
+from aim.common import utils
 from aim import context
 from aim.db import api
 from aim.tools.cli.groups import aimcli
@@ -155,3 +157,44 @@ def describe(ctx, type):
             for set_type in [
                 'identity_attributes', 'other_attributes', 'db_attributes']]
     click.echo(tabulate(rows, tablefmt='psql'))
+
+
+@manager.command(name='load-domains')
+@click.option('--replace/--no-replace', default=False)
+@click.option('--enforce/--no-enforce', default=False)
+@click.pass_context
+def load_domains(ctx, replace, enforce):
+    manager = ctx.obj['manager']
+    aim_ctx = ctx.obj['aim_ctx']
+
+    with aim_ctx.db_session.begin(subtransactions=True):
+        if replace:
+            curr_vmms = manager.find(aim_ctx, resource.VMMDomain)
+            curr_physds = manager.find(aim_ctx, resource.PhysicalDomain)
+
+            for dom in curr_physds + curr_vmms:
+                click.echo("Deleting %s: %s" % (type(dom), dom.__dict__))
+                manager.delete(aim_ctx, dom)
+
+        vmms = config.create_vmdom_dictionary()
+        physdoms = config.create_physdom_dictionary()
+        for vmm in vmms:
+            res = resource.VMMDomain(type='OpenStack', name=vmm)
+            print_resource(manager.create(aim_ctx, res, overwrite=True))
+        for phys in physdoms:
+            res = resource.PhysicalDomain(name=phys)
+            print_resource(manager.create(aim_ctx, res, overwrite=True))
+
+        if enforce:
+            # Update the existing EPGs with the new domain configuration
+            all_vmms = manager.find(aim_ctx, resource.VMMDomain)
+            all_physds = manager.find(aim_ctx, resource.PhysicalDomain)
+            os_vmm_names = [vmm.name for vmm in all_vmms
+                            if vmm.type == utils.OPENSTACK_VMM_TYPE]
+            phys_names = [phys.name for phys in all_physds]
+            all_epgs = manager.find(aim_ctx, resource.EndpointGroup)
+            for epg in all_epgs:
+                print_resource(
+                    manager.update(aim_ctx, epg,
+                                   openstack_vmm_domain_names=os_vmm_names,
+                                   physical_domain_names=phys_names))
