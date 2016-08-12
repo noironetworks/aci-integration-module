@@ -16,6 +16,7 @@
 import sqlalchemy as sa
 from sqlalchemy import orm
 
+from aim.common import utils
 from aim.db import model_base
 
 
@@ -213,12 +214,13 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
         if 'openstack_vmm_domain_names' in res_attr:
             vmm_domains = []
             for d in (res_attr.pop('openstack_vmm_domain_names', []) or []):
-                vmm_domains.append(EndpointGroupVMMDomain(name=d,
-                                                          type='OpenStack'))
+                vmm_domains.append(EndpointGroupVMMDomain(
+                    vmm_name=d, vmm_type=utils.OPENSTACK_VMM_TYPE))
         if 'physical_domain_names' in res_attr:
             physical_domains = []
             for d in (res_attr.pop('physical_domain_names', []) or []):
-                physical_domains.append(EndpointGroupContract(name=d))
+                physical_domains.append(EndpointGroupPhysicalDomain(
+                    physdom_name=d))
 
         self.vmm_domains = vmm_domains
         self.physical_domains = physical_domains
@@ -232,11 +234,12 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
             attr = ('provided_contract_names' if c.provides
                     else 'consumed_contract_names')
             res_attr.setdefault(attr, []).append(c.name)
-        for d in res_attr.pop('openstack_vmm_domain_names', []):
+        for d in res_attr.pop('vmm_domains', []):
             res_attr.setdefault(
-                'openstack_vmm_domain_names', []).append(d.name)
-        for d in res_attr.pop('physical_domain_names', []):
-            res_attr.setdefault('physical_domain_names', []).append(d.name)
+                'openstack_vmm_domain_names', []).append(d.vmm_name)
+        for d in res_attr.pop('physical_domains', []):
+            res_attr.setdefault('physical_domain_names', []).append(
+                d.physdom_name)
         return res_attr
 
 
