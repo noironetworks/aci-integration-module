@@ -16,6 +16,7 @@ from click import testing
 
 import aim
 from aim.tests import base
+from aim.tools.cli import debug_shell
 from aim.tools.cli import shell
 
 
@@ -27,17 +28,21 @@ class TestShell(base.TestAimDBBase):
         self.runner = testing.CliRunner()
         self.invoke = self.runner.invoke
 
-    def run_command(self, command, raises=False, config_file=None):
+    def _run_command(self, endpoint, command, raises=False, config_file=None):
         config_file = self.test_conf_file if not config_file else base.etcdir(
             config_file)
         result = self.invoke(
-            shell.aim,
+            endpoint,
             ['--config-file', config_file] + command.split(' '))
         if raises:
             self._assert_command_exception(result)
         else:
             self._assert_command_no_exception(result)
         return result
+
+    def run_command(self, command, raises=False, config_file=None):
+        return self._run_command(shell.aim, command, raises=raises,
+                                 config_file=config_file)
 
     def _assert_command_no_exception(self, result):
         self.assertFalse(
@@ -62,6 +67,13 @@ class TestShell(base.TestAimDBBase):
             param['alembic_ini_path'].endswith(
                 'aim/db/migration/alembic.ini'))
         self.assertEqual('sqlite://', param['db_url'])
+
+
+class TestDebugShell(TestShell):
+
+    def run_command(self, command, raises=False, config_file=None):
+        return self._run_command(debug_shell.aim_debug, command, raises=raises,
+                                 config_file=config_file)
 
 
 class TestVersion(TestShell):
