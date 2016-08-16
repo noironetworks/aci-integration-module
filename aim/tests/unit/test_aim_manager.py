@@ -220,9 +220,10 @@ class TestResourceOpsBase(object):
         res = self.mgr.create(self.ctx, res)
         listener.assert_called_with(mock.ANY, [res], [], [])
 
-        listener.reset_mock()
-        res = self.mgr.update(self.ctx, res, **test_update_attributes)
-        listener.assert_called_with(mock.ANY, [], [res], [])
+        if test_update_attributes:
+            listener.reset_mock()
+            res = self.mgr.update(self.ctx, res, **test_update_attributes)
+            listener.assert_called_with(mock.ANY, [], [res], [])
 
         listener.reset_mock()
         self.mgr.delete(self.ctx, res)
@@ -458,7 +459,9 @@ class TestApplicationProfile(TestAciResourceOpsBase, base.TestAimDBBase):
 class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
     resource_class = resource.EndpointGroup
     prereq_objects = [
-        resource.ApplicationProfile(tenant_name='tenant1', name='lab')]
+        resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
+        resource.VMMDomain(type='OpenStack', name='openstack'),
+        resource.PhysicalDomain(name='phys')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'app_profile_name': 'lab',
                                 'name': 'web'}
@@ -466,11 +469,13 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
                                 'app_profile_name': 'lab',
                                 'name': 'web',
                                 'provided_contract_names': ['k', 'p1', 'p2'],
-                                'consumed_contract_names': ['c1', 'c2', 'k']}
+                                'consumed_contract_names': ['c1', 'c2', 'k'],
+                                'openstack_vmm_domain_names': ['openstack']}
     test_search_attributes = {'name': 'web'}
     test_update_attributes = {'bd_name': 'net1',
                               'provided_contract_names': ['c2', 'k', 'p1'],
-                              'consumed_contract_names': ['c1', 'k', 'p2']}
+                              'consumed_contract_names': ['c1', 'k', 'p2'],
+                              'physical_domain_names': ['phys']}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
 
     def test_update_other_attributes(self):
@@ -480,6 +485,8 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
         r0 = self.mgr.create(self.ctx, res)
         self.assertEqual(['k', 'p1', 'p2'],
                          getattr_canonical(r0, 'provided_contract_names'))
+        self.assertEqual(['openstack'],
+                         getattr_canonical(r0, 'openstack_vmm_domain_names'))
 
         r1 = self.mgr.update(self.ctx, res, bd_name='net1')
         self.assertEqual('net1', r1.bd_name)
@@ -488,11 +495,14 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
         self.assertEqual(['c1', 'c2', 'k'],
                          getattr_canonical(r1, 'consumed_contract_names'))
 
-        r2 = self.mgr.update(self.ctx, res, provided_contract_names=[])
+        r2 = self.mgr.update(self.ctx, res, provided_contract_names=[],
+                             openstack_vmm_domain_names=[])
         self.assertEqual('net1', r2.bd_name)
         self.assertEqual([], getattr_canonical(r2, 'provided_contract_names'))
         self.assertEqual(['c1', 'c2', 'k'],
                          getattr_canonical(r2, 'consumed_contract_names'))
+        self.assertEqual([],
+                         getattr_canonical(r2, 'openstack_vmm_domain_names'))
 
 
 class TestFilter(TestAciResourceOpsBase, base.TestAimDBBase):
@@ -576,3 +586,19 @@ class TestEndpoint(TestResourceOpsBase, base.TestAimDBBase):
     test_search_attributes = {'epg_name': 'g1'}
     test_update_attributes = {'epg_app_profile_name': 'dept',
                               'epg_name': 'g20'}
+
+
+class TestVMMDomain(TestResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.VMMDomain
+    test_identity_attributes = {'type': 'OpenStack', 'name': 'openstack'}
+    test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
+    test_search_attributes = {'name': 'openstack'}
+    test_update_attributes = {}
+
+
+class TestPhysicalDomain(TestResourceOpsBase, base.TestAimDBBase):
+    resource_class = resource.PhysicalDomain
+    test_identity_attributes = {'name': 'phys'}
+    test_required_attributes = {'name': 'phys'}
+    test_search_attributes = {}
+    test_update_attributes = {}

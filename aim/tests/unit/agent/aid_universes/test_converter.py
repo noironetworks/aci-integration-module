@@ -301,7 +301,10 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
         'converter': converter.fvRsProv_converter, }, {
         'resource': 'fvRsCons',
         'exceptions': {},
-        'converter': converter.fvRsCons_converter,
+        'converter': converter.fvRsCons_converter, }, {
+        'resource': 'fvRsDomAtt',
+        'exceptions': {},
+        'converter': converter.fv_rs_dom_att_converter,
     }]
     sample_input = [[base.TestAimDBBase._get_example_aci_epg(),
                      {'fvRsBd':
@@ -323,7 +326,20 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                      {'fvRsCons':
                       {'attributes':
                        {'dn': 'uni/tn-t1/ap-a1/epg-test/rscons-k',
-                        'tnVzBrCPName': 'k', }}}],
+                        'tnVzBrCPName': 'k', }}},
+                     {'fvRsDomAtt':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/'
+                              'rsdomAtt-[uni/phys-phys]', }}},
+                     {'fvRsDomAtt':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/'
+                              'rsdomAtt-[uni/vmmp-OpenStack/dom-op]', }}},
+                     {'fvRsDomAtt':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/'
+                              'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]', }}},
+                     ],
                     base.TestAimDBBase._get_example_aci_epg(
                         dn='uni/tn-t1/ap-a1/epg-test-1')]
     sample_output = [
@@ -331,7 +347,9 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                                app_profile_name='a1',
                                name='test', bd_name='bd1',
                                provided_contract_names=['p1', 'k'],
-                               consumed_contract_names=['c1', 'k']),
+                               consumed_contract_names=['c1', 'k'],
+                               openstack_vmm_domain_names=['op', 'op2'],
+                               physical_domain_names=['phys']),
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
                                name='test-1')]
@@ -713,7 +731,9 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                     base.TestAimDBBase._get_example_aim_epg(
                         name='test-1', bd_name='net2',
                         provided_contract_names=['k', 'p1'],
-                        consumed_contract_names=['c1', 'k'])]
+                        consumed_contract_names=['c1', 'k'],
+                        openstack_vmm_domain_names=['op', 'op2'],
+                        physical_domain_names=['phys'])]
     sample_output = [
         [{
             "fvAEPg": {
@@ -746,7 +766,19 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
             "fvRsCons": {
                 "attributes": {
                     "dn": "uni/tn-t1/ap-a1/epg-test-1/rscons-k",
-                    "tnVzBrCPName": "k"}}}]]
+                    "tnVzBrCPName": "k"}}}, {
+            'fvRsDomAtt': {
+                'attributes': {
+                    'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
+                          'rsdomAtt-[uni/phys-phys]', }}}, {
+            'fvRsDomAtt': {
+                'attributes': {
+                    'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
+                          'rsdomAtt-[uni/vmmp-OpenStack/dom-op]', }}}, {
+            'fvRsDomAtt': {
+                'attributes': {
+                    'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
+                          'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]', }}}]]
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
     missing_ref_output = [{
         "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test", }}}]

@@ -32,6 +32,7 @@ CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
 CONF.register_opts(aim_cfg.global_opts + aim_cfg.common_opts)
+o_log.register_options(aim_cfg.CONF)
 
 
 def etcdir(*p):

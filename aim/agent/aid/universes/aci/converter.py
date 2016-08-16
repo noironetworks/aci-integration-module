@@ -18,6 +18,7 @@ from oslo_log import log as logging
 
 from aim.api import resource
 from aim.api import status as aim_status
+from aim.common import utils
 
 LOG = logging.getLogger(__name__)
 DELETED_STATUS = "deleted"
@@ -153,6 +154,8 @@ def fv_aepg_to_resource(converted, helper, to_aim=True):
         attr.pop('bdName', None)
         attr.pop('providedContractNames', None)
         attr.pop('consumedContractNames', None)
+        attr.pop('openstackVmmDomainNames', None)
+        attr.pop('physicalDomainNames', None)
         return result
 
 
@@ -214,6 +217,57 @@ def child_list(aim_attr, aci_attr, aci_mo=None):
                                           {'dn': dn, aci_attr: c}}})
         return result
     return func
+
+
+def fv_rs_dom_att_converter(object_dict, otype, helper,
+                            source_identity_attributes,
+                            destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        # Converting a fvRsDomAtt into an EPG
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, 'fvRsDomAtt', helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        # fvRsDomAtt can be either referring to a physDomP or a vmmDomP type
+        try:
+            dom_id = default_identity_converter(
+                {'dn': id[-1]}, 'vmmDomP', helper, to_aim=True)
+            res_dict['openstack_vmm_domain_names'] = [dom_id[-1]]
+        except apic_client.DNManager.InvalidNameFormat:
+            dom_id = default_identity_converter(
+                {'dn': id[-1]}, 'physDomP', helper, to_aim=True)
+            res_dict['physical_domain_names'] = [dom_id[0]]
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        # Converting an EndpointGroup into fvRsDomAtt objects
+        for phys in object_dict['physical_domain_names']:
+            # Get Physdom DN
+            phys_dn = default_identity_converter(
+                resource.PhysicalDomain(name=phys).__dict__,
+                resource.PhysicalDomain, helper, aci_mo_type='physDomP',
+                to_aim=False)[0]
+            dn = default_identity_converter(
+                object_dict, otype, helper, extra_attributes=[phys_dn],
+                aci_mo_type='fvRsDomAtt', to_aim=False)[0]
+            result.append({'fvRsDomAtt': {'attributes': {'dn': dn}}})
+        # Convert OpenStack VMMs
+        for vmm in object_dict['openstack_vmm_domain_names']:
+            # Get VMM DN
+            vmm_dn = default_identity_converter(
+                resource.VMMDomain(
+                    type=utils.OPENSTACK_VMM_TYPE, name=vmm).__dict__,
+                resource.VMMDomain, helper, aci_mo_type='vmmDomP',
+                to_aim=False)[0]
+            dn = default_identity_converter(
+                object_dict, otype, helper, extra_attributes=[vmm_dn],
+                aci_mo_type='fvRsDomAtt', to_aim=False)[0]
+            result.append({'fvRsDomAtt': {'attributes': {'dn': dn}}})
+    return result
 
 
 def vz_subj_to_resource(converted, helper, to_aim=True):
@@ -335,6 +389,10 @@ resource_map = {
     'fvRsCons': [{
         'resource': resource.EndpointGroup,
         'converter': fvRsCons_converter,
+    }],
+    'fvRsDomAtt': [{
+        'resource': resource.EndpointGroup,
+        'converter': fv_rs_dom_att_converter,
     }],
     'vzFilter': [{
         'resource': resource.Filter,

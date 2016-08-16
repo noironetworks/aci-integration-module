@@ -23,3 +23,11 @@ scope_names = False
 
 [aim]
 poll_config = False
+
+[apic_physdom:phys]
+
+[apic_physdom:phys2]
+
+[apic_vmdom:ostack]
+
+[apic_vmdom:ostack2]

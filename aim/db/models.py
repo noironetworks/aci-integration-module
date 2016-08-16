@@ -16,6 +16,7 @@
 import sqlalchemy as sa
 from sqlalchemy import orm
 
+from aim.common import utils
 from aim.db import model_base
 
 
@@ -113,6 +114,53 @@ class EndpointGroupContract(model_base.Base):
     provides = sa.Column(sa.Boolean, primary_key=True)
 
 
+class VMMDomain(model_base.Base, model_base.AttributeMixin):
+    """DB model for VMM Domain."""
+    __tablename__ = 'aim_vmm_domains'
+
+    type = sa.Column(sa.String(64), primary_key=True)
+    name = model_base.name_column(primary_key=True)
+
+
+class PhysicalDomain(model_base.Base, model_base.AttributeMixin):
+    """DB model for VMM Domain."""
+    __tablename__ = 'aim_physical_domains'
+
+    name = model_base.name_column(primary_key=True)
+
+
+class EndpointGroupVMMDomain(model_base.Base):
+    """DB model for Contracts used by EndpointGroup."""
+    __tablename__ = 'aim_endpoint_group_vmm_domains'
+    __table_args__ = (
+        (sa.ForeignKeyConstraint(
+            ['vmm_type', 'vmm_name'],
+            ['aim_vmm_domains.type', 'aim_vmm_domains.name'],
+            name='fk_epg'),) +
+        to_tuple(model_base.Base.__table_args__))
+
+    epg_aim_id = sa.Column(sa.Integer,
+                           sa.ForeignKey('aim_endpoint_groups.aim_id'),
+                           primary_key=True)
+    vmm_type = sa.Column(sa.String(64), primary_key=True)
+    vmm_name = model_base.name_column(primary_key=True)
+
+
+class EndpointGroupPhysicalDomain(model_base.Base):
+    """DB model for Contracts used by EndpointGroup."""
+    __tablename__ = 'aim_endpoint_group_physical_domains'
+    __table_args__ = (
+        (sa.ForeignKeyConstraint(
+            ['physdom_name'], ['aim_physical_domains.name'],
+            name='fk_epg'),) +
+        to_tuple(model_base.Base.__table_args__))
+
+    epg_aim_id = sa.Column(sa.Integer,
+                           sa.ForeignKey('aim_endpoint_groups.aim_id'),
+                           primary_key=True)
+    physdom_name = model_base.name_column(primary_key=True)
+
+
 class EndpointGroup(model_base.Base, model_base.HasAimId,
                     model_base.HasName, model_base.HasDisplayName,
                     model_base.HasTenantName,
@@ -136,10 +184,20 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                                  backref='epg',
                                  cascade='all, delete-orphan',
                                  lazy='joined')
+    vmm_domains = orm.relationship(EndpointGroupVMMDomain,
+                                   backref='epg',
+                                   cascade='all, delete-orphan',
+                                   lazy='joined')
+    physical_domains = orm.relationship(EndpointGroupPhysicalDomain,
+                                        backref='epg',
+                                        cascade='all, delete-orphan',
+                                        lazy='joined')
 
     def from_attr(self, session, res_attr):
         provided = [c for c in self.contracts if c.provides]
         consumed = [c for c in self.contracts if not c.provides]
+        vmm_domains = self.vmm_domains[:]
+        physical_domains = self.physical_domains[:]
 
         if 'provided_contract_names' in res_attr:
             provided = []
@@ -152,6 +210,21 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                 consumed.append(EndpointGroupContract(name=c,
                                                       provides=False))
         self.contracts = provided + consumed
+
+        if 'openstack_vmm_domain_names' in res_attr:
+            vmm_domains = []
+            for d in (res_attr.pop('openstack_vmm_domain_names', []) or []):
+                vmm_domains.append(EndpointGroupVMMDomain(
+                    vmm_name=d, vmm_type=utils.OPENSTACK_VMM_TYPE))
+        if 'physical_domain_names' in res_attr:
+            physical_domains = []
+            for d in (res_attr.pop('physical_domain_names', []) or []):
+                physical_domains.append(EndpointGroupPhysicalDomain(
+                    physdom_name=d))
+
+        self.vmm_domains = vmm_domains
+        self.physical_domains = physical_domains
+
         # map remaining attributes to model
         super(EndpointGroup, self).from_attr(session, res_attr)
 
@@ -161,6 +234,12 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
             attr = ('provided_contract_names' if c.provides
                     else 'consumed_contract_names')
             res_attr.setdefault(attr, []).append(c.name)
+        for d in res_attr.pop('vmm_domains', []):
+            res_attr.setdefault(
+                'openstack_vmm_domain_names', []).append(d.vmm_name)
+        for d in res_attr.pop('physical_domains', []):
+            res_attr.setdefault('physical_domain_names', []).append(
+                d.physdom_name)
         return res_attr
 
 

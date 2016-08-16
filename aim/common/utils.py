@@ -21,6 +21,7 @@ import gevent
 from oslo_log import log as logging
 
 AIM_LOCK_PREFIX = 'aim_lock'
+OPENSTACK_VMM_TYPE = 'OpenStack'
 
 
 def log(method):
