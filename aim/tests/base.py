@@ -122,13 +122,15 @@ class TestAimDBBase(BaseTestCase):
         return context.AimContext(
             db_session=sa_sessionmaker(bind=self.engine)())
 
-    def set_override(self, item, value, group=None, host=''):
+    def set_override(self, item, value, group=None, host='', poll=False):
         # Override DB config as well
         if group:
             CONF.set_override(item, value, group)
         else:
             CONF.set_override(item, value)
         self.cfg_manager.to_db(CONF, host=host)
+        if poll:
+            self.cfg_manager.subs_mgr._poll_and_execute()
 
     @classmethod
     def _get_example_aim_bd(cls, **kwargs):

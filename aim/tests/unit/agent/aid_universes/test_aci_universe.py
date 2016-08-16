@@ -34,7 +34,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self._do_aci_mocks()
         self.universe = (universe_klass or
                          aci_universe.AciUniverse)().initialize(
-            self.ctx, aim_cfg.ConfigManager(self.ctx, ''))
+            self.ctx, aim_cfg.ConfigManager(self.ctx, 'h1'))
         # Mock ACI tenant manager
         self.mock_start = mock.patch(
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.start')
@@ -225,6 +225,22 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                  'vzOutTerm|outtmnl', 'vzRsFiltAtt|h'), ]
         result = self.universe.get_resources_for_delete(keys)
         self.assertEqual(sorted(objs), sorted(result))
+
+    def test_ws_config_changed(self):
+        # Refresh subscriptions
+        self.universe.ws_context = aci_universe.WebSocketContext(
+            aim_cfg.ConfigManager(self.ctx, 'h1'))
+        current_ws = self.universe.ws_context.session
+        self.set_override('apic_hosts', ['3.1.1.1'], 'apic', poll=True)
+        # Callback modified parameters
+        self.assertTrue(current_ws is not self.universe.ws_context.session)
+        self.assertEqual(['3.1.1.1'], self.universe.ws_context.apic_hosts)
+        self.assertTrue('3.1.1.1' in self.universe.ws_context.session.api)
+
+        # Change again to same value, there'll be no effect
+        current_ws = self.universe.ws_context.session
+        self.set_override('apic_hosts', ['3.1.1.1'], 'apic')
+        self.assertTrue(current_ws is self.universe.ws_context.session)
 
 
 class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):

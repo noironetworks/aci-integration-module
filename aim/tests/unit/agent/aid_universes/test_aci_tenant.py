@@ -46,6 +46,9 @@ def mock_get_data(inst, dn, **kwargs):
         return [inst._data_stash[dn]]
     except KeyError:
         # Simulate 404
+        if 'fault' in dn:
+            # non existing faults return empty data
+            return []
         raise apic_client.cexc.ApicResponseNotOk(
             request='get', status='404', reason='Not Found',
             err_text='Not Found', err_code='404')
@@ -146,7 +149,7 @@ class TestAciClientMixin(object):
     def _set_events(self, event_list, manager=None):
         # Greenlets have their own weird way of calculating bool
         manager = manager if manager is not None else self.manager
-        manager.ws_session.subscription_thread._events.setdefault(
+        manager.ws_context.session.subscription_thread._events.setdefault(
             manager.tenant._get_instance_subscription_urls()[0], []).extend([
                 dict([('imdata', [x])]) for x in event_list])
 
@@ -190,7 +193,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self._do_aci_mocks()
         self.manager = aci_tenant.AciTenantManager(
             'tenant-1', self.cfg_manager,
-            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager))
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
 
     def test_event_loop(self):
         self.manager._subscribe_tenant()
@@ -205,13 +209,11 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         # implemented
 
     def test_login_failed(self):
-        # Create first session
-        self.manager._subscribe_tenant()
-        # Mock response and login again
+        # Mock response and login
         with mock.patch('acitoolkit.acitoolkit.Session.login',
                         return_value=FakeResponse(ok=False)):
-            self.assertRaises(aci_tenant.WebSocketSessionLoginFailed,
-                              self.manager._subscribe_tenant)
+            self.assertRaises(aci_universe.WebSocketSessionLoginFailed,
+                              self.manager.ws_context.establish_ws_session)
 
     def test_is_dead(self):
         self.assertFalse(self.manager.is_dead())
@@ -219,7 +221,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def test_event_loop_failure(self):
         manager = aci_tenant.AciTenantManager(
             'tenant-1', self.cfg_manager,
-            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager))
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
         manager.tenant.instance_has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
@@ -246,7 +249,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.manager._subscribe_tenant()
         self._set_events(double_events)
         res = self.manager.tenant.instance_get_event_data(
-            self.manager.ws_session)
+            self.manager.ws_context.session)
         self.assertEqual(1, len(res))
         self.assertEqual(double_events[1], res[0])
 
