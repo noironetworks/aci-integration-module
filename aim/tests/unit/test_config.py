@@ -25,6 +25,7 @@ class TestAimConfig(base.TestAimDBBase):
 
     def setUp(self):
         super(TestAimConfig, self).setUp()
+        self._clean_subscriptions()
         self.cfg_mgr = config.ConfigManager(self.ctx, '')
         # Clean current map state for testing
         self.db_mgr = config_model.ConfigurationDBManager()
@@ -264,9 +265,9 @@ class TestAimConfig(base.TestAimDBBase):
         cfg_mgr.subs_mgr._poll_and_execute()
 
     def test_polling_interval_changed(self):
-        # Call property before changing the config value
-        config.OPTION_SUBSCRIBER_MANAGER = None
+        self._clean_subscriptions()
         cfg_mgr = config.ConfigManager(self.ctx, 'h1')
+        # Call property before changing the config value
         cfg_mgr.subs_mgr.polling_interval
         self.set_override('config_polling_interval', 130, 'aim')
         self.assertNotEqual(130, cfg_mgr.subs_mgr.polling_interval)

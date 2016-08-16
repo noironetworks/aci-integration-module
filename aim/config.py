@@ -282,11 +282,11 @@ class ConfigSubscriber(gevent.Greenlet):
     multiple host-specific configurations are found, the callback will be
     called multiple times for every host.
     """
-    subscription_map = {}
-    map_by_callback_id = {}  # for easier unsubscribe
 
     def __init__(self, config_mgr, *args, **kwargs):
         super(ConfigSubscriber, self).__init__(*args, **kwargs)
+        self.subscription_map = {}
+        self.map_by_callback_id = {}  # for easier unsubscribe
         self.config_mgr = config_mgr
         # Configuration poller  has its own DB session
         self.session = api.get_session()
@@ -450,13 +450,12 @@ class ConfigSubscriber(gevent.Greenlet):
         # TODO(ivar): interrupt current sleep and restart with new value
         self._polling_interval = new_conf['value']
 
-# Handy for debug
+
 OPTION_SUBSCRIBER_MANAGER = None
 
 
 def _get_option_subscriber_manager(config_mgr, *args, **kwargs):
     global OPTION_SUBSCRIBER_MANAGER
-    global START_SUBSCRIBER
     if OPTION_SUBSCRIBER_MANAGER is None:
         OPTION_SUBSCRIBER_MANAGER = ConfigSubscriber(config_mgr, *args,
                                                      **kwargs)
