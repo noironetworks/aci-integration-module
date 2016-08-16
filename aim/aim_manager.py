@@ -65,7 +65,10 @@ class AimManager(object):
                      api_status.AciFault: status_model.Fault,
                      api_res.Endpoint: models.Endpoint,
                      api_res.VMMDomain: models.VMMDomain,
-                     api_res.PhysicalDomain: models.PhysicalDomain}
+                     api_res.PhysicalDomain: models.PhysicalDomain,
+                     api_res.L3Outside: models.L3Outside,
+                     api_res.ExternalNetwork: models.ExternalNetwork,
+                     api_res.ExternalSubnet: models.ExternalSubnet, }
 
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff
