@@ -29,15 +29,18 @@ class TestStructuredNode(base.BaseTestCase):
         super(TestStructuredNode, self).setUp()
 
     def test_initialize(self):
-        node = tree.StructuredTreeNode(('key',), 'partial_hash')
+        node = tree.StructuredTreeNode(('key',), 'partial_hash',
+                                       metadata={'foo': True})
         self.assertEqual(('key',), node.key)
         self.assertEqual('partial_hash', node.partial_hash)
         self.assertEqual('partial_hash', node.full_hash)
         self.assertTrue(isinstance(node._children, tree.ChildrenList))
         self.assertTrue(isinstance(node.get_children(), tuple))
+        self.assertEqual({'foo': True}, node.metadata)
         self.assertEqual(
             ('{"key": ["key"], "partial_hash": "partial_hash", '
-             '"full_hash": "partial_hash", "dummy": true, "_children": []}'),
+             '"full_hash": "partial_hash", "dummy": true, "_children": [], '
+             '"metadata": {"foo": true}}'),
             str(node))
 
     def test_set_child(self):
@@ -281,6 +284,72 @@ class TestStructuredHashTree(base.BaseTestCase):
         self.assertRaises(exc.MultipleRootTreeError, data.add, ('keyA1',
                                                                 'keyB'))
 
+    def test_add_with_metadata(self):
+        t = tree.StructuredHashTree()
+
+        # new node with no metadata
+        node = t.add(('keyA', 'keyA')).find(('keyA', 'keyA'))
+        self.assertIsNotNone(node)
+        self.assertEqual({}, node.metadata)
+
+        # new node with metadata
+        t.add(('keyA', 'keyB'), _metadata={"foo": 1})
+        node = t.find(('keyA', 'keyB'))
+        self.assertIsNotNone(node)
+        self.assertEqual({'foo': 1}, node.metadata)
+        self.assertEqual({}, t.root.metadata)
+
+        # existing node, no metadata change
+        node = t.add(('keyA', 'keyB')).find(('keyA', 'keyB'))
+        self.assertIsNotNone(node)
+        self.assertEqual({'foo': 1}, node.metadata)
+
+        # existing node, metadata change
+        t.add(('keyA', 'keyB'), _metadata={"bar": 2})
+        node = t.find(('keyA', 'keyB'))
+        self.assertIsNotNone(node)
+        self.assertEqual({'bar': 2}, node.metadata)
+
+        # existing node, unset metadata
+        t.add(('keyA', 'keyB'), _metadata=None)
+        node = t.find(('keyA', 'keyB'))
+        self.assertIsNotNone(node)
+        self.assertEqual({}, node.metadata)
+
+    def test_include_with_metadata(self):
+        t = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB'), '_metadata': {"foo": 1}},
+             {'key': ('keyA', 'keyC'), '_metadata': {"bar": 2}},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+        node = t.find(('keyA', 'keyB'))
+        self.assertIsNotNone(node)
+        self.assertEqual({'foo': 1}, node.metadata)
+
+        node = t.find(('keyA', 'keyC'))
+        self.assertIsNotNone(node)
+        self.assertEqual({'bar': 2}, node.metadata)
+
+        node = t.find(('keyA', 'keyC', 'keyD'))
+        self.assertIsNotNone(node)
+        self.assertEqual({}, node.metadata)
+
+        # change the metadata values
+        t.include(
+            [{'key': ('keyA', 'keyB'), '_metadata': None},
+             {'key': ('keyA', 'keyC'), '_metadata': {"bar": 2}},
+             {'key': ('keyA', 'keyC', 'keyD'), '_metadata': {"baz": 3}}])
+        node = t.find(('keyA', 'keyB'))
+        self.assertIsNotNone(node)
+        self.assertEqual({}, node.metadata)
+
+        node = t.find(('keyA', 'keyC'))
+        self.assertIsNotNone(node)
+        self.assertEqual({'bar': 2}, node.metadata)
+
+        node = t.find(('keyA', 'keyC', 'keyD'))
+        self.assertIsNotNone(node)
+        self.assertEqual({"baz": 3}, node.metadata)
+
     def test_include_rolled_back(self):
         # Cause an exception during include and verify that nothing changed
         data = tree.StructuredHashTree().include(
@@ -296,7 +365,7 @@ class TestStructuredHashTree(base.BaseTestCase):
 
     def test_pop(self):
         data = tree.StructuredHashTree()
-        self.assertIsNone(data.pop(('keyA', )))
+        self.assertIsNone(data.pop(('keyA',)))
         data.add(('keyA', 'keyB'))
         data_copy = copy.deepcopy(data)
 
@@ -328,10 +397,10 @@ class TestStructuredHashTree(base.BaseTestCase):
     def test_find(self):
         data = tree.StructuredHashTree()
         # root None
-        self.assertIsNone(data.find(('KeyA', )))
-        data.add(('KeyA', ))
+        self.assertIsNone(data.find(('KeyA',)))
+        data.add(('KeyA',))
         # root is Key
-        self.assertEqual(data.root, data.find(('KeyA', )))
+        self.assertEqual(data.root, data.find(('KeyA',)))
         # Not found
         self.assertIsNone(data.find(('KeyA', 'KeyB')))
         # Multi Head reserach
@@ -366,6 +435,13 @@ class TestStructuredHashTree(base.BaseTestCase):
         self.assertFalse(data == data3)
         self.assertFalse(data == None)
         self.assertFalse(data == 'notatree')
+
+        # compare with metadata
+        data4 = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB'), '_metadata': {'a': 1}},
+             {'key': ('keyA', 'keyC'), '_metadata': {'b': 1}},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+        self.assertTrue(data4 == data)
 
     def test_remove(self):
         data = tree.StructuredHashTree().include(
@@ -402,19 +478,19 @@ class TestStructuredHashTree(base.BaseTestCase):
                          data2.diff(data))
 
         data2.add(('keyA', 'keyC', 'keyF'), **{})
-        data2.add(('keyA', ), **{'attr': 'somevalue'})
+        data2.add(('keyA',), **{'attr': 'somevalue'})
 
         # To obtain data from data2:
         # add ('keyA', 'keyC', 'keyD')
         # remove ('keyA', 'keyC', 'keyF')
         # modify ('keyA', )
 
-        self.assertEqual({"add": [('keyA', ), ('keyA', 'keyC', 'keyD')],
+        self.assertEqual({"add": [('keyA',), ('keyA', 'keyC', 'keyD')],
                           "remove": [('keyA', 'keyC', 'keyF')]},
                          data.diff(data2))
 
         # Opposite for going from data to data2
-        self.assertEqual({"add": [('keyA', ), ('keyA', 'keyC', 'keyF')],
+        self.assertEqual({"add": [('keyA',), ('keyA', 'keyC', 'keyF')],
                           "remove": [('keyA', 'keyC', 'keyD')]},
                          data2.diff(data))
 
@@ -433,7 +509,8 @@ class TestStructuredHashTree(base.BaseTestCase):
 
     def test_from_string(self):
         data = tree.StructuredHashTree().include(
-            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
+            [{'key': ('keyA', 'keyB'), '_metadata': {'a': 20}},
+             {'key': ('keyA', 'keyC'), '_metadata': {'b': False}},
              {'key': ('keyA', 'keyC', 'keyD')}])
         data2 = tree.StructuredHashTree.from_string(str(data))
         self.assertTrue(data is not data2)
@@ -488,8 +565,8 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.assertNotEqual(data, data2)
 
         # Empty the tree completely
-        data3.remove(('keyA', ))
-        self.assertEqual(('keyA', ), data3.root_key)
+        data3.remove(('keyA',))
+        self.assertEqual(('keyA',), data3.root_key)
         self.mgr.update(self.ctx, data3)
         data4 = self.mgr.find(self.ctx, tenant_rn=['keyA'])[0]
         # Verify this is an empty tree
@@ -563,7 +640,7 @@ class TestHashTreeManager(base.TestAimDBBase):
              {'key': ('keyA2', 'keyC', 'keyD')}])
 
         self.mgr.update_bulk(self.ctx, [data1, data2, data3])
-        data1.add(('keyA', ), test='test')
+        data1.add(('keyA',), test='test')
         changed = self.mgr.find_changed(
             self.ctx, {data1.root.key[0]: data1.root.full_hash,
                        data2.root.key[0]: data2.root.full_hash,
@@ -676,6 +753,8 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree = tree.StructuredHashTree()
 
         bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')
+        subnet = resource.Subnet(tenant_name='t1', bd_name='bd1',
+                                 gw_ip_mask='10.0.0.1/24')
 
         fvBD_attr = {'arpFlood': 'no',
                      'epMoveDetectMode': '',
@@ -683,28 +762,50 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                      'unicastRoute': 'yes',
                      'unkMacUcastAct': 'proxy'}
         fvRsCtx_attr = {'tnFvCtxName': 'default'}
+        fvSubnet_attr = {'scope': 'private'}
 
-        self.maker.update(htree, [bd])
+        self.maker.update(htree, [bd, subnet])
 
-        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd1'), **fvBD_attr)
-        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd1', 'fvRsCtx|rsctx'),
-                                **fvRsCtx_attr)
+        bd_key = ('fvTenant|t1', 'fvBD|bd1')
+        rsctx_key = ('fvTenant|t1', 'fvBD|bd1', 'fvRsCtx|rsctx')
+        subnet_key = ('fvTenant|t1', 'fvBD|bd1', 'fvSubnet|10.0.0.1/24')
+
+        exp_tree.add(bd_key, **fvBD_attr)
+        exp_tree.add(rsctx_key, **fvRsCtx_attr)
+        exp_tree.add(subnet_key, **fvSubnet_attr)
         self.assertEqual(exp_tree, htree)
+        self.assertEqual({}, htree.find(bd_key).metadata)
+        self.assertEqual({'related': True},
+                         htree.find(rsctx_key).metadata)
+        self.assertEqual({}, htree.find(subnet_key).metadata)
 
         bd.name = 'bd2'
-        self.maker.update(htree, [bd])
+        subnet.bd_name = 'bd2'
+        self.maker.update(htree, [bd, subnet])
 
-        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2'), **fvBD_attr)
-        exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2', 'fvRsCtx|rsctx'),
-                                **fvRsCtx_attr)
+        bd_key = ('fvTenant|t1', 'fvBD|bd2')
+        rsctx_key = ('fvTenant|t1', 'fvBD|bd2', 'fvRsCtx|rsctx')
+        subnet_key = ('fvTenant|t1', 'fvBD|bd2', 'fvSubnet|10.0.0.1/24')
+        exp_tree.add(bd_key, **fvBD_attr)
+        exp_tree.add(rsctx_key, **fvRsCtx_attr)
+        exp_tree.add(subnet_key, **fvSubnet_attr)
         self.assertEqual(exp_tree, htree)
 
         fvBD_attr['unkMacUcastAct'] = 'flood'
+        fvRsCtx_attr = {'tnFvCtxName': 'shared'}
         bd.l2_unknown_unicast_mode = 'flood'
+        bd.vrf_name = 'shared'
         self.maker.update(htree, [bd])
 
         exp_tree = exp_tree.add(('fvTenant|t1', 'fvBD|bd2'), **fvBD_attr)
+        exp_tree.add(('fvTenant|t1', 'fvBD|bd2', 'fvRsCtx|rsctx'),
+                     **fvRsCtx_attr)
         self.assertEqual(exp_tree, htree)
+        self.assertEqual(exp_tree, htree)
+        self.assertEqual({}, htree.find(bd_key).metadata)
+        self.assertEqual({'related': True},
+                         htree.find(rsctx_key).metadata)
+        self.assertEqual({}, htree.find(subnet_key).metadata)
 
     def test_update_1(self):
         htree = tree.StructuredHashTree()
