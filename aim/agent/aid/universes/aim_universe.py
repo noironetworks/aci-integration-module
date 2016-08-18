@@ -83,6 +83,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return self._get_state()
 
     def get_resources(self, resource_keys):
+        if resource_keys:
+            LOG.debug("Requesting resource keys in AIM Universe: %s",
+                      resource_keys)
         result = []
         id_set = set()
         for key in resource_keys:
@@ -118,7 +121,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     LOG.warn("Resource %s is not defined in AIM", dissected)
                     result.append(res)
                     id_set.add(id_tuple)
-
+        if resource_keys:
+            LOG.debug("Result for keys %s in AIM Universe: %s" %
+                      (resource_keys, result))
         return list(result)
 
     def get_resources_for_delete(self, resource_keys):

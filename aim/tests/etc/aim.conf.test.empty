@@ -1,2 +1,5 @@
 [database]
 connection = 'sqlite://'
+
+[aim]
+aim_system_id = openstack_aid

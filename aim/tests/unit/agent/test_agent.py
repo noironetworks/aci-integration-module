@@ -68,21 +68,29 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Each post, generates the same set of events for the WS interface
         data = json.loads(data)
         events = []
-        self._tree_to_event(data, events, 'uni')
+        self._tree_to_event(data, events, 'uni', self._current_manager)
         self._set_events(events, manager=self._current_manager)
 
-    def _tree_to_event(self, root, result, dn):
+    def _tree_to_event(self, root, result, dn, manager):
         if not root:
             return
         children = root.values()[0]['children']
         root.values()[0]['children'] = []
         dn += '/' + root.values()[0]['attributes']['rn']
         root.values()[0]['attributes']['dn'] = dn
-        if root.values()[0]['attributes'].get('status') is None:
+        status = root.values()[0]['attributes'].get('status')
+        if status is None:
             root.values()[0]['attributes']['status'] = 'created'
+        elif status == 'deleted':
+            # API call fails in case the item doesn't exist
+            if not test_aci_tenant.mock_get_data(manager.aci_session,
+                                                 'mo/' + dn):
+                raise apic_client.cexc.ApicResponseNotOk(
+                    request='delete', status='404',
+                    reason='not found', err_text='not', err_code='404')
         result.append(root)
         for child in children:
-            self._tree_to_event(child, result, dn)
+            self._tree_to_event(child, result, dn, manager)
 
     def _create_agent(self, host='h1'):
         self.set_override('host', host)
@@ -258,7 +266,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Now, the two trees are in sync
         agent._daemon_loop()
         self.assertEqual(agent.current_universe.state,
-                         agent.desired_universe.state)
+                         agent.desired_universe.state,
+                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
+                         ({x: str(y) for x, y in
+                           agent.current_universe.state.iteritems()},
+                          {x: str(y) for x, y in
+                           agent.desired_universe.state.iteritems()}))
         self.assertTrue(
             agent.current_universe.serving_tenants['tn1'].
             object_backlog.empty())
@@ -295,7 +308,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Everything is in sync again
         self.assertEqual(agent.current_universe.state,
                          agent.desired_universe.state,
-                         'Not in sync:\n current: %s \n\n desired: %s' %
+                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
                          ({x: str(y) for x, y in
                            agent.current_universe.state.iteritems()},
                           {x: str(y) for x, y in

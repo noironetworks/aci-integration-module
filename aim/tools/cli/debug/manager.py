@@ -20,6 +20,7 @@ from tabulate import tabulate
 
 from aim import aim_manager
 from aim.api import resource
+from aim.api import status
 from aim.common import utils
 from aim import context
 from aim.db import api
@@ -78,7 +79,10 @@ def validate_attributes(klass, attributes, param_name, dn_is_valid=False):
 def create(ctx, type, attribute):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
-    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    try:
+        klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    except ImportError:
+        klass = importutils.import_class(status.__name__ + '.%s' % type)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
     validate_attributes(klass, attribute.keys(), '--attribute/-a')
     res = klass(**attribute)
@@ -92,7 +96,10 @@ def create(ctx, type, attribute):
 def delete(ctx, type, attribute):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
-    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    try:
+        klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    except ImportError:
+        klass = importutils.import_class(status.__name__ + '.%s' % type)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
     validate_attributes(klass, attribute.keys(), '--attribute/-a')
     res = klass(**attribute)
@@ -107,7 +114,10 @@ def delete(ctx, type, attribute):
 def update(ctx, type, attribute, modify):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
-    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    try:
+        klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    except ImportError:
+        klass = importutils.import_class(status.__name__ + '.%s' % type)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
     validate_attributes(klass, attribute.keys(), '--attribute/-a')
     modify = {x.split('=')[0]: x.split('=')[1] for x in modify}
@@ -124,7 +134,10 @@ def update(ctx, type, attribute, modify):
 def find(ctx, type, attribute, column):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
-    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    try:
+        klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    except ImportError:
+        klass = importutils.import_class(status.__name__ + '.%s' % type)
     column = list(column) if column else []
     validate_attributes(klass, column, '--column/-c', dn_is_valid=True)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
@@ -140,7 +153,10 @@ def find(ctx, type, attribute, column):
 def get(ctx, type, attribute):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
-    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    try:
+        klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    except ImportError:
+        klass = importutils.import_class(status.__name__ + '.%s' % type)
     attribute = {x.split('=')[0]: x.split('=')[1] for x in attribute}
     validate_attributes(klass, attribute.keys(), '--attribute/-a')
     res = klass(**attribute)
@@ -152,7 +168,10 @@ def get(ctx, type, attribute):
 @click.argument('type', required=True)
 @click.pass_context
 def describe(ctx, type):
-    klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    try:
+        klass = importutils.import_class(resource.__name__ + '.%s' % type)
+    except ImportError:
+        klass = importutils.import_class(status.__name__ + '.%s' % type)
     rows = [[set_type, ', '.join(getattr(klass, set_type))]
             for set_type in [
                 'identity_attributes', 'other_attributes', 'db_attributes']]

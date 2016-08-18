@@ -1,5 +1,6 @@
 [DEFAULT]
 #debug = True
+apic_system_id = openstack_aid
 
 [database]
 connection = 'sqlite://'
@@ -23,6 +24,7 @@ scope_names = False
 
 [aim]
 poll_config = False
+aim_system_id = openstack_aid
 
 [apic_physdom:phys]
 

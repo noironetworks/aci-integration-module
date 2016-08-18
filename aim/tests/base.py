@@ -111,6 +111,7 @@ class TestAimDBBase(BaseTestCase):
         # log results of queries, change INFO to DEBUG
         #
         # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
+        self.sys_id = self.cfg_manager.get_option('aim_system_id', 'aim')
 
         def clear_tables():
             with self.engine.begin() as conn:

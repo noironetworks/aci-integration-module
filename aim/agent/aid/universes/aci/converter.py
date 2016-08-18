@@ -216,7 +216,8 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
             dn = default_identity_converter(
                 object_dict, otype, helper, extra_attributes=[phys_dn],
                 aci_mo_type='fvRsDomAtt', to_aim=False)[0]
-            result.append({'fvRsDomAtt': {'attributes': {'dn': dn}}})
+            result.append({'fvRsDomAtt': {'attributes': {'dn': dn,
+                                                         'tDn': phys_dn}}})
         # Convert OpenStack VMMs
         for vmm in object_dict['openstack_vmm_domain_names']:
             # Get VMM DN
@@ -228,7 +229,8 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
             dn = default_identity_converter(
                 object_dict, otype, helper, extra_attributes=[vmm_dn],
                 aci_mo_type='fvRsDomAtt', to_aim=False)[0]
-            result.append({'fvRsDomAtt': {'attributes': {'dn': dn}}})
+            result.append({'fvRsDomAtt': {'attributes': {'dn': dn,
+                                                         'tDn': vmm_dn}}})
     return result
 
 
