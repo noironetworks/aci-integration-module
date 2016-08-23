@@ -292,6 +292,22 @@ class TestResourceOpsBase(object):
         status = self.mgr.get_status(self.ctx, res)
         self.assertEqual(0, len(status.faults))
 
+        # Delete resource and verify that status is deleted as well
+        self.mgr.set_fault(self.ctx, res, fault_2)
+        db_res = self.mgr._query_db_obj(self.ctx.db_session, res)
+        try:
+            aim_id = db_res.aim_id
+        except AttributeError:
+            # Resource doesn't support Status
+            pass
+        else:
+            self.mgr.delete(self.ctx, res)
+            status_db = self.mgr._query_db_obj(
+                self.ctx.db_session,
+                aim_status.AciStatus(resource_type=type(res).__name__,
+                                     resource_id=aim_id))
+            self.assertIsNone(status_db)
+
     def _create_prerequisite_objects(self):
         for obj in (self.prereq_objects or []):
             self.mgr.create(self.ctx, obj)

@@ -133,6 +133,12 @@ class AimManager(object):
         with context.db_session.begin(subtransactions=True):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
+                if isinstance(resource, api_res.AciResourceBase):
+                    status = self.get_status(context, resource)
+                    if status:
+                        for fault in status.faults:
+                            self.clear_fault(context, fault)
+                        self.delete(context, status)
                 context.db_session.delete(db_obj)
                 self._add_commit_hook(context.db_session)
 
@@ -318,15 +324,15 @@ class AimManager(object):
             func(session, added, updated, deleted)
 
     def _get_status_params(self, context, resource):
-            res_type = type(resource).__name__
-            db_obj = self._query_db_obj(context.db_session, resource)
-            if db_obj is None:
-                # TODO(ivar): should we raise a proper exception?
-                return None, None
-            try:
-                res_id = db_obj.aim_id
-            except AttributeError:
-                LOG.warn("Resource with type %s doesn't support status" %
-                         res_type)
-                return None, None
-            return res_type, res_id
+        res_type = type(resource).__name__
+        db_obj = self._query_db_obj(context.db_session, resource)
+        if db_obj is None:
+            # TODO(ivar): should we raise a proper exception?
+            return None, None
+        try:
+            res_id = db_obj.aim_id
+        except AttributeError:
+            LOG.warn("Resource with type %s doesn't support status" %
+                     res_type)
+            return None, None
+        return res_type, res_id

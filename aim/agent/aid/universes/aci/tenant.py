@@ -42,24 +42,6 @@ CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
 OPERATIONAL_LIST = [FAULT_KEY]
 
 
-# Dictionary with all the needed RS objects of a given APIC object type.
-# Key is the APIC type, value is a list of DN suffixes that the manager needs
-# to retrieve. For example, a value of ['rsctx'] for a fvBD means that the
-# manager will do a GET on uni/tn-tname/BD-bdname/rsctx in order to complete
-# the event list. A functor can be passed instead of a simple suffix list
-# for more general cases.
-def parent_dn(resource):
-    dn = resource['attributes']['dn']
-    return dn[:dn.rfind('/')]
-
-
-def bd_dn(resource):
-    return 'fvBD', parent_dn(resource)
-
-RS_FILL_DICT = {'fvBD': [('fvRsCtx', 'rsctx')],
-                'fvRsCtx': [bd_dn]}
-
-
 class WebSocketSubscriptionFailed(exceptions.AimException):
     message = ("Web socket session failed to subscribe for tenant %(tn_name)s "
                "with error %(code)s: %(text)s")
@@ -160,8 +142,7 @@ class AciTenantManager(gevent.Greenlet):
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
         self.tree_maker = tree_model.AimHashTreeMaker()
-        # TODO(ivar): retrieve apic_system_id
-        self.tag_name = 'openstack_aid'
+        self.tag_name = self.apic_config.get_option('aim_system_id', 'aim')
         self.tag_set = set()
         # Warm bit to avoid rushed synchronization before receiving the first
         # batch of APIC events
@@ -237,6 +218,8 @@ class AciTenantManager(gevent.Greenlet):
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, e.message))
             LOG.debug(traceback.format_exc())
+            self._unsubscribe_tenant()
+            # TODO(ivar): sleep to avoid reconnecting too frequently
 
     def _event_loop(self):
         start_time = time.time()
@@ -260,12 +243,12 @@ class AciTenantManager(gevent.Greenlet):
                     break
             LOG.debug("received events: %s", events)
             # Make events list flat
-            self._flat_events(events)
+            self.flat_events(events)
             # Manage Tags
             events = self._filter_ownership(events)
             LOG.debug("Filtered events: %s", events)
             # Pull incomplete objects
-            self._fill_events(events)
+            events = self._fill_events(events)
             LOG.debug("Filled events: %s", events)
             self._event_to_tree(events)
         # yield for other threads
@@ -296,8 +279,8 @@ class AciTenantManager(gevent.Greenlet):
                 for aim_object in aim_objects:
                     # get MO from ACI client, identify it via its DN parts and
                     # push the new body
-                    LOG.debug('%s AIM object %s in APIC' %
-                              (method, aim_object))
+                    LOG.debug('%s AIM object %s in APIC' % (method,
+                                                            aim_object))
                     if method == base_universe.DELETE:
                         to_push = [copy.deepcopy(aim_object)]
                     else:
@@ -334,13 +317,13 @@ class AciTenantManager(gevent.Greenlet):
                         # TODO(ivar): Either creation or deletion failed.
                         # Look at the reason and update the AIM status
                         # accordingly.
+                        LOG.debug(traceback.format_exc())
                         try:
                             printable = aim_object.__dict__
                         except AttributeError:
                             printable = aim_object
                         LOG.error("An error as occurred during %s for "
                                   "object %s" % (method, printable))
-                        LOG.debug(traceback.format_exc())
 
     def _unsubscribe_tenant(self):
         self.tenant.instance_unsubscribe(self.ws_context.session)
@@ -403,62 +386,66 @@ class AciTenantManager(gevent.Greenlet):
         :return:
         """
         visited = set()
-        dns = {x.values()[0]['attributes']['dn'] for x in events}
         start = time.time()
+        result = []
+
         for event in events:
             resource = event.values()[0]
             res_type = event.keys()[0]
             status = resource['attributes'].get(STATUS_FIELD)
-            if (status == converter.MODIFIED_STATUS or
-                    res_type in OPERATIONAL_LIST):
+            if status or res_type in OPERATIONAL_LIST:
                 try:
-                    # Remove from extra dns if there
-                    # 'dn' attribute is guaranteed to be there
-                    dn = resource['attributes']['dn']
-                    if dn in visited:
-                        continue
-                    # See if there's any extra object to be retrieved
-                    for filler in RS_FILL_DICT.get(res_type, []):
-                        t, id = ((filler[0], dn + '/' + filler[1])
-                                 if not callable(filler) else filler(resource))
-                        if id not in dns:
-                            # Avoid duplicate lookups
-                            events.append(
-                                {t: {'attributes': {'dn': id,
-                                                    'status': status}}})
-                    visited.add(dn)
-                    kargs = {'rsp_prop_include': 'config-only'}
-                    # Operational state need full configuration
-                    if event.keys()[0] in OPERATIONAL_LIST:
-                        kargs.pop('rsp_prop_include')
-                    # TODO(ivar): the 'mo/' suffix should be added by APICAPI
-                    data = self.aci_session.get_data('mo/' + dn, **kargs)
-                    if not data:
-                        LOG.debug("Resource %s not found", dn)
-                        resource['attributes'][STATUS_FIELD] = (
-                            converter.DELETED_STATUS)
-                        continue
-                    try:
-                        resource['attributes'].update(
-                            data[0].values()[0]['attributes'])
-                    except IndexError as e:
-                        LOG.debug("Index out of range for data: %s", data)
-                        raise
-                    # Status not needed unless deleted
-                    resource['attributes'].pop('status')
+                    # Use the parent type and DN for related objects (like RS)
+                    # Event is an ACI resource
+                    aim_resources = self.to_aim_converter.convert([event])
+                    for aim_res in aim_resources:
+                        dn = aim_res.dn
+                        res_type = aim_res._aci_mo_name
+                        if dn in visited:
+                            continue
+                        query_targets = set([res_type, TAG_KEY])
+                        kargs = {'rsp_prop_include': 'config-only',
+                                 'query_target': 'subtree'}
+                        # See if there's any extra object to be retrieved
+                        for filler in converter.reverse_resource_map.get(
+                                type(aim_res), []):
+                            if 'resource' in filler:
+                                query_targets.add(filler['resource'])
+                        kargs['target_subtree_class'] = ','.join(query_targets)
+                        # Operational state need full configuration
+                        if event.keys()[0] in OPERATIONAL_LIST:
+                            kargs.pop('rsp_prop_include')
+                        # TODO(ivar): 'mo/' suffix should be added by APICAPI
+                        data = self.aci_session.get_data('mo/' + dn, **kargs)
+                        # Filter these new objects by tag
+                        data = self._filter_ownership(data)
+                        if not data:
+                            LOG.warn("Resource %s not found", dn)
+                            # The object doesn't exist anymore, a delete event
+                            # is expected.
+                        for item in data:
+                            if item.values()[0][
+                                    'attributes']['dn'] not in visited:
+                                result.append(item)
+                                visited.add(
+                                    item.values()[0]['attributes']['dn'])
+                        visited.add(dn)
                 except apic_exc.ApicResponseNotOk as e:
-                    # Object might have been deleted
+                    # The object doesn't exist anymore, a delete event
+                    # is expected.
                     if str(e.err_code) == '404':
-                        LOG.debug("Resource %s not found", dn)
-                        resource['attributes'][STATUS_FIELD] = (
-                            converter.DELETED_STATUS)
+                        LOG.warn("Resource %s not found", dn)
                     else:
                         LOG.error(e.message)
                         raise
+            if not status or status == converter.DELETED_STATUS:
+                result.append(event)
         LOG.debug('Filling procedure took %s for tenant %s' %
                   (time.time() - start, self.tenant.name))
+        return result
 
-    def _flat_events(self, events):
+    @staticmethod
+    def flat_events(events):
         # If there are children objects, put them at the top level
         for event in events:
             if event.values()[0].get(CHILDREN_FIELD):
@@ -467,6 +454,7 @@ class AciTenantManager(gevent.Greenlet):
                 valid_children = []
                 for child in children:
                     attrs = child.values()[0]['attributes']
+                    rn = attrs.get('rn')
                     name_or_code = attrs.get('name', attrs.get('code'))
                     # Set DN of this object the the parent DN plus
                     # the proper prefix followed by the name or code (in case
@@ -481,12 +469,13 @@ class AciTenantManager(gevent.Greenlet):
 
                     attrs['dn'] = (
                         event.values()[0]['attributes']['dn'] + '/' +
-                        prefix + (('-' + name_or_code)
-                                  if name_or_code else ''))
+                        (rn or (prefix + (('-' + name_or_code)
+                                          if name_or_code else ''))))
                     valid_children.append(child)
                 events.extend(valid_children)
 
     def _filter_ownership(self, events):
+        LOG.debug('Filter ownership for events: %s' % events)
         result = []
         for event in events:
             if event.keys()[0] == TAG_KEY:

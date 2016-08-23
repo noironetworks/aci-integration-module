@@ -892,15 +892,18 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
-                          'rsdomAtt-[uni/phys-phys]', }}}, {
+                          'rsdomAtt-[uni/phys-phys]',
+                    'tDn': 'uni/phys-phys'}}}, {
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
-                          'rsdomAtt-[uni/vmmp-OpenStack/dom-op]', }}}, {
+                          'rsdomAtt-[uni/vmmp-OpenStack/dom-op]',
+                    'tDn': 'uni/vmmp-OpenStack/dom-op'}}}, {
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
-                          'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]', }}}]]
+                          'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]',
+                    'tDn': 'uni/vmmp-OpenStack/dom-op2'}}}]]
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
     missing_ref_output = [{
         "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test", }}}]

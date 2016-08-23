@@ -62,6 +62,9 @@ agent_opts = [
     cfg.BoolOpt('poll_config', default=False,
                 help=("Check whether to run the configuration poller or "
                       "not.")),
+    cfg.StrOpt('aim_system_id', required=True,
+               help="Identifier of the AIM system used to mark object "
+                    "ownership in ACI"),
 ]
 
 cfg.CONF.register_opts(agent_opts, 'aim')
