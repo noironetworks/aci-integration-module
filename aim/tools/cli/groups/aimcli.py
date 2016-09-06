@@ -14,6 +14,7 @@
 #    under the License.
 
 from aim import config
+from aim.db import api
 
 import click
 from click import exceptions as exc
@@ -35,20 +36,14 @@ db_opts = [
 @click.group()
 @click.option('--config-file', '-c', multiple=True,
               help='AIM static configuration file')
-@click.option('--db/--no-db', default=True)
 @click.option('--debug/--no-debug', default=True)
 @click.pass_context
-def aim(ctx, config_file, db, debug):
+def aim(ctx, config_file, debug):
     """Group for AIM cli."""
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
     else:
         logging.getLogger().setLevel(logging.INFO)
-    if db:
-        try:
-            config.CONF.register_opts(db_opts, 'database')
-        except Exception:
-            pass
     if ctx.obj is None:
         ctx.obj = {}
     args = []
@@ -62,3 +57,4 @@ def aim(ctx, config_file, db, debug):
                 "search paths (~/.aim/, ~/, /etc/aim/, /etc/) and "
                 "the '--config-file' option %s!" % config_file)
         ctx.obj['conf'] = config.CONF
+    api._create_facade_lazily()
