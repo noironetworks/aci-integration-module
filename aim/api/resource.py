@@ -449,7 +449,7 @@ class L3Outside(AciResourceBase):
     """
 
     identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name', 'pre_existing', 'vrf_name',
+    other_attributes = ['display_name', 'vrf_name',
                         'l3_domain_dn']
 
     _aci_mo_name = 'l3extOut'
@@ -457,8 +457,7 @@ class L3Outside(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(L3Outside, self).__init__(
-            {'pre_existing': False, 'vrf_name': '', 'l3_domain_dn': ''},
-            **kwargs)
+            {'vrf_name': '', 'l3_domain_dn': ''}, **kwargs)
 
 
 class ExternalNetwork(AciResourceBase):
@@ -472,7 +471,7 @@ class ExternalNetwork(AciResourceBase):
     """
 
     identity_attributes = ['tenant_name', 'l3out_name', 'name']
-    other_attributes = ['display_name', 'pre_existing', 'nat_epg_dn',
+    other_attributes = ['display_name', 'nat_epg_dn',
                         'provided_contract_names', 'consumed_contract_names']
 
     _aci_mo_name = 'l3extInstP'
@@ -480,7 +479,7 @@ class ExternalNetwork(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(ExternalNetwork, self).__init__(
-            {'pre_existing': False, 'nat_epg_dn': '',
+            {'nat_epg_dn': '',
              'provided_contract_names': [], 'consumed_contract_names': []},
             **kwargs)
 
