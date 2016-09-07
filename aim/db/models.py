@@ -435,7 +435,6 @@ class L3Outside(model_base.Base, model_base.HasAimId,
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
                       to_tuple(model_base.Base.__table_args__))
 
-    pre_existing = sa.Column(sa.Boolean)
     vrf_name = model_base.name_column()
     l3_domain_dn = sa.Column(sa.String(1024))
 
@@ -468,7 +467,6 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
 
     l3out_name = model_base.name_column(nullable=False)
 
-    pre_existing = sa.Column(sa.Boolean)
     nat_epg_dn = sa.Column(sa.String(1024))
 
     _contract_relation_class = ExternalNetworkContract

@@ -680,6 +680,7 @@ class TestAimToAciConverterBase(object):
                 else res.__dict__)
 
     def _test_convert(self, example1, expected1, example2, expected2):
+
         result = self.converter.convert([example1])
 
         self.assertEqual(len(expected1), len(result))

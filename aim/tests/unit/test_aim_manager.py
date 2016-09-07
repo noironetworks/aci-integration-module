@@ -628,10 +628,9 @@ class TestL3Outside(TestAciResourceOpsBase, base.TestAimDBBase):
     test_required_attributes = {'tenant_name': 'tenant1',
                                 'name': 'l3out1',
                                 'vrf_name': 'ctx1',
-                                'pre_existing': True,
                                 'l3_domain_dn': 'uni/foo'}
     test_search_attributes = {'vrf_name': 'ctx1'}
-    test_update_attributes = {'pre_existing': True}
+    test_update_attributes = {'l3_domain_dn': 'uni/bar'}
     test_dn = 'uni/tn-tenant1/out-l3out1'
 
 
@@ -644,7 +643,6 @@ class TestExternalNetwork(TestAciResourceOpsBase, base.TestAimDBBase):
     test_required_attributes = {'tenant_name': 'tenant1',
                                 'l3out_name': 'l3out1',
                                 'name': 'net1',
-                                'pre_existing': True,
                                 'nat_epg_dn': 'uni/tn-1/ap-a1/epg-g1',
                                 'provided_contract_names': ['k', 'p1', 'p2'],
                                 'consumed_contract_names': ['c1', 'c2', 'k']}

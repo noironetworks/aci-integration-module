@@ -1,3 +1,4 @@
+
 # Copyright (c) 2016 Cisco Systems
 # All Rights Reserved.
 #
@@ -611,8 +612,7 @@ class AimToAciModelConverter(BaseConverter):
             if klass not in reverse_resource_map:
                 # Ignore unmanaged object
                 continue
-            is_pre = (getattr(object, 'pre_existing', False)
-                      if 'pre_existing' in klass.other_attributes else False)
+            is_pre = getattr(object, 'pre_existing', False)
             for helper in reverse_resource_map[klass]:
                 if is_pre and not helper.get('convert_pre_existing', False):
                     continue
