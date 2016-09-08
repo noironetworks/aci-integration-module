@@ -112,3 +112,7 @@ class AciFault(resource.ResourceBase, OperationalResource):
 
     def is_error(self):
         return self.severity in [self.SEV_MAJOR, self.SEV_CRITICAL]
+
+    @property
+    def dn(self):
+        return self.external_identifier

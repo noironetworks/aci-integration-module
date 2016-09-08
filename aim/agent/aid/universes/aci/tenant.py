@@ -393,6 +393,7 @@ class AciTenantManager(gevent.Greenlet):
             resource = event.values()[0]
             res_type = event.keys()[0]
             status = resource['attributes'].get(STATUS_FIELD)
+            raw_dn = resource['attributes'].get('dn')
             if status or res_type in OPERATIONAL_LIST:
                 try:
                     # Use the parent type and DN for related objects (like RS)
@@ -439,7 +440,8 @@ class AciTenantManager(gevent.Greenlet):
                         LOG.error(e.message)
                         raise
             if not status or status == converter.DELETED_STATUS:
-                result.append(event)
+                if raw_dn not in visited:
+                    result.append(event)
         LOG.debug('Filling procedure took %s for tenant %s' %
                   (time.time() - start, self.tenant.name))
         return result
