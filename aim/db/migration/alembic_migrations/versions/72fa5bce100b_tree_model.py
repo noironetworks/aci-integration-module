@@ -35,10 +35,20 @@ def upgrade():
     op.create_table(
         'aim_tenant_trees',
         sa.Column('tenant_rn', sa.String(64), nullable=False),
+        sa.PrimaryKeyConstraint('tenant_rn'))
+
+    op.create_table(
+        'aim_config_tenant_trees',
+        sa.Column('tenant_rn', sa.String(64), nullable=False),
         sa.Column('root_full_hash', sa.String(64), nullable=True),
-        sa.Column('operational_root_full_hash', sa.String(64), nullable=True),
         sa.Column('tree', sa.LargeBinary, nullable=True),
-        sa.Column('operational_tree', sa.LargeBinary, nullable=True),
+        sa.PrimaryKeyConstraint('tenant_rn'))
+
+    op.create_table(
+        'aim_operational_tenant_trees',
+        sa.Column('tenant_rn', sa.String(64), nullable=False),
+        sa.Column('root_full_hash', sa.String(64), nullable=True),
+        sa.Column('tree', sa.LargeBinary, nullable=True),
         sa.PrimaryKeyConstraint('tenant_rn'))
 
 

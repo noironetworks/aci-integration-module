@@ -39,7 +39,7 @@ class TestAimDbUniverseBase(object):
         self.universe.serve(tenants)
         self.assertEqual(set(tenants), set(self.universe._served_tenants))
 
-    def test_state(self, operational=False):
+    def test_state(self, tree_type=tree_model.CONFIG_TREE):
         # Create some trees in the AIM DB
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
@@ -51,7 +51,7 @@ class TestAimDbUniverseBase(object):
             [{'key': ('tnA2', 'keyB')}, {'key': ('tnA2', 'keyC')},
              {'key': ('tnA2', 'keyC', 'keyD')}])
         self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
-                                  operational=operational)
+                                  tree=tree_type)
         # Serve tnA, tnA2 and tnExtra
         self.universe.serve(['tnA', 'tnA2', 'tnExtra'])
         # Now observe
@@ -63,13 +63,13 @@ class TestAimDbUniverseBase(object):
 
         # Change tree in the DB
         data1.add(('tnA', 'keyB'), attribute='something')
-        self.tree_mgr.update_bulk(self.ctx, [data1], operational=operational)
+        self.tree_mgr.update_bulk(self.ctx, [data1], tree=tree_type)
         # Observe and verify that trees are back in sync
         self.assertNotEqual(data1, state['tnA'])
         state = self.universe.state
         self.assertEqual(data1, state['tnA'])
 
-    def test_get_optimized_state(self, operational=False):
+    def test_get_optimized_state(self, tree_type=tree_model.CONFIG_TREE):
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
              {'key': ('tnA', 'keyC', 'keyD')}])
@@ -80,7 +80,7 @@ class TestAimDbUniverseBase(object):
             [{'key': ('tnA2', 'keyB')}, {'key': ('tnA2', 'keyC')},
              {'key': ('tnA2', 'keyC', 'keyD')}])
         self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
-                                  operational=operational)
+                                  tree=tree_type)
 
         self.universe.serve(['tnA', 'tnA1', 'tnA2', 'tnA3'])
         # Other state is in sync
@@ -95,17 +95,17 @@ class TestAimDbUniverseBase(object):
         data4 = tree.StructuredHashTree().include(
             [{'key': ('tnA3', 'keyB')}, {'key': ('tnA3', 'keyC')},
              {'key': ('tnA3', 'keyC', 'keyD')}])
-        self.tree_mgr.update_bulk(self.ctx, [data4], operational=operational)
+        self.tree_mgr.update_bulk(self.ctx, [data4], tree=tree_type)
         self.assertEqual({'tnA3': data4},
                          self.universe.get_optimized_state(other_state))
         # Modify data1
         data1.add(('tnA', 'keyZ'), attribute='something')
-        self.tree_mgr.update_bulk(self.ctx, [data1], operational=operational)
+        self.tree_mgr.update_bulk(self.ctx, [data1], tree=tree_type)
         # Now Data1 is included too
         self.assertEqual({'tnA3': data4, 'tnA': data1},
                          self.universe.get_optimized_state(other_state))
 
-    def test_get_aim_resources(self, operational=False):
+    def test_get_aim_resources(self, tree_type=tree_model.CONFIG_TREE):
         tree_mgr = tree_model.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
         # Create Resources on a couple of tenants
@@ -129,7 +129,7 @@ class TestAimDbUniverseBase(object):
         aim_mgr.create(self.ctx, bd2)
 
         # Two trees exist
-        trees = tree_mgr.find(self.ctx, operational=operational)
+        trees = tree_mgr.find(self.ctx, tree=tree_type)
         self.assertEqual(2, len(trees))
 
         # Calculate the different with empty trees to retrieve missing keys
@@ -141,14 +141,14 @@ class TestAimDbUniverseBase(object):
                                              diff_tn_2.get('add', []) +
                                              diff_tn_2.get('remove', []))
         self.assertEqual(2, len(result))
-        if not operational:
+        if tree_type == tree_model.CONFIG_TREE:
             self.assertTrue(bd1 in result)
             self.assertTrue(bd2 in result)
-        else:
+        elif tree_type == tree_model.OPERATIONAL_TREE:
             self.assertTrue(bd1_fault in result)
             self.assertTrue(bd1_fault2 in result)
 
-    def test_cleanup_state(self, operational=False):
+    def test_cleanup_state(self, tree_type=tree_model.CONFIG_TREE):
         tree_mgr = tree_model.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
         bd1 = resource.BridgeDomain(
@@ -162,7 +162,7 @@ class TestAimDbUniverseBase(object):
         aim_mgr.set_fault(self.ctx, bd1, bd1_fault)
         self.universe.cleanup_state('t1')
 
-        trees = tree_mgr.find(self.ctx, operational=operational)
+        trees = tree_mgr.find(self.ctx, tree=tree_type)
         self.assertEqual(0, len(trees))
 
     def test_push_resources(self):
@@ -246,16 +246,17 @@ class TestAimDbOperationalUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
             klass=aim_universe.AimDbOperationalUniverse)
 
     def test_state(self):
-        super(TestAimDbOperationalUniverse, self).test_state(operational=True)
+        super(TestAimDbOperationalUniverse, self).test_state(
+            tree_type=tree_model.OPERATIONAL_TREE)
 
     def test_get_optimized_state(self):
         super(TestAimDbOperationalUniverse, self).test_get_optimized_state(
-            operational=True)
+            tree_type=tree_model.OPERATIONAL_TREE)
 
     def test_get_aim_resources(self):
         super(TestAimDbOperationalUniverse, self).test_get_aim_resources(
-            operational=True)
+            tree_type=tree_model.OPERATIONAL_TREE)
 
     def test_cleanup_state(self):
         super(TestAimDbOperationalUniverse, self).test_cleanup_state(
-            operational=True)
+            tree_type=tree_model.OPERATIONAL_TREE)

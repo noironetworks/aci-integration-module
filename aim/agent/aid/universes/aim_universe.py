@@ -52,7 +52,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def observe(self):
         pass
 
-    def get_optimized_state(self, other_state, operational=False):
+    def get_optimized_state(self, other_state, tree=tree_model.CONFIG_TREE):
         request = {}
         for tenant in self._served_tenants:
             request[tenant] = None
@@ -62,16 +62,15 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 except AttributeError:
                     # Empty tree
                     request[tenant] = None
-        return self.tree_manager.find_changed(
-            self.context, request, operational=operational)
+        return self.tree_manager.find_changed(self.context, request, tree=tree)
 
     def cleanup_state(self, key):
         self.tree_manager.delete_by_tenant_rn(self.context, key)
 
-    def _get_state(self, operational=False):
+    def _get_state(self, tree=tree_model.CONFIG_TREE):
         return self.tree_manager.find_changed(
             self.context, dict([(x, None) for x in self._served_tenants]),
-            operational=operational)
+            tree=tree)
 
     @property
     def state(self):
@@ -182,8 +181,8 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
     @property
     def state(self):
-        return self._get_state(operational=True)
+        return self._get_state(tree=tree_model.OPERATIONAL_TREE)
 
     def get_optimized_state(self, other_state):
         return super(AimDbOperationalUniverse, self).get_optimized_state(
-            other_state, operational=True)
+            other_state, tree=tree_model.OPERATIONAL_TREE)
