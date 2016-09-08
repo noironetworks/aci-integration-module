@@ -49,20 +49,34 @@ class TenantTree(model_base.Base):
     __tablename__ = 'aim_tenant_trees'
 
     tenant_rn = sa.Column(sa.String(64), primary_key=True)
-    root_full_hash = sa.Column(sa.String(256), nullable=True)
-    operational_root_full_hash = sa.Column(sa.String(256), nullable=True)
-    tree = sa.Column(sa.LargeBinary, nullable=True)
-    operational_tree = sa.Column(sa.LargeBinary, nullable=True)
     agents = orm.relationship(AgentToHashTreeAssociation,
                               backref='hash_trees',
                               cascade='all, delete-orphan',
                               lazy="joined")
 
 
-class TenantTreeManager(object):
+class TypeTreeBase(object):
+    # TODO(ivar): Make tenant_rn a FK with cascade delete.
+    #
+    tenant_rn = sa.Column(sa.String(64), primary_key=True)
+    root_full_hash = sa.Column(sa.String(256), nullable=True)
+    tree = sa.Column(sa.LargeBinary, nullable=True)
 
-    trees = {False: 'tree', True: 'operational_tree'}
-    hashes = {False: 'root_full_hash', True: 'operational_root_full_hash'}
+
+class ConfigTenantTree(model_base.Base, TypeTreeBase):
+    __tablename__ = 'aim_config_tenant_trees'
+
+
+class OperationalTenantTree(model_base.Base, TypeTreeBase):
+    __tablename__ = 'aim_operational_tenant_trees'
+
+
+CONFIG_TREE = ConfigTenantTree
+OPERATIONAL_TREE = OperationalTenantTree
+SUPPORTED_TREES = [CONFIG_TREE, OPERATIONAL_TREE]
+
+
+class TenantTreeManager(object):
 
     def __init__(self, tree_klass, tenant_rn_funct=None,
                  tenant_key_funct=None):
@@ -73,40 +87,46 @@ class TenantTreeManager(object):
                                  self._default_tenant_key_funct)
 
     @utils.log
-    def update_bulk(self, context, hash_trees, operational=False):
+    def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
         trees = {self.tenant_rn_funct(x): x for x in hash_trees}
         with context.db_session.begin(subtransactions=True):
-            db_objs = self._find_query(context,
+            db_objs = self._find_query(context, tree,
                                        in_={'tenant_rn': trees.keys()}).all()
             for obj in db_objs:
                 hash_tree = trees.pop(obj.tenant_rn)
-                setattr(obj, self.hashes[operational],
-                        hash_tree.root_full_hash)
-                setattr(obj, self.trees[operational], str(hash_tree))
+                obj.root_full_hash = hash_tree.root_full_hash
+                obj.tree = str(hash_tree)
                 context.db_session.add(obj)
 
             for hash_tree in trees.values():
                 # Tree creation
                 empty_tree = structured_tree.StructuredHashTree()
-                key_args = {
-                    self.trees[operational]: str(hash_tree),
-                    self.hashes[operational]: (hash_tree.root_full_hash or
-                                               'none'),
-                    self.trees[not operational]: str(empty_tree),
-                    self.hashes[not operational]: (empty_tree.root_full_hash or
-                                                   'none'),
-                    'tenant_rn': self.tenant_rn_funct(hash_tree)}
-                obj = TenantTree(**key_args)
-                context.db_session.add(obj)
+                # Create base tree
+                tenant_rn = self.tenant_rn_funct(hash_tree)
+                self._create_if_not_exist(context, TenantTree, tenant_rn)
+                for tree_klass in SUPPORTED_TREES:
+                    if tree_klass == tree:
+                        # Then put the updated tree in it
+                        self._create_if_not_exist(
+                            context, tree_klass, tenant_rn,
+                            tree=str(hash_tree),
+                            root_full_hash=hash_tree.root_full_hash or 'none')
+                    else:
+                        # Attempt to create an empty tree:
+                        self._create_if_not_exist(
+                            context, tree_klass, tenant_rn,
+                            tree=str(empty_tree),
+                            root_full_hash=empty_tree.root_full_hash or 'none')
 
     @utils.log
     def delete_bulk(self, context, hash_trees):
         with context.db_session.begin(subtransactions=True):
-            db_objs = self._find_query(
-                context, in_={'tenant_rn': [self.tenant_rn_funct(x)
-                                            for x in hash_trees]}).all()
-            for db_obj in db_objs:
-                context.db_session.delete(db_obj)
+            tenant_rns = [self.tenant_rn_funct(x) for x in hash_trees]
+            for type in SUPPORTED_TREES + [TenantTree]:
+                db_objs = self._find_query(
+                    context, type, in_={'tenant_rn': tenant_rns}).all()
+                for db_obj in db_objs:
+                    context.db_session.delete(db_obj)
 
     @utils.log
     def update(self, context, hash_tree):
@@ -119,54 +139,65 @@ class TenantTreeManager(object):
     @utils.log
     def delete_by_tenant_rn(self, context, tenant_rn):
         with context.db_session.begin(subtransactions=True):
-            db_objs = self._find_query(
-                context, in_={'tenant_rn': [tenant_rn]}).all()
-            for db_obj in db_objs:
-                context.db_session.delete(db_obj)
+            self._delete_if_exist(context, TenantTree, tenant_rn)
+            for type in SUPPORTED_TREES:
+                self._delete_if_exist(context, type, tenant_rn)
 
     @utils.log
-    def find(self, context, operational=False, **kwargs):
-        result = self._find_query(context, in_=kwargs).all()
+    def find(self, context, tree=CONFIG_TREE, **kwargs):
+        result = self._find_query(context, tree, in_=kwargs).all()
         return [self.tree_klass.from_string(
-            str(getattr(x, self.trees[operational])),
-            self.tenant_key_funct(x.tenant_rn)) for x in result]
+            str(x.tree), self.tenant_key_funct(x.tenant_rn)) for x in result]
 
     @utils.log
-    def get(self, context, tenant_rn, operational=False):
+    def get(self, context, tenant_rn, tree=CONFIG_TREE):
         try:
             return self.tree_klass.from_string(str(
-                getattr(self._find_query(context, tenant_rn=tenant_rn).one(),
-                        self.trees[operational])),
+                self._find_query(context, tree,
+                                 tenant_rn=tenant_rn).one().tree),
                 self.tenant_key_funct(tenant_rn))
         except sql_exc.NoResultFound:
             raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
 
     @utils.log
-    def find_changed(self, context, tenant_map, operational=False):
+    def find_changed(self, context, tenant_map, tree=CONFIG_TREE):
         if not tenant_map:
             return {}
-        full_hash = {False: 'root_full_hash',
-                     True: 'operational_root_full_hash'}
         return dict((x.tenant_rn,
                      self.tree_klass.from_string(
-                         str(getattr(x, self.trees[operational])),
-                         self.tenant_key_funct(x.tenant_rn)))
+                         str(x.tree), self.tenant_key_funct(x.tenant_rn)))
                     for x in self._find_query(
-                        context, in_={'tenant_rn': tenant_map.keys()},
-                        notin_={full_hash[operational]:
-                                tenant_map.values()}).all())
+                        context, tree, in_={'tenant_rn': tenant_map.keys()},
+                        notin_={'root_full_hash': tenant_map.values()}).all())
 
     @utils.log
     def get_tenants(self, context):
         return [x[0] for x in
                 context.db_session.query(TenantTree.tenant_rn).all()]
 
-    def _find_query(self, context, in_=None, notin_=None, **kwargs):
-        query = context.db_session.query(TenantTree)
+    def _delete_if_exist(self, context, tree_type, tenant_rn):
+        with context.db_session.begin(subtransactions=True):
+            obj = self._find_query(context, tree_type,
+                                   tenant_rn=tenant_rn).first()
+            if obj:
+                context.db_session.delete(obj)
+            return obj
+
+    def _create_if_not_exist(self, context, tree_type, tenant_rn, **kwargs):
+        with context.db_session.begin(subtransactions=True):
+            obj = self._find_query(context, tree_type,
+                                   tenant_rn=tenant_rn).first()
+            if not obj:
+                obj = tree_type(tenant_rn=tenant_rn, **kwargs)
+                context.db_session.add(obj)
+            return obj
+
+    def _find_query(self, context, tree_type, in_=None, notin_=None, **kwargs):
+        query = context.db_session.query(tree_type)
         for k, v in (in_ or {}).iteritems():
-            query = query.filter(getattr(TenantTree, k).in_(v))
+            query = query.filter(getattr(tree_type, k).in_(v))
         for k, v in (notin_ or {}).iteritems() or {}:
-            query = query.filter(getattr(TenantTree, k).notin_(
+            query = query.filter(getattr(tree_type, k).notin_(
                 [(x or '') for x in v]))
         if kwargs:
             query = query.filter_by(**kwargs)

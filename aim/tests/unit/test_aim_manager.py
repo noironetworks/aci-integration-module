@@ -26,6 +26,7 @@ import time
 from aim import aim_manager
 from aim.api import resource
 from aim.api import status as aim_status
+from aim.common.hashtree import structured_tree
 from aim import config  # noqa
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
@@ -393,12 +394,16 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        self.ctx.db_session.add(
-            tree_model.TenantTree(tenant_rn='t1', root_full_hash='',
-                                  tree='{}'))
-        self.ctx.db_session.add(
-            tree_model.TenantTree(tenant_rn='t2', root_full_hash='',
-                                  tree='{}'))
+        self.tree_mgr = tree_model.TenantHashTreeManager()
+        self.tree_mgr.update_bulk(
+            self.ctx, [structured_tree.StructuredHashTree(root_key=('t1', )),
+                       structured_tree.StructuredHashTree(root_key=('t2', ))])
+
+        self.addCleanup(self._clean_trees)
+
+    def _clean_trees(self):
+        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't1')
+        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't2')
 
     def test_timestamp(self):
         agent = resource.Agent(id='myuuid', agent_type='aid', host='host',

@@ -57,8 +57,8 @@ class HashTreeDbListener(object):
         for tenant, upd in updates_by_tenant.iteritems():
             try:
                 ttree = self.tt_mgr.get(ctx, tenant)
-                ttree_operational = self.tt_mgr.get(ctx, tenant,
-                                                    operational=True)
+                ttree_operational = self.tt_mgr.get(
+                    ctx, tenant, tree=tree_model.OPERATIONAL_TREE)
             except hexc.HashTreeNotFound:
                 ttree = htree.StructuredHashTree()
                 ttree_operational = htree.StructuredHashTree()
@@ -76,4 +76,5 @@ class HashTreeDbListener(object):
         if upd_trees:
             self.tt_mgr.update_bulk(ctx, upd_trees)
         if udp_op_trees:
-            self.tt_mgr.update_bulk(ctx, udp_op_trees, operational=True)
+            self.tt_mgr.update_bulk(ctx, udp_op_trees,
+                                    tree=tree_model.OPERATIONAL_TREE)

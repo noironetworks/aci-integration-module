@@ -227,7 +227,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                         vrf_name='vrf2')
         self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
-
         self.aim_manager.set_fault(
             self.ctx, bd1_tn1, aim_status.AciFault(
                 fault_code='516',
