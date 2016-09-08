@@ -695,3 +695,26 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         result = self.manager._filter_ownership(events)
         self.assertEqual(set(), self.manager.tag_set)
         self.assertEqual([], result)
+
+    def test_fill_events_fault(self):
+        events = [
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                               'tnFvCtxName': 'asasa', 'status': 'created'}}},
+            {'faultInst': {'attributes': {
+                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx/fault-F0952',
+                'code': 'F0952'}}}
+        ]
+        complete = [
+            {'fvBD': {'attributes': {'dn': u'uni/tn-ivar-wstest/BD-test'}}},
+            {'faultInst': {'attributes': {
+             'dn': 'uni/tn-ivar-wstest/BD-test/rsctx/fault-F0952',
+             'ack': 'no', 'delegated': 'no',
+             'code': 'F0952', 'type': 'config'}}},
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                               'tnFvCtxName': 'asasa'}}},
+        ]
+        self._add_server_data(complete)
+        events = self.manager._fill_events(events)
+        self.assertEqual(sorted(complete), sorted(events))
