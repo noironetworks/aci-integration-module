@@ -32,7 +32,7 @@ def uniq_column(table, *args, **kwargs):
 
 
 class Tenant(model_base.Base, model_base.HasDisplayName,
-             model_base.AttributeMixin):
+             model_base.AttributeMixin, model_base.IsMonitored):
     """DB model for Tenant."""
 
     __tablename__ = 'aim_tenants'
@@ -54,7 +54,7 @@ class BridgeDomainL3Out(model_base.Base):
 class BridgeDomain(model_base.Base, model_base.HasAimId,
                    model_base.HasName, model_base.HasDisplayName,
                    model_base.HasTenantName,
-                   model_base.AttributeMixin):
+                   model_base.AttributeMixin, model_base.IsMonitored):
     """DB model for BridgeDomain."""
 
     __tablename__ = 'aim_bridge_domains'
@@ -92,7 +92,7 @@ class BridgeDomain(model_base.Base, model_base.HasAimId,
 class Subnet(model_base.Base, model_base.HasAimId,
              model_base.HasDisplayName,
              model_base.HasTenantName,
-             model_base.AttributeMixin):
+             model_base.AttributeMixin, model_base.IsMonitored):
     """DB model for Subnet."""
 
     __tablename__ = 'aim_subnets'
@@ -113,7 +113,7 @@ class Subnet(model_base.Base, model_base.HasAimId,
 class VRF(model_base.Base, model_base.HasAimId,
           model_base.HasName, model_base.HasDisplayName,
           model_base.HasTenantName,
-          model_base.AttributeMixin):
+          model_base.AttributeMixin, model_base.IsMonitored):
     """DB model for BridgeDomain."""
 
     __tablename__ = 'aim_vrfs'
@@ -126,7 +126,8 @@ class VRF(model_base.Base, model_base.HasAimId,
 class ApplicationProfile(model_base.Base, model_base.HasAimId,
                          model_base.HasName, model_base.HasDisplayName,
                          model_base.HasTenantName,
-                         model_base.AttributeMixin):
+                         model_base.AttributeMixin,
+                         model_base.IsMonitored):
     """DB model for ApplicationProfile."""
 
     __tablename__ = 'aim_app_profiles'
@@ -226,7 +227,7 @@ class ContractRelationMixin(model_base.AttributeMixin):
 class EndpointGroup(model_base.Base, model_base.HasAimId,
                     model_base.HasName, model_base.HasDisplayName,
                     model_base.HasTenantName,
-                    ContractRelationMixin):
+                    ContractRelationMixin, model_base.IsMonitored):
     """DB model for EndpointGroup."""
 
     __tablename__ = 'aim_endpoint_groups'
@@ -290,7 +291,8 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
 
 class Filter(model_base.Base, model_base.HasAimId,
              model_base.HasName, model_base.HasDisplayName,
-             model_base.HasTenantName, model_base.AttributeMixin):
+             model_base.HasTenantName, model_base.AttributeMixin,
+             model_base.IsMonitored):
     """DB model for Filter."""
 
     __tablename__ = 'aim_filters'
@@ -300,7 +302,8 @@ class Filter(model_base.Base, model_base.HasAimId,
 
 class FilterEntry(model_base.Base, model_base.HasAimId,
                   model_base.HasName, model_base.HasDisplayName,
-                  model_base.HasTenantName, model_base.AttributeMixin):
+                  model_base.HasTenantName, model_base.AttributeMixin,
+                  model_base.IsMonitored):
     """DB model for Filter Entry."""
 
     __tablename__ = 'aim_filter_entries'
@@ -330,7 +333,8 @@ class FilterEntry(model_base.Base, model_base.HasAimId,
 
 class Contract(model_base.Base, model_base.HasAimId,
                model_base.HasName, model_base.HasDisplayName,
-               model_base.HasTenantName, model_base.AttributeMixin):
+               model_base.HasTenantName, model_base.AttributeMixin,
+               model_base.IsMonitored):
     """DB model for Contract."""
 
     __tablename__ = 'aim_contracts'
@@ -353,7 +357,8 @@ class ContractSubjectFilter(model_base.Base):
 
 class ContractSubject(model_base.Base, model_base.HasAimId,
                       model_base.HasName, model_base.HasDisplayName,
-                      model_base.HasTenantName, model_base.AttributeMixin):
+                      model_base.HasTenantName, model_base.AttributeMixin,
+                      model_base.IsMonitored):
     """DB model for Contract Subject."""
 
     __tablename__ = 'aim_contract_subjects'
@@ -428,7 +433,8 @@ class Endpoint(model_base.Base, model_base.HasDisplayName,
 
 class L3Outside(model_base.Base, model_base.HasAimId,
                 model_base.HasName, model_base.HasDisplayName,
-                model_base.HasTenantName, model_base.AttributeMixin):
+                model_base.HasTenantName, model_base.AttributeMixin,
+                model_base.IsMonitored):
     """DB model for L3Outside."""
 
     __tablename__ = 'aim_l3outsides'
@@ -453,7 +459,7 @@ class ExternalNetworkContract(model_base.Base):
 class ExternalNetwork(model_base.Base, model_base.HasAimId,
                       model_base.HasName, model_base.HasDisplayName,
                       model_base.HasTenantName,
-                      ContractRelationMixin):
+                      ContractRelationMixin, model_base.IsMonitored):
     """DB model for ExternalNetwork."""
 
     __tablename__ = 'aim_external_networks'
@@ -478,7 +484,8 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
 
 class ExternalSubnet(model_base.Base, model_base.HasAimId,
                      model_base.HasDisplayName,
-                     model_base.HasTenantName, model_base.AttributeMixin):
+                     model_base.HasTenantName, model_base.AttributeMixin,
+                     model_base.IsMonitored):
     """DB model for ExternalSubnet."""
 
     __tablename__ = 'aim_external_subnets'

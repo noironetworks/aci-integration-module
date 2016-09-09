@@ -32,11 +32,12 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.db_l = ht_db_l.HashTreeDbListener(mock.Mock())
 
     def _test_resource_ops(self, resource, tenant, tree_objects,
-                           tree_objects_update, **updates):
+                           tree_objects_update,
+                           tree_type=tree_model.CONFIG_TREE, **updates):
         # add
         self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
 
-        db_tree = self.tt_mgr.get(self.ctx, tenant)
+        db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects)
         self.assertEqual(exp_tree, db_tree)
 
@@ -44,13 +45,13 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         resource.__dict__.update(**updates)
         self.db_l.on_commit(self.ctx.db_session, [], [resource], [])
 
-        db_tree = self.tt_mgr.get(self.ctx, tenant)
+        db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects_update)
         self.assertEqual(exp_tree, db_tree)
 
         # delete
         self.db_l.on_commit(self.ctx.db_session, [], [], [resource])
-        db_tree = self.tt_mgr.get(self.ctx, tenant)
+        db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree()
         self.assertEqual(exp_tree, db_tree)
 
@@ -68,4 +69,42 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         tree_objects_update = copy.deepcopy(tree_objects)
         tree_objects_update[1]['tnFvCtxName'] = 'shared'
         self._test_resource_ops(
-            bd, 't1', tree_objects, tree_objects_update, vrf_name='shared')
+            bd, 't1', tree_objects, tree_objects_update,
+            tree_type=tree_model.CONFIG_TREE, vrf_name='shared')
+
+    def test_monitored_bd_ops(self):
+        bd = self._get_example_aim_bd(tenant_name='t1', name='bd1',
+                                      monitored=True)
+        tree_objects = [
+            {'key': ('fvTenant|t1', 'fvBD|bd1'),
+             'arpFlood': 'no',
+             'epMoveDetectMode': '',
+             'limitIpLearnToSubnets': 'no',
+             'unicastRoute': 'yes',
+             'unkMacUcastAct': 'proxy'},
+            {'key': ('fvTenant|t1', 'fvBD|bd1', 'fvRsCtx|rsctx'),
+             'tnFvCtxName': 'default'}]
+        tree_objects_update = copy.deepcopy(tree_objects)
+        tree_objects_update[1]['tnFvCtxName'] = 'shared'
+        self._test_resource_ops(
+            bd, 't1', tree_objects, tree_objects_update,
+            tree_type=tree_model.MONITORED_TREE, vrf_name='shared')
+
+    def test_operational_fault_ops(self):
+        fault = self._get_example_aim_fault(
+            fault_code='101',
+            external_identifier='uni/tn-t1/BD-bd1/fault-101',
+            description='cannot resolve',
+            cause='resolution-failed',
+            severity='warning')
+        tree_objects = [
+            {'key': ('fvTenant|t1', 'fvBD|bd1', 'faultInst|101'),
+             'descr': 'cannot resolve',
+             'code': '101',
+             'severity': 'warning',
+             'cause': 'resolution-failed'}]
+        tree_objects_update = copy.deepcopy(tree_objects)
+        tree_objects_update[0]['severity'] = 'critical'
+        self._test_resource_ops(
+            fault, 't1', tree_objects, tree_objects_update,
+            tree_type=tree_model.OPERATIONAL_TREE, severity='critical')

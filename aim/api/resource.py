@@ -111,13 +111,13 @@ class Tenant(AciResourceBase):
     """
 
     identity_attributes = ['name']
-    other_attributes = ['display_name']
+    other_attributes = ['display_name', 'monitored']
 
     _aci_mo_name = 'fvTenant'
     _tree_parent = None
 
     def __init__(self, **kwargs):
-        super(Tenant, self).__init__({}, **kwargs)
+        super(Tenant, self).__init__({'monitored': False}, **kwargs)
 
 
 class BridgeDomain(AciResourceBase):
@@ -134,7 +134,8 @@ class BridgeDomain(AciResourceBase):
                         'limit_ip_learn_to_subnets',
                         'l2_unknown_unicast_mode',
                         'ep_move_detect_mode',
-                        'l3out_names']
+                        'l3out_names',
+                        'monitored']
 
     _aci_mo_name = 'fvBD'
     _tree_parent = Tenant
@@ -147,7 +148,8 @@ class BridgeDomain(AciResourceBase):
                                             'limit_ip_learn_to_subnets': False,
                                             'l2_unknown_unicast_mode': 'proxy',
                                             'ep_move_detect_mode': '',
-                                            'l3out_names': []},
+                                            'l3out_names': [],
+                                            'monitored': False},
                                            **kwargs)
 
 
@@ -195,7 +197,8 @@ class Subnet(AciResourceBase):
 
     identity_attributes = ['tenant_name', 'bd_name', 'gw_ip_mask']
     other_attributes = ['scope',
-                        'display_name']
+                        'display_name',
+                        'monitored']
 
     _aci_mo_name = 'fvSubnet'
     _tree_parent = BridgeDomain
@@ -204,7 +207,8 @@ class Subnet(AciResourceBase):
     SCOPE_PUBLIC = 'public'
 
     def __init__(self, **kwargs):
-        super(Subnet, self).__init__({'scope': self.SCOPE_PRIVATE}, **kwargs)
+        super(Subnet, self).__init__({'scope': self.SCOPE_PRIVATE,
+                                      'monitored': False}, **kwargs)
 
     @staticmethod
     def to_gw_ip_mask(gateway_ip_address, prefix_len):
@@ -219,7 +223,8 @@ class VRF(AciResourceBase):
 
     identity_attributes = ['tenant_name', 'name']
     other_attributes = ['display_name',
-                        'policy_enforcement_pref']
+                        'policy_enforcement_pref',
+                        'monitored']
 
     _aci_mo_name = 'fvCtx'
     _tree_parent = Tenant
@@ -229,7 +234,8 @@ class VRF(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(VRF, self).__init__(
-            {'policy_enforcement_pref': self.POLICY_ENFORCED},
+            {'policy_enforcement_pref': self.POLICY_ENFORCED,
+             'monitored': False},
             **kwargs)
 
 
@@ -240,13 +246,14 @@ class ApplicationProfile(AciResourceBase):
     """
 
     identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name']
+    other_attributes = ['display_name', 'monitored']
 
     _aci_mo_name = 'fvAp'
     _tree_parent = Tenant
 
     def __init__(self, **kwargs):
-        super(ApplicationProfile, self).__init__({}, **kwargs)
+        super(ApplicationProfile, self).__init__({'monitored': False},
+                                                 **kwargs)
 
 
 class EndpointGroup(AciResourceBase):
@@ -262,7 +269,8 @@ class EndpointGroup(AciResourceBase):
                         'provided_contract_names',
                         'consumed_contract_names',
                         'openstack_vmm_domain_names',
-                        'physical_domain_names']
+                        'physical_domain_names',
+                        'monitored']
 
     _aci_mo_name = 'fvAEPg'
     _tree_parent = ApplicationProfile
@@ -272,7 +280,8 @@ class EndpointGroup(AciResourceBase):
                                              'provided_contract_names': [],
                                              'consumed_contract_names': [],
                                              'openstack_vmm_domain_names': [],
-                                             'physical_domain_names': []},
+                                             'physical_domain_names': [],
+                                             'monitored': False},
                                             **kwargs)
 
 
@@ -283,13 +292,13 @@ class Filter(AciResourceBase):
     """
 
     identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name']
+    other_attributes = ['display_name', 'monitored']
 
     _aci_mo_name = 'vzFilter'
     _tree_parent = Tenant
 
     def __init__(self, **kwargs):
-        super(Filter, self).__init__({}, **kwargs)
+        super(Filter, self).__init__({'monitored': False}, **kwargs)
 
 
 class FilterEntry(AciResourceBase):
@@ -324,7 +333,7 @@ class FilterEntry(AciResourceBase):
                         'icmpv4_type', 'icmpv6_type',
                         'source_from_port', 'source_to_port',
                         'dest_from_port', 'dest_to_port',
-                        'tcp_flags', 'stateful', 'fragment_only']
+                        'tcp_flags', 'stateful', 'fragment_only', 'monitored']
 
     _aci_mo_name = 'vzEntry'
     _tree_parent = Filter
@@ -344,7 +353,8 @@ class FilterEntry(AciResourceBase):
              'dest_to_port': self.UNSPECIFIED,
              'tcp_flags': self.UNSPECIFIED,
              'stateful': False,
-             'fragment_only': False},
+             'fragment_only': False,
+             'monitored': False},
             **kwargs)
 
 
@@ -355,7 +365,7 @@ class Contract(AciResourceBase):
     """
 
     identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name', 'scope']
+    other_attributes = ['display_name', 'scope', 'monitored']
 
     _aci_mo_name = 'vzBrCP'
     _tree_parent = Tenant
@@ -366,7 +376,8 @@ class Contract(AciResourceBase):
     SCOPE_GLOBAL = 'global'
 
     def __init__(self, **kwargs):
-        super(Contract, self).__init__({'scope': self.SCOPE_CONTEXT}, **kwargs)
+        super(Contract, self).__init__({'scope': self.SCOPE_CONTEXT,
+                                        'monitored': False}, **kwargs)
 
 
 class ContractSubject(AciResourceBase):
@@ -378,14 +389,16 @@ class ContractSubject(AciResourceBase):
 
     identity_attributes = ['tenant_name', 'contract_name', 'name']
     other_attributes = ['display_name',
-                        'in_filters', 'out_filters', 'bi_filters']
+                        'in_filters', 'out_filters', 'bi_filters',
+                        'monitored']
 
     _aci_mo_name = 'vzSubj'
     _tree_parent = Contract
 
     def __init__(self, **kwargs):
         super(ContractSubject, self).__init__(
-            {'in_filters': [], 'out_filters': [], 'bi_filters': []}, **kwargs)
+            {'in_filters': [], 'out_filters': [], 'bi_filters': [],
+             'monitored': False}, **kwargs)
 
 
 class Endpoint(ResourceBase):
@@ -450,14 +463,15 @@ class L3Outside(AciResourceBase):
 
     identity_attributes = ['tenant_name', 'name']
     other_attributes = ['display_name', 'vrf_name',
-                        'l3_domain_dn']
+                        'l3_domain_dn', 'monitored']
 
     _aci_mo_name = 'l3extOut'
     _tree_parent = Tenant
 
     def __init__(self, **kwargs):
         super(L3Outside, self).__init__(
-            {'vrf_name': '', 'l3_domain_dn': ''}, **kwargs)
+            {'vrf_name': '', 'l3_domain_dn': '',
+             'monitored': False}, **kwargs)
 
 
 class ExternalNetwork(AciResourceBase):
@@ -472,7 +486,8 @@ class ExternalNetwork(AciResourceBase):
 
     identity_attributes = ['tenant_name', 'l3out_name', 'name']
     other_attributes = ['display_name', 'nat_epg_dn',
-                        'provided_contract_names', 'consumed_contract_names']
+                        'provided_contract_names', 'consumed_contract_names',
+                        'monitored']
 
     _aci_mo_name = 'l3extInstP'
     _tree_parent = L3Outside
@@ -480,7 +495,8 @@ class ExternalNetwork(AciResourceBase):
     def __init__(self, **kwargs):
         super(ExternalNetwork, self).__init__(
             {'nat_epg_dn': '',
-             'provided_contract_names': [], 'consumed_contract_names': []},
+             'provided_contract_names': [], 'consumed_contract_names': [],
+             'monitored': False},
             **kwargs)
 
 
@@ -493,10 +509,10 @@ class ExternalSubnet(AciResourceBase):
 
     identity_attributes = ['tenant_name', 'l3out_name',
                            'external_network_name', 'cidr']
-    other_attributes = ['display_name']
+    other_attributes = ['display_name', 'monitored']
 
     _aci_mo_name = 'l3extSubnet'
     _tree_parent = ExternalNetwork
 
     def __init__(self, **kwargs):
-        super(ExternalSubnet, self).__init__({}, **kwargs)
+        super(ExternalSubnet, self).__init__({'monitored': False}, **kwargs)
