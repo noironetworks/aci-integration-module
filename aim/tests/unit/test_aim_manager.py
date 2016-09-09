@@ -350,14 +350,9 @@ class TestResourceOpsBase(object):
             self.assertRaises(exc.InvalidMonitoredStateUpdate,
                               self.mgr.create, self.ctx, r1, overwrite=True)
 
-            # Updating the resource fails
-            self.assertRaises(exc.InvalidUpdatedOnMonitoredObject,
-                              self.mgr.update, self.ctx, res,
-                              **self.test_update_attributes)
-
-            # Also updating the monitored attribute itself
+            # Updating the monitored attribute fails
             res.monitored = False
-            self.assertRaises(exc.InvalidUpdatedOnMonitoredObject,
+            self.assertRaises(exc.InvalidMonitoredStateUpdate,
                               self.mgr.update, self.ctx, res,
                               monitored=False)
 

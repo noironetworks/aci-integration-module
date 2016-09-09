@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
+
 from oslo_log import log as logging
 
 from aim.api import status as aim_status
@@ -50,10 +52,18 @@ class HashTreeDbListener(object):
                 if isinstance(res, aim_status.OperationalResource):
                     # Operational Tree
                     updates_by_tenant[key][oper][tree_index].append(res)
-                elif getattr(res, 'monitored', None):
-                    # Monitored Tree
-                    updates_by_tenant[key][monitor][tree_index].append(res)
                 else:
+                    if getattr(res, 'monitored', None):
+                        # Monitored Tree
+                        res_copy = copy.deepcopy(res)
+                        updates_by_tenant[key][monitor][tree_index].append(
+                            res_copy)
+                        # Don't modify the original resource in a visible
+                        # way
+                        res = copy.deepcopy(res)
+                        # Fake this as pre-existing
+                        res.pre_existing = True
+                        res.monitored = False
                     # Configuration Tree
                     updates_by_tenant[key][conf][tree_index].append(res)
 

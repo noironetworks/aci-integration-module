@@ -119,12 +119,11 @@ class AimManager(object):
         with context.db_session.begin(subtransactions=True):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
-                if (getattr(db_obj, 'monitored', None) is True or
-                        update_attr_val.get('monitored') is True):
+                if 'monitored' in update_attr_val:
                     # TODO(ivar) Accept monitored state change.
                     # To implement this, we need to realize what changed
                     # in the before_flush hooks.
-                    raise exc.InvalidUpdatedOnMonitoredObject(object=resource)
+                    raise exc.InvalidMonitoredStateUpdate(object=resource)
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
                             if k in resource.other_attributes}
                 db_obj.from_attr(context.db_session, attr_val)

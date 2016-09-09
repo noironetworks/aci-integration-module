@@ -136,8 +136,10 @@ class AciTenantManager(gevent.Greenlet):
         self.tenant = Tenant(self.tenant_name, filtered_children=children_mos)
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
-        self.health_state = False
-        self.polling_yield = 2
+        self._monitored_state = structured_tree.StructuredHashTree()
+        self._health_state = False
+        self.polling_yield = self.apic_config.get_option(
+            'aci_tenant_polling_yield', 'aim')
         self.to_aim_converter = converter.AciToAimModelConverter()
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
@@ -156,6 +158,14 @@ class AciTenantManager(gevent.Greenlet):
     def is_warm(self):
         return self._warm
 
+    @property
+    def health_state(self):
+        return self._health_state
+
+    @health_state.setter
+    def health_state(self, value):
+        self._health_state = value
+
     # These methods are dangerous if run concurrently with _event_to_tree.
     # However, serialization/deserialization of the in-memory tree should not
     # cause I/O operation, therefore they can't be context switched.
@@ -167,6 +177,11 @@ class AciTenantManager(gevent.Greenlet):
         return structured_tree.StructuredHashTree.from_string(
             str(self._operational_state),
             root_key=self._operational_state.root_key)
+
+    def get_monitored_state_copy(self):
+        return structured_tree.StructuredHashTree.from_string(
+            str(self._monitored_state),
+            root_key=self._monitored_state.root_key)
 
     def _run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
@@ -244,13 +259,13 @@ class AciTenantManager(gevent.Greenlet):
             LOG.debug("received events: %s", events)
             # Make events list flat
             self.flat_events(events)
-            # Manage Tags
-            events = self._filter_ownership(events)
-            LOG.debug("Filtered events: %s", events)
             # Pull incomplete objects
             events = self._fill_events(events)
             LOG.debug("Filled events: %s", events)
-            self._event_to_tree(events)
+            # Manage Tags
+            owned, monitored = self._filter_ownership(events)
+            LOG.debug("Filtered events: %s", events)
+            self._event_to_tree(owned, monitored)
         # yield for other threads
         gevent.sleep(max(0, self.polling_yield - (time.time() -
                                                   start_time)))
@@ -284,6 +299,11 @@ class AciTenantManager(gevent.Greenlet):
                     if method == base_universe.DELETE:
                         to_push = [copy.deepcopy(aim_object)]
                     else:
+                        if getattr(aim_object, 'monitored', False):
+                            # When pushing to APIC, treat monitored
+                            # objects as pre-existing
+                            aim_object.monitored = False
+                            aim_object.pre_existing = True
                         to_push = self.to_aci_converter.convert([aim_object])
                     # Set TAGs before pushing the request
                     tags = []
@@ -332,7 +352,7 @@ class AciTenantManager(gevent.Greenlet):
         self.tenant.instance_subscribe(self.ws_context.session)
         self.health_state = True
 
-    def _event_to_tree(self, events):
+    def _event_to_tree(self, owned, monitored):
         """Parse the event and push it into the tree
 
         This method requires translation between ACI and AIM model in order
@@ -342,10 +362,17 @@ class AciTenantManager(gevent.Greenlet):
         """
         config_tree = {'create': [], 'delete': []}
         operational_tree = {'create': [], 'delete': []}
+        monitored_tree = {'create': [], 'delete': []}
         trees = {True: operational_tree, False: config_tree}
         states = {id(operational_tree): self._operational_state,
-                  id(config_tree): self._state}
-        for event in events:
+                  id(config_tree): self._state,
+                  id(monitored_tree): self._monitored_state}
+        # - Deleting objects go to operational_tree as well.
+        # - Owned objects don't go to monitored tree
+        # - Monitored objects also go to config tree, but need monitored
+        # attribute in conversion
+
+        def evaluate_event(event):
             aci_resource = event.values()[0]
             if self._is_deleting(event):
                 trees[event.keys()[0] == FAULT_KEY]['delete'].append(event)
@@ -354,13 +381,45 @@ class AciTenantManager(gevent.Greenlet):
                 self.tag_set.discard(dn)
             else:
                 trees[event.keys()[0] == FAULT_KEY]['create'].append(event)
+        # Set the owned events
+        for event in owned:
+            evaluate_event(event)
+        # Set the monitored events
+        trees[False] = monitored_tree
+        for event in monitored:
+            evaluate_event(event)
+
+        def _monitor(state, obj):
+            if state is self._monitored_state:
+                obj.monitored = True
+            return obj
+
+        def _screen_monitored(obj):
+            return self.to_aim_converter.convert(
+                self.to_aci_converter.convert([obj]))[0]
+
+        def _set_pre_existing(obj):
+            obj.monitored = False
+            obj.pre_existing = True
+            return obj
 
         # Convert objects
-        for tree in trees.values():
+        for tree in (monitored_tree, config_tree, operational_tree):
             state = states[id(tree)]
-            tree['create'] = self.to_aim_converter.convert(tree['create'])
-            tree['delete'] = self.to_aim_converter.convert(tree['delete'])
+            tree['create'] = [_monitor(state, x) for x in
+                              self.to_aim_converter.convert(tree['create'])]
+            tree['delete'] = [_monitor(state, x) for x in
+                              self.to_aim_converter.convert(tree['delete'])]
 
+            # Config tree also gets monitored events
+            if state is self._state:
+                # Need double conversion to screen unwanted objects
+                tree['create'].extend(
+                    [_set_pre_existing(_screen_monitored(x)) for x in
+                     copy.deepcopy(monitored_tree['create'])])
+                tree['delete'].extend(
+                    [_set_pre_existing(_screen_monitored(x)) for x in
+                     copy.deepcopy(monitored_tree['delete'])])
             self.tree_maker.update(state, tree['create'])
             self.tree_maker.delete(state, tree['delete'])
             if state is self._state:
@@ -385,8 +444,17 @@ class AciTenantManager(gevent.Greenlet):
         :param events: List of events to retrieve
         :return:
         """
-        visited = set()
         start = time.time()
+        result = self.retrieve_aci_objects(events, self.to_aim_converter,
+                                           self.aci_session)
+        LOG.debug('Filling procedure took %s for tenant %s' %
+                  (time.time() - start, self.tenant.name))
+        return result
+
+    @staticmethod
+    def retrieve_aci_objects(events, to_aim_converter, aci_session,
+                             get_all=False, include_tags=True):
+        visited = set()
         result = []
 
         for event in events:
@@ -394,17 +462,22 @@ class AciTenantManager(gevent.Greenlet):
             res_type = event.keys()[0]
             status = resource['attributes'].get(STATUS_FIELD)
             raw_dn = resource['attributes'].get('dn')
-            if status or res_type in OPERATIONAL_LIST:
+            if status == converter.DELETED_STATUS:
+                if raw_dn not in visited:
+                    result.append(event)
+            elif get_all or status or res_type in OPERATIONAL_LIST:
                 try:
                     # Use the parent type and DN for related objects (like RS)
                     # Event is an ACI resource
-                    aim_resources = self.to_aim_converter.convert([event])
+                    aim_resources = to_aim_converter.convert([event])
                     for aim_res in aim_resources:
                         dn = aim_res.dn
                         res_type = aim_res._aci_mo_name
                         if dn in visited:
                             continue
-                        query_targets = set([res_type, TAG_KEY])
+                        query_targets = set([res_type])
+                        if include_tags:
+                            query_targets.add(TAG_KEY)
                         kargs = {'rsp_prop_include': 'config-only',
                                  'query_target': 'subtree'}
                         # See if there's any extra object to be retrieved
@@ -417,9 +490,7 @@ class AciTenantManager(gevent.Greenlet):
                         if event.keys()[0] in OPERATIONAL_LIST:
                             kargs.pop('rsp_prop_include')
                         # TODO(ivar): 'mo/' suffix should be added by APICAPI
-                        data = self.aci_session.get_data('mo/' + dn, **kargs)
-                        # Filter these new objects by tag
-                        data = self._filter_ownership(data)
+                        data = aci_session.get_data('mo/' + dn, **kargs)
                         if not data:
                             LOG.warn("Resource %s not found", dn)
                             # The object doesn't exist anymore, a delete event
@@ -439,11 +510,9 @@ class AciTenantManager(gevent.Greenlet):
                     else:
                         LOG.error(e.message)
                         raise
-            if not status or status == converter.DELETED_STATUS:
+            if not status:
                 if raw_dn not in visited:
                     result.append(event)
-        LOG.debug('Filling procedure took %s for tenant %s' %
-                  (time.time() - start, self.tenant.name))
         return result
 
     @staticmethod
@@ -478,7 +547,7 @@ class AciTenantManager(gevent.Greenlet):
 
     def _filter_ownership(self, events):
         LOG.debug('Filter ownership for events: %s' % events)
-        result = []
+        managed, owned, monitored = [], [], []
         for event in events:
             if event.keys()[0] == TAG_KEY:
                 decomposed = event.values()[0]['attributes']['dn'].split('/')
@@ -488,8 +557,14 @@ class AciTenantManager(gevent.Greenlet):
                     else:
                         self.tag_set.add('/'.join(decomposed[:-1]))
             else:
-                result.append(event)
-        return [x for x in result if self._is_owned(x) or self._is_deleting(x)]
+                managed.append(event)
+        for event in managed:
+            is_owned = self._is_owned(event)
+            if is_owned or self._is_deleting(event):
+                owned.append(event)
+            if not is_owned or self._is_deleting(event):
+                monitored.append(event)
+        return owned, monitored
 
     def _is_owned(self, aci_object):
         dn = aci_object.values()[0]['attributes']['dn']

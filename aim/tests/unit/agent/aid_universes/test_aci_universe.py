@@ -190,6 +190,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         objs = [
             self._get_example_aci_fault(),
             self._get_example_aci_bd(),
+            {'vzSubj': {'attributes': {'dn': u'uni/tn-t1/brc-c/subj-s'}}},
             {'vzRsSubjFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f'}}},
             {'vzRsFiltAtt': {'attributes': {
@@ -265,3 +266,10 @@ class TestAciOperationalUniverse(TestAciUniverseMixin, base.TestAimDBBase):
     def setUp(self):
         super(TestAciOperationalUniverse, self).setUp(
             aci_universe.AciOperationalUniverse)
+
+
+class TestAciMonitoredUniverse(TestAciUniverseMixin, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestAciMonitoredUniverse, self).setUp(
+            aci_universe.AciMonitoredUniverse)

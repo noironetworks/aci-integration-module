@@ -121,6 +121,9 @@ class TestAimDbUniverseBase(object):
         bd2 = resource.BridgeDomain(
             tenant_name='t2', name='bd1', display_name='somestuff',
             vrf_name='vrf2')
+        if tree_type == tree_model.MONITORED_TREE:
+            bd1.monitored = True
+            bd2.monitored = True
 
         aim_mgr.create(self.ctx, bd1)
         aim_mgr.set_fault(self.ctx, bd1, bd1_fault)
@@ -141,7 +144,7 @@ class TestAimDbUniverseBase(object):
                                              diff_tn_2.get('add', []) +
                                              diff_tn_2.get('remove', []))
         self.assertEqual(2, len(result))
-        if tree_type == tree_model.CONFIG_TREE:
+        if tree_type in [tree_model.CONFIG_TREE, tree_model.MONITORED_TREE]:
             self.assertTrue(bd1 in result)
             self.assertTrue(bd2 in result)
         elif tree_type == tree_model.OPERATIONAL_TREE:
@@ -260,3 +263,26 @@ class TestAimDbOperationalUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
     def test_cleanup_state(self):
         super(TestAimDbOperationalUniverse, self).test_cleanup_state(
             tree_type=tree_model.OPERATIONAL_TREE)
+
+
+class TestAimDbMonitoredUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestAimDbMonitoredUniverse, self).setUp(
+            klass=aim_universe.AimDbMonitoredUniverse)
+
+    def test_state(self):
+        super(TestAimDbMonitoredUniverse, self).test_state(
+            tree_type=tree_model.MONITORED_TREE)
+
+    def test_get_optimized_state(self):
+        super(TestAimDbMonitoredUniverse, self).test_get_optimized_state(
+            tree_type=tree_model.MONITORED_TREE)
+
+    def test_get_aim_resources(self):
+        super(TestAimDbMonitoredUniverse, self).test_get_aim_resources(
+            tree_type=tree_model.MONITORED_TREE)
+
+    def test_cleanup_state(self):
+        super(TestAimDbMonitoredUniverse, self).test_cleanup_state(
+            tree_type=tree_model.MONITORED_TREE)

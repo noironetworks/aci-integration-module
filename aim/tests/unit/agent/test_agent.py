@@ -18,8 +18,10 @@ import time
 
 from apicapi import apic_client
 import mock
+from oslo_db import exception
 
 from aim.agent.aid import service
+from aim.agent.aid.universes.aci import aci_universe
 from aim import aim_manager
 from aim.api import resource
 from aim.api import status as aim_status
@@ -36,6 +38,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         super(TestAgent, self).setUp()
         self.set_override('agent_down_time', 3600, 'aim')
         self.set_override('agent_polling_interval', 0, 'aim')
+        self.set_override('aci_tenant_polling_yield', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantTreeManager(
             tree.StructuredHashTree)
@@ -57,9 +60,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             return_value=True)
         self.thread_warm.start()
 
+        self.thread_health = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.health_state',
+            return_value=True)
+        self.thread_health.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
+        self.addCleanup(self.thread_health.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body = self.old_post
@@ -69,7 +78,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         data = json.loads(data)
         events = []
         self._tree_to_event(data, events, 'uni', self._current_manager)
-        self._set_events(events, manager=self._current_manager)
+        # Tagging is done by the tenant manager
+        self._set_events(events, manager=self._current_manager, tag=False)
 
     def _tree_to_event(self, root, result, dn, manager):
         if not root:
@@ -94,7 +104,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def _create_agent(self, host='h1'):
         self.set_override('host', host)
-        return service.AID(config.CONF)
+        aid = service.AID(config.CONF)
+        session = aci_universe.AciUniverse.establish_aci_session(
+            self.cfg_manager)
+        for pair in aid.multiverse:
+            for universe in pair.values():
+                if getattr(universe, 'aci_session', None):
+                    universe.aci_session = session
+                    session._data_stash = {}
+        return aid
 
     def test_init(self):
         agent = self._create_agent()
@@ -220,17 +238,29 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def test_main_loop(self):
         agent = self._create_agent()
+        # Keep test compatibility with monitred universe introduction
+        agent.current_universe = agent.multiverse[0]['current']
+        agent.desired_universe = agent.multiverse[0]['desired']
+
+        tenant_name1 = 'test_main_loop1'
+        tenant_name2 = 'test_main_loop2'
         # Create 2 tenants by initiating their objects
-        bd1_tn1 = resource.BridgeDomain(tenant_name='tn1', name='bd1',
+        tn1 = resource.Tenant(name=tenant_name1)
+        tn2 = resource.Tenant(name=tenant_name2)
+        self.aim_manager.create(self.ctx, tn1)
+        self.aim_manager.create(self.ctx, tn2)
+
+        bd1_tn1 = resource.BridgeDomain(tenant_name=tenant_name1, name='bd1',
                                         vrf_name='vrf1')
-        bd1_tn2 = resource.BridgeDomain(tenant_name='tn2', name='bd1',
+        bd1_tn2 = resource.BridgeDomain(tenant_name=tenant_name2, name='bd1',
                                         vrf_name='vrf2')
         self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
         self.aim_manager.set_fault(
             self.ctx, bd1_tn1, aim_status.AciFault(
                 fault_code='516',
-                external_identifier='uni/tn-tn1/BD-bd1/fault-516'))
+                external_identifier='uni/tn-%s/BD-bd1/'
+                                    'fault-516' % tenant_name1))
         # Fault has been registered in the DB
         status = self.aim_manager.get_status(self.ctx, bd1_tn1)
         self.assertEqual(1, len(status.faults))
@@ -245,10 +275,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # The ACI universe will not push the configuration unless explicitly
         # called
         self.assertFalse(
-            agent.current_universe.serving_tenants['tn1'].
+            agent.current_universe.serving_tenants[tenant_name1].
             object_backlog.empty())
         self.assertFalse(
-            agent.current_universe.serving_tenants['tn2'].
+            agent.current_universe.serving_tenants[tenant_name2].
             object_backlog.empty())
 
         # Meanwhile, Operational state has been cleaned from AIM
@@ -264,23 +294,19 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Now, the two trees are in sync
         agent._daemon_loop()
-        self.assertEqual(agent.current_universe.state,
-                         agent.desired_universe.state,
-                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
-                         ({x: str(y) for x, y in
-                           agent.current_universe.state.iteritems()},
-                          {x: str(y) for x, y in
-                           agent.desired_universe.state.iteritems()}))
+        self._assert_universe_sync(agent.desired_universe,
+                                   agent.current_universe)
+
         self.assertTrue(
-            agent.current_universe.serving_tenants['tn1'].
+            agent.current_universe.serving_tenants[tenant_name1].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe.serving_tenants['tn2'].
+            agent.current_universe.serving_tenants[tenant_name2].
             object_backlog.empty())
 
         # Delete object and create a new one on tn1
         self.aim_manager.delete(self.ctx, bd1_tn1)
-        bd2_tn1 = resource.BridgeDomain(tenant_name='tn1', name='bd2',
+        bd2_tn1 = resource.BridgeDomain(tenant_name=tenant_name1, name='bd2',
                                         vrf_name='vrf3')
         self.aim_manager.create(self.ctx, bd2_tn1)
         # Push state
@@ -288,16 +314,16 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             k: v for k, v in
             agent.current_universe.serving_tenants.iteritems()}
         agent._daemon_loop()
-        self.assertIs(agent.current_universe.serving_tenants['tn1'],
-                      currentserving_tenants['tn1'])
-        self.assertIs(agent.current_universe.serving_tenants['tn2'],
-                      currentserving_tenants['tn2'])
+        self.assertIs(agent.current_universe.serving_tenants[tenant_name1],
+                      currentserving_tenants[tenant_name1])
+        self.assertIs(agent.current_universe.serving_tenants[tenant_name2],
+                      currentserving_tenants[tenant_name2])
         # There are changes on tn1 only
         self.assertFalse(
-            agent.current_universe.serving_tenants['tn1'].
+            agent.current_universe.serving_tenants[tenant_name1].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe.serving_tenants['tn2'].
+            agent.current_universe.serving_tenants[tenant_name2].
             object_backlog.empty())
         # Get events
         for tenant in agent.current_universe.serving_tenants.values():
@@ -305,58 +331,50 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tenant._event_loop()
         agent._daemon_loop()
         # Everything is in sync again
-        self.assertEqual(agent.current_universe.state,
-                         agent.desired_universe.state,
-                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
-                         ({x: str(y) for x, y in
-                           agent.current_universe.state.iteritems()},
-                          {x: str(y) for x, y in
-                           agent.desired_universe.state.iteritems()}))
+        self._assert_universe_sync(agent.desired_universe,
+                                   agent.current_universe)
 
         # Delete a tenant
         self.aim_manager.delete(self.ctx, bd2_tn1)
-        # We don't have Tenant model yet, so just empty its tree
-        tn1_tree = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])[0]
-        tn1_tree.pop(('fvTenant|tn1',))
+        self.aim_manager.delete(self.ctx, tn1)
 
-        agent.tree_manager.update(agent.context, tn1_tree)
         agent._daemon_loop()
         # There are changes on tn1 only
         self.assertFalse(
-            agent.current_universe.serving_tenants['tn1'].
+            agent.current_universe.serving_tenants[tenant_name1].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe.serving_tenants['tn2'].
+            agent.current_universe.serving_tenants[tenant_name2].
             object_backlog.empty())
-        self.assertIs(agent.current_universe.serving_tenants['tn1'],
-                      currentserving_tenants['tn1'])
-        self.assertIs(agent.current_universe.serving_tenants['tn2'],
-                      currentserving_tenants['tn2'])
+        self.assertIs(agent.current_universe.serving_tenants[tenant_name1],
+                      currentserving_tenants[tenant_name1])
+        self.assertIs(agent.current_universe.serving_tenants[tenant_name2],
+                      currentserving_tenants[tenant_name2])
         # Get events
         for tenant in agent.current_universe.serving_tenants.values():
             self._current_manager = tenant
             tenant._event_loop()
         # Depending on the order of operation, we might need another
         # iteration to cleanup the tree completely
-        if agent.current_universe.serving_tenants['tn1']._state.root:
+        if agent.current_universe.serving_tenants[tenant_name1]._state.root:
             agent._daemon_loop()
             for tenant in agent.current_universe.serving_tenants.values():
                 self._current_manager = tenant
                 tenant._event_loop()
         # Tenant still exist on AIM because observe didn't run yet
         self.assertIsNone(
-            agent.current_universe.serving_tenants['tn1']._state.root)
-        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])
+            agent.current_universe.serving_tenants[tenant_name1]._state.root)
+        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=[tenant_name1])
         self.assertEqual(1, len(tn1))
         # Now tenant will be deleted (still served)
         agent._daemon_loop()
-        self.assertIsNone(agent.current_universe.state['tn1'].root)
-        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=['tn1'])
+        self.assertIsNone(agent.current_universe.state[tenant_name1].root)
+        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=[tenant_name1])
         self.assertEqual(0, len(tn1))
 
         # Agent not served anymore
         agent._daemon_loop()
-        self.assertFalse('tn1' in agent.current_universe.state)
+        self.assertFalse(tenant_name1 in agent.current_universe.state)
 
     def test_handle_sigterm(self):
         agent = self._create_agent()
@@ -377,3 +395,286 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertNotEqual(130, agent.report_interval)
         agent.conf_manager.subs_mgr._poll_and_execute()
         self.assertEqual(130, agent.report_interval)
+
+    def test_monitored_tree_lifecycle(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        tenant_name = 'test_monitored_tree_lifecycle'
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+
+        # start by managing a single tenant (non-monitored)
+        tn1 = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn1)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        # Simulate an external actor creating a BD
+        aci_bd = self._get_example_aci_bd(
+            tenant_name=tenant_name, name='mybd',
+            dn='uni/tn-%s/BD-mybd' % tenant_name)
+        self._set_events(
+            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
+            tag=False)
+        apic_client.ApicSession.post_body = self._mock_current_manager_post
+
+        # Observe ACI events
+        self._observe_aci_events(current_config)
+
+        # Run the loop for reconciliation
+        agent._daemon_loop()
+        # A monitored BD should now exist in AIM
+        aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
+            tenant_name=tenant_name, name='mybd'))
+        self.assertTrue(aim_bd.monitored)
+        # Trees are in sync
+        self._assert_universe_sync(desired_monitor, current_monitor)
+
+        # Delete the monitored BD, will be re-created
+        self.aim_manager.delete(self.ctx, aim_bd)
+        agent._daemon_loop()
+        # It's reconciled
+        aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
+            tenant_name=tenant_name, name='mybd'))
+        self.assertTrue(aim_bd.monitored)
+        # Send delete event
+        aci_bd['fvBD']['attributes']['status'] = 'deleted'
+        self._set_events(
+            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
+            tag=False)
+        # Observe ACI events
+        self._observe_aci_events(current_config)
+        # Run the loop for reconciliation
+        agent._daemon_loop()
+        # BD is deleted
+        aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
+            tenant_name=tenant_name, name='mybd'))
+        self.assertIsNone(aim_bd)
+        self._assert_universe_sync(desired_monitor, current_monitor)
+
+    def test_monitored_tree_fk_semantics(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        tenant_name = 'test_monitored_tree_fk_semantics'
+
+        # start by managing a single monitored tenant
+        tn1 = resource.Tenant(name=tenant_name, monitored=True)
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        # we need this tenant to exist in ACI
+        self._set_events(
+            [aci_tn], manager=desired_monitor.serving_tenants[tenant_name],
+            tag=False)
+        # Observe ACI events
+        self._observe_aci_events(current_config)
+        # Create a managed BD
+        bd1 = resource.BridgeDomain(name='bd1', tenant_name=tenant_name)
+        self.aim_manager.create(self.ctx, bd1)
+        # Create a monitored subnet in the BD
+        aci_sub = self._get_example_aci_subnet(
+            dn='uni/tn-%s/BD-bd1/subnet-[10.10.10.1/28]' % tenant_name)
+        self._set_events(
+            [aci_sub], manager=desired_monitor.serving_tenants[tenant_name],
+            tag=False)
+        # Observe the event
+        self._observe_aci_events(current_config)
+        # Reconcile
+        agent._daemon_loop()
+        # Monitored sub is created
+        aim_sub = resource.Subnet(tenant_name=tenant_name, bd_name='bd1',
+                                  gw_ip_mask='10.10.10.1/28')
+        aim_sub = self.aim_manager.get(self.ctx, aim_sub)
+        self.assertTrue(aim_sub.monitored)
+        # deleting the BD from aim fails because of FK
+        self.assertRaises(exception.DBReferenceError, self.aim_manager.delete,
+                          self.ctx, bd1)
+
+    def test_monitored_tree_serve_semantics(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        tenant_name = 'test_monitored_tree_serve_semantics'
+        self.assertEqual({}, desired_monitor.aci_session._data_stash)
+
+        # start by managing a single monitored tenant
+        tn1 = resource.Tenant(name=tenant_name, monitored=True)
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        aci_bd = self._get_example_aci_bd(
+            tenant_name=tenant_name, name='mybd',
+            dn='uni/tn-%s/BD-mybd' % tenant_name)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        # we need this tenant to exist in ACI
+        self._set_events(
+            [aci_tn, aci_bd],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+        bd1 = resource.BridgeDomain(name='bd1', tenant_name=tenant_name)
+        self.aim_manager.create(self.ctx, bd1)
+        # Push BD in ACI
+        agent._daemon_loop()
+        # Feedback loop
+        self._observe_aci_events(current_config)
+        # Observe
+        agent._daemon_loop()
+        # Config universes in sync
+        self._assert_universe_sync(desired_config, current_config)
+        # Detele the only managed item
+        self.aim_manager.delete(self.ctx, bd1)
+        # Delete on ACI
+        agent._daemon_loop()
+        # Feedback loop
+        self._observe_aci_events(current_config)
+        # Observe
+        agent._daemon_loop()
+        # Delete the tenant on AIM, agents should stop watching it
+        self.aim_manager.delete(self.ctx, tn1)
+        # This loop will have a consensus for deleting Tenant tn1
+        agent._daemon_loop()
+        # Agent will not serve such tenant anymore
+        agent._daemon_loop()
+        self.assertTrue(tenant_name not in desired_monitor.serving_tenants)
+
+    def test_monitored_tree_relationship(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+
+        desired_monitor = agent.multiverse[2]['desired']
+        current_monitor = agent.multiverse[2]['current']
+
+        tenant_name = 'test_monitored_tree_relationship'
+        self.assertEqual({}, desired_monitor.aci_session._data_stash)
+        apic_client.ApicSession.post_body = self._mock_current_manager_post
+
+        tn1 = resource.Tenant(name=tenant_name)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        # Create a BD manually on this tenant
+        aci_bd = self._get_example_aci_bd(
+            tenant_name=tenant_name, name='mybd',
+            dn='uni/tn-%s/BD-mybd' % tenant_name,
+            limitIpLearnToSubnets='yes')
+        self._set_events(
+            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
+            tag=False)
+        self._observe_aci_events(current_config)
+        # Reconcile
+        agent._daemon_loop()
+        # Create a managed subnet in the BD
+        sub = resource.Subnet(tenant_name=tenant_name, bd_name='mybd',
+                              gw_ip_mask='10.10.10.1/28')
+        self.aim_manager.create(self.ctx, sub)
+        bd = resource.BridgeDomain(name='mybd', tenant_name=tenant_name)
+        bd = self.aim_manager.get(self.ctx, bd)
+        self.assertTrue(bd.limit_ip_learn_to_subnets)
+        # Delete the ACI BD manually
+        aci_bd['fvBD']['attributes']['status'] = 'deleted'
+        self._set_events(
+            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
+            tag=False)
+        # Observe
+        self._observe_aci_events(current_config)
+        # Reconcile
+        agent._daemon_loop()
+        # Observe
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+        # Verify all tree converged
+        self._assert_universe_sync(desired_config, current_config)
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        # BD is re-created as monitored, but with default values
+        bd = self.aim_manager.get(self.ctx, bd)
+        self.assertFalse(bd.limit_ip_learn_to_subnets)
+
+    def test_monitored_tree_rs_objects(self):
+        """Verify that RS objects can be synced for monitored objects
+
+        :return:
+        """
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+
+        desired_monitor = agent.multiverse[2]['desired']
+        current_monitor = agent.multiverse[2]['current']
+
+        tenant_name = 'test_monitored_tree_rs_objects'
+        apic_client.ApicSession.post_body = self._mock_current_manager_post
+
+        tn1 = resource.Tenant(name=tenant_name)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        # Create a BD manually on this tenant
+        aci_l3o = self._get_example_aci_l3_out(
+            dn='uni/tn-%s/out-default' % tenant_name, name='default')
+        aci_ext_net = self._get_example_aci_ext_net(
+            dn='uni/tn-%s/out-default/instP-extnet' % tenant_name)
+        aci_ext_net_rs_prov = self._get_example_aci_ext_net_rs_prov(
+            dn='uni/tn-%s/out-default/instP-extnet/'
+               'rsprov-default' % tenant_name)
+        self._set_events(
+            [aci_l3o, aci_ext_net, aci_ext_net_rs_prov],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+        self._observe_aci_events(current_config)
+        # Reconcile
+        agent._daemon_loop()
+        # Verify AIM ext net doesn't have contracts set
+        ext_net = resource.ExternalNetwork(
+            tenant_name=tenant_name, name='extnet', l3out_name='default')
+        ext_net = self.aim_manager.get(self.ctx, ext_net)
+        self.assertEqual([], ext_net.provided_contract_names)
+        self.assertEqual([], ext_net.consumed_contract_names)
+        self._observe_aci_events(current_config)
+        # Observe
+        agent._daemon_loop()
+
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_universe_sync(desired_config, current_config)
+
+        # Updare ext_net to provide some contract
+        resource.Contract(tenant_name=tenant_name, name='c1')
+        self.aim_manager.update(self.ctx, ext_net,
+                                provided_contract_names=['c1'])
+        # Reconcile
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Observe
+        agent._daemon_loop()
+
+        # Verify all tree converged
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_universe_sync(desired_config, current_config)
+
+    def _observe_aci_events(self, aci_universe):
+        for tenant in aci_universe.serving_tenants.values():
+            self._current_manager = tenant
+            tenant._event_loop()
+
+    def _assert_universe_sync(self, desired, current):
+        self.assertEqual(current.state, desired.state,
+                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
+                         ({x: str(y) for x, y in
+                           current.state.iteritems()},
+                          {x: str(y) for x, y in
+                           desired.state.iteritems()}))
