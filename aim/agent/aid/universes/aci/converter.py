@@ -43,7 +43,7 @@ def default_identity_converter(object_dict, otype, helper,
     :param aci_mo_type: ACI ManagedObjectType to use when creating ACI identity
                         attribute
     :param to_aim: Boolean indicating whether we are converting
-                   ACI/AIM (True) or AIM/ACi (False)
+                   ACI/AIM (True) or AIM/ACI (False)
     :return: list with exactly all the attributes that need to be assigned
     to the resource class 'identity_attributes'
     """
@@ -591,19 +591,25 @@ class AciToAimModelConverter(BaseConverter):
         :return:
         """
         res_map = {}
+        result = []
         for res in converted_list:
             # Base for squashing is the Resource with all its defaults
             klass = type(res)
-            current = res_map.setdefault(
-                tuple(res.identity),
-                klass(**dict([(y, res.identity[x]) for x, y in
-                              enumerate(klass.identity_attributes)])))
+            if tuple(res.identity) not in res_map:
+                current = res_map.setdefault(
+                    tuple(res.identity),
+                    klass(**dict([(y, res.identity[x]) for x, y in
+                                  enumerate(klass.identity_attributes)])))
+                # Try to preserve order
+                result.append(current)
+            else:
+                current = res_map[tuple(res.identity)]
             for k, v in res.__dict__.iteritems():
                 if isinstance(v, list):
                     current.__dict__.setdefault(k, []).extend(v)
                 else:
                     setattr(current, k, v)
-        return res_map.values()
+        return result
 
 
 class AimToAciModelConverter(BaseConverter):

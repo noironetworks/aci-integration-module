@@ -84,7 +84,7 @@ def mock_get_data(inst, dn, **kwargs):
     decomposed = dn_mgr.aci_decompose_dn_guess(dn[3:], aci_type)[1]
     try:
         # Find the proper root node
-        curr = inst._data_stash[decomposed[0][1]]
+        curr = copy.deepcopy(inst._data_stash[decomposed[0][1]])
         for index, part in enumerate(decomposed[1:]):
             # Look at the current's children and find the proper node.
             if part[0] in AMBIGUOUS_TYPES:
@@ -130,8 +130,7 @@ def mock_get_data(inst, dn, **kwargs):
 
 class TestAciClientMixin(object):
 
-    def _manipulate_server_data(self, data, manager=None, add=True):
-        # We assume to own everything added this way
+    def _manipulate_server_data(self, data, manager=None, add=True, tag=True):
         manager = manager if manager is not None else self.manager
         try:
             manager.aci_session._data_stash
@@ -150,17 +149,21 @@ class TestAciClientMixin(object):
         for resource in copy.deepcopy(data):
             resource.values()[0]['attributes'].pop('status', None)
             data_type = resource.keys()[0]
+            if data_type == 'tagInst' and tag:
+                continue
             decomposed = dn_mgr.aci_decompose_dn_guess(
                 resource.values()[0]['attributes']['dn'], data_type)[1]
             # Root is always a Tenant
             prev = manager.aci_session._data_stash
             if add:
+                partial_dn = dn_mgr.build(decomposed[:1])
                 curr = manager.aci_session._data_stash.setdefault(
                     decomposed[0][1],
                     {decomposed[0][0]:
                         {'attributes': {
                             'dn': decomposed[0][1]},
-                            'children': [_tag_format(decomposed[0][1])]}})
+                            'children': [] if not tag else
+                            [_tag_format(partial_dn)]}})
             else:
                 curr = manager.aci_session._data_stash.get(decomposed[0][1],
                                                            [])
@@ -187,7 +190,8 @@ class TestAciClientMixin(object):
                     if add:
                         next = {
                             part[0]: {'attributes': {'dn': partial_dn},
-                                      'children': [_tag_format(partial_dn)]}}
+                                      'children': [] if not tag else
+                                      [_tag_format(partial_dn)]}}
                         curr.values()[0]['children'].append(next)
                         prev = curr
                         curr = next
@@ -199,14 +203,14 @@ class TestAciClientMixin(object):
                 resource.values()[0].pop('children', None)
                 curr[curr.keys()[0]].update(resource.values()[0])
             else:
-                if child_index:
+                if child_index is not None:
                     prev.values()[0]['children'].pop(child_index)
                 else:
                     # Root node
-                    prev.pop(resource.values()[0]['attributes']['dn'])
+                    prev.pop(decomposed[0][1])
 
-    def _add_server_data(self, data, manager=None):
-        self._manipulate_server_data(data, manager=manager, add=True)
+    def _add_server_data(self, data, manager=None, tag=True):
+        self._manipulate_server_data(data, manager=manager, add=True, tag=tag)
 
     def _remove_server_data(self, data, manager=None):
         self._manipulate_server_data(data, manager=manager, add=False)
@@ -290,7 +294,7 @@ class TestAciClientMixin(object):
                                          "ownerKey": "",
                                          "ownerTag": ""}}}]
 
-    def _set_events(self, event_list, manager=None):
+    def _set_events(self, event_list, manager=None, tag=True):
         # Greenlets have their own weird way of calculating bool
         event_list_copy = copy.deepcopy(event_list)
         manager = manager if manager is not None else self.manager
@@ -301,7 +305,7 @@ class TestAciClientMixin(object):
         aci_tenant.AciTenantManager.flat_events(event_list_copy)
         for event in event_list_copy:
             if event.values()[0]['attributes'].get('status') != 'deleted':
-                self._add_server_data([event], manager=manager)
+                self._add_server_data([event], manager=manager, tag=tag)
             else:
                 self._remove_server_data([event], manager=manager)
 
@@ -488,14 +492,16 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             "tnFvCtxName": "test", "extra": "something_important"}}}
         parent_bd = self._get_example_aci_bd()
         self._add_server_data([complete, parent_bd])
-        events = self.manager._fill_events(events)
+        events, _ = self.manager._filter_ownership(
+            self.manager._fill_events(events))
         self.assertEqual(sorted([complete, parent_bd]), sorted(events))
 
         # Now start from BD
         events = [{"fvBD": {"attributes": {
             "arpFlood": "yes", "descr": "test",
             "dn": "uni/tn-test-tenant/BD-test", "status": "modified"}}}]
-        events = self.manager._fill_events(events)
+        events, _ = self.manager._filter_ownership(
+            self.manager._fill_events(events))
         self.assertEqual(sorted([parent_bd, complete]), sorted(events))
 
     def test_fill_events_not_found(self):
@@ -507,7 +513,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         parent_bd = self._get_example_aci_bd()
         # fvRsCtx is missing on server side
         self._add_server_data([parent_bd])
-        events = self.manager._fill_events(events)
+        events, _ = self.manager._filter_ownership(
+            self.manager._fill_events(events))
         self.assertEqual([parent_bd], events)
 
         self.manager.aci_session._data_stash = {}
@@ -517,7 +524,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 "dn": "uni/tn-test-tenant/BD-test/rsctx",
                 "tnFvCtxName": "test", "status": "modified"}}},
         ]
-        events = self.manager._fill_events(events)
+        events, _ = self.manager._filter_ownership(
+            self.manager._fill_events(events))
         self.assertEqual([], events)
 
     def test_flat_events(self):
@@ -666,7 +674,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 'ack': 'no', 'delegated': 'no',
                 'code': 'F0952', 'type': 'config'}}}
         ]
-        result = self.manager._filter_ownership(events)
+        result, _ = self.manager._filter_ownership(events)
         self.assertEqual(set(), self.manager.tag_set)
         self.assertEqual([], result)
 
@@ -676,7 +684,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                    'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/'
                          'tag-' + self.sys_id}}}
         events.append(tag)
-        result = self.manager._filter_ownership(events)
+        result, _ = self.manager._filter_ownership(events)
         self.assertEqual(set(['uni/tn-ivar-wstest/BD-test-2/rsctx']),
                          self.manager.tag_set)
         self.assertEqual(
@@ -692,7 +700,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
         # Now delete the tag
         tag['tagInst']['attributes']['status'] = 'deleted'
-        result = self.manager._filter_ownership(events)
+        result, _ = self.manager._filter_ownership(events)
         self.assertEqual(set(), self.manager.tag_set)
         self.assertEqual([], result)
 
@@ -716,5 +724,6 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                                'tnFvCtxName': 'asasa'}}},
         ]
         self._add_server_data(complete)
-        events = self.manager._fill_events(events)
+        events, _ = self.manager._filter_ownership(
+            self.manager._fill_events(events))
         self.assertEqual(sorted(complete), sorted(events))

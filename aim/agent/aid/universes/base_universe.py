@@ -66,7 +66,7 @@ class BaseUniverse(object):
         """
 
     @abc.abstractmethod
-    def reconcile(self, other_universe):
+    def reconcile(self, other_universe, delete_candidates):
         """State reconciliation method.
 
         When an universe's reconcile method is called, the state of the passed
@@ -77,6 +77,11 @@ class BaseUniverse(object):
         reconciliation the desired state is a subset of the current one.
 
         :param other_universe: universe to which we want to converge
+        :param delete_candidates: dictionary that each universe can use to
+               vote for tenant deletion. Dictionary keys will be the tenant
+               identifier, while the value is a set of universes' instance
+               where a specific Universe adds/removes itself to when he
+               agrees/desagrees on a tenant being removed.
         :returns:
         """
 
@@ -86,6 +91,13 @@ class BaseUniverse(object):
 
         :return: The current state of the universe. Two comparable universes
         should use the same state format.
+        """
+
+    @abc.abstractproperty
+    def name(self):
+        """Name Property
+
+        :return: Readable name for debugging purposes.
         """
 
 
@@ -199,7 +211,18 @@ class HashTreeStoredUniverse(AimUniverse):
     def observe(self):
         pass
 
-    def reconcile(self, other_universe):
+    def reconcile(self, other_universe, delete_candidates):
+        return self._reconcile(other_universe, delete_candidates)
+
+    def _vote_tenant_for_deletion(self, other_universe, tenant,
+                                  delete_candidates):
+        LOG.info("%s Voting for removal of tenant %s" %
+                 (self.name, tenant))
+        votes = delete_candidates.setdefault(tenant, set())
+        votes.add(self)
+
+    def _reconcile(self, other_universe, delete_candidates,
+                   skip_dummy=False, always_vote_deletion=False):
         my_state = self.state
         other_state = other_universe.get_optimized_state(my_state)
         result = {CREATE: [], DELETE: []}
@@ -216,11 +239,19 @@ class HashTreeStoredUniverse(AimUniverse):
                           (str(my_tenant_state), str(tree)))
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
-            if not tree.root:
-                if tenant not in other_state:
-                    LOG.info("Removing tenant from AIM %s" % tenant)
-                    # Empty tenant hasn't changed on AIM, gracefully delete
-                    other_universe.cleanup_state(tenant)
+            if always_vote_deletion or (
+                    skip_dummy and (not my_tenant_state.root or
+                                    my_tenant_state.root.dummy)):
+                self._vote_tenant_for_deletion(other_universe, tenant,
+                                               delete_candidates)
+                continue
+            if not tree.root:  # A Tenant has no state
+                if tenant not in other_state or not other_state[tenant].root:
+                    self._vote_tenant_for_deletion(
+                        other_universe, tenant, delete_candidates)
+                else:
+                    # This universe disagrees on deletion
+                    delete_candidates.get(tenant, set()).discard(self)
         LOG.debug("Universe differences: %s" % result)
         if not result.get(CREATE) and not result.get(DELETE):
             LOG.debug("The Universe is in sync.")

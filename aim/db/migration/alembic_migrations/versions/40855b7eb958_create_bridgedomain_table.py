@@ -44,6 +44,7 @@ def upgrade():
         sa.Column('limit_ip_learn_to_subnets', sa.Boolean),
         sa.Column('l2_unknown_unicast_mode', sa.String(16)),
         sa.Column('ep_move_detect_mode', sa.String(16)),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_bridge_domains_identity'),

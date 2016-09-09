@@ -15,7 +15,6 @@
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
-from apicapi import exceptions as apic_exc
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
@@ -136,6 +135,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
         return self
 
     @property
+    def name(self):
+        return "ACI_Config_Universe"
+
+    @property
     def serving_tenants(self):
         global serving_tenants
         return serving_tenants
@@ -227,26 +230,20 @@ class AciUniverse(base.HashTreeStoredUniverse):
         for key in resource_keys:
             fault_code = None
             key_parts = self._split_key(key)
-            if key_parts[-1][0] == 'faultInst':
+            mo_type = key_parts[-1][0]
+            aci_object = {mo_type: {'attributes': {}}}
+            if mo_type == 'faultInst':
                 fault_code = key_parts[-1][1]
                 key_parts = key_parts[:-1]
             dn = apic_client.DNManager().build(key_parts)
             if fault_code:
                 dn += '/fault-%s' % fault_code
-            try:
-                data = self.aci_session.get_data('mo/' + dn)
-                if data:
-                    result.append(data[0])
-                else:
-                    LOG.warn("Resource %s not found", dn)
-            except apic_exc.ApicResponseNotOk as e:
-                if str(e.err_code) == '404':
-                    LOG.warn("Resource %s not found", dn)
-                    continue
-                else:
-                    LOG.error(e.message)
-                    raise
-        return result
+                aci_object[mo_type]['attributes']['code'] = fault_code
+            aci_object[mo_type]['attributes']['dn'] = dn
+            result.append(aci_object)
+        return aci_tenant.AciTenantManager.retrieve_aci_objects(
+            result, self._aim_converter, self.aci_session, get_all=True,
+            include_tags=False)
 
     def _retrieve_tenant_name(self, data):
         if isinstance(data, dict):
@@ -299,6 +296,22 @@ class AciUniverse(base.HashTreeStoredUniverse):
 class AciOperationalUniverse(AciUniverse):
     """ACI Universe for operational state."""
 
+    @property
+    def name(self):
+        return "ACI_Operational_Universe"
+
     def _get_state_copy(self, tenant):
         global serving_tenants
         return serving_tenants[tenant].get_operational_state_copy()
+
+
+class AciMonitoredUniverse(AciUniverse):
+    """ACI Universe for monitored state."""
+
+    @property
+    def name(self):
+        return "ACI_Monitored_Universe"
+
+    def _get_state_copy(self, tenant):
+        global serving_tenants
+        return serving_tenants[tenant].get_monitored_state_copy()
