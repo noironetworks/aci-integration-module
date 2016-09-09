@@ -564,7 +564,8 @@ class TestAciToAimConverterL3Outside(TestAciToAimConverterBase,
         {'resource': 'l3extRsEctx',
          'exceptions': {'vrf_name': {'other': 'tnFvCtxName'}, },
          'to_resource': converter.default_to_resource_strict,
-         'convert_pre_existing': True},
+         'convert_pre_existing': True,
+         'convert_monitored': False},
         {'resource': 'l3extRsL3DomAtt',
          'exceptions': {'l3_domain_dn': {'other': 'tDn'}, },
          'to_resource': converter.default_to_resource_strict}
@@ -601,15 +602,18 @@ class TestAciToAimConverterExternalNetwork(TestAciToAimConverterBase,
         {'resource': 'l3extRsInstPToNatMappingEPg',
          'exceptions': {'nat_epg_dn': {'other': 'tDn'}, },
          'to_resource': converter.default_to_resource_strict,
-         'convert_pre_existing': True},
+         'convert_pre_existing': True,
+         'convert_monitored': False},
         {'resource': 'fvRsProv',
          'exceptions': {},
          'converter': converter.fvRsProv_Ext_converter,
-         'convert_pre_existing': True},
+         'convert_pre_existing': True,
+         'convert_monitored': False},
         {'resource': 'fvRsCons',
          'exceptions': {},
          'converter': converter.fvRsCons_Ext_converter,
-         'convert_pre_existing': True}
+         'convert_pre_existing': True,
+         'convert_monitored': False}
     ]
     sample_input = [[get_example_aci_external_network(),
                      _aci_obj('l3extRsInstPToNatMappingEPg',
@@ -1045,7 +1049,13 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                                               l3_domain_dn='uni/foo'),
                     get_example_aim_l3outside(vrf_name='shared',
                                               l3_domain_dn='uni/foo',
-                                              pre_existing=True)]
+                                              pre_existing=True),
+                    get_example_aim_l3outside(vrf_name='shared',
+                                              l3_domain_dn='uni/foo2',
+                                              tenant_name='common',
+                                              name='l3o2',
+                                              dn='uni/tn-common/out-l3o2',
+                                              monitored=True)]
     sample_output = [
         [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2'),
          _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
@@ -1054,7 +1064,8 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                   dn='uni/tn-t1/out-inet2/rsL3DomAtt',
                   tDn='uni/foo')],
         [_aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet1/rsectx',
-                  tnFvCtxName='shared')]]
+                  tnFvCtxName='shared')],
+        [_aci_obj('l3extOut', dn='uni/tn-common/out-l3o2', name='l3o2')]]
     missing_ref_input = get_example_aim_l3outside(vrf_name=None,
                                                   l3_domain_dn=None)
     missing_ref_output = [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet1')]
@@ -1079,7 +1090,12 @@ class TestAimToAciConverterExternalNetwork(TestAimToAciConverterBase,
             nat_epg_dn='uni/foo',
             provided_contract_names=['k', 'p1'],
             consumed_contract_names=['c1', 'k'],
-            pre_existing=True)]
+            pre_existing=True),
+        get_example_aim_external_network(
+            nat_epg_dn='uni/foo',
+            provided_contract_names=['k', 'p1'],
+            consumed_contract_names=['c1', 'k'],
+            monitored=True)]
     sample_output = [
         [_aci_obj('l3extInstP', dn='uni/tn-t1/out-l1/instP-inet2'),
          _aci_obj('l3extRsInstPToNatMappingEPg',
@@ -1113,7 +1129,8 @@ class TestAimToAciConverterExternalNetwork(TestAimToAciConverterBase,
                   tnVzBrCPName='k'),
          _aci_obj('fvRsCons__Ext',
                   dn='uni/tn-t1/out-l1/instP-inet1/rscons-c1',
-                  tnVzBrCPName='c1')]]
+                  tnVzBrCPName='c1')],
+        [_aci_obj('l3extInstP', dn='uni/tn-t1/out-l1/instP-inet2')]]
     missing_ref_input = get_example_aim_external_network(nat_epg_dn=None)
     missing_ref_output = [_aci_obj('l3extInstP',
                                    dn='uni/tn-t1/out-l1/instP-inet1')]

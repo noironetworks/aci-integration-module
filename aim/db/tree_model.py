@@ -71,9 +71,14 @@ class OperationalTenantTree(model_base.Base, TypeTreeBase):
     __tablename__ = 'aim_operational_tenant_trees'
 
 
+class MonitoredTenantTree(model_base.Base, TypeTreeBase):
+    __tablename__ = 'aim_monitored_tenant_trees'
+
+
 CONFIG_TREE = ConfigTenantTree
 OPERATIONAL_TREE = OperationalTenantTree
-SUPPORTED_TREES = [CONFIG_TREE, OPERATIONAL_TREE]
+MONITORED_TREE = MonitoredTenantTree
+SUPPORTED_TREES = [CONFIG_TREE, OPERATIONAL_TREE, MONITORED_TREE]
 
 
 class TenantTreeManager(object):

@@ -36,16 +36,26 @@ class HashTreeDbListener(object):
         # Segregate updates by tenant
         updates_by_tenant = {}
         all_updates = [added, updated, deleted]
+        conf = tree_model.CONFIG_TREE
+        monitor = tree_model.MONITORED_TREE
+        oper = tree_model.OPERATIONAL_TREE
         for idx in range(len(all_updates)):
+            tree_index = 0 if idx < 2 else 1
             for res in all_updates[idx]:
                 key = self.tt_maker.get_tenant_key(res)
                 if not key:
                     continue
-                updates_by_tenant.setdefault(key, ([], [], [], []))
-                updates_by_tenant[key][
-                    (0 if idx < 2 else 1) +
-                    (2 if isinstance(res, aim_status.OperationalResource)
-                     else 0)].append(res)
+                updates_by_tenant.setdefault(
+                    key, {conf: ([], []), monitor: ([], []), oper: ([], [])})
+                if isinstance(res, aim_status.OperationalResource):
+                    # Operational Tree
+                    updates_by_tenant[key][oper][tree_index].append(res)
+                elif getattr(res, 'monitored', None):
+                    # Monitored Tree
+                    updates_by_tenant[key][monitor][tree_index].append(res)
+                else:
+                    # Configuration Tree
+                    updates_by_tenant[key][conf][tree_index].append(res)
 
         # Query hash-tree for each tenant and modify the tree based on DB
         # updates
@@ -53,28 +63,37 @@ class HashTreeDbListener(object):
             db_session = session
         ctx = DummyContext()
 
-        upd_trees, udp_op_trees = [], []
+        upd_trees, udp_op_trees, udp_mon_trees = [], [], []
         for tenant, upd in updates_by_tenant.iteritems():
             try:
-                ttree = self.tt_mgr.get(ctx, tenant)
-                ttree_operational = self.tt_mgr.get(
-                    ctx, tenant, tree=tree_model.OPERATIONAL_TREE)
+                ttree = self.tt_mgr.get(ctx, tenant, tree=conf)
+                ttree_operational = self.tt_mgr.get(ctx, tenant, tree=oper)
+                ttree_monitor = self.tt_mgr.get(ctx, tenant, tree=monitor)
             except hexc.HashTreeNotFound:
                 ttree = htree.StructuredHashTree()
                 ttree_operational = htree.StructuredHashTree()
-            self.tt_maker.update(ttree, upd[0])
-            self.tt_maker.delete(ttree, upd[1])
-            self.tt_maker.update(ttree_operational, upd[2])
-            self.tt_maker.delete(ttree_operational, upd[3])
+                ttree_monitor = htree.StructuredHashTree()
+            # Update Configuration Tree
+            self.tt_maker.update(ttree, upd[conf][0])
+            self.tt_maker.delete(ttree, upd[conf][1])
+            # Update Operational Tree
+            self.tt_maker.update(ttree_operational, upd[oper][0])
+            self.tt_maker.delete(ttree_operational, upd[oper][1])
+            # Update Monitored Tree
+            self.tt_maker.update(ttree_monitor, upd[monitor][0])
+            self.tt_maker.delete(ttree_monitor, upd[monitor][1])
 
             if ttree.root_key:
                 upd_trees.append(ttree)
             if ttree_operational.root_key:
                 udp_op_trees.append(ttree_operational)
+            if ttree_monitor.root_key:
+                udp_mon_trees.append(ttree_monitor)
 
         # Finally save the modified trees
         if upd_trees:
             self.tt_mgr.update_bulk(ctx, upd_trees)
         if udp_op_trees:
-            self.tt_mgr.update_bulk(ctx, udp_op_trees,
-                                    tree=tree_model.OPERATIONAL_TREE)
+            self.tt_mgr.update_bulk(ctx, udp_op_trees, tree=oper)
+        if udp_mon_trees:
+            self.tt_mgr.update_bulk(ctx, udp_mon_trees, tree=monitor)

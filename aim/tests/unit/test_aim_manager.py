@@ -332,6 +332,39 @@ class TestResourceOpsBase(object):
             self.test_required_attributes,
             self.test_update_attributes)
 
+    def test_monitored(self):
+        if 'monitored' in self.resource_class.other_attributes:
+            self._create_prerequisite_objects()
+            creation_attributes = {'monitored': True}
+            creation_attributes.update(self.test_required_attributes),
+            creation_attributes.update(self.test_identity_attributes)
+            res = self.resource_class(**creation_attributes)
+            r1 = self.mgr.create(self.ctx, res)
+            self.assertTrue(r1.monitored)
+
+            # Can overwrite if monitored is still True
+            r1 = self.mgr.create(self.ctx, res, overwrite=True)
+
+            # Cannot create overwrite if monitored is changed
+            r1.monitored = False
+            self.assertRaises(exc.InvalidMonitoredStateUpdate,
+                              self.mgr.create, self.ctx, r1, overwrite=True)
+
+            # Updating the resource fails
+            self.assertRaises(exc.InvalidUpdatedOnMonitoredObject,
+                              self.mgr.update, self.ctx, res,
+                              **self.test_update_attributes)
+
+            # Also updating the monitored attribute itself
+            res.monitored = False
+            self.assertRaises(exc.InvalidUpdatedOnMonitoredObject,
+                              self.mgr.update, self.ctx, res,
+                              monitored=False)
+
+            # Deleting it works
+            self.mgr.delete(self.ctx, res)
+            self.assertIsNone(self.mgr.get(self.ctx, res))
+
 
 class TestAciResourceOpsBase(TestResourceOpsBase):
 

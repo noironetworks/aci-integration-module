@@ -65,6 +65,11 @@ class HasTenantName(object):
     tenant_name = name_column(nullable=False)
 
 
+class IsMonitored(object):
+    """Add to subclasses for objects that can be monitored."""
+    monitored = sa.Column(sa.Boolean, nullable=False, default=False)
+
+
 class AttributeMixin(object):
     """Mixin class for translating between resource and model."""
 
