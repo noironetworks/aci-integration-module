@@ -1,0 +1,49 @@
+%define version_py @VERSION_PY@
+
+Name:		aci-integration-module
+Version:	@VERSION@
+Release:	@RELEASE@%{?dist}
+Summary:	Python library for programming ACI
+License:	ASL 2.0
+URL:		http://github.com/noironetworks/aci-integration-module
+Source:		aci-integration-module-%{version}.tar.gz
+BuildArch:	noarch
+BuildRequires:	python2-devel
+BuildRequires:	python-pbr
+BuildRequires:	python-setuptools
+Requires:	python-oslo-config >= 1.4.0
+Requires:	python-click >= 3.3
+Requires:       python-sqlalchemy
+Requires:       acitoolkit >= 0.3.2
+Requires:	python-gevent
+
+%description
+Library for programming ACI.
+
+%prep
+%setup -qn aci-integration-module-%{version_py}
+rm -f requirements.txt
+
+%build
+%{__python2} setup.py build
+
+%install
+%{__python2} setup.py install -O1 --install-data / --skip-build --root %{buildroot}
+install -p -D -m 0644 rpm/aim-aid.service %{buildroot}/%{_unitdir}/aim-aid.service
+
+# Remove unused files
+rm -rf %{buildroot}%{python2_sitelib}/aim/tests
+
+%files
+%doc README.rst
+%{python2_sitelib}/aim
+%{python2_sitelib}/aci_integration_module-*.egg-info
+%{_bindir}/aim
+%{_bindir}/aim-debug
+%{_bindir}/aim-aid
+%config(noreplace) %{_sysconfdir}/aim/aim.conf
+%{_unitdir}/aim-aid.service
+
+%changelog
+* Wed Sep 14 2016 Amit Bose <bose@noironetworks.com> - 0.0.1-1
+- Initial release 

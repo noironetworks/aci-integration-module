@@ -1,0 +1,5 @@
+aci-integration-module (@VERSION@-@REVISION@) trusty; urgency=low
+
+  * Initial release 
+
+ -- Amit Bose <bose@noironetworks.com>  Wed, 14 Sep 2016 17:06:24 +0000

@@ -1,0 +1,16 @@
+Source: aci-integration-module
+Section: python
+Priority: optional
+Maintainer: Cisco Systems, Inc. <apicapi@noironetworks.com>
+Build-Depends: debhelper (>= 9), dh-systemd, python-setuptools (>= 3.3), python-all (>= 2.7)
+Standards-Version: 3.9.5
+Homepage: http://github.com/noironetworks/aci-integration-module/
+Vcs-Git: git://github.com/noironetworks/aci-integration-module.git
+Vcs-Browser: http://github.com/noironetworks/aci-integration-module
+
+Package: aci-integration-module
+Architecture: all
+Depends: python-click-cli (>=3.3) | python-click (>=6.2), python-oslo.config (>=1.4),
+         ${misc:Depends}, ${python:Depends}
+Description: Python library for programming ACI
+ Library for programming ACI 
