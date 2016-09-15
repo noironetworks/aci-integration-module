@@ -166,10 +166,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                              resource=parent,
                                              fault=resource)
                     else:
-                        LOG.debug(
-                            "%s object %s" %
-                            (fault_method[method].__name__,
-                             resource.__dict__))
+                        LOG.debug("%s object in AIM %s" %
+                                  (method, resource.__dict__))
                         if isinstance(resource,
                                       aim_resource.Tenant) and monitored:
                             # Monitored Universe doesn't interact with Tenant

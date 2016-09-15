@@ -84,7 +84,7 @@ def mock_get_data(inst, dn, **kwargs):
     decomposed = dn_mgr.aci_decompose_dn_guess(dn[3:], aci_type)[1]
     try:
         # Find the proper root node
-        curr = copy.deepcopy(inst._data_stash[decomposed[0][1]])
+        curr = copy.deepcopy(inst._data_stash[decomposed[0][1]])[0]
         for index, part in enumerate(decomposed[1:]):
             # Look at the current's children and find the proper node.
             if part[0] in AMBIGUOUS_TYPES:
@@ -130,7 +130,8 @@ def mock_get_data(inst, dn, **kwargs):
 
 class TestAciClientMixin(object):
 
-    def _manipulate_server_data(self, data, manager=None, add=True, tag=True):
+    def _manipulate_server_data(self, data, manager=None, add=True, tag=True,
+                                create_parents=False):
         manager = manager if manager is not None else self.manager
         try:
             manager.aci_session._data_stash
@@ -153,64 +154,78 @@ class TestAciClientMixin(object):
                 continue
             decomposed = dn_mgr.aci_decompose_dn_guess(
                 resource.values()[0]['attributes']['dn'], data_type)[1]
-            # Root is always a Tenant
             prev = manager.aci_session._data_stash
             if add:
-                partial_dn = dn_mgr.build(decomposed[:1])
                 curr = manager.aci_session._data_stash.setdefault(
-                    decomposed[0][1],
-                    {decomposed[0][0]:
-                        {'attributes': {
-                            'dn': decomposed[0][1]},
-                            'children': [] if not tag else
-                            [_tag_format(partial_dn)]}})
+                    decomposed[0][1], [])
             else:
                 curr = manager.aci_session._data_stash.get(decomposed[0][1],
                                                            [])
             child_index = None
-            for index, part in enumerate(decomposed[1:]):
+            last_index = len(decomposed) - 1
+            for out_index, part in enumerate(decomposed):
                 # Look at the current's children and find the proper node.
                 # if not found, it's a new node
                 if part[0] in AMBIGUOUS_TYPES:
                     partial_dn = (
                         dn_mgr.build(
-                            decomposed[:index + 1]) + '/' +
+                            decomposed[:out_index]) + '/' +
                         apic_client.ManagedObjectClass.mos_to_prefix[part[0]] +
-                        '-' + decomposed[index + 1][1])
+                        '-' + decomposed[out_index][1])
                 else:
-                    partial_dn = dn_mgr.build(decomposed[:index + 2])
+                    partial_dn = dn_mgr.build(decomposed[:out_index + 1])
 
-                for index, child in enumerate(curr.values()[0]['children']):
+                for index, child in enumerate(curr):
                     if child.values()[0]['attributes']['dn'] == partial_dn:
                         child_index = index
                         prev = curr
-                        curr = child
+                        curr = child.values()[0]['children']
                         break
                 else:
                     if add:
-                        next = {
-                            part[0]: {'attributes': {'dn': partial_dn},
-                                      'children': [] if not tag else
-                                      [_tag_format(partial_dn)]}}
-                        curr.values()[0]['children'].append(next)
-                        prev = curr
-                        curr = next
+                        if out_index < last_index:
+                            # Parent is missing
+                            if create_parents:
+                                next = {
+                                    part[0]: {'attributes': {'dn': partial_dn},
+                                              'children': [] if not tag else
+                                              [_tag_format(partial_dn)]}}
+                                curr.append(next)
+                                prev = curr
+                                curr = next[part[0]]['children']
+                            else:
+                                # TODO(ivar): find out right exception
+                                raise apic_client.cexc.ApicResponseNotOk(
+                                    status='bad request', reason='bad request',
+                                    request='create', err_code=400,
+                                    err_text='bad request')
+                        else:
+                            # Append newly created object
+                            obj = {
+                                part[0]: {'attributes': {'dn': partial_dn},
+                                          'children': [] if not tag else
+                                          [_tag_format(partial_dn)]}}
+                            curr.append(obj)
+                            resource.values()[0].pop('children', None)
+                            obj[part[0]].update(resource.values()[0])
                     else:
                         # Not found
                         return
             # Update body
-            if add:
-                resource.values()[0].pop('children', None)
-                curr[curr.keys()[0]].update(resource.values()[0])
-            else:
+            if not add:
                 if child_index is not None:
-                    prev.values()[0]['children'].pop(child_index)
+                    prev.pop(child_index)
+                    if prev is manager.aci_session._data_stash[
+                            decomposed[0][1]]:
+                        manager.aci_session._data_stash.pop(decomposed[0][1])
                 else:
                     # Root node
                     prev.pop(decomposed[0][1])
 
-    def _add_server_data(self, data, manager=None, tag=True):
-        self._manipulate_server_data(data, manager=manager, add=True, tag=tag)
+    def _add_server_data(self, data, manager=None, tag=True,
+                         create_parents=False):
+        self._manipulate_server_data(data, manager=manager, add=True, tag=tag,
+                                     create_parents=create_parents)
 
     def _remove_server_data(self, data, manager=None):
         self._manipulate_server_data(data, manager=manager, add=False)
@@ -220,12 +235,14 @@ class TestAciClientMixin(object):
         return [rn for rn in self.manager.dn_manager.aci_decompose(dn, mo)
                 if rn not in FIXED_RNS]
 
-    def _objects_transaction_create(self, objs, create=True, tag=None):
+    def _objects_transaction_create(self, objs, create=True, tag=None,
+                                    top_send=True):
         tag = tag or self.sys_id
         result = []
         for obj in objs:
             conversion = converter.AimToAciModelConverter().convert([obj])
-            transaction = apic_client.Transaction(mock.Mock())
+            transaction = apic_client.Transaction(mock.Mock(),
+                                                  top_send=top_send)
             tags = []
             if create:
                 for item in conversion:
@@ -257,12 +274,11 @@ class TestAciClientMixin(object):
 
     def _init_event(self):
         return [
-            {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-test-tenant/BD-test/rsctx",
-                "tnFvCtxName": "test"}}},
-            {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-test-tenant/BD-test-2/rsctx",
-                "tnFvCtxName": "test"}}},
+            {"fvTenant": {"attributes": {"descr": "",
+                                         "dn": "uni/tn-test-tenant",
+                                         "name": "test-tenant",
+                                         "ownerKey": "",
+                                         "ownerTag": ""}}},
             {"fvBD": {"attributes": {"arpFlood": "yes", "descr": "test",
                                      "dn": "uni/tn-test-tenant/BD-test",
                                      "epMoveDetectMode": "",
@@ -288,13 +304,15 @@ class TestAciClientMixin(object):
                                      "unkMacUcastAct": "proxy",
                                      "unkMcastAct": "flood",
                                      "vmac": "not-applicable"}}},
-            {"fvTenant": {"attributes": {"descr": "",
-                                         "dn": "uni/tn-test-tenant",
-                                         "name": "test-tenant",
-                                         "ownerKey": "",
-                                         "ownerTag": ""}}}]
+            {"fvRsCtx": {"attributes": {
+                "dn": "uni/tn-test-tenant/BD-test/rsctx",
+                "tnFvCtxName": "test"}}},
+            {"fvRsCtx": {"attributes": {
+                "dn": "uni/tn-test-tenant/BD-test-2/rsctx",
+                "tnFvCtxName": "test"}}}]
 
-    def _set_events(self, event_list, manager=None, tag=True):
+    def _set_events(self, event_list, manager=None, tag=True,
+                    create_parents=False):
         # Greenlets have their own weird way of calculating bool
         event_list_copy = copy.deepcopy(event_list)
         manager = manager if manager is not None else self.manager
@@ -305,7 +323,8 @@ class TestAciClientMixin(object):
         aci_tenant.AciTenantManager.flat_events(event_list_copy)
         for event in event_list_copy:
             if event.values()[0]['attributes'].get('status') != 'deleted':
-                self._add_server_data([event], manager=manager, tag=tag)
+                self._add_server_data([event], manager=manager, tag=tag,
+                                      create_parents=create_parents)
             else:
                 self._remove_server_data([event], manager=manager)
 
@@ -403,7 +422,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 "tnFvCtxName": "test-2"}}}
             ]
         self.manager._subscribe_tenant()
-        self._set_events(double_events)
+        self._set_events(double_events, create_parents=True)
         res = self.manager.tenant.instance_get_event_data(
             self.manager.ws_context.session)
         self.assertEqual(1, len(res))
@@ -422,14 +441,18 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.manager.push_aim_resources({'create': [bd1, bd2, subj1]})
         self.manager._push_aim_resources()
         # Verify expected calls
-        transactions = self._objects_transaction_create([bd1, bd2, subj1])
+        transactions = self._objects_transaction_create([bd1, bd2, subj1],
+                                                        top_send=True)
         exp_calls = [
-            mock.call(mock.ANY, json.dumps(transactions[0].root),
-                      'test-tenant'),
-            mock.call(mock.ANY, json.dumps(transactions[1].root),
-                      'test-tenant'),
-            mock.call(mock.ANY, json.dumps(transactions[2].root),
-                      'test-tenant')]
+            mock.call(mock.ANY,
+                      json.dumps(transactions[0].get_top_level_roots()[0][1]),
+                      'test-tenant', 'test'),
+            mock.call(mock.ANY,
+                      json.dumps(transactions[1].get_top_level_roots()[0][1]),
+                      'test-tenant', 'test2'),
+            mock.call(mock.ANY,
+                      json.dumps(transactions[2].get_top_level_roots()[0][1]),
+                      'test-tenant', 'c', 's')]
         self._check_call_list(exp_calls, self.manager.aci_session.post_body)
 
         # Delete AIM resources
@@ -461,12 +484,12 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         transactions = self._objects_transaction_create([bd1])
         transactions.extend(self._objects_transaction_delete([bda2]))
         exp_calls = [
-            mock.call(mock.ANY, json.dumps(transactions[0].root),
-                      'test-tenant'),
             mock.call(mock.ANY, json.dumps(transactions[1].root),
-                      'test-tenant')]
+                      'test-tenant'),
+            mock.call(mock.ANY,
+                      json.dumps(transactions[0].get_top_level_roots()[0][1]),
+                      'test-tenant', 'test')]
         self._check_call_list(exp_calls, self.manager.aci_session.post_body)
-
         # Failure in pushing object
         self.manager.aci_session.post_body = mock.Mock(
             side_effect=apic_client.cexc.ApicResponseNotOk)
@@ -491,7 +514,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             "dn": "uni/tn-test-tenant/BD-test/rsctx",
             "tnFvCtxName": "test", "extra": "something_important"}}}
         parent_bd = self._get_example_aci_bd()
-        self._add_server_data([complete, parent_bd])
+        self._add_server_data([parent_bd, complete], create_parents=True)
         events, _ = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted([complete, parent_bd]), sorted(events))
@@ -512,13 +535,13 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         ]
         parent_bd = self._get_example_aci_bd()
         # fvRsCtx is missing on server side
-        self._add_server_data([parent_bd])
+        self._add_server_data([parent_bd], create_parents=True)
         events, _ = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual([parent_bd], events)
 
         self.manager.aci_session._data_stash = {}
-        self._add_server_data([])
+        self._add_server_data([], create_parents=True)
         events = [
             {"fvRsCtx": {"attributes": {
                 "dn": "uni/tn-test-tenant/BD-test/rsctx",
@@ -640,19 +663,19 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def test_operational_tree(self):
         events = [
             {'fvRsCtx': {
-                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
+                'attributes': {'dn': 'uni/tn-tenant-1/BD-test-2/rsctx',
                                'tnFvCtxName': 'asasa'},
                 'children': [{'faultInst': {
                     'attributes': {'ack': 'no', 'delegated': 'no',
                                    'code': 'F0952', 'type': 'config'}}}]}},
             {'fvRsCtx': {'attributes': {
-                'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                'dn': 'uni/tn-tenant-1/BD-test/rsctx',
                 'tnFvCtxName': 'test'},
                 'children': [{'faultInst': {'attributes': {
                     'ack': 'no', 'delegated': 'no',
                     'code': 'F0952', 'type': 'config'}}}]}}]
         self.manager._subscribe_tenant()
-        self._set_events(events)
+        self._set_events(events, create_parents=True)
         self.manager._event_loop()
         self.assertIsNotNone(self.manager._operational_state)
 
@@ -715,15 +738,15 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         ]
         complete = [
             {'fvBD': {'attributes': {'dn': u'uni/tn-ivar-wstest/BD-test'}}},
+            {'fvRsCtx': {
+                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
+                               'tnFvCtxName': 'asasa'}}},
             {'faultInst': {'attributes': {
              'dn': 'uni/tn-ivar-wstest/BD-test/rsctx/fault-F0952',
              'ack': 'no', 'delegated': 'no',
              'code': 'F0952', 'type': 'config'}}},
-            {'fvRsCtx': {
-                'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
-                               'tnFvCtxName': 'asasa'}}},
         ]
-        self._add_server_data(complete)
+        self._add_server_data(complete, create_parents=True)
         events, _ = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted(complete), sorted(events))

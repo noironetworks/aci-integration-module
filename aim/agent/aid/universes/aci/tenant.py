@@ -321,7 +321,9 @@ class AciTenantManager(gevent.Greenlet):
                     MO = apic_client.ManagedObjectClass
                     decompose = apic_client.DNManager().aci_decompose_dn_guess
                     try:
-                        with self.aci_session.transaction() as trs:
+                        top_send = method == base_universe.CREATE
+                        with self.aci_session.transaction(
+                                top_send=top_send) as trs:
                             for obj in to_push + tags:
                                 attr = obj.values()[0]['attributes']
                                 mo, parents_rns = decompose(attr.pop('dn'),
