@@ -1,4 +1,3 @@
-
 # Copyright (c) 2016 Cisco Systems
 # All Rights Reserved.
 #
@@ -13,6 +12,9 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
+import collections
+import traceback
 
 from apicapi import apic_client
 from oslo_log import log as logging
@@ -563,22 +565,28 @@ class AciToAimModelConverter(BaseConverter):
         LOG.debug("converting aci objects %s" % aci_objects)
         result = []
         for object in aci_objects:
-            if object.keys()[0] not in resource_map:
-                # Ignore unmanaged object
-                continue
-            for helper in resource_map[object.keys()[0]]:
-                resource = object[object.keys()[0]]['attributes']
-                # Use the custom converter, fallback to the default one
-                converted = (
-                    helper.get('converter') or self._default_converter)(
-                    resource, object.keys()[0], helper,
-                    ['dn'], helper['resource'].identity_attributes,
-                    to_aim=True)
-                if resource.get('status') == DELETED_STATUS:
-                    for x in converted:
-                        # Set deleted status for updating the tree correctly
-                        x.__dict__['_status'] = 'deleted'
-                result.extend(converted)
+            try:
+                if object.keys()[0] not in resource_map:
+                    # Ignore unmanaged object
+                    continue
+                for helper in resource_map[object.keys()[0]]:
+                    resource = object[object.keys()[0]]['attributes']
+                    # Use the custom converter, fallback to the default one
+                    converted = (
+                        helper.get('converter') or self._default_converter)(
+                        resource, object.keys()[0], helper,
+                        ['dn'], helper['resource'].identity_attributes,
+                        to_aim=True)
+                    if resource.get('status') == DELETED_STATUS:
+                        for x in converted:
+                            # Set deleted status for updating the tree
+                            # correctly
+                            x.__dict__['_status'] = 'deleted'
+                    result.extend(converted)
+            except Exception as e:
+                LOG.warn("Could not convert object"
+                         "%s with error %s" % (object, e.message))
+                LOG.debug(traceback.format_exc())
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %
                   (aci_objects, squashed))
@@ -590,26 +598,20 @@ class AciToAimModelConverter(BaseConverter):
         :param converted_list:
         :return:
         """
-        res_map = {}
-        result = []
+        res_map = collections.OrderedDict()
         for res in converted_list:
             # Base for squashing is the Resource with all its defaults
             klass = type(res)
-            if tuple(res.identity) not in res_map:
-                current = res_map.setdefault(
-                    tuple(res.identity),
-                    klass(**dict([(y, res.identity[x]) for x, y in
-                                  enumerate(klass.identity_attributes)])))
-                # Try to preserve order
-                result.append(current)
-            else:
-                current = res_map[tuple(res.identity)]
+            current = res_map.setdefault(
+                (res._aci_mo_name,) + tuple(res.identity),
+                klass(**dict([(y, res.identity[x]) for x, y in
+                              enumerate(klass.identity_attributes)])))
             for k, v in res.__dict__.iteritems():
                 if isinstance(v, list):
                     current.__dict__.setdefault(k, []).extend(v)
                 else:
                     setattr(current, k, v)
-        return result
+        return res_map.values()
 
 
 class AimToAciModelConverter(BaseConverter):
@@ -624,23 +626,30 @@ class AimToAciModelConverter(BaseConverter):
         LOG.debug("converting aim objects %s" % aim_objects)
         result = []
         for object in aim_objects:
-            klass = type(object)
-            if klass not in reverse_resource_map:
-                # Ignore unmanaged object
-                continue
-            is_pre = getattr(object, 'pre_existing', False)
-            is_mon = getattr(object, 'monitored', False)
-            for helper in reverse_resource_map[klass]:
-                if is_pre and not helper.get('convert_pre_existing', False):
+            try:
+                klass = type(object)
+                if klass not in reverse_resource_map:
+                    # Ignore unmanaged object
                     continue
-                if is_mon and not helper.get('convert_monitored', True):
-                    continue
-                # Use the custom converter, fallback to the default one
-                converted = (
-                    helper.get('converter') or self._default_converter)(
-                    object.__dict__, klass, helper, klass.identity_attributes,
-                    ['dn'], to_aim=False)
-                result.extend(converted)
+                is_pre = getattr(object, 'pre_existing', False)
+                is_mon = getattr(object, 'monitored', False)
+                for helper in reverse_resource_map[klass]:
+                    if is_pre and not helper.get('convert_pre_existing',
+                                                 False):
+                        continue
+                    if is_mon and not helper.get('convert_monitored', True):
+                        continue
+                    # Use the custom converter, fallback to the default one
+                    converted = (
+                        helper.get('converter') or self._default_converter)(
+                        object.__dict__, klass, helper,
+                        klass.identity_attributes,
+                        ['dn'], to_aim=False)
+                    result.extend(converted)
+            except Exception as e:
+                LOG.warn("Could not convert object"
+                         "%s with error %s" % (object.__dict__, e.message))
+                LOG.debug(traceback.format_exc())
 
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %
@@ -653,7 +662,7 @@ class AimToAciModelConverter(BaseConverter):
         :param converted_list:
         :return:
         """
-        res_map = {}
+        res_map = collections.OrderedDict()
         for res in converted_list:
             current = res_map.setdefault(
                 res[res.keys()[0]]['attributes']['dn'], res)

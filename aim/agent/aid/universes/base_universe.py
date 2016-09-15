@@ -235,13 +235,14 @@ class HashTreeStoredUniverse(AimUniverse):
             result[CREATE].extend(difference['add'])
             result[DELETE].extend(difference['remove'])
             if result[CREATE] or result[DELETE]:
-                LOG.debug("There are differences between:\n %s\n and\n %s" %
-                          (str(my_tenant_state), str(tree)))
+                LOG.debug("Universes %s and %s have "
+                          "differences:\n %s\n and\n %s" %
+                          (self.name, other_universe.name,
+                           str(my_tenant_state), str(tree)))
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
             if always_vote_deletion or (
-                    skip_dummy and (not my_tenant_state.root or
-                                    my_tenant_state.root.dummy)):
+                    skip_dummy and (not tree.root or tree.root.dummy)):
                 self._vote_tenant_for_deletion(other_universe, tenant,
                                                delete_candidates)
                 continue
@@ -254,7 +255,9 @@ class HashTreeStoredUniverse(AimUniverse):
                     delete_candidates.get(tenant, set()).discard(self)
         LOG.debug("Universe differences: %s" % result)
         if not result.get(CREATE) and not result.get(DELETE):
-            LOG.debug("The Universe is in sync.")
+            LOG.debug("Universe %s and %s are in sync." %
+                      (self.name, other_universe.name))
+            return
         # Get AIM resources at the end to reduce the number of transactions
         result[CREATE] = other_universe.get_resources(result[CREATE])
         result[DELETE] = self.get_resources_for_delete(result[DELETE])
