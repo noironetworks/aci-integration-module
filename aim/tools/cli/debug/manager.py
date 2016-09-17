@@ -161,7 +161,12 @@ def get(ctx, type, attribute):
     validate_attributes(klass, attribute.keys(), '--attribute/-a')
     res = klass(**attribute)
     res = manager.get(aim_ctx, res)
-    print_resource(res)
+    if res:
+        stat = manager.get_status(aim_ctx, res)
+        print_resource(res)
+        print_resource(stat)
+        for f in stat.faults:
+            print_resource(f)
 
 
 @manager.command(name='describe')
