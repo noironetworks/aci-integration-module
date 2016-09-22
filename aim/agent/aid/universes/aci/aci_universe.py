@@ -235,10 +235,13 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 dn += '/fault-%s' % fault_code
             try:
                 data = self.aci_session.get_data('mo/' + dn)
-                result.append(data[0])
+                if data:
+                    result.append(data[0])
+                else:
+                    LOG.warn("Resource %s not found", dn)
             except apic_exc.ApicResponseNotOk as e:
                 if str(e.err_code) == '404':
-                    LOG.debug("Resource %s not found", dn)
+                    LOG.warn("Resource %s not found", dn)
                     continue
                 else:
                     LOG.error(e.message)
