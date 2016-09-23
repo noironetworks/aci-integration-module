@@ -342,7 +342,7 @@ class FilterEntry(AciResourceBase):
              'source_to_port': self.UNSPECIFIED,
              'dest_from_port': self.UNSPECIFIED,
              'dest_to_port': self.UNSPECIFIED,
-             'tcp_flags': self.UNSPECIFIED,
+             'tcp_flags': '',
              'stateful': False,
              'fragment_only': False},
             **kwargs)
