@@ -135,6 +135,43 @@ def boolean(resource, attribute, to_aim=True):
         return 'yes' if resource[attribute] is True else 'no'
 
 
+def mapped_attribute(value_map):
+    def mapped(object_dict, attribute, to_aim=True):
+        curr = default_attribute_converter(object_dict, attribute,
+                                           to_aim=to_aim)
+        if to_aim:
+            return curr
+        else:
+            # ACI only accept certain parameters
+            return value_map.get(str(curr), curr)
+    return mapped
+
+
+tcp_flags = mapped_attribute({resource.FilterEntry.UNSPECIFIED: ""})
+port = mapped_attribute(
+    {'0': resource.FilterEntry.UNSPECIFIED, '20': 'ftpData', '25': 'smtp',
+     '53': 'dns', '80': 'http', '110': 'pop3', '443': 'https', '554': 'rstp'})
+arp_opcode = mapped_attribute({'0': resource.FilterEntry.UNSPECIFIED,
+                               '1': 'req', '2': 'reply'})
+ether_type = mapped_attribute(
+    {'0': resource.FilterEntry.UNSPECIFIED, '0x22F3': 'trill', '0x806': 'arp',
+     '0x8847': 'mpls_ucast', '0x88E5': 'mac_security', '0x8906': 'fcoe',
+     '0xABCD': 'ip'})
+icmpv4_type = mapped_attribute({'0': 'echo-rep', '3': 'dst-unreach',
+                                '4': 'src-quench', '8': 'echo',
+                                '11': 'time-exceeded', '255': 'unspecified'})
+
+icmpv6_type = mapped_attribute({'0': resource.FilterEntry.UNSPECIFIED,
+                                '1': 'dst-unreach', '3': 'time-exceeded',
+                                '128': 'echo-req', '129': 'echo-rep',
+                                '135': 'nbr-solicit', '136': 'nbr-advert',
+                                '137': 'redirect'})
+ip_protocol = mapped_attribute(
+    {'0': resource.FilterEntry.UNSPECIFIED, '1': 'icmp', '2': 'igmp',
+     '6': 'tcp', '8': 'egp', '9': 'igp', '17': 'udp', '58': 'icmpv6',
+     '88': 'eigrp', '89': 'ospfigp', '103': 'pim', '115': 'l2tp'})
+
+
 def fault_inst_to_resource(converted, helper, to_aim=True):
     fault_prefix = 'fault-'
     if to_aim:
@@ -368,16 +405,26 @@ resource_map = {
     'vzEntry': [{
         'resource': resource.FilterEntry,
         'exceptions': {
-            'arpOpc': {'other': 'arp_opcode'},
-            'etherT': {'other': 'ether_type'},
-            'prot': {'other': 'ip_protocol'},
-            'icmpv4T': {'other': 'icmpv4_type'},
-            'icmpv6T': {'other': 'icmpv6_type'},
-            'sFromPort': {'other': 'source_from_port'},
-            'sToPort': {'other': 'source_to_port'},
-            'dFromPort': {'other': 'dest_from_port'},
-            'dToPort': {'other': 'dest_to_port'},
-            'tcpRules': {'other': 'tcp_flags'},
+            'arpOpc': {'other': 'arp_opcode',
+                       'converter': arp_opcode},
+            'etherT': {'other': 'ether_type',
+                       'converter': ether_type},
+            'prot': {'other': 'ip_protocol',
+                     'converter': ip_protocol},
+            'icmpv4T': {'other': 'icmpv4_type',
+                        'converter': icmpv4_type},
+            'icmpv6T': {'other': 'icmpv6_type',
+                        'converter': icmpv6_type},
+            'sFromPort': {'other': 'source_from_port',
+                          'converter': port},
+            'sToPort': {'other': 'source_to_port',
+                        'converter': port},
+            'dFromPort': {'other': 'dest_from_port',
+                          'converter': port},
+            'dToPort': {'other': 'dest_to_port',
+                        'converter': port},
+            'tcpRules': {'other': 'tcp_flags',
+                         'converter': tcp_flags},
             'stateful': {'converter': boolean},
             'applyToFrag': {'other': 'fragment_only',
                             'converter': boolean}
