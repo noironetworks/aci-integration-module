@@ -184,12 +184,21 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                 resource.monitored = monitored
                             self.manager.create(self.context, resource,
                                                 overwrite=True)
+                            # Declare victory for the created object
+                            self.creation_succeeded(resource)
                         else:
                             self.manager.delete(self.context, resource)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, e.message))
                     LOG.debug(traceback.format_exc())
+                    # REVISIT(ivar): can creation on the AIM side fail? If so,
+                    # what can the universe do about it? We can't set sync
+                    # status of non existing objects, neither we can remove
+                    # objects from ACI-side trees (how would the manual
+                    # operation for resync be triggered?)
+                    if method == 'delete':
+                        self.deletion_failed(resource)
 
     def _retrieve_fault_parent(self, fault):
         external = fault.external_identifier

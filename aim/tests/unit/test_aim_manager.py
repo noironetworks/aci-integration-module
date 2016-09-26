@@ -221,10 +221,18 @@ class TestResourceOpsBase(object):
         res = self.mgr.create(self.ctx, res)
         listener.assert_called_with(mock.ANY, [res], [], [])
 
+        # trigger status creation
+        status = self.mgr.get_status(self.ctx, res)
         if test_update_attributes:
             listener.reset_mock()
             res = self.mgr.update(self.ctx, res, **test_update_attributes)
-            listener.assert_called_with(mock.ANY, [], [res], [])
+            if status:
+                exp_calls = [
+                    mock.call(mock.ANY, [], [res], []),
+                    mock.call(mock.ANY, [], [status], [])]
+                self._check_call_list(exp_calls, listener)
+            else:
+                listener.assert_called_with(mock.ANY, [], [res], [])
 
         listener.reset_mock()
         self.mgr.delete(self.ctx, res)
@@ -248,8 +256,12 @@ class TestResourceOpsBase(object):
         self.mgr.create(self.ctx, res, overwrite=True)
         status = self.mgr.get_status(self.ctx, res)
         self.assertTrue(isinstance(status, aim_status.AciStatus))
-        self.assertFalse(status.is_build())
+        self.assertTrue(status.is_build())
         self.assertFalse(status.is_error())
+        # Sync object
+        self.mgr.set_resource_sync_synced(self.ctx, res)
+        status = self.mgr.get_status(self.ctx, res)
+        self.assertFalse(status.is_build())
 
         status.sync_message = "some message"
         self.mgr.update_status(self.ctx, res, status)
@@ -275,6 +287,12 @@ class TestResourceOpsBase(object):
         self.assertEqual(1, len(status.faults))
         self.assertEqual(aim_status.AciFault.SEV_CLEARED,
                          status.faults[0].severity)
+        # Test parent class from status, and the ability to retrieve the
+        # original object from there
+        self.assertTrue(isinstance(res, status.parent_class))
+        res_from_status = self.mgr.get_by_id(self.ctx, status.parent_class,
+                                             status.resource_id)
+        self.assertEqual(res, res_from_status)
         new_timestamp = status.faults[0].last_update_timestamp
         self.assertTrue(new_timestamp > timestamp)
         self.assertFalse(status.is_error())

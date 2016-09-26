@@ -49,13 +49,7 @@ def _flat_result(result):
     return flattened
 
 
-def mock_get_data(inst, dn, **kwargs):
-    # Expected kwargs: query_target [subtree], target_subtree_class
-    try:
-        inst._data_stash
-    except Exception:
-        inst._data_stash = {}
-
+def decompose_aci_dn(dn):
     dn_mgr = apic_client.DNManager()
     # Since we have no APIC type, extract the object's RN:
     rn = []
@@ -81,7 +75,19 @@ def mock_get_data(inst, dn, **kwargs):
         rn = rn[:rn.find('-')]
     aci_type = apic_client.ManagedObjectClass.prefix_to_mos[rn]
     # Now we can decompose the DN, remove the mo/ in front
-    decomposed = dn_mgr.aci_decompose_dn_guess(dn[3:], aci_type)[1]
+    return dn_mgr.aci_decompose_dn_guess(dn, aci_type)[1]
+
+
+def mock_get_data(inst, dn, **kwargs):
+    # Expected kwargs: query_target [subtree], target_subtree_class
+    try:
+        inst._data_stash
+    except Exception:
+        inst._data_stash = {}
+
+    dn_mgr = apic_client.DNManager()
+    # Decompose the DN, remove the mo/ in front
+    decomposed = decompose_aci_dn(dn[3:])
     try:
         # Find the proper root node
         curr = copy.deepcopy(inst._data_stash[decomposed[0][1]])[0]
@@ -346,6 +352,10 @@ class TestAciClientMixin(object):
             'apicapi.apic_client.ApicSession.post_body')
         self.post_body.start()
 
+        self.delete = mock.patch(
+            'apicapi.apic_client.ApicSession.DELETE')
+        self.delete.start()
+
         self.apic_login = mock.patch(
             'apicapi.apic_client.ApicSession.login')
         self.apic_login.start()
@@ -359,6 +369,7 @@ class TestAciClientMixin(object):
         self.addCleanup(self.tn_subscribe.stop)
         self.addCleanup(self.process_q.stop)
         self.addCleanup(self.post_body.stop)
+        self.addCleanup(self.delete.stop)
 
 
 class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
@@ -466,15 +477,11 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         # Verify expected calls, add deleted status
         transactions = self._objects_transaction_delete([bda1, bda2, f1, f2])
         exp_calls = [
-            mock.call(mock.ANY, json.dumps(transactions[0].root),
-                      'test-tenant'),
-            mock.call(mock.ANY, json.dumps(transactions[1].root),
-                      'test-tenant'),
-            mock.call(mock.ANY, json.dumps(transactions[2].root),
-                      'test-tenant'),
-            mock.call(mock.ANY, json.dumps(transactions[3].root),
-                      'test-tenant')]
-        self._check_call_list(exp_calls, self.manager.aci_session.post_body)
+            mock.call('/mo/' + bda1.values()[0]['attributes']['dn'] + '.json'),
+            mock.call('/mo/' + bda2.values()[0]['attributes']['dn'] + '.json'),
+            mock.call('/mo/' + f1.values()[0]['attributes']['dn'] + '.json'),
+            mock.call('/mo/' + f2.values()[0]['attributes']['dn'] + '.json')]
+        self._check_call_list(exp_calls, self.manager.aci_session.DELETE)
 
         # Create AND delete aim resources
         self.manager.aci_session.post_body.reset_mock()
@@ -482,16 +489,13 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             [('create', [bd1]), ('delete', [bda2])]))
         self.manager._push_aim_resources()
         transactions = self._objects_transaction_create([bd1])
-        transactions.extend(self._objects_transaction_delete([bda2]))
         exp_calls = [
-            mock.call(mock.ANY, json.dumps(transactions[1].root),
-                      'test-tenant'),
             mock.call(mock.ANY,
                       json.dumps(transactions[0].get_top_level_roots()[0][1]),
                       'test-tenant', 'test')]
         self._check_call_list(exp_calls, self.manager.aci_session.post_body)
         # Failure in pushing object
-        self.manager.aci_session.post_body = mock.Mock(
+        self.manager.aci_session.DELETE = mock.Mock(
             side_effect=apic_client.cexc.ApicResponseNotOk)
         # No exception is externally rised
         self.manager.push_aim_resources({'delete': [bda1, bda2]})

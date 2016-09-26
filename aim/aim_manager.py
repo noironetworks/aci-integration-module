@@ -128,6 +128,7 @@ class AimManager(object):
                             if k in resource.other_attributes}
                 db_obj.from_attr(context.db_session, attr_val)
                 context.db_session.add(db_obj)
+                self.set_resource_sync_pending(context, resource)
                 self._add_commit_hook(context.db_session)
                 return self.get(context, resource)
 
@@ -166,6 +167,13 @@ class AimManager(object):
         return self._make_resource(
             context.db_session, type(resource), db_obj) if db_obj else None
 
+    def get_by_id(self, context, resource_class, aim_id):
+        self._validate_resource_class(resource_class)
+        db_obj = self._query_db(context.db_session,
+                                resource_class, aim_id=aim_id).one()
+        return self._make_resource(
+            context.db_session, resource_class, db_obj) if db_obj else None
+
     def find(self, context, resource_class, **kwargs):
         """Find AIM resources from the database that match specified criteria.
 
@@ -197,7 +205,7 @@ class AimManager(object):
         with context.db_session.begin(subtransactions=True):
             if isinstance(resource, api_res.AciResourceBase):
                 res_type, res_id = self._get_status_params(context, resource)
-                if res_type and res_id:
+                if res_type and res_id is not None:
                     status = self.get(context, api_status.AciStatus(
                         resource_type=res_type, resource_id=res_id))
                     if not status:
@@ -223,6 +231,26 @@ class AimManager(object):
                     status.resource_type = res_type
                     status.resource_id = res_id
                     return self.create(context, status, overwrite=True)
+
+    def _set_resource_sync(self, context, resource, sync_status, message=''):
+        with context.db_session.begin(subtransactions=True):
+            self._validate_resource_class(resource)
+            status = self.get_status(context, resource)
+            if status:
+                self.update(context, status, sync_status=sync_status,
+                            sync_message=message)
+
+    def set_resource_sync_synced(self, context, resource):
+        self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
+
+    def set_resource_sync_pending(self, context, resource):
+        self._set_resource_sync(context, resource,
+                                api_status.AciStatus.SYNC_PENDING)
+
+    def set_resource_sync_error(self, context, resource, message=''):
+        self._set_resource_sync(context, resource,
+                                api_status.AciStatus.SYNC_FAILED,
+                                message=message)
 
     def set_fault(self, context, resource, fault):
         with context.db_session.begin(subtransactions=True):

@@ -30,11 +30,18 @@ class HashTreeDbListener(object):
     """Updates persistent hash-tree in response to DB updates."""
 
     def __init__(self, aim_manager):
-        aim_manager.register_update_listener(self.on_commit)
+        self.aim_manager = aim_manager
+        self.aim_manager.register_update_listener(self.on_commit)
         self.tt_mgr = tree_model.TenantHashTreeManager()
         self.tt_maker = tree_model.AimHashTreeMaker()
 
     def on_commit(self, session, added, updated, deleted):
+        # Query hash-tree for each tenant and modify the tree based on DB
+        # updates
+        class DummyContext(object):
+            db_session = session
+        ctx = DummyContext()
+
         # Segregate updates by tenant
         updates_by_tenant = {}
         all_updates = [added, updated, deleted]
@@ -44,12 +51,20 @@ class HashTreeDbListener(object):
         for idx in range(len(all_updates)):
             tree_index = 0 if idx < 2 else 1
             for res in all_updates[idx]:
+                if isinstance(res, aim_status.AciStatus):
+                    # Remove main object from config tree if in sync error
+                    # during an update
+                    if res.sync_status == res.SYNC_FAILED and tree_index == 0:
+                        parent = self.aim_manager.get_by_id(
+                            ctx, res.parent_class, res.resource_id)
+                        # Pretend that the object has been deleted
+                        all_updates[-1].append(parent)
                 key = self.tt_maker.get_tenant_key(res)
                 if not key:
                     continue
                 updates_by_tenant.setdefault(
                     key, {conf: ([], []), monitor: ([], []), oper: ([], [])})
-                if isinstance(res, aim_status.OperationalResource):
+                if isinstance(res, aim_status.AciFault):
                     # Operational Tree
                     updates_by_tenant[key][oper][tree_index].append(res)
                 else:
@@ -66,12 +81,6 @@ class HashTreeDbListener(object):
                         res.monitored = False
                     # Configuration Tree
                     updates_by_tenant[key][conf][tree_index].append(res)
-
-        # Query hash-tree for each tenant and modify the tree based on DB
-        # updates
-        class DummyContext(object):
-            db_session = session
-        ctx = DummyContext()
 
         upd_trees, udp_op_trees, udp_mon_trees = [], [], []
         for tenant, upd in updates_by_tenant.iteritems():

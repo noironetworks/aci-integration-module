@@ -119,6 +119,7 @@ class Tenant(acitoolkit.Tenant):
 class AciTenantManager(gevent.Greenlet):
 
     def __init__(self, tenant_name, apic_config, apic_session, ws_context,
+                 creation_succeeded=None, creation_failed=None,
                  *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
         LOG.info("Init manager for tenant %s" % tenant_name)
@@ -146,6 +147,12 @@ class AciTenantManager(gevent.Greenlet):
         self.tree_maker = tree_model.AimHashTreeMaker()
         self.tag_name = self.apic_config.get_option('aim_system_id', 'aim')
         self.tag_set = set()
+        self.failure_log = {}
+
+        def noop(par):
+            pass
+        self.creation_succeeded = creation_succeeded or noop
+        self.creation_failed = creation_failed or noop
         # Warm bit to avoid rushed synchronization before receiving the first
         # batch of APIC events
         self._warm = False
@@ -321,24 +328,29 @@ class AciTenantManager(gevent.Greenlet):
                     MO = apic_client.ManagedObjectClass
                     decompose = apic_client.DNManager().aci_decompose_dn_guess
                     try:
-                        top_send = method == base_universe.CREATE
-                        with self.aci_session.transaction(
-                                top_send=top_send) as trs:
+                        if method == base_universe.CREATE:
+                            with self.aci_session.transaction(
+                                    top_send=True) as trs:
+                                for obj in to_push + tags:
+                                    attr = obj.values()[0]['attributes']
+                                    mo, parents_rns = decompose(attr.pop('dn'),
+                                                                obj.keys()[0])
+                                    # exclude RNs that are fixed
+                                    rns = [mr[1] for mr in parents_rns
+                                           if (mr[0] not in MO.supported_mos or
+                                               MO(mr[0]).rn_param_count)]
+                                    getattr(getattr(self.aci_session, mo),
+                                            method)(
+                                                *rns, transaction=trs, **attr)
+                        else:
                             for obj in to_push + tags:
                                 attr = obj.values()[0]['attributes']
-                                mo, parents_rns = decompose(attr.pop('dn'),
-                                                            obj.keys()[0])
-                                # exclude RNs that are fixed
-                                rns = [mr[1] for mr in parents_rns
-                                       if (mr[0] not in MO.supported_mos or
-                                           MO(mr[0]).rn_param_count)]
-                                getattr(getattr(self.aci_session, mo),
-                                        method)(
-                                            *rns, transaction=trs, **attr)
-                    except apic_exc.ApicResponseNotOk:
-                        # TODO(ivar): Either creation or deletion failed.
-                        # Look at the reason and update the AIM status
-                        # accordingly.
+                                self.aci_session.DELETE(
+                                    '/mo/%s.json' % attr.pop('dn'))
+                        # Object creation was successful, change object state
+                        if method == base_universe.CREATE:
+                            self.creation_succeeded(aim_object)
+                    except apic_exc.ApicResponseNotOk as e:
                         LOG.debug(traceback.format_exc())
                         try:
                             printable = aim_object.__dict__
@@ -346,6 +358,9 @@ class AciTenantManager(gevent.Greenlet):
                             printable = aim_object
                         LOG.error("An error as occurred during %s for "
                                   "object %s" % (method, printable))
+                        # REVISIT(ivar) find a way to extrapolate reason only
+                        if method == base_universe.CREATE:
+                            self.creation_failed(aim_object, e.message)
 
     def _unsubscribe_tenant(self):
         self.tenant.instance_unsubscribe(self.ws_context.session)
@@ -412,7 +427,7 @@ class AciTenantManager(gevent.Greenlet):
                               self.to_aim_converter.convert(tree['create'])]
             tree['delete'] = [_monitor(state, x) for x in
                               self.to_aim_converter.convert(tree['delete'])]
-
+            modified = False
             # Config tree also gets monitored events
             if state is self._state:
                 # Need double conversion to screen unwanted objects
@@ -422,14 +437,23 @@ class AciTenantManager(gevent.Greenlet):
                 tree['delete'].extend(
                     [_set_pre_existing(_screen_monitored(x)) for x in
                      copy.deepcopy(monitored_tree['delete'])])
-            self.tree_maker.update(state, tree['create'])
-            self.tree_maker.delete(state, tree['delete'])
-            if state is self._state:
-                # Delete also from Operational tree for branch cleanup
-                self.tree_maker.delete(self._operational_state, tree['delete'])
+            if tree['delete']:
+                modified = True
+                self.tree_maker.delete(state, tree['delete'])
+                if state is self._state:
+                    # Delete also from Operational tree for branch cleanup
+                    self.tree_maker.delete(self._operational_state,
+                                           tree['delete'])
+            if tree['create']:
+                modified = True
+                self.tree_maker.update(state, tree['create'])
 
-            LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
-                                                      str(state)))
+            if modified:
+                LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
+                                                          str(state)))
+            else:
+                LOG.debug("No changes in tree for tenant %s: " %
+                          self.tenant_name)
 
     def _fill_events(self, events):
         """Gets incomplete objects from APIC if needed

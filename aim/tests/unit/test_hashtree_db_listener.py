@@ -15,11 +15,11 @@
 
 
 import copy
-import mock
 
+from aim import aim_manager
+from aim.api import resource as aim_res
 from aim.common.hashtree import structured_tree as tree
 from aim.db import agent_model      # noqa
-from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import tree_model
 from aim.tests import base
 
@@ -29,7 +29,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
     def setUp(self):
         super(TestHashTreeDbListener, self).setUp()
         self.tt_mgr = tree_model.TenantHashTreeManager()
-        self.db_l = ht_db_l.HashTreeDbListener(mock.Mock())
+        self.mgr = aim_manager.AimManager()
+        self.db_l = self.mgr._hashtree_db_listener
 
     def _test_resource_ops(self, resource, tenant, tree_objects,
                            tree_objects_update,
@@ -108,3 +109,55 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self._test_resource_ops(
             fault, 't1', tree_objects, tree_objects_update,
             tree_type=tree_model.OPERATIONAL_TREE, severity='critical')
+
+    def _test_sync_failed(self, monitored=False):
+        tn_name = 'tn1'
+        tn = aim_res.Tenant(name=tn_name)
+        ap = aim_res.ApplicationProfile(tenant_name=tn_name, name='ap')
+        epg = aim_res.EndpointGroup(
+            tenant_name=tn_name, app_profile_name='ap', name='epg',
+            monitored=monitored, bd_name='some')
+        # Add Tenant and AP
+        self.mgr.create(self.ctx, tn)
+        self.mgr.create(self.ctx, ap)
+        # Get the tree
+        no_epg_tree_cfg = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
+        no_epg_tree_mon = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+        # Now add EPG
+        self.mgr.create(self.ctx, epg)
+        # Get the tree once again and verify it's different from the previous
+        # one
+        epg_tree_cfg = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
+        epg_tree_mon = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+
+        self.assertNotEqual(epg_tree_cfg, no_epg_tree_cfg)
+        self.assertNotEqual(epg_tree_mon, no_epg_tree_mon)
+        # Set EPG status to delete error
+        self.mgr.set_resource_sync_error(self.ctx, epg)
+        # Get tree once again
+        final_tree_cfg = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
+        final_tree_mon = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+        # This tree is just like the one without EPG
+        self.assertEqual(no_epg_tree_cfg, final_tree_cfg)
+        self.assertEqual(no_epg_tree_mon, final_tree_mon)
+        # Update epg, it will be re-created. Note that I'm not actually
+        # changing attributed
+        self.mgr.update(self.ctx, epg, bd_name='some')
+        final_tree_cfg = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
+        final_tree_mon = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+        self.assertEqual(epg_tree_cfg, final_tree_cfg)
+        self.assertEqual(epg_tree_mon, final_tree_mon)
+
+    def test_sync_failed(self):
+        self._test_sync_failed(monitored=False)
+
+    def test_sync_failed_monitored(self):
+        self._test_sync_failed(monitored=True)

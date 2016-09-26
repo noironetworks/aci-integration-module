@@ -201,6 +201,9 @@ class HashTreeStoredUniverse(AimUniverse):
         self.manager = aim_manager.AimManager()
         self.conf_manager = conf_mgr
         self._state = {}
+        self.failure_log = {}
+        self.max_create_retry = self.conf_manager.get_option(
+            'max_operation_retry', 'aim')
         return self
 
     def _dissect_key(self, key):
@@ -281,6 +284,35 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def cleanup_state(self, key):
         pass
+
+    def creation_succeeded(self, aim_object):
+        aim_id = self._get_aim_object_identifier(aim_object)
+        self.failure_log.pop(aim_id, None)
+        self.manager.set_resource_sync_synced(self.context, aim_object)
+
+    def creation_failed(self, aim_object, reason='unknown'):
+        self._fail_aim_synchronization(aim_object, 'creation', reason)
+
+    def deletion_failed(self, aim_object, reason='unknown'):
+        self._fail_aim_synchronization(aim_object, 'deletion', reason)
+
+    def _fail_aim_synchronization(self, aim_object, operation, reason):
+        aim_id = self._get_aim_object_identifier(aim_object)
+        failures = self.failure_log.get(aim_id, 0)
+        self.failure_log[aim_id] = failures + 1
+        if self.failure_log[aim_id] >= self.max_create_retry:
+            LOG.warn("AIM object %s failed %s more than %s times in %s, "
+                     "setting its state to Error" %
+                     (aim_id, operation, self.max_create_retry, self.name))
+            # Surrender
+            self.manager.set_resource_sync_error(self.context, aim_object,
+                                                 message=reason)
+            self.failure_log.pop(aim_id, None)
+
+    def _get_aim_object_identifier(self, aim_object):
+        # Identify AIM object unequivocally
+        return (type(aim_object).__name__, ) + tuple(
+            [getattr(aim_object, x) for x in aim_object.identity_attributes])
 
     @property
     def state(self):

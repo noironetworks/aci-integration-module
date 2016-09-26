@@ -190,7 +190,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
                         serving_tenants[added]._unsubscribe_tenant()
                     serving_tenants[added] = aci_tenant.AciTenantManager(
                         added, self.conf_manager, self.aci_session,
-                        self.ws_context)
+                        self.ws_context, self.creation_succeeded,
+                        self.creation_failed)
                     serving_tenants[added].start()
         except Exception as e:
             LOG.error('Failed to serve new tenants %s' % tenants)
