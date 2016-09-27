@@ -392,16 +392,26 @@ class TestAciToAimConverterFilterEntry(TestAciToAimConverterBase,
     reverse_map_output = [{
         'resource': 'vzEntry',
         'exceptions': {
-            'arp_opcode': {'other': 'arpOpc'},
-            'ether_type': {'other': 'etherT'},
-            'ip_protocol': {'other': 'prot'},
-            'icmpv4_type': {'other': 'icmpv4T'},
-            'icmpv6_type': {'other': 'icmpv6T'},
-            'source_from_port': {'other': 'sFromPort'},
-            'source_to_port': {'other': 'sToPort'},
-            'dest_from_port': {'other': 'dFromPort'},
-            'dest_to_port': {'other': 'dToPort'},
-            'tcp_flags': {'other': 'tcpRules'},
+            'arp_opcode': {'other': 'arpOpc',
+                           'converter': converter.arp_opcode},
+            'ether_type': {'other': 'etherT',
+                           'converter': converter.ether_type},
+            'ip_protocol': {'other': 'prot',
+                            'converter': converter.ip_protocol},
+            'icmpv4_type': {'other': 'icmpv4T',
+                            'converter': converter.icmpv4_type},
+            'icmpv6_type': {'other': 'icmpv6T',
+                            'converter': converter.icmpv6_type},
+            'source_from_port': {'other': 'sFromPort',
+                                 'converter': converter.port},
+            'source_to_port': {'other': 'sToPort',
+                               'converter': converter.port},
+            'dest_from_port': {'other': 'dFromPort',
+                               'converter': converter.port},
+            'dest_to_port': {'other': 'dToPort',
+                             'converter': converter.port},
+            'tcp_flags': {'other': 'tcpRules',
+                          'converter': converter.tcp_flags},
             'stateful': {'other': 'stateful',
                          'converter': converter.boolean},
             'fragment_only': {'other': 'applyToFrag',
@@ -959,16 +969,22 @@ def get_example_aim_filter_entry(**kwargs):
 
 class TestAimToAciConverterFilterEntry(TestAimToAciConverterBase,
                                        base.TestAimDBBase):
-    sample_input = [get_example_aim_filter_entry(),
-                    get_example_aim_filter_entry(
-                        name='e2', tcp_flags='ack', fragment_only=True)]
+    sample_input = [
+        get_example_aim_filter_entry(
+            source_from_port='80', source_to_port=443,
+            dest_from_port='110', dest_to_port='rstp',
+            tcp_flags='unspecified', arp_opcode=1,
+            ether_type='0x8847', ip_protocol=115,
+            icmpv4_type=0, icmpv6_type='135'),
+        get_example_aim_filter_entry(
+            name='e2', tcp_flags='ack', fragment_only=True)]
     sample_output = [
         [_aci_obj('vzEntry', dn='uni/tn-test-tenant/flt-f1/e-e1',
-                  arpOpc='req', etherT='arp', prot='unspecified',
-                  icmpv4T='unspecified', icmpv6T='unspecified',
-                  sFromPort='200', sToPort='https',
-                  dFromPort='2000', dToPort='4000',
-                  tcpRules='est', stateful='yes', applyToFrag='no')],
+                  arpOpc='req', etherT='mpls_ucast', prot='l2tp',
+                  icmpv4T='echo-rep', icmpv6T='nbr-solicit',
+                  sFromPort='http', sToPort='https',
+                  dFromPort='pop3', dToPort='rstp',
+                  tcpRules='', stateful='yes', applyToFrag='no')],
         [_aci_obj('vzEntry', dn='uni/tn-test-tenant/flt-f1/e-e2',
                   arpOpc='req', etherT='arp', prot='unspecified',
                   icmpv4T='unspecified', icmpv6T='unspecified',
@@ -976,6 +992,11 @@ class TestAimToAciConverterFilterEntry(TestAimToAciConverterBase,
                   dFromPort='2000', dToPort='4000',
                   tcpRules='ack', stateful='yes', applyToFrag='yes')]
     ]
+
+    def test_bd_consistent_conversion(self):
+        # Consistent conversion is not guaranteed since we dont't know whether
+        # the user specified a literal or a code to begin with
+        self._test_consistent_conversion(self.sample_input[1])
 
 
 def get_example_aim_contract(**kwargs):
