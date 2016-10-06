@@ -971,7 +971,7 @@ class TestAimToAciConverterFilterEntry(TestAimToAciConverterBase,
                                        base.TestAimDBBase):
     sample_input = [
         get_example_aim_filter_entry(
-            source_from_port='80', source_to_port=443,
+            source_from_port='80', source_to_port=444,
             dest_from_port='110', dest_to_port='rstp',
             tcp_flags='unspecified', arp_opcode=1,
             ether_type='0x8847', ip_protocol=115,
@@ -982,7 +982,7 @@ class TestAimToAciConverterFilterEntry(TestAimToAciConverterBase,
         [_aci_obj('vzEntry', dn='uni/tn-test-tenant/flt-f1/e-e1',
                   arpOpc='req', etherT='mpls_ucast', prot='l2tp',
                   icmpv4T='echo-rep', icmpv6T='nbr-solicit',
-                  sFromPort='http', sToPort='https',
+                  sFromPort='http', sToPort='444',
                   dFromPort='pop3', dToPort='rstp',
                   tcpRules='', stateful='yes', applyToFrag='no')],
         [_aci_obj('vzEntry', dn='uni/tn-test-tenant/flt-f1/e-e2',

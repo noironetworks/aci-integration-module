@@ -142,8 +142,8 @@ def mapped_attribute(value_map):
         if to_aim:
             return curr
         else:
-            # ACI only accept certain parameters
-            return value_map.get(str(curr), curr)
+            # ACI only accepts certain parameters
+            return value_map.get(str(curr), str(curr))
     return mapped
 
 
