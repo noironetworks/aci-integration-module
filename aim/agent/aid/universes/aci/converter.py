@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
+import traceback
+
 from apicapi import apic_client
 from oslo_log import log as logging
 
@@ -42,7 +45,7 @@ def default_identity_converter(object_dict, otype, helper,
     :param aci_mo_type: ACI ManagedObjectType to use when creating ACI identity
                         attribute
     :param to_aim: Boolean indicating whether we are converting
-                   ACI/AIM (True) or AIM/ACi (False)
+                   ACI/AIM (True) or AIM/ACI (False)
     :return: list with exactly all the attributes that need to be assigned
     to the resource class 'identity_attributes'
     """
@@ -71,7 +74,7 @@ def default_attribute_converter(object_dict, attribute,
 
 def default_to_resource(converted, helper, to_aim=True):
     klass = helper['resource']
-    default_skip = ['displayName', 'preExisting']
+    default_skip = ['displayName', 'preExisting', 'monitored']
     if to_aim:
         # APIC to AIM
         return klass(
@@ -287,6 +290,8 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
 # of the conversion for obtaining the final result
 # - convert_pre_existing: If True, AIM-to-ACI conversion of the object will
 # be performed when the AIM object is marked "pre-existing". Default is False.
+# - convert_monitored: If False, AIM-to-ACI conversion of the object will
+# not be performed when the AIM object is marked "monitored". Default is True.
 # - skip: list of AIM resource attributes that should not be converted
 
 fvRsBDToOut_converter = child_list('l3out_names', 'tnL3extOutName')
@@ -389,12 +394,14 @@ resource_map = {
                   'converter': fvRsProv_converter},
                  {'resource': resource.ExternalNetwork,
                   'converter': fvRsProv_Ext_converter,
-                  'convert_pre_existing': True}],
+                  'convert_pre_existing': True,
+                  'convert_monitored': False}],
     'fvRsCons': [{'resource': resource.EndpointGroup,
                   'converter': fvRsCons_converter},
                  {'resource': resource.ExternalNetwork,
                   'converter': fvRsCons_Ext_converter,
-                  'convert_pre_existing': True}],
+                  'convert_pre_existing': True,
+                  'convert_monitored': False}],
     'fvRsDomAtt': [{
         'resource': resource.EndpointGroup,
         'converter': fv_rs_dom_att_converter,
@@ -453,7 +460,8 @@ resource_map = {
         'resource': resource.L3Outside,
         'exceptions': {'tnFvCtxName': {'other': 'vrf_name'}},
         'to_resource': default_to_resource_strict,
-        'convert_pre_existing': True
+        'convert_pre_existing': True,
+        'convert_monitored': False
     }],
     'l3extRsL3DomAtt': [{
         'resource': resource.L3Outside,
@@ -469,7 +477,8 @@ resource_map = {
         'resource': resource.ExternalNetwork,
         'exceptions': {'tDn': {'other': 'nat_epg_dn'}},
         'to_resource': default_to_resource_strict,
-        'convert_pre_existing': True
+        'convert_pre_existing': True,
+        'convert_monitored': False
     }],
     'l3extSubnet': [{
         'resource': resource.ExternalSubnet,
@@ -494,6 +503,8 @@ for apic_type, rule_list in resource_map.iteritems():
         if 'convert_pre_existing' in rules:
             mapped_rules['convert_pre_existing'] = (
                 rules['convert_pre_existing'])
+        if 'convert_monitored' in rules:
+            mapped_rules['convert_monitored'] = rules['convert_monitored']
         if 'skip' in rules:
             mapped_rules['skip'] = [convert_attribute(s, to_aim=False)
                                     for s in rules['skip']]
@@ -522,10 +533,12 @@ resource_map.update({
                          'converter': vzOutTerm_vzRsFiltAtt_converter}],
     'fvRsProv__Ext': [{'resource': resource.ExternalNetwork,
                        'converter': fvRsProv_Ext_converter,
-                       'convert_pre_existing': True}],
+                       'convert_pre_existing': True,
+                       'convert_monitored': False}],
     'fvRsCons__Ext': [{'resource': resource.ExternalNetwork,
                        'converter': fvRsCons_Ext_converter,
-                       'convert_pre_existing': True}]
+                       'convert_pre_existing': True,
+                       'convert_monitored': False}]
 })
 
 
@@ -599,22 +612,28 @@ class AciToAimModelConverter(BaseConverter):
         LOG.debug("converting aci objects %s" % aci_objects)
         result = []
         for object in aci_objects:
-            if object.keys()[0] not in resource_map:
-                # Ignore unmanaged object
-                continue
-            for helper in resource_map[object.keys()[0]]:
-                resource = object[object.keys()[0]]['attributes']
-                # Use the custom converter, fallback to the default one
-                converted = (
-                    helper.get('converter') or self._default_converter)(
-                    resource, object.keys()[0], helper,
-                    ['dn'], helper['resource'].identity_attributes,
-                    to_aim=True)
-                if resource.get('status') == DELETED_STATUS:
-                    for x in converted:
-                        # Set deleted status for updating the tree correctly
-                        x.__dict__['_status'] = 'deleted'
-                result.extend(converted)
+            try:
+                if object.keys()[0] not in resource_map:
+                    # Ignore unmanaged object
+                    continue
+                for helper in resource_map[object.keys()[0]]:
+                    resource = object[object.keys()[0]]['attributes']
+                    # Use the custom converter, fallback to the default one
+                    converted = (
+                        helper.get('converter') or self._default_converter)(
+                        resource, object.keys()[0], helper,
+                        ['dn'], helper['resource'].identity_attributes,
+                        to_aim=True)
+                    if resource.get('status') == DELETED_STATUS:
+                        for x in converted:
+                            # Set deleted status for updating the tree
+                            # correctly
+                            x.__dict__['_status'] = 'deleted'
+                    result.extend(converted)
+            except Exception as e:
+                LOG.warn("Could not convert object"
+                         "%s with error %s" % (object, e.message))
+                LOG.debug(traceback.format_exc())
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %
                   (aci_objects, squashed))
@@ -626,12 +645,12 @@ class AciToAimModelConverter(BaseConverter):
         :param converted_list:
         :return:
         """
-        res_map = {}
+        res_map = collections.OrderedDict()
         for res in converted_list:
             # Base for squashing is the Resource with all its defaults
             klass = type(res)
             current = res_map.setdefault(
-                tuple(res.identity),
+                (res._aci_mo_name,) + tuple(res.identity),
                 klass(**dict([(y, res.identity[x]) for x, y in
                               enumerate(klass.identity_attributes)])))
             for k, v in res.__dict__.iteritems():
@@ -654,21 +673,30 @@ class AimToAciModelConverter(BaseConverter):
         LOG.debug("converting aim objects %s" % aim_objects)
         result = []
         for object in aim_objects:
-            klass = type(object)
-            if klass not in reverse_resource_map:
-                # Ignore unmanaged object
-                continue
-            is_pre = (getattr(object, 'pre_existing', False)
-                      if 'pre_existing' in klass.other_attributes else False)
-            for helper in reverse_resource_map[klass]:
-                if is_pre and not helper.get('convert_pre_existing', False):
+            try:
+                klass = type(object)
+                if klass not in reverse_resource_map:
+                    # Ignore unmanaged object
                     continue
-                # Use the custom converter, fallback to the default one
-                converted = (
-                    helper.get('converter') or self._default_converter)(
-                    object.__dict__, klass, helper, klass.identity_attributes,
-                    ['dn'], to_aim=False)
-                result.extend(converted)
+                is_pre = getattr(object, 'pre_existing', False)
+                is_mon = getattr(object, 'monitored', False)
+                for helper in reverse_resource_map[klass]:
+                    if is_pre and not helper.get('convert_pre_existing',
+                                                 False):
+                        continue
+                    if is_mon and not helper.get('convert_monitored', True):
+                        continue
+                    # Use the custom converter, fallback to the default one
+                    converted = (
+                        helper.get('converter') or self._default_converter)(
+                        object.__dict__, klass, helper,
+                        klass.identity_attributes,
+                        ['dn'], to_aim=False)
+                    result.extend(converted)
+            except Exception as e:
+                LOG.warn("Could not convert object"
+                         "%s with error %s" % (object.__dict__, e.message))
+                LOG.debug(traceback.format_exc())
 
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %
@@ -681,7 +709,7 @@ class AimToAciModelConverter(BaseConverter):
         :param converted_list:
         :return:
         """
-        res_map = {}
+        res_map = collections.OrderedDict()
         for res in converted_list:
             current = res_map.setdefault(
                 res[res.keys()[0]]['attributes']['dn'], res)

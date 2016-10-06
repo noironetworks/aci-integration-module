@@ -36,6 +36,7 @@ def upgrade():
         'aim_tenants',
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('name'))
 
     op.create_table(
@@ -46,6 +47,7 @@ def upgrade():
         sa.Column('gw_ip_mask', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
         sa.Column('scope', sa.String(16)),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'bd_name', 'gw_ip_mask',
                             name='uniq_aim_subnets_identity'),
@@ -63,6 +65,7 @@ def upgrade():
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
         sa.Column('policy_enforcement_pref', sa.String(16)),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_vrfs_identity'),
@@ -74,6 +77,7 @@ def upgrade():
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_app_profiles_identity'),
@@ -87,6 +91,7 @@ def upgrade():
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
         sa.Column('bd_name', sa.String(64)),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'app_profile_name', 'name',
                             name='uniq_aim_endpoint_groups_identity'),

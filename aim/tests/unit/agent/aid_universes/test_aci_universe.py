@@ -181,7 +181,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
     def test_get_resource_fault(self):
         fault = self._get_example_aci_fault()
-        self._add_server_data([fault], self.universe)
+        self._add_server_data([fault], self.universe, create_parents=True)
         key = ('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951')
         result = self.universe.get_resource(key)
         self.assertEqual(fault, result[0])
@@ -190,13 +190,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         objs = [
             self._get_example_aci_fault(),
             self._get_example_aci_bd(),
+            {'vzSubj': {'attributes': {'dn': u'uni/tn-t1/brc-c/subj-s'}}},
             {'vzRsSubjFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f'}}},
             {'vzRsFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-g'}}},
             {'vzRsFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-h'}}}]
-        self._add_server_data(objs, self.universe)
+        self._add_server_data(objs, self.universe, create_parents=True)
         keys = [('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951'),
                 ('fvTenant|test-tenant', 'fvBD|test'),
                 ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzRsSubjFiltAtt|f'),
@@ -265,3 +266,10 @@ class TestAciOperationalUniverse(TestAciUniverseMixin, base.TestAimDBBase):
     def setUp(self):
         super(TestAciOperationalUniverse, self).setUp(
             aci_universe.AciOperationalUniverse)
+
+
+class TestAciMonitoredUniverse(TestAciUniverseMixin, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestAciMonitoredUniverse, self).setUp(
+            aci_universe.AciMonitoredUniverse)

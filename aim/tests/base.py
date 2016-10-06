@@ -297,3 +297,35 @@ class TestAimDBBase(BaseTestCase):
         }
         example_epg['faultInst']['attributes'].update(kwargs)
         return example_epg
+
+    @classmethod
+    def _get_example_aci_ext_net(cls, **kwargs):
+        example_extnet = {
+            "l3extInstP": {
+                "attributes": {
+                    "descr": "",
+                    "dn": "uni/tn-common/out-default/instP-extnet",
+                    "name": "extnet"}}}
+        example_extnet['l3extInstP']['attributes'].update(kwargs)
+        return example_extnet
+
+    @classmethod
+    def _get_example_aci_ext_net_rs_prov(cls, **kwargs):
+        example_extnet = {
+            "fvRsProv": {
+                "attributes": {
+                    "dn": "uni/tn-common/out-default/instP-extnet"
+                          "/rsprov-default",
+                    "tnVzBrCPName": "default"}}}
+        example_extnet['fvRsProv']['attributes'].update(kwargs)
+        return example_extnet
+
+    @classmethod
+    def _get_example_aci_l3_out(cls, **kwargs):
+        example_l3o = {"l3extOut": {
+            "attributes": {
+                "descr": "",
+                "dn": "uni/tn-common/out-default",
+                "name": "default"}}}
+        example_l3o['l3extOut']['attributes'].update(kwargs)
+        return example_l3o

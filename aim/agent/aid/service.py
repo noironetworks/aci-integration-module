@@ -39,6 +39,8 @@ AGENT_VERSION = '1.0.0'
 AGENT_BINARY = 'aci-inconsistency-detector'
 AGENT_DESCRIPTION = ('This Agent synchronizes the AIM state with ACI for a '
                      'certain amount of Tenants.')
+DESIRED = 'desired'
+CURRENT = 'current'
 
 logging.register_options(aim_cfg.CONF)
 aim_cfg.CONF.register_opts(aim_cfg.common_opts)
@@ -52,20 +54,32 @@ class AID(object):
         self.session = api.get_session()
         self.context = context.AimContext(self.session)
         self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)
-        # Have 5 sessions
-        self.desired_universe = aim_universe.AimDbUniverse().initialize(
-            api.get_session(), self.conf_manager)
-        self.current_universe = aci_universe.AciUniverse().initialize(
-            api.get_session(), self.conf_manager)
+
+        # Define multiverse pairs, First position is desired state
+        self.multiverse = [
+            # Configuration Universe (AIM to ACI)
+            {DESIRED: aim_universe.AimDbUniverse().initialize(
+                api.get_session(), self.conf_manager),
+             CURRENT: aci_universe.AciUniverse().initialize(
+                 api.get_session(), self.conf_manager)},
+            # Operational Universe (ACI to AIM)
+            {DESIRED: aci_universe.AciOperationalUniverse().initialize(
+                api.get_session(), self.conf_manager),
+             CURRENT: aim_universe.AimDbOperationalUniverse().initialize(
+                 api.get_session(), self.conf_manager)},
+            # Monitored Universe (ACI to AIM)
+            {DESIRED: aci_universe.AciMonitoredUniverse().initialize(
+                api.get_session(), self.conf_manager),
+             CURRENT: aim_universe.AimDbMonitoredUniverse().initialize(
+                 api.get_session(), self.conf_manager)},
+        ]
+        # delete_candidates contains tenants that are candidate for deletion.
+        # when the consensus is reach by all the universe, the state will
+        # be cleaned up by the reconcile action
+        self.delete_candidates = {}
+        self.consensus = len(self.multiverse)
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
-        self.desired_operational_universe = (
-            aci_universe.AciOperationalUniverse().initialize(
-                api.get_session(), self.conf_manager))
-        self.current_operational_universe = (
-            aim_universe.AimDbOperationalUniverse().initialize(
-                api.get_session(), self.conf_manager))
-
         self.manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantHashTreeManager()
         self.agent_id = 'aid-%s' % self.host
@@ -96,26 +110,36 @@ class AID(object):
 
     def _daemon_loop(self):
         tenants = self._calculate_tenants(self.context)
+        # Cleanup delete candidates
+        self.delete_candidates = {k: v for k, v in
+                                  self.delete_candidates.iteritems()
+                                  if k in tenants}
         # Serve tenants
-        self.desired_universe.serve(tenants)
-        self.current_universe.serve(tenants)
+        for pair in self.multiverse:
+            pair[DESIRED].serve(tenants)
+            pair[CURRENT].serve(tenants)
 
-        self.desired_operational_universe.serve(tenants)
-        self.current_operational_universe.serve(tenants)
         # REVISIT(ivar) Might be wise to wait here upon tenant serving to allow
         # time for events to happen
 
         # Observe the two universes to fix their current state
-        self.desired_universe.observe()
-        self.current_universe.observe()
-
-        self.desired_operational_universe.observe()
-        self.current_operational_universe.observe()
+        for pair in self.multiverse:
+            pair[DESIRED].observe()
+            pair[CURRENT].observe()
 
         # Reconcile everything
-        self.current_universe.reconcile(self.desired_universe)
-        self.current_operational_universe.reconcile(
-            self.desired_operational_universe)
+        for pair in self.multiverse:
+            pair[CURRENT].reconcile(pair[DESIRED], self.delete_candidates)
+
+        # Delete tenants if there's consensus
+        for tenant, votes in self.delete_candidates.iteritems():
+            if len(votes) == self.consensus:
+                # All the universes agree on this tenant cleanup
+                for pair in self.multiverse:
+                    for universe in pair.values():
+                        LOG.info("%s removing tenant from AIM %s" %
+                                 (universe.name, tenant))
+                        universe.cleanup_state(tenant)
 
     def _heartbeat_loop(self):
         while True:

@@ -65,6 +65,8 @@ agent_opts = [
     cfg.StrOpt('aim_system_id', required=True, default='openstack_aid',
                help="Identifier of the AIM system used to mark object "
                     "ownership in ACI"),
+    cfg.IntOpt('aci_tenant_polling_yield', default=2,
+               help="how long the ACITenant yield to other processed"),
 ]
 
 cfg.CONF.register_opts(agent_opts, 'aim')
