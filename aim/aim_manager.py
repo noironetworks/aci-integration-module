@@ -128,8 +128,8 @@ class AimManager(object):
                             if k in resource.other_attributes}
                 db_obj.from_attr(context.db_session, attr_val)
                 context.db_session.add(db_obj)
-                self.set_resource_sync_pending(context, resource)
                 self._add_commit_hook(context.db_session)
+                self.set_resource_sync_pending(context, resource)
                 return self.get(context, resource)
 
     def delete(self, context, resource):
