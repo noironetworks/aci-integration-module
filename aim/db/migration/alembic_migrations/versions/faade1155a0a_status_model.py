@@ -38,7 +38,7 @@ def upgrade():
         'aim_statuses',
         sa.Column('id', sa.String(36), primary_key=True),
         sa.Column('resource_type', sa.String(255), nullable=False),
-        sa.Column('resource_id', sa.String(255), nullable=False),
+        sa.Column('resource_id', sa.Integer, nullable=False),
         sa.Column('sync_status', sa.String(50), nullable=False),
         sa.Column('sync_message', sa.String(255), default=''),
         sa.Column('health_score', sa.Integer),

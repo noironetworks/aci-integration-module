@@ -26,6 +26,7 @@ import time
 from aim import aim_manager
 from aim.api import resource
 from aim.api import status as aim_status
+from aim.common.hashtree import structured_tree
 from aim import config  # noqa
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
@@ -220,10 +221,18 @@ class TestResourceOpsBase(object):
         res = self.mgr.create(self.ctx, res)
         listener.assert_called_with(mock.ANY, [res], [], [])
 
+        # trigger status creation
+        status = self.mgr.get_status(self.ctx, res)
         if test_update_attributes:
             listener.reset_mock()
             res = self.mgr.update(self.ctx, res, **test_update_attributes)
-            listener.assert_called_with(mock.ANY, [], [res], [])
+            if status:
+                exp_calls = [
+                    mock.call(mock.ANY, [], [res], []),
+                    mock.call(mock.ANY, [], [status], [])]
+                self._check_call_list(exp_calls, listener)
+            else:
+                listener.assert_called_with(mock.ANY, [], [res], [])
 
         listener.reset_mock()
         self.mgr.delete(self.ctx, res)
@@ -247,8 +256,12 @@ class TestResourceOpsBase(object):
         self.mgr.create(self.ctx, res, overwrite=True)
         status = self.mgr.get_status(self.ctx, res)
         self.assertTrue(isinstance(status, aim_status.AciStatus))
-        self.assertFalse(status.is_build())
+        self.assertTrue(status.is_build())
         self.assertFalse(status.is_error())
+        # Sync object
+        self.mgr.set_resource_sync_synced(self.ctx, res)
+        status = self.mgr.get_status(self.ctx, res)
+        self.assertFalse(status.is_build())
 
         status.sync_message = "some message"
         self.mgr.update_status(self.ctx, res, status)
@@ -274,6 +287,12 @@ class TestResourceOpsBase(object):
         self.assertEqual(1, len(status.faults))
         self.assertEqual(aim_status.AciFault.SEV_CLEARED,
                          status.faults[0].severity)
+        # Test parent class from status, and the ability to retrieve the
+        # original object from there
+        self.assertTrue(isinstance(res, status.parent_class))
+        res_from_status = self.mgr.get_by_id(self.ctx, status.parent_class,
+                                             status.resource_id)
+        self.assertEqual(res, res_from_status)
         new_timestamp = status.faults[0].last_update_timestamp
         self.assertTrue(new_timestamp > timestamp)
         self.assertFalse(status.is_error())
@@ -330,6 +349,34 @@ class TestResourceOpsBase(object):
             self.test_identity_attributes,
             self.test_required_attributes,
             self.test_update_attributes)
+
+    def test_monitored(self):
+        if 'monitored' in self.resource_class.other_attributes:
+            self._create_prerequisite_objects()
+            creation_attributes = {'monitored': True}
+            creation_attributes.update(self.test_required_attributes),
+            creation_attributes.update(self.test_identity_attributes)
+            res = self.resource_class(**creation_attributes)
+            r1 = self.mgr.create(self.ctx, res)
+            self.assertTrue(r1.monitored)
+
+            # Can overwrite if monitored is still True
+            r1 = self.mgr.create(self.ctx, res, overwrite=True)
+
+            # Cannot create overwrite if monitored is changed
+            r1.monitored = False
+            self.assertRaises(exc.InvalidMonitoredStateUpdate,
+                              self.mgr.create, self.ctx, r1, overwrite=True)
+
+            # Updating the monitored attribute fails
+            res.monitored = False
+            self.assertRaises(exc.InvalidMonitoredStateUpdate,
+                              self.mgr.update, self.ctx, res,
+                              monitored=False)
+
+            # Deleting it works
+            self.mgr.delete(self.ctx, res)
+            self.assertIsNone(self.mgr.get(self.ctx, res))
 
 
 class TestAciResourceOpsBase(TestResourceOpsBase):
@@ -393,12 +440,16 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        self.ctx.db_session.add(
-            tree_model.TenantTree(tenant_rn='t1', root_full_hash='',
-                                  tree='{}'))
-        self.ctx.db_session.add(
-            tree_model.TenantTree(tenant_rn='t2', root_full_hash='',
-                                  tree='{}'))
+        self.tree_mgr = tree_model.TenantHashTreeManager()
+        self.tree_mgr.update_bulk(
+            self.ctx, [structured_tree.StructuredHashTree(root_key=('t1', )),
+                       structured_tree.StructuredHashTree(root_key=('t2', ))])
+
+        self.addCleanup(self._clean_trees)
+
+    def _clean_trees(self):
+        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't1')
+        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't2')
 
     def test_timestamp(self):
         agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
@@ -628,10 +679,9 @@ class TestL3Outside(TestAciResourceOpsBase, base.TestAimDBBase):
     test_required_attributes = {'tenant_name': 'tenant1',
                                 'name': 'l3out1',
                                 'vrf_name': 'ctx1',
-                                'pre_existing': True,
                                 'l3_domain_dn': 'uni/foo'}
     test_search_attributes = {'vrf_name': 'ctx1'}
-    test_update_attributes = {'pre_existing': True}
+    test_update_attributes = {'l3_domain_dn': 'uni/bar'}
     test_dn = 'uni/tn-tenant1/out-l3out1'
 
 
@@ -644,7 +694,6 @@ class TestExternalNetwork(TestAciResourceOpsBase, base.TestAimDBBase):
     test_required_attributes = {'tenant_name': 'tenant1',
                                 'l3out_name': 'l3out1',
                                 'name': 'net1',
-                                'pre_existing': True,
                                 'nat_epg_dn': 'uni/tn-1/ap-a1/epg-g1',
                                 'provided_contract_names': ['k', 'p1', 'p2'],
                                 'consumed_contract_names': ['c1', 'c2', 'k']}

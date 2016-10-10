@@ -66,7 +66,7 @@ class BaseUniverse(object):
         """
 
     @abc.abstractmethod
-    def reconcile(self, other_universe):
+    def reconcile(self, other_universe, delete_candidates):
         """State reconciliation method.
 
         When an universe's reconcile method is called, the state of the passed
@@ -77,6 +77,11 @@ class BaseUniverse(object):
         reconciliation the desired state is a subset of the current one.
 
         :param other_universe: universe to which we want to converge
+        :param delete_candidates: dictionary that each universe can use to
+               vote for tenant deletion. Dictionary keys will be the tenant
+               identifier, while the value is a set of universes' instance
+               where a specific Universe adds/removes itself to when he
+               agrees/desagrees on a tenant being removed.
         :returns:
         """
 
@@ -86,6 +91,13 @@ class BaseUniverse(object):
 
         :return: The current state of the universe. Two comparable universes
         should use the same state format.
+        """
+
+    @abc.abstractproperty
+    def name(self):
+        """Name Property
+
+        :return: Readable name for debugging purposes.
         """
 
 
@@ -189,6 +201,9 @@ class HashTreeStoredUniverse(AimUniverse):
         self.manager = aim_manager.AimManager()
         self.conf_manager = conf_mgr
         self._state = {}
+        self.failure_log = {}
+        self.max_create_retry = self.conf_manager.get_option(
+            'max_operation_retry', 'aim')
         return self
 
     def _dissect_key(self, key):
@@ -199,7 +214,18 @@ class HashTreeStoredUniverse(AimUniverse):
     def observe(self):
         pass
 
-    def reconcile(self, other_universe):
+    def reconcile(self, other_universe, delete_candidates):
+        return self._reconcile(other_universe, delete_candidates)
+
+    def _vote_tenant_for_deletion(self, other_universe, tenant,
+                                  delete_candidates):
+        LOG.info("%s Voting for removal of tenant %s" %
+                 (self.name, tenant))
+        votes = delete_candidates.setdefault(tenant, set())
+        votes.add(self)
+
+    def _reconcile(self, other_universe, delete_candidates,
+                   skip_dummy=False, always_vote_deletion=False):
         my_state = self.state
         other_state = other_universe.get_optimized_state(my_state)
         result = {CREATE: [], DELETE: []}
@@ -212,18 +238,29 @@ class HashTreeStoredUniverse(AimUniverse):
             result[CREATE].extend(difference['add'])
             result[DELETE].extend(difference['remove'])
             if result[CREATE] or result[DELETE]:
-                LOG.debug("There are differences between:\n %s\n and\n %s" %
-                          (str(my_tenant_state), str(tree)))
+                LOG.debug("Universes %s and %s have "
+                          "differences:\n %s\n and\n %s" %
+                          (self.name, other_universe.name,
+                           str(my_tenant_state), str(tree)))
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
-            if not tree.root:
-                if tenant not in other_state:
-                    LOG.info("Removing tenant from AIM %s" % tenant)
-                    # Empty tenant hasn't changed on AIM, gracefully delete
-                    other_universe.cleanup_state(tenant)
+            if always_vote_deletion or (
+                    skip_dummy and (not tree.root or tree.root.dummy)):
+                self._vote_tenant_for_deletion(other_universe, tenant,
+                                               delete_candidates)
+                continue
+            if not tree.root:  # A Tenant has no state
+                if tenant not in other_state or not other_state[tenant].root:
+                    self._vote_tenant_for_deletion(
+                        other_universe, tenant, delete_candidates)
+                else:
+                    # This universe disagrees on deletion
+                    delete_candidates.get(tenant, set()).discard(self)
         LOG.debug("Universe differences: %s" % result)
         if not result.get(CREATE) and not result.get(DELETE):
-            LOG.debug("The Universe is in sync.")
+            LOG.debug("Universe %s and %s are in sync." %
+                      (self.name, other_universe.name))
+            return
         # Get AIM resources at the end to reduce the number of transactions
         result[CREATE] = other_universe.get_resources(result[CREATE])
         result[DELETE] = self.get_resources_for_delete(result[DELETE])
@@ -247,6 +284,35 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def cleanup_state(self, key):
         pass
+
+    def creation_succeeded(self, aim_object):
+        aim_id = self._get_aim_object_identifier(aim_object)
+        self.failure_log.pop(aim_id, None)
+        self.manager.set_resource_sync_synced(self.context, aim_object)
+
+    def creation_failed(self, aim_object, reason='unknown'):
+        self._fail_aim_synchronization(aim_object, 'creation', reason)
+
+    def deletion_failed(self, aim_object, reason='unknown'):
+        self._fail_aim_synchronization(aim_object, 'deletion', reason)
+
+    def _fail_aim_synchronization(self, aim_object, operation, reason):
+        aim_id = self._get_aim_object_identifier(aim_object)
+        failures = self.failure_log.get(aim_id, 0)
+        self.failure_log[aim_id] = failures + 1
+        if self.failure_log[aim_id] >= self.max_create_retry:
+            LOG.warn("AIM object %s failed %s more than %s times in %s, "
+                     "setting its state to Error" %
+                     (aim_id, operation, self.max_create_retry, self.name))
+            # Surrender
+            self.manager.set_resource_sync_error(self.context, aim_object,
+                                                 message=reason)
+            self.failure_log.pop(aim_id, None)
+
+    def _get_aim_object_identifier(self, aim_object):
+        # Identify AIM object unequivocally
+        return (type(aim_object).__name__, ) + tuple(
+            [getattr(aim_object, x) for x in aim_object.identity_attributes])
 
     @property
     def state(self):

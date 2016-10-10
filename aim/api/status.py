@@ -13,7 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_utils import importutils
+
 from aim.api import resource
+
+resource_paths = ('aim.api.resource',)
 
 
 class OperationalResource(object):
@@ -54,10 +58,11 @@ class AciStatus(resource.ResourceBase, OperationalResource):
     def __init__(self, **kwargs):
         super(AciStatus, self).__init__({'resource_type': None,
                                          'resource_id': None,
-                                         'sync_status': self.SYNCED,
+                                         'sync_status': self.SYNC_PENDING,
                                          'sync_message': '',
                                          'health_score': 100,
                                          'faults': []}, **kwargs)
+        self._parent_class = None
 
     @property
     def health_level(self):
@@ -69,6 +74,17 @@ class AciStatus(resource.ResourceBase, OperationalResource):
             return self.HEALTH_FAIR
         else:
             return self.HEALTH_POOR
+
+    @property
+    def parent_class(self):
+        if not self._parent_class:
+            for path in resource_paths:
+                try:
+                    self._parent_class = importutils.import_class(
+                        path + '.%s' % self.resource_type)
+                except ImportError:
+                    continue
+        return self._parent_class
 
     def is_build(self):
         return self.sync_status == self.SYNC_PENDING

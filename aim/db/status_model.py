@@ -53,7 +53,7 @@ class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
                       models.to_tuple(model_base.Base.__table_args__))
 
     resource_type = sa.Column(sa.String(255), nullable=False)
-    resource_id = sa.Column(sa.String(255), nullable=False)
+    resource_id = sa.Column(sa.Integer, nullable=False)
     sync_status = sa.Column(sa.String(50), nullable=False)
     sync_message = sa.Column(sa.String(255), default='')
     health_score = sa.Column(sa.Integer, nullable=False)
