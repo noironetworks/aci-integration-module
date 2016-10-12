@@ -54,6 +54,6 @@ class TestDBConfig(base.TestShell):
         # All default values are set, can be useful for first time
         # installations
         self.assertEqual(
-            5, self.manager.get_option('agent_polling_interval', 'aim'))
+            0.0, self.manager.get_option('agent_polling_interval', 'aim'))
         self.assertEqual(
             [], self.manager.get_option('apic_hosts', 'apic'))

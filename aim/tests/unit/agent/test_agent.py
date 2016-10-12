@@ -32,6 +32,17 @@ from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
 
 
+def run_once_loop(agent):
+    def _run_once_loop(serve=True):
+        agent.run_daemon_loop = False
+        try:
+            agent._run_arguments
+        except AttributeError:
+            agent._run_arguments = []
+        agent._run_arguments = agent._run_arguments + [serve]
+    return _run_once_loop
+
+
 class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
@@ -65,10 +76,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             return_value=True)
         self.thread_health.start()
 
+        self.events_thread = mock.patch(
+            'aim.agent.aid.event_handler.EventHandler._spawn_listener')
+        self.events_thread.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
         self.addCleanup(self.thread_health.stop)
+        self.addCleanup(self.events_thread.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body = self.old_post
@@ -719,6 +735,27 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Verify all tree converged
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
+
+    def test_daemon_loop(self):
+        agent = self._create_agent()
+        agent._daemon_loop = run_once_loop(agent)
+        # Calling the first time with a reconcile event, still calls serve=True
+        agent.events.q.put_nowait('reconcile')
+        agent.daemon_loop()
+        # Called 2 times
+        self.assertEqual(2, len(agent._run_arguments))
+        # Served new tenants
+        self.assertTrue(agent._run_arguments[0])
+        self.assertFalse(agent._run_arguments[1])
+
+        # Call again with serve event
+        agent.run_daemon_loop = True
+        agent.events.q.put_nowait('reconcile')
+        agent.events.q.put_nowait('serve')
+        agent.daemon_loop()
+        self.assertEqual(4, len(agent._run_arguments))
+        self.assertTrue(agent._run_arguments[2])
+        self.assertTrue(agent._run_arguments[3])
 
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():

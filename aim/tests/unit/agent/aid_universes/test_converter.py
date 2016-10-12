@@ -1076,7 +1076,8 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                                               tenant_name='common',
                                               name='l3o2',
                                               dn='uni/tn-common/out-l3o2',
-                                              monitored=True)]
+                                              monitored=True),
+                    get_example_aim_l3outside(name='inet2')]
     sample_output = [
         [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2'),
          _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
@@ -1086,7 +1087,13 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                   tDn='uni/foo')],
         [_aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet1/rsectx',
                   tnFvCtxName='shared')],
-        [_aci_obj('l3extOut', dn='uni/tn-common/out-l3o2', name='l3o2')]]
+        [_aci_obj('l3extOut', dn='uni/tn-common/out-l3o2', name='l3o2')],
+        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2'),
+         _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
+                  tnFvCtxName=''),
+         _aci_obj('l3extRsL3DomAtt',
+                  dn='uni/tn-t1/out-inet2/rsL3DomAtt',
+                  tDn='')]]
     missing_ref_input = get_example_aim_l3outside(vrf_name=None,
                                                   l3_domain_dn=None)
     missing_ref_output = [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet1')]

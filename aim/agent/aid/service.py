@@ -22,6 +22,7 @@ import gevent
 from oslo_log import log as logging
 import semantic_version
 
+from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes import aim_universe
 from aim import aim_manager
@@ -95,29 +96,54 @@ class AID(object):
             group='aim')
         self.report_interval = self.conf_manager.get_option_and_subscribe(
             self._change_report_interval, 'agent_report_interval', group='aim')
+        self.squash_time = self.conf_manager.get_option_and_subscribe(
+            self._change_squash_time, 'agent_event_squash_time', group='aim')
         gevent.spawn(self._heartbeat_loop)
+        self.events = event_handler.EventHandler().initialize(
+            self.conf_manager)
 
     def daemon_loop(self):
-        while self.run_daemon_loop:
+        # Serve tenants the very first time regardless of the events received
+        self._daemon_loop(True)
+        while True:
             try:
                 start_time = time.time()
-                self._daemon_loop()
+                serve = False
+                # wait first event
+                first_event_time = None
+                squash_time = float('inf')
+                while squash_time > 0:
+                    event = self.events.get_event(squash_time)
+                    if not first_event_time:
+                        first_event_time = time.time()
+                    if event in event_handler.EVENTS + [None]:
+                        # Set squash timeout
+                        squash_time = (first_event_time + self.squash_time -
+                                       time.time())
+                        if event == event_handler.EVENT_SERVE:
+                            # Serving tenants is required as well
+                            serve = True
+                self._daemon_loop(serve)
                 utils.wait_for_next_cycle(start_time, self.polling_interval,
-                                          LOG, readable_caller='AID')
+                                          LOG, readable_caller='AID',
+                                          notify_exceeding_timeout=False)
+                if not self.run_daemon_loop:
+                    break
             except Exception:
                 LOG.error('A error occurred in agent')
                 LOG.error(traceback.format_exc())
 
-    def _daemon_loop(self):
-        tenants = self._calculate_tenants(self.context)
-        # Cleanup delete candidates
-        self.delete_candidates = {k: v for k, v in
-                                  self.delete_candidates.iteritems()
-                                  if k in tenants}
-        # Serve tenants
-        for pair in self.multiverse:
-            pair[DESIRED].serve(tenants)
-            pair[CURRENT].serve(tenants)
+    def _daemon_loop(self, serve=True):
+        if serve:
+            tenants = self._calculate_tenants(self.context)
+            # Filter delete candidates with currently served tenants
+            self.delete_candidates = {k: v for k, v in
+                                      self.delete_candidates.iteritems()
+                                      if k in tenants}
+            # Serve tenants
+            for pair in self.multiverse:
+                pair[DESIRED].serve(tenants)
+                pair[CURRENT].serve(tenants)
 
         # REVISIT(ivar) Might be wise to wait here upon tenant serving to allow
         # time for events to happen
@@ -217,6 +243,10 @@ class AID(object):
     def _change_report_interval(self, new_conf):
         # TODO(ivar): interrupt current sleep and restart with new value
         self.report_interval = new_conf['value']
+
+    def _change_squash_time(self, new_conf):
+        # TODO(ivar): interrupt current sleep and restart with new value
+        self.squash_time = new_conf['value']
 
 
 def main():
