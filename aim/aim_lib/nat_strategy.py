@@ -646,6 +646,7 @@ class DistributedNatStrategy(NatStrategyMixin):
             self.mgr.create(ctx, clone_ext_net, overwrite=True)
             cidrs = self.mgr.find(ctx, resource.ExternalSubnet,
                                   tenant_name=ext_net_db.tenant_name,
+                                  l3out_name=ext_net_db.l3out_name,
                                   external_network_name=ext_net_db.name)
             cidrs = [c.cidr for c in cidrs]
             self._manage_external_subnets(ctx, clone_ext_net, cidrs)

@@ -28,7 +28,7 @@ class CloneL3Out(model_base.Base):
 
     Keeps relationship between L3Outs and their clones.
     Each L3Out can be cloned only from one source, while the same source
-    can be generate multiple clones (1:N)
+    can generate multiple clones (1:N)
     """
 
     __tablename__ = 'aim_lib_clone_l3out'
