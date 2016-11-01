@@ -431,12 +431,22 @@ class AciTenantManager(gevent.Greenlet):
             # Config tree also gets monitored events
             if state is self._state:
                 # Need double conversion to screen unwanted objects
-                tree['create'].extend(
-                    [_set_pre_existing(_screen_monitored(x)) for x in
-                     copy.deepcopy(monitored_tree['create'])])
-                tree['delete'].extend(
-                    [_set_pre_existing(_screen_monitored(x)) for x in
-                     copy.deepcopy(monitored_tree['delete'])])
+                additional_objects = dict(
+                    (x.dn, _set_pre_existing(_screen_monitored(x))) for x in
+                    copy.deepcopy(monitored_tree['create']))
+                for obj in tree['create']:
+                    if obj.dn in additional_objects:
+                        _set_pre_existing(obj)
+                tree['create'].extend(additional_objects.values())
+
+                additional_objects = dict(
+                    (x.dn, _set_pre_existing(_screen_monitored(x))) for x in
+                    copy.deepcopy(monitored_tree['delete']))
+                for obj in tree['delete']:
+                    if obj.dn in additional_objects:
+                        _set_pre_existing(obj)
+                tree['delete'].extend(additional_objects.values())
+
             if tree['delete']:
                 modified = True
                 self.tree_maker.delete(state, tree['delete'])

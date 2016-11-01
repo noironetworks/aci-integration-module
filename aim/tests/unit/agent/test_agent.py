@@ -707,7 +707,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
 
-        # Updare ext_net to provide some contract
+        # Update ext_net to provide some contract
         self.aim_manager.update(self.ctx, ext_net,
                                 provided_contract_names=['c1'])
         # Reconcile
