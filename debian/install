@@ -1,1 +1,6 @@
 debian/aim-aid.conf /etc/init/
+debian/aim-event-service-polling.conf /etc/init/
+debian/aim-event-service-rpc.conf /etc/init/
+debian/aim-aid.service /lib/systemd/system/
+debian/aim-event-service-polling.service /lib/systemd/system/
+debian/aim-event-service-rpc.service /lib/systemd/system/

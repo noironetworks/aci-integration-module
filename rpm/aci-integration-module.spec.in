@@ -30,6 +30,8 @@ rm -f requirements.txt
 %install
 %{__python2} setup.py install -O1 --install-data / --skip-build --root %{buildroot}
 install -p -D -m 0644 rpm/aim-aid.service %{buildroot}/%{_unitdir}/aim-aid.service
+install -p -D -m 0644 rpm/aim-event-service-polling.service %{buildroot}/%{_unitdir}/aim-event-service-polling.service
+install -p -D -m 0644 rpm/aim-event-service-rpc.service %{buildroot}/%{_unitdir}/aim-event-service-rpc.service
 
 # Remove unused files
 rm -rf %{buildroot}%{python2_sitelib}/aim/tests
@@ -41,8 +43,12 @@ rm -rf %{buildroot}%{python2_sitelib}/aim/tests
 %{_bindir}/aim
 %{_bindir}/aim-debug
 %{_bindir}/aim-aid
+%{_bindir}/aim-event-service-polling
+%{_bindir}/aim-event-service-rpc
 %config(noreplace) %{_sysconfdir}/aim/aim.conf
 %{_unitdir}/aim-aid.service
+%{_unitdir}/aim-event-service-polling.service
+%{_unitdir}/aim-event-service-rpc.service
 
 %changelog
 * Wed Sep 14 2016 Amit Bose <bose@noironetworks.com> - 0.0.1-1

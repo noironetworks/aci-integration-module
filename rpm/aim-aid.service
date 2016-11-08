@@ -1,6 +1,7 @@
 [Unit]
 Description=ACI Inconsistency Detector
 After=network.target
+Wants=aim-event-service-polling.service, aim-event-service-rpc.service
 
 [Service]
 Type=simple 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Message-Queue Event Service for ACI Inconsistency Detector
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/aim-event-service-rpc --config-file=/etc/aim/aim.conf --log-file=/var/log/aim-event-service-rpc.log
+PrivateTmp=false
+KillMode=process
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
