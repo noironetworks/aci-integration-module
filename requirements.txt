@@ -11,6 +11,7 @@ gevent>=1.1.0
 oslo.concurrency
 oslo.config
 oslo.db
+oslo.messaging
 oslo.log
 oslo.utils
 pbr>=1.6

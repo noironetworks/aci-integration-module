@@ -45,16 +45,19 @@ def generate_uuid():
     return str(uuid.uuid4())
 
 
-def wait_for_next_cycle(start_time, polling_interval, log, readable_caller=''):
+def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
+                        notify_exceeding_timeout=True):
     # sleep till end of polling interval
     elapsed = time.time() - start_time
     log.debug("%(caller)s loop - completed in %(time).3f. ",
               {'caller': readable_caller, 'time': elapsed})
     if elapsed < polling_interval:
         gevent.sleep(polling_interval - elapsed)
-    else:
+    elif notify_exceeding_timeout:
         log.debug("Loop iteration exceeded interval "
                   "(%(polling_interval)s vs. %(elapsed)s)!",
                   {'polling_interval': polling_interval,
                    'elapsed': elapsed})
+        gevent.sleep(0)
+    else:
         gevent.sleep(0)

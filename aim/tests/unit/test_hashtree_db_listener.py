@@ -13,8 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import copy
+
+import mock
 
 from aim import aim_manager
 from aim.api import resource as aim_res
@@ -161,3 +162,30 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
     def test_sync_failed_monitored(self):
         self._test_sync_failed(monitored=True)
+
+    def test_tree_hooks(self):
+        with mock.patch('aim.agent.aid.event_services.'
+                        'rpc.AIDEventRpcApi._cast') as cast:
+            tn_name = 'test_tree_hooks'
+            tn = aim_res.Tenant(name='test_tree_hooks_2')
+            ap = aim_res.ApplicationProfile(tenant_name=tn_name, name='ap')
+            epg = aim_res.EndpointGroup(
+                tenant_name=tn_name, app_profile_name='ap', name='epg',
+                bd_name='some')
+            # Add Tenant and AP
+            self.mgr.create(self.ctx, tn)
+            cast.assert_called_once_with(mock.ANY, 'serve', None)
+            cast.reset_mock()
+            self.mgr.create(self.ctx, ap)
+            self.mgr.create(self.ctx, epg)
+            # Create AP will create tenant, create EPG will modify it
+            exp_calls = [
+                mock.call(mock.ANY, 'serve', None),
+                mock.call(mock.ANY, 'reconcile', None)]
+            self._check_call_list(exp_calls, cast)
+            cast.reset_mock()
+            self.mgr.update(self.ctx, epg, bd_name='bd2')
+            cast.assert_called_once_with(mock.ANY, 'reconcile', None)
+            cast.reset_mock()
+            self.tt_mgr.delete_by_tenant_rn(self.ctx, 'test_tree_hooks_2')
+            cast.assert_called_once_with(mock.ANY, 'serve', None)

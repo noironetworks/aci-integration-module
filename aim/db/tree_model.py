@@ -13,11 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import traceback
+
 from oslo_log import log as logging
 import sqlalchemy as sa
+from sqlalchemy import event as sa_event
 from sqlalchemy import orm
 from sqlalchemy.orm import exc as sql_exc
 
+from aim.agent.aid.event_services import rpc
 from aim.agent.aid.universes.aci import converter
 from aim.api import resource as api_res
 from aim.api import status as aim_status
@@ -90,10 +94,13 @@ class TenantTreeManager(object):
                                 self._default_tenant_rn_funct)
         self.tenant_key_funct = (tenant_key_funct or
                                  self._default_tenant_key_funct)
+        self._after_commit_listeners = [
+            rpc.AIDEventRpcApi().tree_creation_postcommit]
 
     @utils.log
     def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
         trees = {self.tenant_rn_funct(x): x for x in hash_trees}
+        self._add_commit_hook(context.db_session)
         with context.db_session.begin(subtransactions=True):
             db_objs = self._find_query(context, tree,
                                        in_={'tenant_rn': trees.keys()}).all()
@@ -125,6 +132,7 @@ class TenantTreeManager(object):
 
     @utils.log
     def delete_bulk(self, context, hash_trees):
+        self._add_commit_hook(context.db_session)
         with context.db_session.begin(subtransactions=True):
             tenant_rns = [self.tenant_rn_funct(x) for x in hash_trees]
             for type in SUPPORTED_TREES + [TenantTree]:
@@ -180,6 +188,31 @@ class TenantTreeManager(object):
         return [x[0] for x in
                 context.db_session.query(TenantTree.tenant_rn).all()]
 
+    def register_update_listener(self, func):
+        """Register callback for update to AIM tree objects.
+
+        Parameter 'func' should be a function that accepts 4 parameters.
+        The first parameter is SQLAlchemy ORM session in which AIM objects
+        are being updated. Rest of the parameters are lists of AIM tenant rns
+        that were added, updated and deleted respectively.
+        The callback will be invoked before the database transaction
+        that updated the AIM object commits.
+
+        Example:
+
+        def my_listener(session, added, updated, deleted):
+            "Iterate over 'added', 'updated', 'deleted'
+
+        a_mgr = TenantTreeManager()
+        a_mgr.register_update_listener(my_listener)
+
+        """
+        self._after_commit_listeners.append(func)
+
+    def unregister_update_listener(self, func):
+        """Remove callback for update to AIM objects."""
+        self._after_commit_listeners.remove(func)
+
     def _delete_if_exist(self, context, tree_type, tenant_rn):
         with context.db_session.begin(subtransactions=True):
             obj = self._find_query(context, tree_type,
@@ -213,6 +246,53 @@ class TenantTreeManager(object):
 
     def _default_tenant_key_funct(self, rn):
         return rn,
+
+    def _add_commit_hook(self, session):
+        if not sa_event.contains(session, 'after_flush',
+                                 self._after_session_flush):
+            sa_event.listen(session, 'after_flush',
+                            self._after_session_flush)
+        if not sa_event.contains(session, 'after_commit',
+                                 self._after_session_commit):
+            sa_event.listen(session, 'after_commit',
+                            self._after_session_commit)
+
+    def _after_session_flush(self, session, _):
+        # Stash tree modifications
+        added = set([x.tenant_rn for x in session.new
+                     if isinstance(x, TypeTreeBase)])
+        updated = set([x.tenant_rn for x in session.dirty
+                       if isinstance(x, TypeTreeBase)])
+        deleted = set([x.tenant_rn for x in session.deleted
+                       if isinstance(x, TypeTreeBase)])
+        try:
+            session._aim_stash
+        except AttributeError:
+            session._aim_stash = {'added': set(), 'updated': set(),
+                                  'deleted': set()}
+        session._aim_stash['added'] |= added
+        session._aim_stash['updated'] |= updated
+        session._aim_stash['deleted'] |= deleted
+
+    def _after_session_commit(self, session):
+        try:
+            added = session._aim_stash['added']
+            updated = session._aim_stash['updated']
+            deleted = session._aim_stash['deleted']
+        except AttributeError:
+            LOG.debug("_aim_stash disappeared in postcommit tree operation")
+            return
+        for func in self._after_commit_listeners[:]:
+            LOG.debug("Invoking after-commit hook %s with %d add(s), "
+                      "%d update(s), %d delete(s)",
+                      func.__name__, len(added), len(updated), len(deleted))
+            try:
+                func(session, added, updated, deleted)
+            except Exception as ex:
+                LOG.debug(traceback.format_exc())
+                LOG.error("An error occurred during tree manager postcommit "
+                          "execution: %s" % ex.message)
+        del session._aim_stash
 
 
 class AimHashTreeMaker(object):

@@ -49,9 +49,18 @@ agent_opts = [
     cfg.IntOpt('agent_down_time', default=75,
                help=("Seconds to regard the agent is down; should be at "
                      "least twice agent_report_interval.")),
-    cfg.IntOpt('agent_polling_interval', default=5,
-               help=("Seconds that need to pass before the agent starts each "
-                     "new cycle.")),
+    cfg.FloatOpt('agent_polling_interval', default=0,
+                 help=("Seconds that need to pass before the agent starts "
+                       "each new cycle. This doesn't represent how often AID "
+                       "will reconcile state, as that depends on external "
+                       "events. This option only tells AID how much it has "
+                       "to wait before checking the Event queues after a "
+                       "reconciliation happened.")),
+    cfg.FloatOpt('agent_event_squash_time', default=0.1,
+                 help=("Seconds or fractions of them that AID will wait after "
+                       "an event is received before starting the "
+                       "reconciliation. This will squash similar events "
+                       "together")),
     cfg.IntOpt('agent_report_interval', default=30,
                help=("Number of seconds after which an agent reports his "
                      "state")),
@@ -70,9 +79,19 @@ agent_opts = [
     cfg.IntOpt('max_operation_retry', default=5,
                help="How many creations/deletions are attempted by AID before "
                     "declaring failure on a specific object"),
+    cfg.StrOpt('unix_socket_path', default='/run/aid/events/aid.sock',
+               help="Host where this agent/controller is running"),
+]
+
+event_service_polling_opts = [
+    cfg.FloatOpt('service_polling_interval', default=10,
+                 help=("Number of seconds or fraction of it that the polling "
+                       "event service has to wait before issuing a SERVE "
+                       "notification")),
 ]
 
 cfg.CONF.register_opts(agent_opts, 'aim')
+cfg.CONF.register_opts(event_service_polling_opts, 'aim_event_service_polling')
 CONF = cfg.CONF
 
 
@@ -101,6 +120,8 @@ class ConfigManager(object):
         'aim': {
             x.dest: x for x in agent_opts},
         'default': {x.dest: x for x in global_opts},
+        'aim_event_service_polling': {x.dest: x for x in
+                                      event_service_polling_opts}
     }
 
     true = ['true', 'yes', '1', 't']
@@ -176,6 +197,8 @@ class ConfigManager(object):
                 db_conf['value'] = self._list_opt(value)
             elif isinstance(obj, cfg.BoolOpt):
                 db_conf['value'] = self._bool_opt(value)
+            elif isinstance(obj, cfg.FloatOpt):
+                db_conf['value'] = self._float_opt(value)
             else:
                 LOG.warn(
                     "Unsupported option type %s of item %s in group %s for "
@@ -236,6 +259,9 @@ class ConfigManager(object):
 
     def _int_opt(self, value):
         return int(value) if value is not None else None
+
+    def _float_opt(self, value):
+        return float(value) if value is not None else None
 
     def _str_opt(self, value):
         return value

@@ -25,6 +25,7 @@ from apicapi import exceptions as apic_exc
 import gevent
 from oslo_log import log as logging
 
+from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe
 from aim.common.hashtree import structured_tree
@@ -461,6 +462,7 @@ class AciTenantManager(gevent.Greenlet):
             if modified:
                 LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
                                                           str(state)))
+                event_handler.EventHandler.reconcile()
             else:
                 LOG.debug("No changes in tree for tenant %s: " %
                           self.tenant_name)
