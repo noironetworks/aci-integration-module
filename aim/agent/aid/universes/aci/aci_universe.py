@@ -108,9 +108,13 @@ class WebSocketContext(object):
                       "session.")
             self._reload_websocket_config()
             # Log out WS
-            if self.session.session:
-                self.session.close()
-            self.establish_ws_session()
+            self.reconnect_ws_session()
+
+    def reconnect_ws_session(self):
+        # Log out WS
+        if self.session.session:
+            self.session.close()
+        self.establish_ws_session()
 
 
 def get_websocket_context(apic_config):

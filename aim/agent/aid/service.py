@@ -107,7 +107,6 @@ class AID(object):
         self._daemon_loop(True)
         while True:
             try:
-                start_time = time.time()
                 serve = False
                 # wait first event
                 first_event_time = None
@@ -123,6 +122,7 @@ class AID(object):
                         if event == event_handler.EVENT_SERVE:
                             # Serving tenants is required as well
                             serve = True
+                start_time = time.time()
                 self._daemon_loop(serve)
                 utils.wait_for_next_cycle(start_time, self.polling_interval,
                                           LOG, readable_caller='AID',

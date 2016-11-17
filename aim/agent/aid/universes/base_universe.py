@@ -219,8 +219,6 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _vote_tenant_for_deletion(self, other_universe, tenant,
                                   delete_candidates):
-        LOG.info("%s Voting for removal of tenant %s" %
-                 (self.name, tenant))
         votes = delete_candidates.setdefault(tenant, set())
         votes.add(self)
 
@@ -237,15 +235,19 @@ class HashTreeStoredUniverse(AimUniverse):
             difference = tree.diff(my_tenant_state)
             result[CREATE].extend(difference['add'])
             result[DELETE].extend(difference['remove'])
-            if result[CREATE] or result[DELETE]:
+            if difference['add'] or difference['remove']:
                 LOG.debug("Universes %s and %s have "
-                          "differences:\n %s\n and\n %s" %
-                          (self.name, other_universe.name,
+                          "differences for tenant %s:\n %s\n and\n %s" %
+                          (self.name, other_universe.name, tenant,
                            str(my_tenant_state), str(tree)))
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
             if always_vote_deletion or (
                     skip_dummy and (not tree.root or tree.root.dummy)):
+                # Avoid too much info logging
+                _log = LOG.info if not always_vote_deletion else LOG.debug
+                _log("%s voting for removal of tenant %s" %
+                     (self.name, tenant))
                 self._vote_tenant_for_deletion(other_universe, tenant,
                                                delete_candidates)
                 continue

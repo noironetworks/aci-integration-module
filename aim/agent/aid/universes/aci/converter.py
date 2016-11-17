@@ -581,7 +581,7 @@ class BaseConverter(object):
                 continue
             # Verify if it is an exception
             if attribute in helper.get('exceptions', {}):
-                LOG.debug("attribute %s is an exception" % attribute)
+                # LOG.debug("attribute %s is an exception" % attribute)
                 other = helper['exceptions'][attribute].get(
                     'other', convert_attribute(attribute, to_aim=to_aim))
                 conv = (helper['exceptions'][attribute].get(

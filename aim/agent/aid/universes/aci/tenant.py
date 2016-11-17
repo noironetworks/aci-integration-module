@@ -412,9 +412,9 @@ class AciTenantManager(gevent.Greenlet):
                 obj.monitored = True
             return obj
 
-        def _screen_monitored(obj):
+        def _screen_monitored(objs):
             return self.to_aim_converter.convert(
-                self.to_aci_converter.convert([obj]))[0]
+                self.to_aci_converter.convert(objs))
 
         def _set_pre_existing(obj):
             obj.monitored = False
@@ -422,7 +422,9 @@ class AciTenantManager(gevent.Greenlet):
             return obj
 
         # Convert objects
-        for tree in (monitored_tree, config_tree, operational_tree):
+        for tree, readable in ((monitored_tree, 'monitored'),
+                               (config_tree, 'configuration'),
+                               (operational_tree, 'operational')):
             state = states[id(tree)]
             tree['create'] = [_monitor(state, x) for x in
                               self.to_aim_converter.convert(tree['create'])]
@@ -432,17 +434,19 @@ class AciTenantManager(gevent.Greenlet):
             # Config tree also gets monitored events
             if state is self._state:
                 # Need double conversion to screen unwanted objects
-                additional_objects = dict(
-                    (x.dn, _set_pre_existing(_screen_monitored(x))) for x in
+                screened = _screen_monitored(
                     copy.deepcopy(monitored_tree['create']))
+                additional_objects = dict(
+                    (x.dn, _set_pre_existing(x)) for x in screened)
                 for obj in tree['create']:
                     if obj.dn in additional_objects:
                         _set_pre_existing(obj)
                 tree['create'].extend(additional_objects.values())
 
-                additional_objects = dict(
-                    (x.dn, _set_pre_existing(_screen_monitored(x))) for x in
+                screened = _screen_monitored(
                     copy.deepcopy(monitored_tree['delete']))
+                additional_objects = dict(
+                    (x.dn, _set_pre_existing(x)) for x in screened)
                 for obj in tree['delete']:
                     if obj.dn in additional_objects:
                         _set_pre_existing(obj)
@@ -460,8 +464,8 @@ class AciTenantManager(gevent.Greenlet):
                 self.tree_maker.update(state, tree['create'])
 
             if modified:
-                LOG.debug("New tree for tenant %s: %s" % (self.tenant_name,
-                                                          str(state)))
+                LOG.debug("New %s tree for tenant %s: %s" %
+                          (readable, self.tenant_name, str(state)))
                 event_handler.EventHandler.reconcile()
             else:
                 LOG.debug("No changes in tree for tenant %s: " %
