@@ -757,6 +757,81 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertTrue(agent._run_arguments[2])
         self.assertTrue(agent._run_arguments[3])
 
+    def test_manual_rs(self):
+        agent = self._create_agent()
+        tenant_name = 'test_manual_rs'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        # start by managing a single tenant (non-monitored)
+        self.aim_manager.create(
+            self.ctx, resource.Tenant(name=tenant_name))
+        # Create a APP profile in such tenant
+        self.aim_manager.create(
+            self.ctx, resource.ApplicationProfile(
+                tenant_name=tenant_name, name='app'))
+        # Create an EPG
+        epg = resource.EndpointGroup(
+            tenant_name=tenant_name, app_profile_name='app', name='epg')
+        self.aim_manager.create(self.ctx, epg)
+        # Add 2 contracts
+        self.aim_manager.create(
+            self.ctx, resource.Contract(
+                tenant_name=tenant_name, name='c1'))
+        self.aim_manager.create(
+            self.ctx, resource.Contract(
+                tenant_name=tenant_name, name='c2'))
+        # Serve
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Reconcile
+        agent._daemon_loop()
+        # Verify everything is fine
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_universe_sync(desired_config, current_config)
+
+        # Now add a contract to the EPG through AIM
+        self.aim_manager.update(self.ctx, epg, provided_contract_names=['c1'])
+
+        # Observe, Reconcile, Verify
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_universe_sync(desired_config, current_config)
+
+        # Add the contract manually (should be removed)
+
+        aci_contract_rs = {
+            "fvRsProv": {
+                "attributes": {
+                    "dn": "uni/tn-%s/ap-%s/epg-%s/rsprov-%s" % (
+                        tenant_name, 'app', 'epg', 'c2'),
+                    "status": "created",
+                    "tnVzBrCPName": "c2"
+                }
+            }
+        }
+        self._set_events(
+            [aci_contract_rs],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+        self._observe_aci_events(current_config)
+        # Observe, Reconcile, Verify
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_universe_sync(desired_config, current_config)
+        # C2 RS is not to be found
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + aci_contract_rs['fvRsProv']['attributes']['dn'])
+
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
             self._current_manager = tenant

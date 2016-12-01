@@ -35,14 +35,24 @@ def hashtree(ctx):
 
 @hashtree.command(name='dump')
 @click.option('--tenant', '-t')
+@click.option('--flavor', '-f')
 @click.pass_context
-def dump(ctx, tenant):
+def dump(ctx, tenant, flavor):
+    trees = {'configuration': tree_model.CONFIG_TREE,
+             'operational': tree_model.OPERATIONAL_TREE,
+             'monitored': tree_model.MONITORED_TREE}
+    flavor = flavor or 'configuration'
+    search = tree_model.CONFIG_TREE
+    for type, tree in trees.iteritems():
+        if type.startswith(flavor):
+            search = tree
+            break
     tenant_tree_mgr = ctx.obj['tenant_tree_mgr']
     aim_ctx = ctx.obj['aim_ctx']
     tenants = [tenant] if tenant else tenant_tree_mgr.get_tenants(aim_ctx)
     for t in tenants:
         try:
-            tree = tenant_tree_mgr.get(aim_ctx, t)
+            tree = tenant_tree_mgr.get(aim_ctx, t, tree=search)
             click.echo('Tenant: %s' % t)
             click.echo(json.dumps(tree.root.to_dict(), indent=2))
         except h_exc.HashTreeNotFound:

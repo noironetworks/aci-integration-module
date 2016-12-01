@@ -52,7 +52,7 @@ class BaseUniverse(object):
         :param db_session: session to the AIM DB, can be used to retrieve state
         or useful configuration options.
         :param conf_mgr: configuration manager.
-        :returns: self
+        :return: self
         """
 
     @abc.abstractmethod
@@ -82,7 +82,18 @@ class BaseUniverse(object):
                identifier, while the value is a set of universes' instance
                where a specific Universe adds/removes itself to when he
                agrees/desagrees on a tenant being removed.
-        :returns:
+        :return:
+        """
+
+    @abc.abstractmethod
+    def reset(self, tenants):
+        """Tenant state reset method
+
+        Whenever one or multiple tenants are found to be consistently divergent
+        from the desired state, this reset method will be called so that the
+        universe can put its tenant in a clean state.
+        :param tenants: list of tenants that need reset
+        :return:
         """
 
     @abc.abstractproperty
@@ -268,6 +279,9 @@ class HashTreeStoredUniverse(AimUniverse):
         result[DELETE] = self.get_resources_for_delete(result[DELETE])
         # Reconciliation method for pushing changes
         self.push_resources(result)
+
+    def reset(self, tenants):
+        pass
 
     def get_resource_for_delete(self, resource_key):
         return self.get_resources_for_delete([resource_key])

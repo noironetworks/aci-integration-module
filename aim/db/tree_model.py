@@ -94,8 +94,9 @@ class TenantTreeManager(object):
                                 self._default_tenant_rn_funct)
         self.tenant_key_funct = (tenant_key_funct or
                                  self._default_tenant_key_funct)
-        self._after_commit_listeners = [
-            rpc.AIDEventRpcApi().tree_creation_postcommit]
+        self._after_commit_listeners = []
+        self.register_update_listener(
+            rpc.AIDEventRpcApi().tree_creation_postcommit)
 
     @utils.log
     def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
@@ -259,6 +260,8 @@ class TenantTreeManager(object):
 
     def _after_session_flush(self, session, _):
         # Stash tree modifications
+        LOG.debug("Invoking after session flush on tree manager for session "
+                  "%s" % session)
         added = set([x.tenant_rn for x in session.new
                      if isinstance(x, TypeTreeBase)])
         updated = set([x.tenant_rn for x in session.dirty
@@ -275,6 +278,8 @@ class TenantTreeManager(object):
         session._aim_stash['deleted'] |= deleted
 
     def _after_session_commit(self, session):
+        LOG.debug("Invoking after session commit on tree manager for session "
+                  "%s" % session)
         try:
             added = session._aim_stash['added']
             updated = session._aim_stash['updated']
