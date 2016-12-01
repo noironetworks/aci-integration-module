@@ -289,7 +289,8 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
          'skip': ['bdName', 'providedContractNames',
                   'consumedContractNames',
                   'openstackVmmDomainNames',
-                  'physicalDomainNames']},
+                  'physicalDomainNames',
+                  'staticPaths']},
         {'resource': 'fvRsBd',
          'exceptions': {'bd_name': {'other': 'tnFvBDName'}, },
          'to_resource': converter.default_to_resource_strict, },
@@ -301,7 +302,10 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
          'converter': converter.fvRsCons_converter, },
         {'resource': 'fvRsDomAtt',
          'exceptions': {},
-         'converter': converter.fv_rs_dom_att_converter, }
+         'converter': converter.fv_rs_dom_att_converter, },
+        {'resource': 'fvRsPathAtt',
+         'exceptions': {},
+         'converter': converter.fv_rs_path_att_converter, }
     ]
     sample_input = [[base.TestAimDBBase._get_example_aci_epg(),
                      {'fvRsBd':
@@ -336,6 +340,16 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                       {'attributes':
                        {'dn': 'uni/tn-t1/ap-a1/epg-test/'
                               'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]', }}},
+                     _aci_obj('fvRsPathAtt',
+                              dn='uni/tn-t1/ap-a1/epg-test/rspathAtt-'
+                                 '[topology/pod-1/paths-202/pathep-[eth1/7]]',
+                              tDn='topology/pod-1/paths-202/pathep-[eth1/7]',
+                              encap='vlan-33'),
+                     _aci_obj('fvRsPathAtt',
+                              dn='uni/tn-t1/ap-a1/epg-test/rspathAtt-'
+                                 '[topology/pod-1/paths-102/pathep-[eth1/2]]',
+                              tDn='topology/pod-1/paths-102/pathep-[eth1/2]',
+                              encap='vlan-39'),
                      ],
                     base.TestAimDBBase._get_example_aci_epg(
                         dn='uni/tn-t1/ap-a1/epg-test-1',
@@ -349,7 +363,13 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                                provided_contract_names=['p1', 'k'],
                                consumed_contract_names=['c1', 'k'],
                                openstack_vmm_domain_names=['op', 'op2'],
-                               physical_domain_names=['phys']),
+                               physical_domain_names=['phys'],
+                               static_paths=[{'path': 'topology/pod-1/paths'
+                                                      '-202/pathep-[eth1/7]',
+                                              'encap': 'vlan-33'},
+                                             {'path': 'topology/pod-1/paths'
+                                                      '-102/pathep-[eth1/2]',
+                                             'encap': 'vlan-39'}]),
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
                                name='test-1',
@@ -877,7 +897,13 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                         provided_contract_names=['k', 'p1'],
                         consumed_contract_names=['c1', 'k'],
                         openstack_vmm_domain_names=['op', 'op2'],
-                        physical_domain_names=['phys'])]
+                        physical_domain_names=['phys'],
+                        static_paths=[{'path': 'topology/pod-1/paths-202/'
+                                               'pathep-[eth1/7]',
+                                       'encap': 'vlan-33'},
+                                      {'path': 'topology/pod-1/paths-102/'
+                                               'pathep-[eth1/2]',
+                                       'encap': 'vlan-39'}])]
     sample_output = [
         [{
             "fvAEPg": {
@@ -927,7 +953,17 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
                           'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]',
-                    'tDn': 'uni/vmmp-OpenStack/dom-op2'}}}]]
+                    'tDn': 'uni/vmmp-OpenStack/dom-op2'}}},
+            _aci_obj('fvRsPathAtt',
+                     dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
+                        '[topology/pod-1/paths-202/pathep-[eth1/7]]',
+                     tDn='topology/pod-1/paths-202/pathep-[eth1/7]',
+                     encap='vlan-33'),
+            _aci_obj('fvRsPathAtt',
+                     dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
+                        '[topology/pod-1/paths-102/pathep-[eth1/2]]',
+                     tDn='topology/pod-1/paths-102/pathep-[eth1/2]',
+                     encap='vlan-39')]]
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
     missing_ref_output = [{
         "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test",

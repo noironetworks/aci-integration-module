@@ -274,6 +274,36 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
     return result
 
 
+def fv_rs_path_att_converter(object_dict, otype, helper,
+                             source_identity_attributes,
+                             destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict.get('tDn') and object_dict.get('encap'):
+            res_dict['static_paths'] = [{'path': object_dict['tDn'],
+                                         'encap': object_dict['encap']}]
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        for p in object_dict['static_paths']:
+            if p.get('path') and p.get('encap'):
+                dn = default_identity_converter(
+                    object_dict, otype, helper, extra_attributes=[p['path']],
+                    aci_mo_type=helper['resource'], to_aim=False)[0]
+                result.append({helper['resource']: {'attributes':
+                                                    {'dn': dn,
+                                                     'tDn': p['path'],
+                                                     'encap': p['encap']}}})
+    return result
+
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -371,7 +401,8 @@ resource_map = {
         'skip': ['bd_name', 'provided_contract_names',
                  'consumed_contract_names',
                  'openstack_vmm_domain_names',
-                 'physical_domain_names'],
+                 'physical_domain_names',
+                 'static_paths'],
     }],
     'fvRsBd': [{
         'resource': resource.EndpointGroup,
@@ -487,6 +518,10 @@ resource_map = {
     }],
     'l3extSubnet': [{
         'resource': resource.ExternalSubnet,
+    }],
+    'fvRsPathAtt': [{
+        'resource': resource.EndpointGroup,
+        'converter': fv_rs_path_att_converter,
     }],
 }
 
@@ -638,7 +673,7 @@ class AciToAimModelConverter(BaseConverter):
             except Exception as e:
                 LOG.warn("Could not convert object"
                          "%s with error %s" % (object, e.message))
-                LOG.debug(traceback.format_exc())
+                LOG.warn(traceback.format_exc())
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %
                   (aci_objects, squashed))

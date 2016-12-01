@@ -16,10 +16,12 @@
 from oslo_log import log as logging
 from sqlalchemy import event as sa_event
 
+from aim.api import infra as api_infra
 from aim.api import resource as api_res
 from aim.api import status as api_status
 from aim.db import agent_model
 from aim.db import hashtree_db_listener as ht_db_l
+from aim.db import infra_model
 from aim.db import models
 from aim.db import status_model
 from aim import exceptions as exc
@@ -68,7 +70,8 @@ class AimManager(object):
                      api_res.PhysicalDomain: models.PhysicalDomain,
                      api_res.L3Outside: models.L3Outside,
                      api_res.ExternalNetwork: models.ExternalNetwork,
-                     api_res.ExternalSubnet: models.ExternalSubnet, }
+                     api_res.ExternalSubnet: models.ExternalSubnet,
+                     api_infra.HostLink: infra_model.HostLink}
 
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff
