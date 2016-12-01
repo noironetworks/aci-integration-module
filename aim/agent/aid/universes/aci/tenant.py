@@ -259,10 +259,13 @@ class AciTenantManager(gevent.Greenlet):
                 if (event.keys()[0] == TENANT_KEY and not
                         event[TENANT_KEY]['attributes'].get(STATUS_FIELD)):
                     LOG.info("Resetting Tree %s" % self.tenant_name)
-                    # This is a full resync, tree needs to be reset
+                    # This is a full resync, trees need to be reset
                     self._state = structured_tree.StructuredHashTree()
                     self._operational_state = (
                         structured_tree.StructuredHashTree())
+                    self._monitored_state = (
+                        structured_tree.StructuredHashTree())
+                    self.tag_set = set()
                     break
             LOG.debug("received events: %s", events)
             # Make events list flat
@@ -504,7 +507,8 @@ class AciTenantManager(gevent.Greenlet):
             res_type = event.keys()[0]
             status = resource['attributes'].get(STATUS_FIELD)
             raw_dn = resource['attributes'].get('dn')
-            if status == converter.DELETED_STATUS:
+            if status == converter.DELETED_STATUS and not (
+                    AciTenantManager.is_rs_object(res_type)):
                 if raw_dn not in visited:
                     result.append(event)
             elif get_all or status or res_type in OPERATIONAL_LIST:
@@ -609,15 +613,30 @@ class AciTenantManager(gevent.Greenlet):
         return owned, monitored
 
     def _is_owned(self, aci_object):
+        # An RS whose parent is owned is an owned object.
         dn = aci_object.values()[0]['attributes']['dn']
-        if aci_object.keys()[0] in apic_client.MULTI_PARENT:
+        type = aci_object.keys()[0]
+        if type in apic_client.MULTI_PARENT:
             decomposed = dn.split('/')
             # Check for parent ownership
             return '/'.join(decomposed[:-1]) in self.tag_set
         else:
-            return dn in self.tag_set
+            owned = dn in self.tag_set
+            if not owned and self.is_rs_object(type):
+                # Check for parent ownership
+                decomposed = apic_client.DNManager().aci_decompose_dn_guess(
+                    dn, type)
+                # Check for parent ownership
+                return apic_client.DNManager().build(
+                    decomposed[1][:-1]) in self.tag_set
+            else:
+                return owned
 
     def _is_deleting(self, aci_object):
         attrs = aci_object.values()[0]['attributes']
         status = attrs.get(STATUS_FIELD, attrs.get(SEVERITY_FIELD))
         return status in [converter.DELETED_STATUS, converter.CLEARED_SEVERITY]
+
+    @staticmethod
+    def is_rs_object(type):
+        return 'Rs' in type
