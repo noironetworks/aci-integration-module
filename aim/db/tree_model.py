@@ -64,7 +64,7 @@ class TypeTreeBase(object):
     #
     tenant_rn = sa.Column(sa.String(64), primary_key=True)
     root_full_hash = sa.Column(sa.String(256), nullable=True)
-    tree = sa.Column(sa.LargeBinary, nullable=True)
+    tree = sa.Column(sa.LargeBinary(length=2 ** 24), nullable=True)
 
 
 class ConfigTenantTree(model_base.Base, TypeTreeBase):
