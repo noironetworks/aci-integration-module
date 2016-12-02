@@ -185,6 +185,11 @@ class Agent(ResourceBase):
         LOG.debug("Agent %s is down: %s" % (self.id, result))
         return result
 
+    def down_time(self, context):
+        if self.is_down(context):
+            current = context.db_session.query(func.now()).scalar()
+            return (current - self.heartbeat_timestamp).seconds
+
 
 class Subnet(AciResourceBase):
     """Resource representing a Subnet in ACI.

@@ -101,6 +101,7 @@ class AID(object):
         gevent.spawn(self._heartbeat_loop)
         self.events = event_handler.EventHandler().initialize(
             self.conf_manager)
+        self.max_down_time = 4 * self.report_interval
 
     def daemon_loop(self):
         # Serve tenants the very first time regardless of the events received
@@ -184,6 +185,10 @@ class AID(object):
         with context.db_session.begin(subtransactions=True):
             # Refresh this agent
             self.agent = self.manager.get(context, self.agent)
+            down_time = self.agent.down_time(context)
+            if min(0, down_time or 0) > self.max_down_time:
+                utils.perform_harakiri(LOG, "Agent has been down for %s "
+                                            "seconds." % down_time)
             # Get peers
             agents = [
                 x for x in self.manager.find(context, resource.Agent,

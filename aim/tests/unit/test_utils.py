@@ -20,6 +20,9 @@ test_utils
 Tests for `utils` module.
 """
 
+import mock
+
+from aim.common import utils as internal_utils
 from aim.tests import base
 from aim import utils
 
@@ -34,3 +37,31 @@ class TestUtils(base.TestAimDBBase):
         self.assertEqual(
             'some' * 14 + 'som',
             utils.sanitize_display_name('some' * 15))
+
+    def test_exponential_backoff(self):
+        with mock.patch.object(internal_utils.random, 'random',
+                               return_value=1):
+            with mock.patch.object(internal_utils.gevent, 'sleep') as sleep:
+                tentative = None
+                tentative = internal_utils.exponential_backoff(10, tentative)
+                self.assertEqual(1, tentative.get())
+                sleep.assert_called_with(1)
+                tentative.increment()
+                tentative = internal_utils.exponential_backoff(10, tentative)
+                self.assertEqual(3, tentative.get())
+                sleep.assert_called_with(4)
+                tentative.increment()
+                tentative.increment()
+                internal_utils.exponential_backoff(10, tentative)
+                sleep.assert_called_with(10)
+
+    def test_harakiri(self):
+        original = self.cfg_manager.get_option('recovery_restart', 'aim')
+        self.set_override('recovery_restart', False, 'aim')
+        with mock.patch.object(internal_utils.os, '_exit') as ex:
+            internal_utils.perform_harakiri(mock.Mock(), '')
+            self.assertEqual(0, ex.call_count)
+            self.set_override('recovery_restart', True, 'aim')
+            internal_utils.perform_harakiri(mock.Mock(), '')
+            ex.assert_called_once_with(1)
+        self.set_override('recovery_restart', original, 'aim')
