@@ -29,6 +29,7 @@ from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe
 from aim.common.hashtree import structured_tree
+from aim.common import utils
 from aim.db import tree_model
 from aim import exceptions
 
@@ -78,7 +79,7 @@ class Tenant(acitoolkit.Tenant):
     def instance_subscribe(self, session):
         # Have it publicly available
         resp = self._instance_subscribe(session)
-        if resp:
+        if resp is not None:
             if resp.ok:
                 return json.loads(resp.text)['imdata']
             else:
@@ -158,6 +159,8 @@ class AciTenantManager(gevent.Greenlet):
         # batch of APIC events
         self._warm = False
         self.ws_context = ws_context
+        self.recovery_retries = None
+        self.max_retries = 5
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
@@ -235,14 +238,23 @@ class AciTenantManager(gevent.Greenlet):
                     last_time = curr_time
                 if not last_time:
                     last_time = curr_time
+                # Successfull run
+                self.recovery_retries = None
         except gevent.GreenletExit:
             raise
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, e.message))
             LOG.debug(traceback.format_exc())
+            self.health_state = False
             self._unsubscribe_tenant()
-            # TODO(ivar): sleep to avoid reconnecting too frequently
+            self.recovery_retries = utils.exponential_backoff(
+                10, tentative=self.recovery_retries)
+            if self.recovery_retries.get() >= self.max_retries:
+                LOG.error("Exceeded max recovery retries for tenant %s. "
+                          "Destroying the manager." %
+                          self.tenant_name)
+                raise gevent.GreenletExit
 
     def _event_loop(self):
         start_time = time.time()
@@ -367,6 +379,7 @@ class AciTenantManager(gevent.Greenlet):
                             self.creation_failed(aim_object, e.message)
 
     def _unsubscribe_tenant(self):
+        LOG.debug("Unsubscribing tenant websocket %s" % self.tenant_name)
         self.tenant.instance_unsubscribe(self.ws_context.session)
 
     def _subscribe_tenant(self):
@@ -624,8 +637,14 @@ class AciTenantManager(gevent.Greenlet):
             owned = dn in self.tag_set
             if not owned and self.is_rs_object(type):
                 # Check for parent ownership
-                decomposed = apic_client.DNManager().aci_decompose_dn_guess(
-                    dn, type)
+                try:
+                    decomposed = (
+                        apic_client.DNManager().aci_decompose_dn_guess(
+                            dn, type))
+                except apic_client.DNManager.InvalidNameFormat:
+                    LOG.debug("Type %s with DN %s is not supported." %
+                              (type, dn))
+                    return False
                 # Check for parent ownership
                 return apic_client.DNManager().build(
                     decomposed[1][:-1]) in self.tag_set

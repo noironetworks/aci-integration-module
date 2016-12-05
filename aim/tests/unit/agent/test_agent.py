@@ -207,6 +207,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(
             2, len([x for x in result + result2 + result3 if x == 'keyA2']))
 
+    def test_down_time_suicide(self):
+        with mock.patch.object(service.utils, 'perform_harakiri') as hara:
+            agent = self._create_agent()
+            agent._calculate_tenants(agent.context)
+            agent.max_down_time = -1
+            agent._calculate_tenants(agent.context)
+            hara.assert_called_once_with(service.LOG, mock.ANY)
+
     def test_tenant_association_fail(self):
         data = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},

@@ -81,6 +81,9 @@ agent_opts = [
                     "declaring failure on a specific object"),
     cfg.StrOpt('unix_socket_path', default='/run/aid/events/aid.sock',
                help="Host where this agent/controller is running"),
+    cfg.BoolOpt('recovery_restart', default=True,
+                help=("Set to True if you want the agents to exit in critical "
+                      "situations.")),
 ]
 
 event_service_polling_opts = [
