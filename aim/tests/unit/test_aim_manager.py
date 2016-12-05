@@ -442,8 +442,8 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
         super(TestAgent, self).setUp()
         self.tree_mgr = tree_model.TenantHashTreeManager()
         self.tree_mgr.update_bulk(
-            self.ctx, [structured_tree.StructuredHashTree(root_key=('t1', )),
-                       structured_tree.StructuredHashTree(root_key=('t2', ))])
+            self.ctx, [structured_tree.StructuredHashTree(root_key=('t1',)),
+                       structured_tree.StructuredHashTree(root_key=('t2',))])
 
         self.addCleanup(self._clean_trees)
 
@@ -542,6 +542,8 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
                                 'openstack_vmm_domain_names': ['openstack']}
     test_search_attributes = {'name': 'web'}
     test_update_attributes = {'bd_name': 'net1',
+                              'policy_enforcement_pref':
+                              resource.EndpointGroup.POLICY_ENFORCED,
                               'provided_contract_names': ['c2', 'k', 'p1'],
                               'consumed_contract_names': ['c1', 'k', 'p2'],
                               'physical_domain_names': ['phys']}

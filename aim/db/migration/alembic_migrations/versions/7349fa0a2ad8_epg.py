@@ -91,6 +91,7 @@ def upgrade():
         sa.Column('tenant_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256)),
         sa.Column('bd_name', sa.String(64)),
+        sa.Column('policy_enforcement_pref', sa.String(16)),
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'app_profile_name', 'name',

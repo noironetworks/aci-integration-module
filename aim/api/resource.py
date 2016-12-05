@@ -266,6 +266,7 @@ class EndpointGroup(AciResourceBase):
     identity_attributes = ['tenant_name', 'app_profile_name', 'name']
     other_attributes = ['display_name',
                         'bd_name',
+                        'policy_enforcement_pref',
                         'provided_contract_names',
                         'consumed_contract_names',
                         'openstack_vmm_domain_names',
@@ -275,12 +276,17 @@ class EndpointGroup(AciResourceBase):
     _aci_mo_name = 'fvAEPg'
     _tree_parent = ApplicationProfile
 
+    POLICY_UNENFORCED = 'unenforced'
+    POLICY_ENFORCED = 'enforced'
+
     def __init__(self, **kwargs):
         super(EndpointGroup, self).__init__({'bd_name': '',
                                              'provided_contract_names': [],
                                              'consumed_contract_names': [],
                                              'openstack_vmm_domain_names': [],
                                              'physical_domain_names': [],
+                                             'policy_enforcement_pref':
+                                             self.POLICY_UNENFORCED,
                                              'monitored': False},
                                             **kwargs)
 
