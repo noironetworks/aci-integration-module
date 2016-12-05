@@ -242,6 +242,7 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
     app_profile_name = model_base.name_column(nullable=False)
 
     bd_name = model_base.name_column()
+    policy_enforcement_pref = sa.Column(sa.String(16))
 
     _contract_relation_class = EndpointGroupContract
     contracts = orm.relationship(EndpointGroupContract,

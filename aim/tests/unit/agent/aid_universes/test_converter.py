@@ -285,7 +285,7 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
     resource_type = resource.EndpointGroup
     reverse_map_output = [
         {'resource': 'fvAEPg',
-         'exceptions': {},
+         'exceptions': {'policy_enforcement_pref': {'other': 'pcEnfPref'}, },
          'skip': ['bdName', 'providedContractNames',
                   'consumedContractNames',
                   'openstackVmmDomainNames',
@@ -338,18 +338,23 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                               'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]', }}},
                      ],
                     base.TestAimDBBase._get_example_aci_epg(
-                        dn='uni/tn-t1/ap-a1/epg-test-1')]
+                        dn='uni/tn-t1/ap-a1/epg-test-1',
+                        pcEnfPref='enforced')]
     sample_output = [
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
                                name='test', bd_name='bd1',
+                               policy_enforcement_pref=(
+                                   resource.EndpointGroup.POLICY_UNENFORCED),
                                provided_contract_names=['p1', 'k'],
                                consumed_contract_names=['c1', 'k'],
                                openstack_vmm_domain_names=['op', 'op2'],
                                physical_domain_names=['phys']),
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
-                               name='test-1')]
+                               name='test-1',
+                               policy_enforcement_pref=(
+                                   resource.EndpointGroup.POLICY_ENFORCED))]
 
 
 def get_example_aci_filter(**kwargs):
@@ -867,6 +872,8 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
     sample_input = [base.TestAimDBBase._get_example_aim_epg(),
                     base.TestAimDBBase._get_example_aim_epg(
                         name='test-1', bd_name='net2',
+                        policy_enforcement_pref=(
+                            resource.EndpointGroup.POLICY_ENFORCED),
                         provided_contract_names=['k', 'p1'],
                         consumed_contract_names=['c1', 'k'],
                         openstack_vmm_domain_names=['op', 'op2'],
@@ -875,7 +882,8 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
         [{
             "fvAEPg": {
                 "attributes": {
-                    "dn": "uni/tn-t1/ap-a1/epg-test", }}}, {
+                    "dn": "uni/tn-t1/ap-a1/epg-test",
+                    "pcEnfPref": "unenforced", }}}, {
             "fvRsBd": {
                 "attributes": {
                     "dn": "uni/tn-t1/ap-a1/epg-test/rsbd",
@@ -883,7 +891,8 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
         [{
             "fvAEPg": {
                 "attributes": {
-                    "dn": "uni/tn-t1/ap-a1/epg-test-1", }}}, {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-1",
+                    "pcEnfPref": "enforced", }}}, {
             "fvRsBd": {
                 "attributes": {
                     "dn": "uni/tn-t1/ap-a1/epg-test-1/rsbd",
@@ -921,7 +930,8 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                     'tDn': 'uni/vmmp-OpenStack/dom-op2'}}}]]
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
     missing_ref_output = [{
-        "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test", }}}]
+        "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test",
+                                  "pcEnfPref": "unenforced", }}}]
 
 
 class TestAimToAciConverterFault(TestAimToAciConverterBase,

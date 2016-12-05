@@ -363,6 +363,11 @@ resource_map = {
     }],
     'fvAEPg': [{
         'resource': resource.EndpointGroup,
+        'exceptions': {
+            'pcEnfPref': {
+                'other': 'policy_enforcement_pref',
+            },
+        },
         'skip': ['bd_name', 'provided_contract_names',
                  'consumed_contract_names',
                  'openstack_vmm_domain_names',
