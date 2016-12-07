@@ -25,3 +25,7 @@ aim = aimcli.aim
 
 def run():
     aim(auto_envvar_prefix='AIM')
+
+
+if __name__ == '__main__':
+    run()

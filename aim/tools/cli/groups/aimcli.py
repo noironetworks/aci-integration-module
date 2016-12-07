@@ -35,8 +35,9 @@ db_opts = [
 
 @click.group()
 @click.option('--config-file', '-c', multiple=True,
+              default=['/etc/aim/aim.conf'],
               help='AIM static configuration file')
-@click.option('--debug/--no-debug', default=True)
+@click.option('--debug', '-d', is_flag=True)
 @click.pass_context
 def aim(ctx, config_file, debug):
     """Group for AIM cli."""

@@ -24,10 +24,10 @@ from aim.tests.unit.tools.cli import test_shell as base
 cfg.CONF.register_opts(config.global_opts)
 
 
-class TestDebugManager(base.TestDebugShell):
+class TestManager(base.TestShell):
 
     def setUp(self):
-        super(TestDebugManager, self).setUp()
+        super(TestManager, self).setUp()
         self.mgr = aim_manager.AimManager()
 
     def test_load_domains(self):
