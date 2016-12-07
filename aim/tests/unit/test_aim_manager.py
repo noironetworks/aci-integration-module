@@ -400,19 +400,17 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
                           res.dn + '/foo')
 
 
-class TestTenant(TestAciResourceOpsBase, base.TestAimDBBase):
+class TestTenantMixin(object):
     resource_class = resource.Tenant
     test_identity_attributes = {'name': 'tenant1'}
     test_required_attributes = {'name': 'tenant1'}
     test_search_attributes = {'name': 'tenant1'}
     test_update_attributes = {'display_name': 'pepsi'}
     test_dn = 'uni/tn-tenant1'
-
-    def test_status(self):
-        pass
+    res_command = 'tenant'
 
 
-class TestBridgeDomain(TestAciResourceOpsBase, base.TestAimDBBase):
+class TestBridgeDomainMixin(object):
     resource_class = resource.BridgeDomain
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'net1'}
@@ -424,9 +422,10 @@ class TestBridgeDomain(TestAciResourceOpsBase, base.TestAimDBBase):
                               'vrf_name': 'default',
                               'l3out_names': ['l3out1', 'out2']}
     test_dn = 'uni/tn-tenant1/BD-net1'
+    res_command = 'bridge-domain'
 
 
-class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
+class TestAgentMixin(object):
     resource_class = resource.Agent
     test_identity_attributes = {'id': 'myuuid'}
     test_required_attributes = {'agent_type': 'aid',
@@ -438,6 +437,291 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
     test_update_attributes = {'host': 'h2',
                               'version': '2.0',
                               'hash_trees': ['t2']}
+    res_command = 'agent'
+
+
+class TestSubnetMixin(object):
+    prereq_objects = [
+        resource.BridgeDomain(tenant_name='tenant1', name='net1')]
+    gw_ip = resource.Subnet.to_gw_ip_mask('192.168.10.1', 28)
+    resource_class = resource.Subnet
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'bd_name': 'net1',
+                                'gw_ip_mask': gw_ip}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'bd_name': 'net1',
+                                'gw_ip_mask': gw_ip}
+    test_search_attributes = {'bd_name': 'net1'}
+    test_update_attributes = {'display_name': 'sub1',
+                              'scope': resource.Subnet.SCOPE_PUBLIC}
+    test_default_values = {
+        'scope': resource.Subnet.SCOPE_PRIVATE}
+    test_dn = 'uni/tn-tenant1/BD-net1/subnet-[192.168.10.1/28]'
+    res_command = 'subnet'
+
+
+class TestVRFMixin(object):
+    resource_class = resource.VRF
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'shared'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'shared'}
+    test_search_attributes = {'name': 'shared'}
+    test_update_attributes = {'display_name': 'shared',
+                              'policy_enforcement_pref':
+                                  resource.VRF.POLICY_UNENFORCED}
+    test_default_values = {
+        'policy_enforcement_pref': resource.VRF.POLICY_ENFORCED}
+    test_dn = 'uni/tn-tenant1/ctx-shared'
+    res_command = 'vrf'
+
+
+class TestApplicationProfileMixin(object):
+    resource_class = resource.ApplicationProfile
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'lab'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'lab'}
+    test_search_attributes = {'name': 'lab'}
+    test_update_attributes = {'display_name': 'lab101'}
+    test_dn = 'uni/tn-tenant1/ap-lab'
+    res_command = 'application-profile'
+
+
+class TestEndpointGroupMixin(object):
+    resource_class = resource.EndpointGroup
+    prereq_objects = [
+        resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
+        resource.VMMDomain(type='OpenStack', name='openstack'),
+        resource.PhysicalDomain(name='phys')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'app_profile_name': 'lab',
+                                'name': 'web'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'app_profile_name': 'lab',
+                                'name': 'web',
+                                'provided_contract_names': ['k', 'p1', 'p2'],
+                                'consumed_contract_names': ['c1', 'c2', 'k'],
+                                'openstack_vmm_domain_names': ['openstack'],
+                                'static_paths': [{'path': 'topology/pod-1/'
+                                                          'paths-101/pathep-'
+                                                          '[eth1/2]',
+                                                  'encap': 'vlan-2'},
+                                                 {'path': 'topology/pod-1/'
+                                                          'paths-102/pathep-'
+                                                          '[eth1/5]',
+                                                  'encap': 'vlan-5'}]}
+    test_search_attributes = {'name': 'web'}
+    test_update_attributes = {'bd_name': 'net1',
+                              'policy_enforcement_pref':
+                              resource.EndpointGroup.POLICY_ENFORCED,
+                              'provided_contract_names': ['c2', 'k', 'p1'],
+                              'consumed_contract_names': ['c1', 'k', 'p2'],
+                              'physical_domain_names': ['phys'],
+                              'static_paths': [{'path': ('topology/pod-1/'
+                                                         'paths-101/pathep-'
+                                                         '[eth1/2]'),
+                                                'encap': 'vlan-22'}]}
+    test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
+    res_command = 'endpoint-group'
+
+
+class TestFilterMixin(object):
+    resource_class = resource.Filter
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'filter1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'filter1'}
+    test_search_attributes = {'name': 'filter1'}
+    test_update_attributes = {'display_name': 'uv-filter'}
+    test_dn = 'uni/tn-tenant1/flt-filter1'
+    res_command = 'filter'
+
+
+class TestFilterEntryMixin(object):
+    resource_class = resource.FilterEntry
+    prereq_objects = [
+        resource.Filter(tenant_name='tenant1', name='filter1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'filter_name': 'filter1',
+                                'name': 'entry1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'filter_name': 'filter1',
+                                'name': 'entry1',
+                                'arp_opcode': 'reply',
+                                'ether_type': 'arp',
+                                'ip_protocol': '6',
+                                'dest_to_port': '443',
+                                'source_from_port': 'dns'}
+    test_search_attributes = {'ip_protocol': '6'}
+    test_update_attributes = {'ether_type': 'ip',
+                              'dest_to_port': resource.FilterEntry.UNSPECIFIED,
+                              'icmpv4_type': 'echo'}
+    test_dn = 'uni/tn-tenant1/flt-filter1/e-entry1'
+    res_command = 'filter-entry'
+
+
+class TestContractMixin(object):
+    resource_class = resource.Contract
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'contract1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'contract1',
+                                'scope': resource.Contract.SCOPE_TENANT}
+    test_search_attributes = {'scope': resource.Contract.SCOPE_TENANT}
+    test_update_attributes = {'scope': resource.Contract.SCOPE_CONTEXT}
+    test_dn = 'uni/tn-tenant1/brc-contract1'
+    res_command = 'contract'
+
+
+class TestContractSubjectMixin(object):
+    resource_class = resource.ContractSubject
+    prereq_objects = [
+        resource.Contract(tenant_name='tenant1', name='contract1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'name': 'subject1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'name': 'subject1',
+                                'in_filters': ['f1', 'f2'],
+                                'out_filters': ['f2', 'f3'],
+                                'bi_filters': ['f1', 'f3', 'f4']}
+    test_search_attributes = {'name': 'subject1'}
+    test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
+                              'out_filters': []}
+    test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
+    res_command = 'contract-subject'
+
+
+class TestEndpointMixin(object):
+    resource_class = resource.Endpoint
+    prereq_objects = [
+        resource.ApplicationProfile(tenant_name='t1', name='lab'),
+        resource.ApplicationProfile(tenant_name='t1', name='dept'),
+        resource.EndpointGroup(tenant_name='t1', app_profile_name='lab',
+                               name='g1'),
+        resource.EndpointGroup(tenant_name='t1', app_profile_name='dept',
+                               name='g20')]
+    test_identity_attributes = {'uuid': '1234'}
+    test_required_attributes = {'uuid': '1234',
+                                'epg_tenant_name': 't1',
+                                'epg_app_profile_name': 'lab',
+                                'epg_name': 'g1'}
+    test_search_attributes = {'epg_name': 'g1'}
+    test_update_attributes = {'epg_app_profile_name': 'dept',
+                              'epg_name': 'g20'}
+    res_command = 'endpoint'
+
+
+class TestVMMDomainMixin(object):
+    resource_class = resource.VMMDomain
+    test_identity_attributes = {'type': 'OpenStack', 'name': 'openstack'}
+    test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
+    test_search_attributes = {'name': 'openstack'}
+    test_update_attributes = {}
+    res_command = 'vmm-domain'
+
+
+class TestPhysicalDomainMixin(object):
+    resource_class = resource.PhysicalDomain
+    test_identity_attributes = {'name': 'phys'}
+    test_required_attributes = {'name': 'phys'}
+    test_search_attributes = {}
+    test_update_attributes = {}
+    res_command = 'physical-domain'
+
+
+class TestL3OutsideMixin(object):
+    resource_class = resource.L3Outside
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'l3out1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'l3out1',
+                                'vrf_name': 'ctx1',
+                                'l3_domain_dn': 'uni/foo'}
+    test_search_attributes = {'vrf_name': 'ctx1'}
+    test_update_attributes = {'l3_domain_dn': 'uni/bar'}
+    test_dn = 'uni/tn-tenant1/out-l3out1'
+    res_command = 'l3-outside'
+
+
+class TestExternalNetworkMixin(object):
+    resource_class = resource.ExternalNetwork
+    prereq_objects = [
+        resource.L3Outside(tenant_name='tenant1', name='l3out1',
+                           vrf_name='ctx1', l3_domain_dn='uni/foo')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'name': 'net1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'name': 'net1',
+                                'nat_epg_dn': 'uni/tn-1/ap-a1/epg-g1',
+                                'provided_contract_names': ['k', 'p1', 'p2'],
+                                'consumed_contract_names': ['c1', 'c2', 'k']}
+    test_search_attributes = {'name': 'net1'}
+    test_update_attributes = {'provided_contract_names': ['c2', 'k'],
+                              'consumed_contract_names': []}
+    test_dn = 'uni/tn-tenant1/out-l3out1/instP-net1'
+    res_command = 'external-network'
+
+
+class TestExternalSubnetMixin(object):
+    resource_class = resource.ExternalSubnet
+    prereq_objects = [
+        resource.L3Outside(tenant_name='tenant1', name='l3out1'),
+        resource.ExternalNetwork(tenant_name='tenant1', l3out_name='l3out1',
+                                 name='net1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'external_network_name': 'net1',
+                                'cidr': '200.200.100.0/24'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'external_network_name': 'net1',
+                                'cidr': '200.200.100.0/24'}
+    test_search_attributes = {'cidr': '200.200.100.0/24'}
+    test_update_attributes = {'display_name': 'home'}
+    test_dn = ('uni/tn-tenant1/out-l3out1/instP-net1/'
+               'extsubnet-[200.200.100.0/24]')
+    res_command = 'external-subnet'
+
+
+class TestHostLinkMixin(object):
+    resource_class = infra.HostLink
+    test_identity_attributes = {'host_name': 'h0',
+                                'interface_name': 'eth0'}
+    test_required_attributes = {'host_name': 'h0',
+                                'interface_name': 'eth0',
+                                'interface_mac': 'aa:bb:cc:dd:ee:ff',
+                                'switch_id': '201',
+                                'module': 'vpc-1-33',
+                                'port': 'bundle-201-1-33-and-202-1-33',
+                                'path': 'topology/pod-1/protpaths-201-202/'
+                                        'pathep-[bundle-201-1-33-and-'
+                                        '202-1-33]'}
+    test_search_attributes = {'host_name': 'h0'}
+    test_update_attributes = {'switch_id': '101',
+                              'module': '1',
+                              'port': '33',
+                              'path': 'topology/pod-1/paths-101/pathep-'
+                                      '[eth1/33]'}
+    res_command = 'host-link'
+
+
+class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
+
+    def test_status(self):
+        pass
+
+
+class TestBridgeDomain(TestBridgeDomainMixin, TestAciResourceOpsBase,
+                       base.TestAimDBBase):
+    pass
+
+
+class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
         super(TestAgent, self).setUp()
@@ -481,86 +765,21 @@ class TestAgent(TestResourceOpsBase, base.TestAimDBBase):
         pass
 
 
-class TestSubnet(TestAciResourceOpsBase, base.TestAimDBBase):
-    prereq_objects = [
-        resource.BridgeDomain(tenant_name='tenant1', name='net1')]
-    gw_ip = resource.Subnet.to_gw_ip_mask('192.168.10.1', 28)
-    resource_class = resource.Subnet
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'bd_name': 'net1',
-                                'gw_ip_mask': gw_ip}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'bd_name': 'net1',
-                                'gw_ip_mask': gw_ip}
-    test_search_attributes = {'bd_name': 'net1'}
-    test_update_attributes = {'display_name': 'sub1',
-                              'scope': resource.Subnet.SCOPE_PUBLIC}
-    test_default_values = {
-        'scope': resource.Subnet.SCOPE_PRIVATE}
-    test_dn = 'uni/tn-tenant1/BD-net1/subnet-[192.168.10.1/28]'
+class TestSubnet(TestSubnetMixin, TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
 
 
-class TestVRF(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.VRF
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'name': 'shared'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'name': 'shared'}
-    test_search_attributes = {'name': 'shared'}
-    test_update_attributes = {'display_name': 'shared',
-                              'policy_enforcement_pref':
-                                  resource.VRF.POLICY_UNENFORCED}
-    test_default_values = {
-        'policy_enforcement_pref': resource.VRF.POLICY_ENFORCED}
-    test_dn = 'uni/tn-tenant1/ctx-shared'
+class TestVRF(TestVRFMixin, TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
 
 
-class TestApplicationProfile(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.ApplicationProfile
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'name': 'lab'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'name': 'lab'}
-    test_search_attributes = {'name': 'lab'}
-    test_update_attributes = {'display_name': 'lab101'}
-    test_dn = 'uni/tn-tenant1/ap-lab'
+class TestApplicationProfile(TestApplicationProfileMixin,
+                             TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
 
 
-class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.EndpointGroup
-    prereq_objects = [
-        resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
-        resource.VMMDomain(type='OpenStack', name='openstack'),
-        resource.PhysicalDomain(name='phys')]
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'app_profile_name': 'lab',
-                                'name': 'web'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'app_profile_name': 'lab',
-                                'name': 'web',
-                                'provided_contract_names': ['k', 'p1', 'p2'],
-                                'consumed_contract_names': ['c1', 'c2', 'k'],
-                                'openstack_vmm_domain_names': ['openstack'],
-                                'static_paths': [{'path': 'topology/pod-1/'
-                                                          'paths-101/pathep-'
-                                                          '[eth1/2]',
-                                                  'encap': 'vlan-2'},
-                                                 {'path': 'topology/pod-1/'
-                                                          'paths-102/pathep-'
-                                                          '[eth1/5]',
-                                                  'encap': 'vlan-5'}]}
-    test_search_attributes = {'name': 'web'}
-    test_update_attributes = {'bd_name': 'net1',
-                              'policy_enforcement_pref':
-                              resource.EndpointGroup.POLICY_ENFORCED,
-                              'provided_contract_names': ['c2', 'k', 'p1'],
-                              'consumed_contract_names': ['c1', 'k', 'p2'],
-                              'physical_domain_names': ['phys'],
-                              'static_paths': [{'path': ('topology/pod-1/'
-                                                         'paths-101/pathep-'
-                                                         '[eth1/2]'),
-                                                'encap': 'vlan-22'}]}
-    test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
+class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
+                        base.TestAimDBBase):
 
     def test_update_other_attributes(self):
         self._create_prerequisite_objects()
@@ -589,167 +808,59 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
                          getattr_canonical(r2, 'openstack_vmm_domain_names'))
 
 
-class TestFilter(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.Filter
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'name': 'filter1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'name': 'filter1'}
-    test_search_attributes = {'name': 'filter1'}
-    test_update_attributes = {'display_name': 'uv-filter'}
-    test_dn = 'uni/tn-tenant1/flt-filter1'
+class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
 
 
-class TestFilterEntry(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.FilterEntry
-    prereq_objects = [
-        resource.Filter(tenant_name='tenant1', name='filter1')]
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'filter_name': 'filter1',
-                                'name': 'entry1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'filter_name': 'filter1',
-                                'name': 'entry1',
-                                'arp_opcode': 'reply',
-                                'ether_type': 'arp',
-                                'ip_protocol': '6',
-                                'dest_to_port': '443',
-                                'source_from_port': 'dns'}
-    test_search_attributes = {'ip_protocol': '6'}
-    test_update_attributes = {'ether_type': 'ip',
-                              'dest_to_port': resource.FilterEntry.UNSPECIFIED,
-                              'icmpv4_type': 'echo'}
-    test_dn = 'uni/tn-tenant1/flt-filter1/e-entry1'
+class TestFilterEntry(TestFilterEntryMixin, TestAciResourceOpsBase,
+                      base.TestAimDBBase):
+    pass
 
 
-class TestContract(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.Contract
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'name': 'contract1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'name': 'contract1',
-                                'scope': resource.Contract.SCOPE_TENANT}
-    test_search_attributes = {'scope': resource.Contract.SCOPE_TENANT}
-    test_update_attributes = {'scope': resource.Contract.SCOPE_CONTEXT}
-    test_dn = 'uni/tn-tenant1/brc-contract1'
+class TestContract(TestContractMixin, TestAciResourceOpsBase,
+                   base.TestAimDBBase):
+    pass
 
 
-class TestContractSubject(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.ContractSubject
-    prereq_objects = [
-        resource.Contract(tenant_name='tenant1', name='contract1')]
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'contract_name': 'contract1',
-                                'name': 'subject1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'contract_name': 'contract1',
-                                'name': 'subject1',
-                                'in_filters': ['f1', 'f2'],
-                                'out_filters': ['f2', 'f3'],
-                                'bi_filters': ['f1', 'f3', 'f4']}
-    test_search_attributes = {'name': 'subject1'}
-    test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
-                              'out_filters': []}
-    test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
+class TestContractSubject(TestContractSubjectMixin, TestAciResourceOpsBase,
+                          base.TestAimDBBase):
+    pass
 
 
-class TestEndpoint(TestResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.Endpoint
-    prereq_objects = [
-        resource.ApplicationProfile(tenant_name='t1', name='lab'),
-        resource.ApplicationProfile(tenant_name='t1', name='dept'),
-        resource.EndpointGroup(tenant_name='t1', app_profile_name='lab',
-                               name='g1'),
-        resource.EndpointGroup(tenant_name='t1', app_profile_name='dept',
-                               name='g20')]
-    test_identity_attributes = {'uuid': '1234'}
-    test_required_attributes = {'uuid': '1234',
-                                'epg_tenant_name': 't1',
-                                'epg_app_profile_name': 'lab',
-                                'epg_name': 'g1'}
-    test_search_attributes = {'epg_name': 'g1'}
-    test_update_attributes = {'epg_app_profile_name': 'dept',
-                              'epg_name': 'g20'}
+class TestEndpoint(TestEndpointMixin, TestResourceOpsBase, base.TestAimDBBase):
+    pass
 
 
-class TestVMMDomain(TestResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.VMMDomain
-    test_identity_attributes = {'type': 'OpenStack', 'name': 'openstack'}
-    test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
-    test_search_attributes = {'name': 'openstack'}
-    test_update_attributes = {}
+class TestVMMDomain(TestVMMDomainMixin, TestResourceOpsBase,
+                    base.TestAimDBBase):
+    pass
 
 
-class TestPhysicalDomain(TestResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.PhysicalDomain
-    test_identity_attributes = {'name': 'phys'}
-    test_required_attributes = {'name': 'phys'}
-    test_search_attributes = {}
-    test_update_attributes = {}
+class TestPhysicalDomain(TestPhysicalDomainMixin, TestResourceOpsBase,
+                         base.TestAimDBBase):
+    pass
 
 
-class TestL3Outside(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.L3Outside
-    test_identity_attributes = {'name': 'l3out1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'name': 'l3out1',
-                                'vrf_name': 'ctx1',
-                                'l3_domain_dn': 'uni/foo'}
-    test_search_attributes = {'vrf_name': 'ctx1'}
-    test_update_attributes = {'l3_domain_dn': 'uni/bar'}
-    test_dn = 'uni/tn-tenant1/out-l3out1'
+class TestL3Outside(TestL3OutsideMixin, TestAciResourceOpsBase,
+                    base.TestAimDBBase):
+    pass
 
 
-class TestExternalNetwork(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.ExternalNetwork
-    prereq_objects = [
-        resource.L3Outside(tenant_name='tenant1', name='l3out1')]
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1',
-                                'name': 'net1',
-                                'nat_epg_dn': 'uni/tn-1/ap-a1/epg-g1',
-                                'provided_contract_names': ['k', 'p1', 'p2'],
-                                'consumed_contract_names': ['c1', 'c2', 'k']}
-    test_search_attributes = {'name': 'net1'}
-    test_update_attributes = {'provided_contract_names': ['c2', 'k'],
-                              'consumed_contract_names': []}
-    test_dn = 'uni/tn-tenant1/out-l3out1/instP-net1'
+class TestExternalNetwork(TestExternalNetworkMixin, TestAciResourceOpsBase,
+                          base.TestAimDBBase):
+    pass
 
 
-class TestExternalSubnet(TestAciResourceOpsBase, base.TestAimDBBase):
-    resource_class = resource.ExternalSubnet
-    prereq_objects = [
-        resource.L3Outside(tenant_name='tenant1', name='l3out1'),
-        resource.ExternalNetwork(tenant_name='tenant1', l3out_name='l3out1',
-                                 name='net1')]
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1',
-                                'external_network_name': 'net1',
-                                'cidr': '200.200.100.0/24'}
-    test_search_attributes = {'cidr': '200.200.100.0/24'}
-    test_update_attributes = {'display_name': 'home'}
-    test_dn = ('uni/tn-tenant1/out-l3out1/instP-net1/'
-               'extsubnet-[200.200.100.0/24]')
+class TestExternalSubnet(TestExternalSubnetMixin, TestAciResourceOpsBase,
+                         base.TestAimDBBase):
+    pass
 
 
-class TestHostLink(TestResourceOpsBase, base.TestAimDBBase):
-    resource_class = infra.HostLink
-    test_identity_attributes = {'host_name': 'h0',
-                                'interface_name': 'eth0'}
-    test_required_attributes = {'interface_mac': 'aa:bb:cc:dd:ee:ff',
-                                'switch_id': '201',
-                                'module': 'vpc-1-33',
-                                'port': 'bundle-201-1-33-and-202-1-33',
-                                'path': 'topology/pod-1/protpaths-201-202/'
-                                        'pathep-[bundle-201-1-33-and-'
-                                        '202-1-33]'}
-    test_search_attributes = {'host_name': 'h0'}
-    test_update_attributes = {'switch_id': '101',
-                              'module': '1',
-                              'port': '33',
-                              'path': 'topology/pod-1/paths-101/pathep-'
-                                      '[eth1/33]'}
+class TestHostLink(TestHostLinkMixin, TestAciResourceOpsBase,
+                   base.TestAimDBBase):
+
+    def test_dn_op(self):
+        pass
+
+    def test_status(self):
+        pass

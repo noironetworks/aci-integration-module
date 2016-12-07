@@ -17,6 +17,7 @@ import re
 
 from apicapi import config
 import click
+from oslo_log import log as logging
 from tabulate import tabulate
 
 from aim import aim_manager
@@ -27,6 +28,7 @@ from aim.db import api
 from aim.tools.cli.groups import aimcli
 
 
+LOG = logging.getLogger(__name__)
 ATTR_UNSPECIFIED = object()
 
 
@@ -66,13 +68,19 @@ def manager(ctx):
 
 def filter_kwargs(klass, kwargs):
     res = {}
+    LOG.debug('args: %s', kwargs)
     dummy = klass(**{k: kwargs[k] for k in klass.identity_attributes})
     for k, v in kwargs.iteritems():
         if v is not ATTR_UNSPECIFIED:
-            if isinstance(getattr(dummy, k), list):
-                res[k] = v.split(',')
-            else:
+            try:
+                if isinstance(getattr(dummy, k), list):
+                    res[k] = v.split(',') if v else []
+                else:
+                    res[k] = v
+            except AttributeError:
+                # No default is specified for this attribute, assume no list
                 res[k] = v
+    LOG.debug('Sanitized args: %s', kwargs)
     return res
 
 
@@ -147,9 +155,10 @@ def get(klass):
         if res:
             stat = manager.get_status(aim_ctx, res)
             print_resource(res)
-            print_resource(stat)
-            for f in stat.faults:
-                print_resource(f)
+            if stat:
+                print_resource(stat)
+                for f in stat.faults:
+                    print_resource(f)
     return _get
 
 
