@@ -16,9 +16,12 @@
 import click
 import json
 
+from aim import aim_manager
+from aim.api import resource
 from aim.common.hashtree import exceptions as h_exc
 from aim import context
 from aim.db import api
+from aim.db import hashtree_db_listener
 from aim.db import tree_model
 from aim.tools.cli.groups import aimcli
 
@@ -29,6 +32,8 @@ def hashtree(ctx):
     session = api.get_session(expire_on_commit=True)
     aim_ctx = context.AimContext(db_session=session)
     tenant_tree_mgr = tree_model.TenantHashTreeManager()
+    manager = aim_manager.AimManager()
+    ctx.obj['manager'] = manager
     ctx.obj['tenant_tree_mgr'] = tenant_tree_mgr
     ctx.obj['aim_ctx'] = aim_ctx
 
@@ -57,3 +62,43 @@ def dump(ctx, tenant, flavor):
             click.echo(json.dumps(tree.root.to_dict(), indent=2))
         except h_exc.HashTreeNotFound:
             click.echo('Tree not found for tenant %s' % t)
+
+
+@hashtree.command(name='reset')
+@click.option('--tenant', '-t')
+@click.pass_context
+def reset(ctx, tenant):
+    _reset(ctx, tenant)
+
+
+def _reset(ctx, tenant):
+    mgr = ctx.obj['manager']
+    listener = hashtree_db_listener.HashTreeDbListener(mgr)
+    aim_ctx = ctx.obj['aim_ctx']
+    session = aim_ctx.db_session
+    with session.begin(subtransactions=True):
+        created = []
+        # Delete existing trees
+        filters = {}
+        if tenant:
+            filters['name'] = tenant
+        tenants = mgr.find(aim_ctx, resource.Tenant, **filters)
+        for t in tenants:
+            listener.tt_mgr.delete_by_tenant_rn(aim_ctx, t.name)
+        # Retrieve objects
+        for klass in aim_manager.AimManager._db_model_map:
+            if issubclass(klass, resource.AciResourceBase):
+                filters = {}
+                if tenant:
+                    filters[klass.tenant_ref_attribute] = tenant
+                # Get all objects of that type
+                for obj in mgr.find(aim_ctx, klass, **filters):
+                    # Need all the faults and statuses as well
+                    stat = mgr.get_status(aim_ctx, obj)
+                    if stat:
+                        created.append(stat)
+                        created.extend(stat.faults)
+                        del stat.faults
+                    created.append(obj)
+        # Reset the trees
+        listener.on_commit(session, created, [], [])
