@@ -224,6 +224,18 @@ class ContractRelationMixin(model_base.AttributeMixin):
         return res_attr
 
 
+class EndpointGroupStaticPath(model_base.Base):
+    """DB model for static-paths configured for an EPG."""
+
+    __tablename__ = 'aim_endpoint_group_static_paths'
+
+    epg_aim_id = sa.Column(sa.Integer,
+                           sa.ForeignKey('aim_endpoint_groups.aim_id'),
+                           primary_key=True)
+    path = sa.Column(sa.String(1024), primary_key=True)
+    encap = sa.Column(sa.String(24))
+
+
 class EndpointGroup(model_base.Base, model_base.HasAimId,
                     model_base.HasName, model_base.HasDisplayName,
                     model_base.HasTenantName,
@@ -257,6 +269,10 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                                         backref='epg',
                                         cascade='all, delete-orphan',
                                         lazy='joined')
+    static_paths = orm.relationship(EndpointGroupStaticPath,
+                                    backref='epg',
+                                    cascade='all, delete-orphan',
+                                    lazy='joined')
 
     def from_attr(self, session, res_attr):
         vmm_domains = self.vmm_domains[:]
@@ -276,6 +292,14 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
         self.vmm_domains = vmm_domains
         self.physical_domains = physical_domains
 
+        if 'static_paths' in res_attr:
+            static_paths = []
+            for p in (res_attr.pop('static_paths', []) or []):
+                if p.get('path') and p.get('encap'):
+                    static_paths.append(EndpointGroupStaticPath(
+                        path=p['path'], encap=p['encap']))
+            self.static_paths = static_paths
+
         # map remaining attributes to model
         super(EndpointGroup, self).from_attr(session, res_attr)
 
@@ -287,6 +311,9 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
         for d in res_attr.pop('physical_domains', []):
             res_attr.setdefault('physical_domain_names', []).append(
                 d.physdom_name)
+        for p in res_attr.pop('static_paths', []):
+            res_attr.setdefault('static_paths', []).append(
+                {'path': p.path, 'encap': p.encap})
         return res_attr
 
 

@@ -24,6 +24,7 @@ import mock
 import time
 
 from aim import aim_manager
+from aim.api import infra
 from aim.api import resource
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
@@ -539,14 +540,26 @@ class TestEndpointGroup(TestAciResourceOpsBase, base.TestAimDBBase):
                                 'name': 'web',
                                 'provided_contract_names': ['k', 'p1', 'p2'],
                                 'consumed_contract_names': ['c1', 'c2', 'k'],
-                                'openstack_vmm_domain_names': ['openstack']}
+                                'openstack_vmm_domain_names': ['openstack'],
+                                'static_paths': [{'path': 'topology/pod-1/'
+                                                          'paths-101/pathep-'
+                                                          '[eth1/2]',
+                                                  'encap': 'vlan-2'},
+                                                 {'path': 'topology/pod-1/'
+                                                          'paths-102/pathep-'
+                                                          '[eth1/5]',
+                                                  'encap': 'vlan-5'}]}
     test_search_attributes = {'name': 'web'}
     test_update_attributes = {'bd_name': 'net1',
                               'policy_enforcement_pref':
                               resource.EndpointGroup.POLICY_ENFORCED,
                               'provided_contract_names': ['c2', 'k', 'p1'],
                               'consumed_contract_names': ['c1', 'k', 'p2'],
-                              'physical_domain_names': ['phys']}
+                              'physical_domain_names': ['phys'],
+                              'static_paths': [{'path': ('topology/pod-1/'
+                                                         'paths-101/pathep-'
+                                                         '[eth1/2]'),
+                                                'encap': 'vlan-22'}]}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
 
     def test_update_other_attributes(self):
@@ -721,3 +734,22 @@ class TestExternalSubnet(TestAciResourceOpsBase, base.TestAimDBBase):
     test_update_attributes = {'display_name': 'home'}
     test_dn = ('uni/tn-tenant1/out-l3out1/instP-net1/'
                'extsubnet-[200.200.100.0/24]')
+
+
+class TestHostLink(TestResourceOpsBase, base.TestAimDBBase):
+    resource_class = infra.HostLink
+    test_identity_attributes = {'host_name': 'h0',
+                                'interface_name': 'eth0'}
+    test_required_attributes = {'interface_mac': 'aa:bb:cc:dd:ee:ff',
+                                'switch_id': '201',
+                                'module': 'vpc-1-33',
+                                'port': 'bundle-201-1-33-and-202-1-33',
+                                'path': 'topology/pod-1/protpaths-201-202/'
+                                        'pathep-[bundle-201-1-33-and-'
+                                        '202-1-33]'}
+    test_search_attributes = {'host_name': 'h0'}
+    test_update_attributes = {'switch_id': '101',
+                              'module': '1',
+                              'port': '33',
+                              'path': 'topology/pod-1/paths-101/pathep-'
+                                      '[eth1/33]'}

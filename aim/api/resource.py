@@ -266,6 +266,13 @@ class EndpointGroup(AciResourceBase):
 
     Identity attributes: name of ACI tenant, name of application-profile
     and name of endpoint-group.
+
+    Attribute 'static_paths' is a list of dicts with the following keys:
+    * path: (Required) path-name of the switch-port which is bound to
+            EndpointGroup
+    * encap: (Required) encapsulation mode and identifier for
+            this EndpointGroup on the specified switch-port. Must be specified
+            in the format 'vlan-<vlan-id>' for VLAN encapsulation
     """
 
     identity_attributes = ['tenant_name', 'app_profile_name', 'name']
@@ -276,6 +283,7 @@ class EndpointGroup(AciResourceBase):
                         'consumed_contract_names',
                         'openstack_vmm_domain_names',
                         'physical_domain_names',
+                        'static_paths',
                         'monitored']
 
     _aci_mo_name = 'fvAEPg'
@@ -292,6 +300,7 @@ class EndpointGroup(AciResourceBase):
                                              'physical_domain_names': [],
                                              'policy_enforcement_pref':
                                              self.POLICY_UNENFORCED,
+                                             'static_paths': [],
                                              'monitored': False},
                                             **kwargs)
 
