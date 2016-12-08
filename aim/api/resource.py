@@ -78,6 +78,7 @@ class AciResourceBase(ResourceBase):
     * _tree_parent: Type of parent class in ACI tree structure
     * _aci_mo_name: ManagedObjectClass name of corresponding ACI object
     """
+    tenant_ref_attribute = 'tenant_name'
 
     def __init__(self, defaults, **kwargs):
         cls = type(self)
@@ -109,6 +110,7 @@ class Tenant(AciResourceBase):
 
     Identity attribute is RN for ACI tenant.
     """
+    tenant_ref_attribute = 'name'
 
     identity_attributes = ['name']
     other_attributes = ['display_name', 'monitored']

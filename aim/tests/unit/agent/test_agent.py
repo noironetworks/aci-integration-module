@@ -30,6 +30,7 @@ from aim import config
 from aim.db import tree_model
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
+from aim.tools.cli.debug import hashtree as treecli
 
 
 def run_once_loop(agent):
@@ -338,6 +339,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         self._assert_universe_sync(agent.desired_universe,
                                    agent.current_universe)
+        self._assert_reset_consistency()
+
         # Status for the two BDs is now synced
         bd1_tn1_status = self.aim_manager.get_status(self.ctx, bd1_tn1)
         bd1_tn2_status = self.aim_manager.get_status(self.ctx, bd1_tn2)
@@ -382,6 +385,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Everything is in sync again
         self._assert_universe_sync(agent.desired_universe,
                                    agent.current_universe)
+        self._assert_reset_consistency(tenant_name1)
+        self._assert_reset_consistency(tenant_name2)
 
         # Delete a tenant
         self.aim_manager.delete(self.ctx, bd2_tn1)
@@ -490,6 +495,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                          aim_bd_status.sync_status)
         # Trees are in sync
         self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_reset_consistency()
 
         # Delete the monitored BD, will be re-created
         self.aim_manager.delete(self.ctx, aim_bd)
@@ -512,6 +518,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tenant_name=tenant_name, name='default'))
         self.assertIsNone(aim_bd)
         self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_reset_consistency(tenant_name)
 
     def test_monitored_tree_fk_semantics(self):
         agent = self._create_agent()
@@ -599,6 +606,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         # Config universes in sync
         self._assert_universe_sync(desired_config, current_config)
+        self._assert_reset_consistency()
         # Detele the only managed item
         self.aim_manager.delete(self.ctx, bd1)
         # Delete on ACI
@@ -669,6 +677,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Verify all tree converged
         self._assert_universe_sync(desired_config, current_config)
         self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_reset_consistency()
         # Verify sync status of BD
         bd = self.aim_manager.get(self.ctx, bd)
         bd_status = self.aim_manager.get_status(self.ctx, bd)
@@ -730,7 +739,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
-
+        self._assert_reset_consistency()
         # Update ext_net to provide some contract
         self.aim_manager.update(self.ctx, ext_net,
                                 provided_contract_names=['c1'])
@@ -743,6 +752,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Verify all tree converged
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
+        self._assert_reset_consistency()
 
     def test_daemon_loop(self):
         agent = self._create_agent()
@@ -801,6 +811,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Verify everything is fine
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
+        self._assert_reset_consistency()
 
         # Now add a contract to the EPG through AIM
         self.aim_manager.update(self.ctx, epg, provided_contract_names=['c1'])
@@ -811,6 +822,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
+        self._assert_reset_consistency()
 
         # Add the contract manually (should be removed)
 
@@ -834,6 +846,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
+        self._assert_reset_consistency()
+
         # C2 RS is not to be found
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
@@ -852,3 +866,30 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                            current.state.iteritems()},
                           {x: str(y) for x, y in
                            desired.state.iteritems()}))
+
+    def _assert_reset_consistency(self, tenant=None):
+        ctx = mock.Mock()
+        ctx.obj = {'manager': self.aim_manager, 'aim_ctx': self.ctx}
+        # get current tree(s)
+        filters = {}
+        if tenant:
+            filters = {'name': tenant}
+        # for each tenant, save their trees
+        old = self._get_aim_trees_by_tenant(filters)
+
+        # Now reset trees
+        treecli._reset(ctx, tenant)
+        # Check if they are still the same
+        current = self._get_aim_trees_by_tenant(filters)
+        self.assertEqual(old, current)
+
+    def _get_aim_trees_by_tenant(self, filters):
+        tenants = self.aim_manager.find(self.ctx, resource.Tenant, **filters)
+        result = {}
+        for tenant in tenants:
+            result[tenant.name] = {}
+            for type in tree_model.SUPPORTED_TREES:
+                result[tenant.name][type] = (
+                    self.aim_manager._hashtree_db_listener.tt_mgr.get(
+                        self.ctx, tenant.name, tree=type))
+        return result
