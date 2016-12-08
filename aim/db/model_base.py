@@ -57,7 +57,7 @@ class HasAimId(object):
 
 class HasDisplayName(object):
     """Add to subclasses that have a display name."""
-    display_name = sa.Column(sa.String(256))
+    display_name = sa.Column(sa.String(256), nullable=False, default='')
 
 
 class HasTenantName(object):

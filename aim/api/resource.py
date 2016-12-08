@@ -47,6 +47,8 @@ class ResourceBase(object):
     def __init__(self, defaults, **kwargs):
         unset_attr = [k for k in self.identity_attributes
                       if kwargs.get(k) is None and k not in defaults]
+        if 'display_name' in self.other_attributes:
+            defaults.setdefault('display_name', '')
         if unset_attr:
             raise exc.IdentityAttributesMissing(attr=unset_attr)
         if kwargs.pop('_set_default', True):
@@ -141,8 +143,7 @@ class BridgeDomain(AciResourceBase):
     _tree_parent = Tenant
 
     def __init__(self, **kwargs):
-        super(BridgeDomain, self).__init__({'display_name': '',
-                                            'vrf_name': '',
+        super(BridgeDomain, self).__init__({'vrf_name': '',
                                             'enable_arp_flood': False,
                                             'enable_routing': True,
                                             'limit_ip_learn_to_subnets': False,

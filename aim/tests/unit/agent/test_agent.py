@@ -288,7 +288,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         bd1_tn1 = resource.BridgeDomain(tenant_name=tenant_name1, name='bd1',
                                         vrf_name='vrf1')
         bd1_tn2 = resource.BridgeDomain(tenant_name=tenant_name2, name='bd1',
-                                        vrf_name='vrf2')
+                                        vrf_name='vrf2', display_name='nice')
         self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
         bd1_tn1_status = self.aim_manager.get_status(self.ctx, bd1_tn1)
@@ -457,7 +457,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # start by managing a single tenant (non-monitored)
         tn1 = resource.Tenant(name=tenant_name, monitored=True)
         aci_tn = self._get_example_aci_tenant(
-            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+            name=tenant_name, dn='uni/tn-%s' % tenant_name, nameAlias='nice')
         self.aim_manager.create(self.ctx, tn1)
         # Run loop for serving tenant
         agent._daemon_loop()
