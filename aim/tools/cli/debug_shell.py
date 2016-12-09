@@ -26,3 +26,7 @@ aim_debug = aimcli.aim
 
 def run():
     aim_debug(auto_envvar_prefix='AIM')
+
+
+if __name__ == '__main__':
+    run()

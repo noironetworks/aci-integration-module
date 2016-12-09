@@ -10,6 +10,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import shlex
 import traceback
 
 from click import testing
@@ -33,7 +34,7 @@ class TestShell(base.TestAimDBBase):
             config_file)
         result = self.invoke(
             endpoint,
-            ['--config-file', config_file] + command.split(' '))
+            ['--config-file', config_file] + shlex.split(command))
         if raises:
             self._assert_command_exception(result)
         else:

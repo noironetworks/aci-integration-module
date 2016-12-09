@@ -434,7 +434,10 @@ class Endpoint(ResourceBase):
                         'epg_tenant_name', 'epg_app_profile_name', 'epg_name']
 
     def __init__(self, **kwargs):
-        super(Endpoint, self).__init__({}, **kwargs)
+        super(Endpoint, self).__init__({'epg_name': None,
+                                        'epg_tenant_name': None,
+                                        'epg_app_profile_name': None},
+                                       **kwargs)
 
 
 class VMMDomain(ResourceBase):
