@@ -120,35 +120,40 @@ class TestManagerResourceOpsBase(object):
                              klass=None):
         klass = klass or self.resource_class
 
-        def transform_list(l):
-            if isinstance(l, list):
-                return ','.join(l)
-            return l
+        def transform_list(k, li):
+            if k == 'static_paths':
+                return "'%s'" % ' '.join(
+                    [','.join(x) for x in
+                     [['%s=%s' % (key, v) for key, v in y.iteritems()]
+                      for y in li]])
+            elif isinstance(li, list):
+                return ','.join(li) if li else "''"
+            return li if li else "''"
         identity = [attributes[k] for k in
                     klass.identity_attributes]
-        other = ['--%s %s' % (k, transform_list(v))
+        other = ['--%s %s' % (k, transform_list(k, v))
                  for k, v in attributes.iteritems()
                  if k not in klass.identity_attributes]
         return self.run_command(
             'manager ' + res_command + '-%s ' % command + ' '.join(
-                identity + other))
+                identity + other) + ' -p')
 
     def _parse(self, res, klass=None):
         if not res.output_bytes:
             return None
-        res = [x for x in res.output_bytes.split('\n') if '+' not in x][1:]
-        res = [[y for y in
-                x.replace('|', ' ').
-                replace(', ', ',').split(' ')
-                if y is not ''] for x in res]
+        res = [' '.join(x.split()) for x in res.output_bytes.split('\n')][1:]
+        res = [[x[:x.find(' ')], x[x.find(' ') + 1:]] for x in res if x]
         if ['Property', 'Value'] in res:
             # Remove additional tables
             # TODO(ivar): test expected faults
             res = res[:res.index(['Property', 'Value'])]
         res_dict = {}
+        klass = klass or self.resource_class
+        klass_attributes = klass.attributes
         for item in res:
-            if len(item) == 2:
+            if len(item) == 2 and item[0] in klass_attributes():
                 try:
+                    # Try to load lists
                     loaded = ast.literal_eval(item[1])
                     if isinstance(loaded, list):
                         res_dict[item[0]] = loaded
@@ -156,8 +161,7 @@ class TestManagerResourceOpsBase(object):
                 except (SyntaxError, ValueError):
                     pass
                 res_dict[item[0]] = item[1]
-        res_dict.pop('dn', None)
-        return (klass or self.resource_class)(**res_dict)
+        return klass(**res_dict)
 
     def create(self, res_command, attributes, klass=None):
         res = self._run_manager_command(res_command, 'create', attributes,

@@ -32,16 +32,18 @@ LOG = logging.getLogger(__name__)
 ATTR_UNSPECIFIED = object()
 
 
-def print_resource(res):
+def print_resource(res, plain=False):
     if res:
         rows = [[a, getattr(res, a, None)] for a in res.attributes()]
         if isinstance(res, resource.AciResourceBase):
             rows.append(['dn', res.dn])
+        # TODO(ivar): optionally use a structured format for better
+        # scriptability
         click.echo(tabulate(rows, headers=['Property', 'Value'],
-                            tablefmt='psql'))
+                            tablefmt='plain' if plain else 'psql'))
 
 
-def print_resources(res_list, attrs=None):
+def print_resources(res_list, attrs=None, plain=False):
     if not res_list:
         return
     if attrs:
@@ -52,7 +54,8 @@ def print_resources(res_list, attrs=None):
     else:
         header = res_list[0].identity_attributes
         rows = [res.identity for res in res_list]
-    click.echo(tabulate(rows, headers=header, tablefmt='psql'))
+    click.echo(tabulate(rows, headers=header,
+                        tablefmt='plain' if plain else 'psql'))
 
 
 @aimcli.aim.group(name='manager')
@@ -73,7 +76,13 @@ def filter_kwargs(klass, kwargs):
     for k, v in kwargs.iteritems():
         if v is not ATTR_UNSPECIFIED:
             try:
-                if isinstance(getattr(dummy, k), list):
+                # REVISIT(ivar): give one way to specify static_paths through
+                # the CLI until we have a proper resource schema
+                if k == 'static_paths':
+                    res[k] = [{z.split('=')[0]: z.split('=')[1] for z in y}
+                              for y in [x.split(',')
+                              for x in v.split(' ')]] if v else []
+                elif isinstance(getattr(dummy, k), list):
                     res[k] = v.split(',') if v else []
                 else:
                     res[k] = v
@@ -97,11 +106,12 @@ def validate_attributes(klass, attributes, param_name, dn_is_valid=False):
 
 def create(klass):
     def _create(ctx, **kwargs):
+        plain = kwargs.pop('plain', False)
         kwargs = filter_kwargs(klass, kwargs)
         manager = ctx.obj['manager']
         aim_ctx = ctx.obj['aim_ctx']
         res = klass(**kwargs)
-        print_resource(manager.create(aim_ctx, res))
+        print_resource(manager.create(aim_ctx, res), plain=plain)
     return _create
 
 
@@ -117,6 +127,7 @@ def delete(klass):
 
 def update(klass):
     def _update(ctx, **kwargs):
+        plain = kwargs.pop('plain', False)
         kwargs = filter_kwargs(klass, kwargs)
         manager = ctx.obj['manager']
         aim_ctx = ctx.obj['aim_ctx']
@@ -128,12 +139,13 @@ def update(klass):
             else:
                 mod[k] = v
         res = klass(**id)
-        print_resource(manager.update(aim_ctx, res, **mod))
+        print_resource(manager.update(aim_ctx, res, **mod), plain=plain)
     return _update
 
 
 def find(klass):
     def _find(ctx, **kwargs):
+        plain = kwargs.pop('plain', False)
         column = kwargs.pop('column')
         kwargs = filter_kwargs(klass, kwargs)
         manager = ctx.obj['manager']
@@ -141,12 +153,13 @@ def find(klass):
         column = list(column) if column else []
         validate_attributes(klass, column, '--column/-c', dn_is_valid=True)
         results = manager.find(aim_ctx, klass, **kwargs)
-        print_resources(results, attrs=column)
+        print_resources(results, attrs=column, plain=plain)
     return _find
 
 
 def get(klass):
     def _get(ctx, **kwargs):
+        plain = kwargs.pop('plain', False)
         kwargs = filter_kwargs(klass, kwargs)
         manager = ctx.obj['manager']
         aim_ctx = ctx.obj['aim_ctx']
@@ -154,11 +167,11 @@ def get(klass):
         res = manager.get(aim_ctx, res)
         if res:
             stat = manager.get_status(aim_ctx, res)
-            print_resource(res)
+            print_resource(res, plain=plain)
             if stat:
-                print_resource(stat)
+                print_resource(stat, plain=plain)
                 for f in stat.faults:
-                    print_resource(f)
+                    print_resource(f, plain=plain)
     return _get
 
 
@@ -239,24 +252,31 @@ for res in aim_manager.AimManager._db_model_map:
             f = click.option('--%s' % opt, default=ATTR_UNSPECIFIED)(f)
         return f
 
+    def plain_output(f):
+        return click.option('--plain', '-p', default=False, is_flag=True)(f)
+
     # runtime create commands
     name = convert(res.__name__)
     f = click.pass_context(create(res))
+    f = plain_output(f)
     f = specify_all_attrs(f)
     manager.command(name=name + '-create')(f)
 
     # runtime delete commands
     f = click.pass_context(delete(res))
+    f = plain_output(f)
     f = specify_id_attrs(f)
     manager.command(name=name + '-delete')(f)
 
     # runtime update commands
     f = click.pass_context(update(res))
+    f = plain_output(f)
     f = specify_all_attrs(f)
     manager.command(name=name + '-update')(f)
 
     # runtime find commands
     f = click.pass_context(find(res))
+    f = plain_output(f)
     f = click.option('--column', '-c', multiple=True)(f)
     f = specify_other_attrs(f)
     f = specify_id_attrs_as_options(f)
@@ -264,9 +284,11 @@ for res in aim_manager.AimManager._db_model_map:
 
     # runtime get commands
     f = click.pass_context(get(res))
+    f = plain_output(f)
     f = specify_id_attrs(f)
     manager.command(name=name + '-get')(f)
 
     # runtime describe commands
     f = click.pass_context(describe(res))
+    f = plain_output(f)
     manager.command(name=name + '-describe')(f)
