@@ -65,6 +65,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
              'epMoveDetectMode': '',
              'limitIpLearnToSubnets': 'no',
              'unicastRoute': 'yes',
+             'nameAlias': '',
              'unkMacUcastAct': 'proxy'},
             {'key': ('fvTenant|t1', 'fvBD|bd1', 'fvRsCtx|rsctx'),
              'tnFvCtxName': 'default'}]
@@ -83,6 +84,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
              'epMoveDetectMode': '',
              'limitIpLearnToSubnets': 'no',
              'unicastRoute': 'yes',
+             'nameAlias': '',
              'unkMacUcastAct': 'proxy'},
             {'key': ('fvTenant|t1', 'fvBD|bd1', 'fvRsCtx|rsctx'),
              'tnFvCtxName': 'default'}]

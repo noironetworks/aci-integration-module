@@ -74,7 +74,7 @@ def default_attribute_converter(object_dict, attribute,
 
 def default_to_resource(converted, helper, to_aim=True):
     klass = helper['resource']
-    default_skip = ['displayName', 'preExisting', 'monitored']
+    default_skip = ['preExisting', 'monitored']
     if to_aim:
         # APIC to AIM
         return klass(
@@ -656,8 +656,12 @@ class AciToAimModelConverter(BaseConverter):
                 if object.keys()[0] not in resource_map:
                     # Ignore unmanaged object
                     continue
+                resource = object[object.keys()[0]]['attributes']
+                # Change nameAlias to allow automatic conversion
+                if 'nameAlias' in resource:
+                    resource['displayName'] = resource['nameAlias']
+                    del resource['nameAlias']
                 for helper in resource_map[object.keys()[0]]:
-                    resource = object[object.keys()[0]]['attributes']
                     # Use the custom converter, fallback to the default one
                     converted = (
                         helper.get('converter') or self._default_converter)(
@@ -670,6 +674,10 @@ class AciToAimModelConverter(BaseConverter):
                             # correctly
                             x.__dict__['_status'] = 'deleted'
                     result.extend(converted)
+                # Change displayName back to original
+                if 'nameAlias' in resource:
+                    resource['nameAlias'] = resource['displayName']
+                    del resource['displayName']
             except Exception as e:
                 LOG.warn("Could not convert object"
                          "%s with error %s" % (object, e.message))
@@ -720,6 +728,9 @@ class AimToAciModelConverter(BaseConverter):
                     continue
                 is_pre = getattr(object, 'pre_existing', False)
                 is_mon = getattr(object, 'monitored', False)
+                if 'display_name' in object.__dict__:
+                    object.__dict__['name_alias'] = object.display_name
+                    del object.__dict__['display_name']
                 for helper in reverse_resource_map[klass]:
                     if is_pre and not helper.get('convert_pre_existing',
                                                  False):
@@ -733,6 +744,10 @@ class AimToAciModelConverter(BaseConverter):
                         klass.identity_attributes,
                         ['dn'], to_aim=False)
                     result.extend(converted)
+                # Set name alias back to original
+                if 'name_alias' in object.__dict__:
+                    object.__dict__['display_name'] = object.name_alias
+                    del object.__dict__['name_alias']
             except Exception as e:
                 LOG.warn("Could not convert object"
                          "%s with error %s" % (object.__dict__, e.message))

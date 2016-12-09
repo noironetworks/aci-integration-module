@@ -37,7 +37,7 @@ def upgrade():
         sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('tenant_name', sa.String(64), nullable=False),
-        sa.Column('display_name', sa.String(256)),
+        sa.Column('display_name', sa.String(256), nullable=False, default=''),
         sa.Column('vrf_name', sa.String(64)),
         sa.Column('enable_arp_flood', sa.Boolean),
         sa.Column('enable_routing', sa.Boolean),

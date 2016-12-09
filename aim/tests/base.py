@@ -158,7 +158,7 @@ class TestAimDBBase(BaseTestCase):
                     "llAddr": "::",
                     "mac": "00:22:BD:F8:19:FF",
                     "multiDstPktAct": "bd-flood",
-                    "name": "test",
+                    "name": "test", "displayName": "",
                     "ownerKey": "", "ownerTag": "", "unicastRoute": "yes",
                     "unkMacUcastAct": "proxy", "unkMcastAct": "flood",
                     "vmac": "not-applicable"}}}

@@ -760,9 +760,11 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                      'epMoveDetectMode': '',
                      'limitIpLearnToSubnets': 'no',
                      'unicastRoute': 'yes',
-                     'unkMacUcastAct': 'proxy'}
+                     'unkMacUcastAct': 'proxy',
+                     'nameAlias': ''}
         fvRsCtx_attr = {'tnFvCtxName': 'default'}
-        fvSubnet_attr = {'scope': 'private'}
+        fvSubnet_attr = {'scope': 'private',
+                         'nameAlias': ''}
 
         self.maker.update(htree, [bd, subnet])
 
@@ -816,7 +818,8 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                                         out_filters=['o1'], bi_filters=['f1'])
         self.maker.update(htree, [subj])
 
-        exp_tree = exp_tree.add(('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1'))
+        exp_tree = exp_tree.add(('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1'),
+                                nameAlias='')
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
              'vzInTerm|intmnl', 'vzRsFiltAtt|i1'),
@@ -843,7 +846,8 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                      'epMoveDetectMode': '',
                      'limitIpLearnToSubnets': 'no',
                      'unicastRoute': 'yes',
-                     'unkMacUcastAct': 'proxy'}
+                     'unkMacUcastAct': 'proxy',
+                     'nameAlias': ''}
         fvRsCtx_attr = {'tnFvCtxName': 'default'}
 
         exp_tree = tree.StructuredHashTree()

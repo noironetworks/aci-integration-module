@@ -35,7 +35,7 @@ def upgrade():
     op.create_table(
         'aim_endpoints',
         sa.Column('uuid', sa.String(36), primary_key=True),
-        sa.Column('display_name', sa.String(256)),
+        sa.Column('display_name', sa.String(256), nullable=False, default=''),
         sa.Column('epg_tenant_name', sa.String(64)),
         sa.Column('epg_app_profile_name', sa.String(64)),
         sa.Column('epg_name', sa.String(64)),

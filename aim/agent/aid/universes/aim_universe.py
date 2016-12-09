@@ -168,11 +168,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     else:
                         LOG.debug("%s object in AIM %s" %
                                   (method, resource.__dict__))
-                        if isinstance(resource,
-                                      aim_resource.Tenant) and monitored:
-                            # Monitored Universe doesn't interact with Tenant
-                            # Resources
-                            continue
                         if method == 'create':
                             if monitored:
                                 # We need two more conversions to screen out
@@ -187,6 +182,11 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                             # Declare victory for the created object
                             self.creation_succeeded(resource)
                         else:
+                            if isinstance(resource,
+                                          aim_resource.Tenant) and monitored:
+                                # Monitored Universe doesn't delete Tenant
+                                # Resources
+                                continue
                             self.manager.delete(self.context, resource)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
