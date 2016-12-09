@@ -14,6 +14,7 @@
 #    under the License.
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.mysql import VARCHAR
 from sqlalchemy import orm
 
 from aim.common import utils
@@ -232,7 +233,9 @@ class EndpointGroupStaticPath(model_base.Base):
     epg_aim_id = sa.Column(sa.Integer,
                            sa.ForeignKey('aim_endpoint_groups.aim_id'),
                            primary_key=True)
-    path = sa.Column(sa.String(1024), primary_key=True)
+    # Use VARCHAR with ASCII encoding to work-around MySQL limitations
+    # on the length of primary keys
+    path = sa.Column(VARCHAR(512, charset='latin1'), primary_key=True)
     encap = sa.Column(sa.String(24))
 
 

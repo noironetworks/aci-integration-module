@@ -29,13 +29,14 @@ depends_on = None
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.mysql import VARCHAR
 
 
 def upgrade():
     op.create_table(
         'aim_endpoint_group_static_paths',
         sa.Column('epg_aim_id', sa.Integer, nullable=False),
-        sa.Column('path', sa.String(1024), nullable=False),
+        sa.Column('path', VARCHAR(512, charset='latin1'), nullable=False),
         sa.Column('encap', sa.String(24)),
         sa.PrimaryKeyConstraint('epg_aim_id', 'path'),
         sa.ForeignKeyConstraint(
@@ -43,13 +44,13 @@ def upgrade():
 
     op.create_table(
         'aim_host_links',
-        sa.Column('host_name', sa.String(256), nullable=False),
-        sa.Column('interface_name', sa.String(64), nullable=False),
+        sa.Column('host_name', sa.String(128), nullable=False),
+        sa.Column('interface_name', sa.String(32), nullable=False),
         sa.Column('interface_mac', sa.String(24)),
         sa.Column('switch_id', sa.String(128)),
         sa.Column('module', sa.String(128)),
         sa.Column('port', sa.String(128)),
-        sa.Column('path', sa.String(1024)),
+        sa.Column('path', VARCHAR(512, charset='latin1')),
         sa.PrimaryKeyConstraint('host_name', 'interface_name'))
 
 

@@ -14,6 +14,7 @@
 #    under the License.
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.mysql import VARCHAR
 
 from aim.db import model_base
 
@@ -21,11 +22,11 @@ from aim.db import model_base
 class HostLink(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_host_links'
 
-    host_name = sa.Column(sa.String(256), primary_key=True)
-    interface_name = sa.Column(sa.String(64), primary_key=True)
+    host_name = sa.Column(sa.String(128), primary_key=True)
+    interface_name = sa.Column(sa.String(32), primary_key=True)
     interface_mac = sa.Column(sa.String(24))
 
     switch_id = sa.Column(sa.String(128))
     module = sa.Column(sa.String(128))
     port = sa.Column(sa.String(128))
-    path = sa.Column(sa.String(1024))
+    path = sa.Column(VARCHAR(512, charset='latin1'))
