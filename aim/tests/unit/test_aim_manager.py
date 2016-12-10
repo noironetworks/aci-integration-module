@@ -20,8 +20,10 @@ test_aim_manager
 Tests for `aim_manager` module.
 """
 
-import mock
+import copy
 import time
+
+import mock
 
 from aim import aim_manager
 from aim.api import infra
@@ -220,20 +222,23 @@ class TestResourceOpsBase(object):
 
         res = resource(**creation_attributes)
         res = self.mgr.create(self.ctx, res)
-        listener.assert_called_with(mock.ANY, [res], [], [])
+        status = self.mgr.get_status(self.ctx, res)
+        if status:
+            initial_status = copy.deepcopy(status)
+            initial_status.sync_status = None
+            exp_calls = [
+                mock.call(mock.ANY, [res], [], []),
+                mock.call(mock.ANY, [initial_status], [], []),
+                mock.call(mock.ANY, [], [status], [])]
+            self._check_call_list(exp_calls, listener)
+        else:
+            listener.assert_called_with(mock.ANY, [res], [], [])
 
         # trigger status creation
-        status = self.mgr.get_status(self.ctx, res)
         if test_update_attributes:
             listener.reset_mock()
             res = self.mgr.update(self.ctx, res, **test_update_attributes)
-            if status:
-                exp_calls = [
-                    mock.call(mock.ANY, [], [res], []),
-                    mock.call(mock.ANY, [], [status], [])]
-                self._check_call_list(exp_calls, listener)
-            else:
-                listener.assert_called_with(mock.ANY, [], [res], [])
+            listener.assert_called_with(mock.ANY, [], [res], [])
 
         listener.reset_mock()
         self.mgr.delete(self.ctx, res)

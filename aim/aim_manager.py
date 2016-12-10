@@ -73,6 +73,14 @@ class AimManager(object):
                      api_res.ExternalSubnet: models.ExternalSubnet,
                      api_infra.HostLink: infra_model.HostLink}
 
+    # Build adjacency graph (Key: <ACI Resource> Value: <Key's children>)
+    _model_tree = {}
+    for klass in _db_model_map:
+        try:
+            _model_tree.setdefault(klass._tree_parent, []).append(klass)
+        except AttributeError:
+            pass
+
     def __init__(self):
         # TODO(amitbose): initialize anything we need, for example DB stuff
         self._resource_map = {}
@@ -102,8 +110,10 @@ class AimManager(object):
                     attr_val = self._extract_attributes(resource, "other")
                     db_obj.from_attr(context.db_session, attr_val)
             db_obj = db_obj or self._make_db_obj(context.db_session, resource)
-            context.db_session.add(db_obj)
             self._add_commit_hook(context.db_session)
+            context.db_session.add(db_obj)
+            # Propagate sync status to neighbor objects
+            self.set_resource_sync_pending(context, resource)
             return self.get(context, resource)
 
     def update(self, context, resource, **update_attr_val):
@@ -117,8 +127,6 @@ class AimManager(object):
         made to the database.
         """
         self._validate_resource_class(resource)
-        if not update_attr_val:
-            return self.get(context, resource)
         with context.db_session.begin(subtransactions=True):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
@@ -235,25 +243,65 @@ class AimManager(object):
                     status.resource_id = res_id
                     return self.create(context, status, overwrite=True)
 
-    def _set_resource_sync(self, context, resource, sync_status, message=''):
+    def _set_resource_sync(self, context, resource, sync_status, message='',
+                           exclude=None):
         with context.db_session.begin(subtransactions=True):
             self._validate_resource_class(resource)
             status = self.get_status(context, resource)
-            if status:
+            exclude = exclude or []
+            if status and status.sync_status not in exclude:
                 self.update(context, status, sync_status=sync_status,
                             sync_message=message)
+                return True
+            return False
 
     def set_resource_sync_synced(self, context, resource):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
     def set_resource_sync_pending(self, context, resource):
-        self._set_resource_sync(context, resource,
-                                api_status.AciStatus.SYNC_PENDING)
+        # When a resource goes in pending state, propagate to both parent
+        # and subtree
+        with context.db_session.begin(subtransactions=True):
+            # If resource is already in pending or synced state stop
+            # propagation
+            if self._set_resource_sync(
+                    context, resource, api_status.AciStatus.SYNC_PENDING,
+                    exclude=[api_status.AciStatus.SYNCED,
+                             api_status.AciStatus.SYNC_PENDING]):
+                # Change parent first
+                parent_klass = resource._tree_parent
+                if parent_klass:
+                    identity = {v: resource.identity[i]
+                                for i, v in enumerate(
+                        parent_klass.identity_attributes)}
+                    self.set_resource_sync_pending(context,
+                                                   parent_klass(**identity))
+                for child_klass in self._model_tree.get(
+                        type(resource), []):
+                    identity = {child_klass.identity_attributes[i]: v
+                                for i, v in enumerate(resource.identity)}
+                    for child_res in self.find(context, child_klass,
+                                               **identity):
+                        self.set_resource_sync_pending(context, child_res)
 
     def set_resource_sync_error(self, context, resource, message=''):
-        self._set_resource_sync(context, resource,
-                                api_status.AciStatus.SYNC_FAILED,
-                                message=message)
+        with context.db_session.begin(subtransactions=True):
+            # No need to set sync_error for resources already in that state
+            if self._set_resource_sync(
+                    context, resource, api_status.AciStatus.SYNC_FAILED,
+                    message=message,
+                    exclude=[api_status.AciStatus.SYNC_FAILED]):
+                # Set sync_error for the whole subtree
+                for child_klass in self._model_tree.get(
+                        type(resource), []):
+                    identity = {child_klass.identity_attributes[i]: v
+                                for i, v in enumerate(resource.identity)}
+                    for child_res in self.find(context, child_klass,
+                                               **identity):
+                        self.set_resource_sync_error(
+                            context, child_res,
+                            message="Parent resource %s is "
+                                    "in error state" % str(resource))
 
     def set_fault(self, context, resource, fault):
         with context.db_session.begin(subtransactions=True):

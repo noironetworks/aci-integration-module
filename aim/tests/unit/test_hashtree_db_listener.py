@@ -19,6 +19,7 @@ import mock
 
 from aim import aim_manager
 from aim.api import resource as aim_res
+from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.db import agent_model      # noqa
 from aim.db import tree_model
@@ -118,9 +119,19 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         epg = aim_res.EndpointGroup(
             tenant_name=tn_name, app_profile_name='ap', name='epg',
             monitored=monitored, bd_name='some')
+        epg2 = aim_res.EndpointGroup(
+            tenant_name=tn_name, app_profile_name='ap', name='epg2',
+            monitored=monitored, bd_name='some')
+
         # Add Tenant and AP
         self.mgr.create(self.ctx, tn)
+        no_ap_tree_cfg = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
+        no_ap_tree_mon = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+
         self.mgr.create(self.ctx, ap)
+        self.mgr.create(self.ctx, epg2)
         # Get the tree
         no_epg_tree_cfg = self.tt_mgr.get(
             self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
@@ -157,6 +168,32 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.assertEqual(epg_tree_cfg, final_tree_cfg)
         self.assertEqual(epg_tree_mon, final_tree_mon)
 
+        # Set AP in error state, will effect all the children
+        self.mgr.set_resource_sync_error(self.ctx, ap)
+        tenant_only_cfg = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
+        tenant_only_mon = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+        self.assertEqual(no_ap_tree_cfg, tenant_only_cfg)
+        self.assertEqual(no_ap_tree_mon, tenant_only_mon)
+
+        # All the objects are in failed state
+        for obj in [ap, epg2, epg]:
+            self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
+                             self.mgr.get_status(self.ctx, obj).sync_status)
+        # Changing sync status of the EPG will bring everything back
+        self.mgr.update(self.ctx, epg)
+        full_cfg = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
+        full_mon = self.tt_mgr.get(
+            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+        # All the objects are in synced state
+        for obj in [ap, epg2, epg]:
+            self.assertEqual(aim_status.AciStatus.SYNC_PENDING,
+                             self.mgr.get_status(self.ctx, obj).sync_status)
+        self.assertEqual(epg_tree_cfg, full_cfg)
+        self.assertEqual(epg_tree_mon, full_mon)
+
     def test_sync_failed(self):
         self._test_sync_failed(monitored=False)
 
@@ -181,6 +218,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             # Create AP will create tenant, create EPG will modify it
             exp_calls = [
                 mock.call(mock.ANY, 'serve', None),
+                mock.call(mock.ANY, 'reconcile', None),
                 mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             cast.reset_mock()
