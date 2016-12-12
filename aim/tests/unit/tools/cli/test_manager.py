@@ -128,7 +128,7 @@ class TestManagerResourceOpsBase(object):
                       for y in li]])
             elif isinstance(li, list):
                 return ','.join(li) if li else "''"
-            return li if li else "''"
+            return li if li not in ['', None] else "''"
         identity = [attributes[k] for k in
                     klass.identity_attributes]
         other = ['--%s %s' % (k, transform_list(k, v))
@@ -243,10 +243,6 @@ class TestManagerResourceOpsBase(object):
 
     def _create_prerequisite_objects(self):
         for obj in (self.prereq_objects or []):
-            # TODO(ivar): we have a issue with non-string options. we need
-            # a mechanism that can sanitize 'False' into False or '10' into
-            # 10, or fail if needed.
-            obj.__dict__.pop('monitored', None)
             self.create(climanager.convert(type(obj).__name__), obj.__dict__,
                         klass=type(obj))
 

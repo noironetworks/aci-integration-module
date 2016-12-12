@@ -30,6 +30,10 @@ from aim.tools.cli.groups import aimcli
 
 LOG = logging.getLogger(__name__)
 ATTR_UNSPECIFIED = object()
+# REVISIT(ivar): give one way to specify static_paths through
+# the CLI until we have a proper resource schema
+DICT_LIST_ATTRS = ['static_paths']
+BOOL_ATTRS = ['monitored']
 
 
 def print_resource(res, plain=False):
@@ -76,12 +80,17 @@ def filter_kwargs(klass, kwargs):
     for k, v in kwargs.iteritems():
         if v is not ATTR_UNSPECIFIED:
             try:
-                # REVISIT(ivar): give one way to specify static_paths through
-                # the CLI until we have a proper resource schema
-                if k == 'static_paths':
+                if k in DICT_LIST_ATTRS:
                     res[k] = [{z.split('=')[0]: z.split('=')[1] for z in y}
                               for y in [x.split(',')
                               for x in v.split(' ')]] if v else []
+                elif k in BOOL_ATTRS:
+                    b = utils.stob(v)
+                    if b is None:
+                        raise click.BadParameter(
+                            'Invalid value %s for boolean '
+                            'attribute %s' % (v, k), param_hint="--%s" % k)
+                    res[k] = utils.stob(v)
                 elif isinstance(getattr(dummy, k), list):
                     res[k] = v.split(',') if v else []
                 else:

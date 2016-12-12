@@ -93,3 +93,11 @@ def perform_harakiri(log, message=None):
         log.error(message)
     if cfg.CONF.aim.recovery_restart:
         os._exit(1)
+
+
+def stob(s):
+    if s.lower() in ['true', 'yes', 't', 'y', '1']:
+        return True
+    if s.lower() in ['false', 'no', 'f', 'n', '0']:
+        return False
+    return None
