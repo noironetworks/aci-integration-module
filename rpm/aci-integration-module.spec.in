@@ -41,8 +41,8 @@ rm -rf %{buildroot}%{python2_sitelib}/aim/tests
 %doc README.rst
 %{python2_sitelib}/aim
 %{python2_sitelib}/aci_integration_module-*.egg-info
-%{_bindir}/aim
-%{_bindir}/aim-debug
+%{_bindir}/aimctl
+%{_bindir}/aimdebug
 %{_bindir}/aim-aid
 %{_bindir}/aim-event-service-polling
 %{_bindir}/aim-event-service-rpc
