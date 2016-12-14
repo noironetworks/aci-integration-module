@@ -13,13 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_config import cfg
-
 from aim import config
 from aim.tests.unit.tools.cli import test_shell as base
-
-
-cfg.CONF.register_opts(config.global_opts)
 
 
 class TestDBConfig(base.TestShell):

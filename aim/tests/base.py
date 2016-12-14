@@ -28,10 +28,18 @@ from aim import context
 from aim.db import api
 from aim.db import model_base
 
+
+global_opts = [
+    cfg.StrOpt('apic_system_id',
+               default='openstack',
+               help="Prefix for APIC domain/names/profiles created"),
+]
+
+
 CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
-CONF.register_opts(aim_cfg.global_opts + aim_cfg.common_opts)
+CONF.register_opts(aim_cfg.common_opts + global_opts)
 o_log.register_options(aim_cfg.CONF)
 
 

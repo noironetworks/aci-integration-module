@@ -41,7 +41,7 @@ class TestAimConfig(base.TestAimDBBase):
         config.CONF.set_override('openstack_user', 'user1', 'apic')
         config.CONF.set_override('verify_ssl_certificate', True, 'apic')
         config.CONF.set_override('apic_request_timeout', 15, 'apic')
-        config.CONF.set_override('apic_system_id', 'my_id')
+        config.CONF.set_override('aim_system_id', 'my_id', 'aim')
         self.cfg_mgr.to_db(config.CONF, context=self.ctx)
         self.assertEqual(
             ['1.1.1.1', '1.1.1.2', '1.1.1.3'],
@@ -53,7 +53,7 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertEqual(
             15, self.cfg_mgr.get_option('apic_request_timeout', 'apic'))
         self.assertEqual(
-            'my_id', self.cfg_mgr.get_option('apic_system_id'))
+            'my_id', self.cfg_mgr.get_option('aim_system_id', 'aim'))
 
     def test_get_wrong_conf(self):
         self.assertRaises(
@@ -97,9 +97,9 @@ class TestAimConfig(base.TestAimDBBase):
                 self.cfg_mgr.db._get(self.ctx, 'apic',
                                      'apic_hosts'))['version'],
 
-            ('default', 'apic_system_id', ''): self.cfg_mgr.db._to_dict(
-                self.cfg_mgr.db._get(self.ctx, 'default',
-                                     'apic_system_id'))['version'],
+            ('aim', 'aim_system_id', ''): self.cfg_mgr.db._to_dict(
+                self.cfg_mgr.db._get(self.ctx, 'aim',
+                                     'aim_system_id'))['version'],
 
             ('apic', 'apic_request_timeout', ''): self.cfg_mgr.db._to_dict(
                 self.cfg_mgr.db._get(self.ctx, 'apic',
@@ -118,7 +118,7 @@ class TestAimConfig(base.TestAimDBBase):
             'apic_hosts', ['1.1.1.1', '1.1.1.2', '1.1.1.4'], 'apic')
         self.set_override('verify_ssl_certificate', True, 'apic')
         self.set_override('apic_request_timeout', 20, 'apic')
-        self.set_override('apic_system_id', 'my_id_plus')
+        self.set_override('aim_system_id', 'my_id_plus', 'aim')
 
         # Not changing openstack_user
         v2 = self.cfg_mgr.db.get_changed(self.ctx, conf_map)
@@ -130,9 +130,9 @@ class TestAimConfig(base.TestAimDBBase):
                 self.cfg_mgr.db._get(self.ctx, 'apic',
                                      'apic_hosts'))['version'],
 
-            ('default', 'apic_system_id', ''): self.cfg_mgr.db._to_dict(
-                self.cfg_mgr.db._get(self.ctx, 'default',
-                                     'apic_system_id'))['version'],
+            ('aim', 'aim_system_id', ''): self.cfg_mgr.db._to_dict(
+                self.cfg_mgr.db._get(self.ctx, 'aim',
+                                     'aim_system_id'))['version'],
 
             ('apic', 'apic_request_timeout', ''): self.cfg_mgr.db._to_dict(
                 self.cfg_mgr.db._get(self.ctx, 'apic',
@@ -177,24 +177,24 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertEqual(expected_rev, cfg_mgr.subs_mgr.map_by_callback_id)
 
         # Same callback
-        cfg_mgr.get_option_and_subscribe(callback, 'apic_system_id')
+        cfg_mgr.get_option_and_subscribe(callback, 'aim_system_id', 'aim')
         expected.update(
-            {'default': {'apic_system_id': {call_id: {'hosts': set(['h1']),
-                                                      'version': mock.ANY,
-                                                      'callback': callback}}}})
-        expected_rev[call_id].update({'default': set(['apic_system_id'])})
+            {'aim': {'aim_system_id': {call_id: {'hosts': set(['h1']),
+                                                 'version': mock.ANY,
+                                                 'callback': callback}}}})
+        expected_rev[call_id].update({'aim': set(['aim_system_id'])})
         self.assertEqual(expected, cfg_mgr.subs_mgr.subscription_map)
         self.assertEqual(expected_rev, cfg_mgr.subs_mgr.map_by_callback_id)
 
         # Different callback on same option
         callback_2 = mock.Mock()
         call_id_2 = cfg_mgr.subs_mgr._get_call_id(callback_2)
-        cfg_mgr.get_option_and_subscribe(callback_2, 'apic_system_id')
-        expected['default']['apic_system_id'].update(
+        cfg_mgr.get_option_and_subscribe(callback_2, 'aim_system_id', 'aim')
+        expected['aim']['aim_system_id'].update(
             {call_id_2: {'hosts': set(['h1']),
                          'version': mock.ANY,
                          'callback': callback_2}})
-        expected_rev.update({call_id_2: {'default': set(['apic_system_id'])}})
+        expected_rev.update({call_id_2: {'aim': set(['aim_system_id'])}})
         self.assertEqual(expected, cfg_mgr.subs_mgr.subscription_map)
         self.assertEqual(expected_rev, cfg_mgr.subs_mgr.map_by_callback_id)
 
@@ -210,12 +210,12 @@ class TestAimConfig(base.TestAimDBBase):
         cfg_mgr.callback_unsubscribe(callback_2)
         # This removed the callback from both maps
         expected_rev.pop(call_id_2)
-        expected['default']['apic_system_id'].pop(call_id_2)
+        expected['aim']['aim_system_id'].pop(call_id_2)
         self.assertEqual(expected, cfg_mgr.subs_mgr.subscription_map)
         self.assertEqual(expected_rev, cfg_mgr.subs_mgr.map_by_callback_id)
 
         # Unsubscribe last option
-        cfg_mgr.option_unsubscribe(callback, 'apic_system_id', 'default')
+        cfg_mgr.option_unsubscribe(callback, 'aim_system_id', 'aim')
         # Maps are now empty
         self.assertEqual({}, cfg_mgr.subs_mgr.subscription_map)
         self.assertEqual({}, cfg_mgr.subs_mgr.map_by_callback_id)

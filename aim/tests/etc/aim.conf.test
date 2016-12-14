@@ -1,7 +1,3 @@
-[DEFAULT]
-#debug = True
-apic_system_id = openstack_aid
-
 [database]
 connection = 'sqlite://'
 

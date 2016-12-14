@@ -20,7 +20,7 @@ from aim import context
 from aim.db import api
 from aim.tools.cli.groups import aimcli
 
-aim_cfg.CONF.register_opts(aim_cfg.common_opts + aim_cfg.global_opts)
+aim_cfg.CONF.register_opts(aim_cfg.common_opts)
 
 
 @aimcli.aim.group(name='config')

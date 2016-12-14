@@ -15,17 +15,11 @@
 
 import ast
 
-from oslo_config import cfg
-
 from aim import aim_manager
 from aim.api import resource
-from aim import config
 from aim.tests.unit import test_aim_manager
 from aim.tests.unit.tools.cli import test_shell as base
 from aim.tools.cli.commands import manager as climanager
-
-
-cfg.CONF.register_opts(config.global_opts)
 
 
 class TestManager(base.TestShell):
