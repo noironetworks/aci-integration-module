@@ -15,4 +15,4 @@
 
 
 def sanitize_display_name(display_name):
-    return display_name[:59]
+    return display_name[:59].replace(' ', '_')

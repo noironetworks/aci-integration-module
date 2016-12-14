@@ -31,7 +31,7 @@ class TestUtils(base.TestAimDBBase):
 
     def test_sanitize_display_name(self):
         self.assertEqual(
-            'some name',
+            'some_name',
             utils.sanitize_display_name('some name'))
 
         self.assertEqual(
