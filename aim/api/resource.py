@@ -146,11 +146,11 @@ class BridgeDomain(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(BridgeDomain, self).__init__({'vrf_name': '',
-                                            'enable_arp_flood': False,
+                                            'enable_arp_flood': True,
                                             'enable_routing': True,
                                             'limit_ip_learn_to_subnets': False,
                                             'l2_unknown_unicast_mode': 'proxy',
-                                            'ep_move_detect_mode': '',
+                                            'ep_move_detect_mode': 'garp',
                                             'l3out_names': [],
                                             'monitored': False},
                                            **kwargs)
@@ -215,7 +215,7 @@ class Subnet(AciResourceBase):
     SCOPE_PUBLIC = 'public'
 
     def __init__(self, **kwargs):
-        super(Subnet, self).__init__({'scope': self.SCOPE_PRIVATE,
+        super(Subnet, self).__init__({'scope': self.SCOPE_PUBLIC,
                                       'monitored': False}, **kwargs)
 
     @staticmethod

@@ -94,6 +94,11 @@ class TestResourceOpsBase(object):
 
     def setUp(self):
         super(TestResourceOpsBase, self).setUp()
+        attr = self.resource_class.attributes()
+        if 'monitored' in attr:
+            self.test_default_values.setdefault('monitored', False)
+        if 'display_name' in attr:
+            self.test_default_values.setdefault('display_name', '')
         self.mgr = aim_manager.AimManager()
         self.mgr._update_listeners = []
 
@@ -127,7 +132,6 @@ class TestResourceOpsBase(object):
 
         # Create with identity attributes
         creation_attributes = {}
-        creation_attributes.update(test_required_attributes),
         creation_attributes.update(test_identity_attributes)
         res = resource(**creation_attributes)
 
@@ -137,6 +141,8 @@ class TestResourceOpsBase(object):
         if test_dn:
             self.assertEqual(test_dn, res.dn)
 
+        creation_attributes.update(test_required_attributes)
+        res = resource(**creation_attributes)
         # Verify successful creation
         r1 = self.mgr.create(self.ctx, res)
         for k, v in creation_attributes.iteritems():
@@ -406,6 +412,7 @@ class TestTenantMixin(object):
     test_required_attributes = {'name': 'tenant1'}
     test_search_attributes = {'name': 'tenant1'}
     test_update_attributes = {'display_name': 'pepsi'}
+    test_default_values = {}
     test_dn = 'uni/tn-tenant1'
     res_command = 'tenant'
 
@@ -421,6 +428,13 @@ class TestBridgeDomainMixin(object):
                               'display_name': 'pretty-net1',
                               'vrf_name': 'default',
                               'l3out_names': ['l3out1', 'out2']}
+    test_default_values = {'vrf_name': '',
+                           'enable_arp_flood': True,
+                           'enable_routing': True,
+                           'limit_ip_learn_to_subnets': False,
+                           'l2_unknown_unicast_mode': 'proxy',
+                           'ep_move_detect_mode': 'garp',
+                           'l3out_names': []}
     test_dn = 'uni/tn-tenant1/BD-net1'
     res_command = 'bridge-domain'
 
@@ -437,6 +451,7 @@ class TestAgentMixin(object):
     test_update_attributes = {'host': 'h2',
                               'version': '2.0',
                               'hash_trees': ['t2']}
+    test_default_values = {}
     res_command = 'agent'
 
 
@@ -453,9 +468,9 @@ class TestSubnetMixin(object):
                                 'gw_ip_mask': gw_ip}
     test_search_attributes = {'bd_name': 'net1'}
     test_update_attributes = {'display_name': 'sub1',
-                              'scope': resource.Subnet.SCOPE_PUBLIC}
+                              'scope': resource.Subnet.SCOPE_PRIVATE}
     test_default_values = {
-        'scope': resource.Subnet.SCOPE_PRIVATE}
+        'scope': resource.Subnet.SCOPE_PUBLIC}
     test_dn = 'uni/tn-tenant1/BD-net1/subnet-[192.168.10.1/28]'
     res_command = 'subnet'
 
@@ -484,6 +499,7 @@ class TestApplicationProfileMixin(object):
                                 'name': 'lab'}
     test_search_attributes = {'name': 'lab'}
     test_update_attributes = {'display_name': 'lab101'}
+    test_default_values = {}
     test_dn = 'uni/tn-tenant1/ap-lab'
     res_command = 'application-profile'
 
@@ -522,6 +538,14 @@ class TestEndpointGroupMixin(object):
                                                          'paths-101/pathep-'
                                                          '[eth1/2]'),
                                                 'encap': 'vlan-22'}]}
+    test_default_values = {'bd_name': '',
+                           'provided_contract_names': [],
+                           'consumed_contract_names': [],
+                           'openstack_vmm_domain_names': [],
+                           'physical_domain_names': [],
+                           'policy_enforcement_pref':
+                           resource.EndpointGroup.POLICY_UNENFORCED,
+                           'static_paths': []}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
     res_command = 'endpoint-group'
 
@@ -534,6 +558,7 @@ class TestFilterMixin(object):
                                 'name': 'filter1'}
     test_search_attributes = {'name': 'filter1'}
     test_update_attributes = {'display_name': 'uv-filter'}
+    test_default_values = {}
     test_dn = 'uni/tn-tenant1/flt-filter1'
     res_command = 'filter'
 
@@ -557,6 +582,19 @@ class TestFilterEntryMixin(object):
     test_update_attributes = {'ether_type': 'ip',
                               'dest_to_port': resource.FilterEntry.UNSPECIFIED,
                               'icmpv4_type': 'echo'}
+    test_default_values = {
+        'arp_opcode': resource.FilterEntry.UNSPECIFIED,
+        'ether_type': resource.FilterEntry.UNSPECIFIED,
+        'ip_protocol': resource.FilterEntry.UNSPECIFIED,
+        'icmpv4_type': resource.FilterEntry.UNSPECIFIED,
+        'icmpv6_type': resource.FilterEntry.UNSPECIFIED,
+        'source_from_port': resource.FilterEntry.UNSPECIFIED,
+        'source_to_port': resource.FilterEntry.UNSPECIFIED,
+        'dest_from_port': resource.FilterEntry.UNSPECIFIED,
+        'dest_to_port': resource.FilterEntry.UNSPECIFIED,
+        'tcp_flags': resource.FilterEntry.UNSPECIFIED,
+        'stateful': False,
+        'fragment_only': False}
     test_dn = 'uni/tn-tenant1/flt-filter1/e-entry1'
     res_command = 'filter-entry'
 
@@ -570,6 +608,7 @@ class TestContractMixin(object):
                                 'scope': resource.Contract.SCOPE_TENANT}
     test_search_attributes = {'scope': resource.Contract.SCOPE_TENANT}
     test_update_attributes = {'scope': resource.Contract.SCOPE_CONTEXT}
+    test_default_values = {'scope': resource.Contract.SCOPE_CONTEXT}
     test_dn = 'uni/tn-tenant1/brc-contract1'
     res_command = 'contract'
 
@@ -590,6 +629,9 @@ class TestContractSubjectMixin(object):
     test_search_attributes = {'name': 'subject1'}
     test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
                               'out_filters': []}
+    test_default_values = {'in_filters': [],
+                           'out_filters': [],
+                           'bi_filters': []}
     test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
     res_command = 'contract-subject'
 
@@ -611,6 +653,9 @@ class TestEndpointMixin(object):
     test_search_attributes = {'epg_name': 'g1'}
     test_update_attributes = {'epg_app_profile_name': 'dept',
                               'epg_name': 'g20'}
+    test_default_values = {'epg_name': None,
+                           'epg_tenant_name': None,
+                           'epg_app_profile_name': None}
     res_command = 'endpoint'
 
 
@@ -620,6 +665,7 @@ class TestVMMDomainMixin(object):
     test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
     test_search_attributes = {'name': 'openstack'}
     test_update_attributes = {}
+    test_default_values = {}
     res_command = 'vmm-domain'
 
 
@@ -629,6 +675,7 @@ class TestPhysicalDomainMixin(object):
     test_required_attributes = {'name': 'phys'}
     test_search_attributes = {}
     test_update_attributes = {}
+    test_default_values = {}
     res_command = 'physical-domain'
 
 
@@ -642,6 +689,7 @@ class TestL3OutsideMixin(object):
                                 'l3_domain_dn': 'uni/foo'}
     test_search_attributes = {'vrf_name': 'ctx1'}
     test_update_attributes = {'l3_domain_dn': 'uni/bar'}
+    test_default_values = {'vrf_name': '', 'l3_domain_dn': ''}
     test_dn = 'uni/tn-tenant1/out-l3out1'
     res_command = 'l3-outside'
 
@@ -663,6 +711,9 @@ class TestExternalNetworkMixin(object):
     test_search_attributes = {'name': 'net1'}
     test_update_attributes = {'provided_contract_names': ['c2', 'k'],
                               'consumed_contract_names': []}
+    test_default_values = {'nat_epg_dn': '',
+                           'provided_contract_names': [],
+                           'consumed_contract_names': []}
     test_dn = 'uni/tn-tenant1/out-l3out1/instP-net1'
     res_command = 'external-network'
 
@@ -683,6 +734,7 @@ class TestExternalSubnetMixin(object):
                                 'cidr': '200.200.100.0/24'}
     test_search_attributes = {'cidr': '200.200.100.0/24'}
     test_update_attributes = {'display_name': 'home'}
+    test_default_values = {}
     test_dn = ('uni/tn-tenant1/out-l3out1/instP-net1/'
                'extsubnet-[200.200.100.0/24]')
     res_command = 'external-subnet'
@@ -707,6 +759,7 @@ class TestHostLinkMixin(object):
                               'port': '33',
                               'path': 'topology/pod-1/paths-101/pathep-'
                                       '[eth1/33]'}
+    test_default_values = {}
     res_command = 'host-link'
 
 

@@ -867,19 +867,19 @@ class TestAimToAciConverterSubnet(TestAimToAciConverterBase,
     sample_input = [base.TestAimDBBase._get_example_aim_subnet(),
                     base.TestAimDBBase._get_example_aim_subnet(
                         gw_ip_mask='10.10.20.0/28',
-                        scope=resource.Subnet.SCOPE_PUBLIC,
+                        scope=resource.Subnet.SCOPE_PRIVATE,
                         display_name='alias')]
     sample_output = [
         [{
             "fvSubnet": {
                 "attributes": {
                     "dn": "uni/tn-t1/BD-test/subnet-[10.10.10.0/28]",
-                    "scope": "private", "nameAlias": ""}}}],
+                    "scope": "public", "nameAlias": ""}}}],
         [{
             "fvSubnet": {
                 "attributes": {
                     "dn": "uni/tn-t1/BD-test/subnet-[10.10.20.0/28]",
-                    "scope": "public",
+                    "scope": "private",
                     "nameAlias": "alias"}}}]]
 
 

@@ -763,7 +763,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                      'unkMacUcastAct': 'proxy',
                      'nameAlias': ''}
         fvRsCtx_attr = {'tnFvCtxName': 'default'}
-        fvSubnet_attr = {'scope': 'private',
+        fvSubnet_attr = {'scope': 'public',
                          'nameAlias': ''}
 
         self.maker.update(htree, [bd, subnet])
