@@ -26,7 +26,6 @@ from aim import config as aim_cfg
 
 LOG = logging.getLogger(__name__)
 logging.register_options(aim_cfg.CONF)
-aim_cfg.CONF.register_opts(aim_cfg.common_opts)
 
 
 class Poller(event_service_base.EventServiceBase):

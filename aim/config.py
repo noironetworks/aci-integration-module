@@ -33,12 +33,6 @@ from aim import exceptions as exc
 LOG = logging.getLogger(__name__)
 
 
-common_opts = [
-    cfg.StrOpt('host', default=socket.gethostname(),
-               help="Host where this agent/controller is running")
-]
-
-
 agent_opts = [
     cfg.IntOpt('agent_down_time', default=75,
                help=("Seconds to regard the agent is down; should be at "
@@ -78,6 +72,9 @@ agent_opts = [
     cfg.BoolOpt('recovery_restart', default=True,
                 help=("Set to True if you want the agents to exit in critical "
                       "situations.")),
+    cfg.StrOpt('aim_service_identifier', default=socket.gethostname(),
+               help="(Restart Required) Identifier for this specific AID "
+                    "service, defaults to the hostname."),
 ]
 
 # TODO(ivar): move into AIM section
