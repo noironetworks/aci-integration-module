@@ -374,9 +374,8 @@ class AciTenantManager(gevent.Greenlet):
                             printable = aim_object
                         LOG.error("An error as occurred during %s for "
                                   "object %s" % (method, printable))
-                        # REVISIT(ivar) find a way to extrapolate reason only
                         if method == base_universe.CREATE:
-                            self.creation_failed(aim_object, e.message)
+                            self.creation_failed(aim_object, e.msg)
 
     def _unsubscribe_tenant(self):
         LOG.debug("Unsubscribing tenant websocket %s" % self.tenant_name)

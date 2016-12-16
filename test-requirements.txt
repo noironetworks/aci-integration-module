@@ -2,7 +2,7 @@
 # of appearance. Changing the order has an impact on the overall integration
 # process, which may cause wedges in the gate later.
 
--e git+https://github.com/noironetworks/apicapi.git@aci_integration_manager#egg=apicapi
+-e git+https://github.com/noironetworks/apicapi.git@master#egg=apicapi
 
 hacking<0.11,>=0.10.0
 

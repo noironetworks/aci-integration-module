@@ -496,7 +496,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self._check_call_list(exp_calls, self.manager.aci_session.post_body)
         # Failure in pushing object
         self.manager.aci_session.DELETE = mock.Mock(
-            side_effect=apic_client.cexc.ApicResponseNotOk)
+            side_effect=apic_client.cexc.ApicResponseNotOk
+            (request='my_request', status=400,
+             reason='bad request', err_text='bad request text', err_code=400))
         # No exception is externally rised
         self.manager.push_aim_resources({'delete': [bda1, bda2]})
         self.manager._push_aim_resources()
