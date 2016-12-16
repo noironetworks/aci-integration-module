@@ -38,23 +38,41 @@ class Poller(event_service_base.EventServiceBase):
         self.polling_interval = self.conf_manager.get_option_and_subscribe(
             self._change_polling_interval, 'service_polling_interval',
             group='aim_event_service_polling')
+        self.recovery_retries = None
 
     def run(self):
-        # Serve tenants the very first time regardless of the events received
-        while self.loop_count > 0:
-            try:
-                start_time = time.time()
-                self._daemon_loop()
-                utils.wait_for_next_cycle(
-                    start_time, self.polling_interval,
-                    LOG, readable_caller='Event Service Poller',
-                    notify_exceeding_timeout=False)
-                self.loop_count -= 1
-            except Exception:
-                LOG.error('A error occurred in polling agent')
-                LOG.error(traceback.format_exc())
-                # TODO(ivar): exponentially backoff before reconnecting
-                gevent.sleep(2)
+        t = gevent.spawn(self._poll)
+        try:
+            while self.run_daemon_loop:
+                gevent.sleep(1)
+        finally:
+            LOG.info("Killing poller thread")
+            t.kill()
+
+    def _poll(self):
+        try:
+            # Loop count is the equivalent of a True in normal usage, but it's
+            # useful for testing.
+            while self.loop_count > 0:
+                try:
+                    start_time = time.time()
+                    self._daemon_loop()
+                    utils.wait_for_next_cycle(
+                        start_time, self.polling_interval,
+                        LOG, readable_caller='Event Service Poller',
+                        notify_exceeding_timeout=False)
+                    self.loop_count -= 1
+                    self.recovery_retries = None
+                except gevent.GreenletExit:
+                    raise
+                except Exception:
+                    LOG.error('A error occurred in polling agent.')
+                    LOG.error(traceback.format_exc())
+                    self.recovery_retries = utils.exponential_backoff(
+                        10, tentative=self.recovery_retries)
+        except gevent.GreenletExit:
+            LOG.info("Poller thread is dead.")
+            return
 
     def _daemon_loop(self):
         self.sender.serve()

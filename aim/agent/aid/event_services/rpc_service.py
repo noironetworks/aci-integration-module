@@ -37,8 +37,12 @@ class RpcEventService(event_service_base.EventServiceBase):
         self.conn.create_consumer(self.topic, self.endpoints)
         self.conn.consume_in_threads()
         LOG.info("RPC Event Service initialized!")
-        while True:
-            eventlet.sleep(1)
+        try:
+            while self.run_daemon_loop:
+                eventlet.sleep(1)
+        finally:
+            LOG.info("Closing RPC connection.")
+            self.conn.close()
 
 
 def main():

@@ -41,6 +41,7 @@ class EventServiceBase(object):
         self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)
         # TODO(ivar): heartbeat for these services?
         self.sender = event_handler.EventSender().initialize(self.conf_manager)
+        self.run_daemon_loop = True
 
     @abc.abstractmethod
     def run(self):

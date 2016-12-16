@@ -27,5 +27,5 @@ class TestEventServicePolling(base.TestEventServiceBase):
     def test_run(self):
         polling_service = polling.Poller(self.cfg_manager)
         polling_service.loop_count = 1
-        polling_service.run()
+        polling_service._poll()
         polling_service.sender.serve.assert_called_once()
