@@ -59,6 +59,10 @@ class HashTreeDbListener(object):
                             ctx, res.parent_class, res.resource_id)
                         # Pretend that the object has been deleted
                         all_updates[-1].append(parent)
+                    elif res.sync_status == res.SYNC_PENDING:
+                        parent = self.aim_manager.get_by_id(
+                            ctx, res.parent_class, res.resource_id)
+                        all_updates[1].append(parent)
                 key = self.tt_maker.get_tenant_key(res)
                 if not key:
                     continue
