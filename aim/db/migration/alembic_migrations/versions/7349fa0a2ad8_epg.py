@@ -34,10 +34,13 @@ import sqlalchemy as sa
 def upgrade():
     op.create_table(
         'aim_tenants',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256), nullable=False, default=''),
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
-        sa.PrimaryKeyConstraint('name'))
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('name', name='uniq_aim_tenant_identity'),
+        sa.Index('idx_aim_tenant_identity', 'name'))
 
     op.create_table(
         'aim_subnets',
@@ -69,7 +72,9 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_vrfs_identity'),
-        sa.Index('idx_aim_vrfs_identity', 'tenant_name', 'name'))
+        sa.Index('idx_aim_vrfs_identity', 'tenant_name', 'name'),
+        sa.ForeignKeyConstraint(
+            ['tenant_name'], ['aim_tenants.name'], name='fk_vrf_tn'))
 
     op.create_table(
         'aim_app_profiles',
@@ -81,7 +86,9 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_app_profiles_identity'),
-        sa.Index('idx_aim_app_profiles_identity', 'tenant_name', 'name'))
+        sa.Index('idx_aim_app_profiles_identity', 'tenant_name', 'name'),
+        sa.ForeignKeyConstraint(
+            ['tenant_name'], ['aim_tenants.name'], name='fk_ap_tn'))
 
     op.create_table(
         'aim_endpoint_groups',

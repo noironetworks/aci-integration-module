@@ -43,6 +43,7 @@ class TestManager(base.TestShell):
             tenant_name='tn1', app_profile_name='ap', name='epg1')
         pre_epg2 = resource.EndpointGroup(
             tenant_name='tn1', app_profile_name='ap', name='epg2')
+        self.mgr.create(self.ctx, resource.Tenant(name='tn1'))
         self.mgr.create(self.ctx, ap)
         self.mgr.create(self.ctx, pre_phys)
         self.mgr.create(self.ctx, pre_vmm)

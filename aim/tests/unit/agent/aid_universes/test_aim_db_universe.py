@@ -108,6 +108,14 @@ class TestAimDbUniverseBase(object):
     def test_get_aim_resources(self, tree_type=tree_model.CONFIG_TREE):
         tree_mgr = tree_model.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
+        t1 = resource.Tenant(name='t1')
+        t2 = resource.Tenant(name='t2')
+        t1_fault = aim_status.AciFault(
+            fault_code='101', external_identifier='uni/tn-t1/fault-101',
+            description='failure101')
+        t2_fault = aim_status.AciFault(
+            fault_code='102', external_identifier='uni/tn-t2/fault-102',
+            description='failure102')
         # Create Resources on a couple of tenants
         bd1 = resource.BridgeDomain(
             tenant_name='t1', name='bd1', display_name='somestuff',
@@ -124,8 +132,14 @@ class TestAimDbUniverseBase(object):
         if tree_type == tree_model.MONITORED_TREE:
             bd1.monitored = True
             bd2.monitored = True
+            t1.monitored = True
+            t2.monitored = True
 
+        aim_mgr.create(self.ctx, t1)
+        aim_mgr.create(self.ctx, t2)
         aim_mgr.create(self.ctx, bd1)
+        aim_mgr.set_fault(self.ctx, t1, t1_fault)
+        aim_mgr.set_fault(self.ctx, t2, t2_fault)
         aim_mgr.set_fault(self.ctx, bd1, bd1_fault)
         aim_mgr.set_fault(self.ctx, bd1, bd1_fault2)
 
@@ -143,7 +157,7 @@ class TestAimDbUniverseBase(object):
                                              diff_tn_1.get('remove', []) +
                                              diff_tn_2.get('add', []) +
                                              diff_tn_2.get('remove', []))
-        self.assertEqual(2, len(result))
+        self.assertEqual(4, len(result))
         if tree_type in [tree_model.CONFIG_TREE, tree_model.MONITORED_TREE]:
             self.assertTrue(bd1 in result)
             self.assertTrue(bd2 in result)
@@ -154,6 +168,7 @@ class TestAimDbUniverseBase(object):
     def test_cleanup_state(self, tree_type=tree_model.CONFIG_TREE):
         tree_mgr = tree_model.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
+        aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
         bd1 = resource.BridgeDomain(
             tenant_name='t1', name='bd1', display_name='somestuff',
             vrf_name='vrf')
@@ -170,6 +185,7 @@ class TestAimDbUniverseBase(object):
 
     def test_push_resources(self):
         aim_mgr = aim_manager.AimManager()
+        aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
         ap = self._get_example_aci_app_profile(dn='uni/tn-t1/ap-a1')
         ap_aim = resource.ApplicationProfile(tenant_name='t1', name='a1')
         epg = self._get_example_aci_epg(
@@ -222,20 +238,30 @@ class TestAimDbUniverseBase(object):
                                       'delete': status.faults})
         status = aim_mgr.get_status(self.ctx, subj)
         self.assertEqual(0, len(status.faults))
-
+        # Managed epg
+        managed_epg = resource.EndpointGroup(
+            tenant_name='t1', app_profile_name='a1', name='managed')
+        aim_mgr.create(self.ctx, managed_epg)
         # Delete AP before EPG (AP can't be deleted)
         self.universe.push_resources({'create': [],
-                                      'delete': [ap_aim, epg_aim]})
-        res = aim_mgr.get(self.ctx, epg_aim)
+                                      'delete': [ap_aim, managed_epg]})
+        res = aim_mgr.get(self.ctx, managed_epg)
         self.assertIsNone(res)
         res = aim_mgr.get(self.ctx, ap_aim)
         self.assertIsNotNone(res)
 
-        # Second time around, AP deletion works
+        # Second time around, AP deletion  with monitored child works
+        epg_aim = aim_mgr.get(self.ctx, epg_aim)
         self.universe.push_resources({'create': [],
-                                      'delete': [ap_aim]})
+                                      'delete': [ap_aim, epg_aim]})
         res = aim_mgr.get(self.ctx, ap_aim)
-        self.assertIsNone(res)
+        if epg_aim.monitored:
+            self.assertIsNone(res)
+        else:
+            self.assertIsNotNone(res)
+            self.universe.push_resources({'create': [], 'delete': [ap_aim]})
+            res = aim_mgr.get(self.ctx, ap_aim)
+            self.assertIsNone(res)
 
 
 class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):

@@ -423,6 +423,7 @@ class TestTenantMixin(object):
 
 
 class TestBridgeDomainMixin(object):
+    prereq_objects = [resource.Tenant(name='tenant1')]
     resource_class = resource.BridgeDomain
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'net1'}
@@ -462,6 +463,7 @@ class TestAgentMixin(object):
 
 class TestSubnetMixin(object):
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.BridgeDomain(tenant_name='tenant1', name='net1')]
     gw_ip = resource.Subnet.to_gw_ip_mask('192.168.10.1', 28)
     resource_class = resource.Subnet
@@ -482,6 +484,7 @@ class TestSubnetMixin(object):
 
 class TestVRFMixin(object):
     resource_class = resource.VRF
+    prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'shared'}
     test_required_attributes = {'tenant_name': 'tenant1',
@@ -498,6 +501,7 @@ class TestVRFMixin(object):
 
 class TestApplicationProfileMixin(object):
     resource_class = resource.ApplicationProfile
+    prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'lab'}
     test_required_attributes = {'tenant_name': 'tenant1',
@@ -512,6 +516,7 @@ class TestApplicationProfileMixin(object):
 class TestEndpointGroupMixin(object):
     resource_class = resource.EndpointGroup
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
         resource.VMMDomain(type='OpenStack', name='openstack'),
         resource.PhysicalDomain(name='phys')]
@@ -557,6 +562,7 @@ class TestEndpointGroupMixin(object):
 
 class TestFilterMixin(object):
     resource_class = resource.Filter
+    prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'filter1'}
     test_required_attributes = {'tenant_name': 'tenant1',
@@ -571,6 +577,7 @@ class TestFilterMixin(object):
 class TestFilterEntryMixin(object):
     resource_class = resource.FilterEntry
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.Filter(tenant_name='tenant1', name='filter1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'filter_name': 'filter1',
@@ -606,6 +613,7 @@ class TestFilterEntryMixin(object):
 
 class TestContractMixin(object):
     resource_class = resource.Contract
+    prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'contract1'}
     test_required_attributes = {'tenant_name': 'tenant1',
@@ -621,6 +629,7 @@ class TestContractMixin(object):
 class TestContractSubjectMixin(object):
     resource_class = resource.ContractSubject
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.Contract(tenant_name='tenant1', name='contract1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'contract_name': 'contract1',
@@ -644,6 +653,7 @@ class TestContractSubjectMixin(object):
 class TestEndpointMixin(object):
     resource_class = resource.Endpoint
     prereq_objects = [
+        resource.Tenant(name='t1'),
         resource.ApplicationProfile(tenant_name='t1', name='lab'),
         resource.ApplicationProfile(tenant_name='t1', name='dept'),
         resource.EndpointGroup(tenant_name='t1', app_profile_name='lab',
@@ -686,6 +696,7 @@ class TestPhysicalDomainMixin(object):
 
 class TestL3OutsideMixin(object):
     resource_class = resource.L3Outside
+    prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'l3out1'}
     test_required_attributes = {'tenant_name': 'tenant1',
@@ -702,6 +713,7 @@ class TestL3OutsideMixin(object):
 class TestExternalNetworkMixin(object):
     resource_class = resource.ExternalNetwork
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.L3Outside(tenant_name='tenant1', name='l3out1',
                            vrf_name='ctx1', l3_domain_dn='uni/foo')]
     test_identity_attributes = {'tenant_name': 'tenant1',
@@ -726,6 +738,7 @@ class TestExternalNetworkMixin(object):
 class TestExternalSubnetMixin(object):
     resource_class = resource.ExternalSubnet
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.L3Outside(tenant_name='tenant1', name='l3out1'),
         resource.ExternalNetwork(tenant_name='tenant1', l3out_name='l3out1',
                                  name='net1')]
