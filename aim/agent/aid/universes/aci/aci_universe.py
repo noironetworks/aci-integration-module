@@ -275,15 +275,12 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # TODO(IVAR): unnecessary things will be removed once apicapi gets its
         # own refactor.
         return apic_client.RestClient(
-            logging,
-            apic_config.get_option('apic_system_id'),
+            logging, '',
             apic_config.get_option('apic_hosts', group='apic'),
             apic_config.get_option('apic_username', group='apic'),
             apic_config.get_option('apic_password', group='apic'),
             apic_config.get_option('apic_use_ssl', group='apic'),
-            scope_names=apic_config.get_option('scope_names', group='apic'),
-            scope_infra=apic_config.get_option('scope_infra', group='apic'),
-            renew_names=False,
+            scope_names=False, scope_infra=False, renew_names=False,
             verify=apic_config.get_option('verify_ssl_certificate',
                                           group='apic'),
             request_timeout=apic_config.get_option('apic_request_timeout',

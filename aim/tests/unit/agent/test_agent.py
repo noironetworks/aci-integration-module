@@ -131,7 +131,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._tree_to_event(child, result, dn, manager)
 
     def _create_agent(self, host='h1'):
-        self.set_override('host', host)
+        self.set_override('aim_service_identifier', host, 'aim')
         aid = service.AID(config.CONF)
         session = aci_universe.AciUniverse.establish_aci_session(
             self.cfg_manager)

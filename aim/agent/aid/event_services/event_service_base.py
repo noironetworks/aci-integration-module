@@ -28,14 +28,13 @@ from aim.db import api
 
 LOG = logging.getLogger(__name__)
 logging.register_options(aim_cfg.CONF)
-aim_cfg.CONF.register_opts(aim_cfg.common_opts)
 
 
 @six.add_metaclass(abc.ABCMeta)
 class EventServiceBase(object):
 
     def __init__(self, conf):
-        self.host = conf.host
+        self.host = aim_cfg.CONF.aim.aim_service_identifier
         self.session = api.get_session()
         self.context = context.AimContext(self.session)
         self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)

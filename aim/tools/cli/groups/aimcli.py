@@ -35,7 +35,7 @@ db_opts = [
 
 @click.group()
 @click.option('--config-file', '-c', multiple=True,
-              default=['/etc/aim/aim.conf'],
+              default=['/etc/aim/aim.conf', '/etc/aim/aimctl.conf'],
               help='AIM static configuration file')
 @click.option('--debug', '-d', is_flag=True)
 @click.pass_context

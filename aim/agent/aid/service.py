@@ -44,14 +44,13 @@ DESIRED = 'desired'
 CURRENT = 'current'
 
 logging.register_options(aim_cfg.CONF)
-aim_cfg.CONF.register_opts(aim_cfg.common_opts)
 
 
 class AID(object):
 
     def __init__(self, conf):
         self.run_daemon_loop = True
-        self.host = conf.host
+        self.host = conf.aim.aim_service_identifier
         self.session = api.get_session()
         self.context = context.AimContext(self.session)
         self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)

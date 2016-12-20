@@ -32,18 +32,6 @@ from aim import exceptions as exc
 
 LOG = logging.getLogger(__name__)
 
-global_opts = [
-    cfg.StrOpt('apic_system_id',
-               default='openstack',
-               help="Prefix for APIC domain/names/profiles created"),
-]
-
-
-common_opts = [
-    cfg.StrOpt('host', default=socket.gethostname(),
-               help="Host where this agent/controller is running")
-]
-
 
 agent_opts = [
     cfg.IntOpt('agent_down_time', default=75,
@@ -84,8 +72,12 @@ agent_opts = [
     cfg.BoolOpt('recovery_restart', default=True,
                 help=("Set to True if you want the agents to exit in critical "
                       "situations.")),
+    cfg.StrOpt('aim_service_identifier', default=socket.gethostname(),
+               help="(Restart Required) Identifier for this specific AID "
+                    "service, defaults to the hostname."),
 ]
 
+# TODO(ivar): move into AIM section
 event_service_polling_opts = [
     cfg.FloatOpt('service_polling_interval', default=10,
                  help=("Number of seconds or fraction of it that the polling "
@@ -122,7 +114,6 @@ class ConfigManager(object):
             apic_config.apic_opts + apic_config.apic_opts_from_ml2},
         'aim': {
             x.dest: x for x in agent_opts},
-        'default': {x.dest: x for x in global_opts},
         'aim_event_service_polling': {x.dest: x for x in
                                       event_service_polling_opts}
     }
@@ -246,8 +237,7 @@ class ConfigManager(object):
             return
         self.subs_mgr.register_callback(callback, item, group, host, version)
 
-    def get_option_and_subscribe(self, callback, item, group='default',
-                                 host=None):
+    def get_option_and_subscribe(self, callback, item, group='aim', host=None):
         host = host or self.host
         opt = self._get_option(item, group, host)
         self.option_subscribe(callback, item, group, host, opt['version'])
