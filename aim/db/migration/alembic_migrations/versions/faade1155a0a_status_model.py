@@ -40,7 +40,7 @@ def upgrade():
         sa.Column('resource_type', sa.String(255), nullable=False),
         sa.Column('resource_id', sa.Integer, nullable=False),
         sa.Column('sync_status', sa.String(50), nullable=True),
-        sa.Column('sync_message', sa.String(255), default=''),
+        sa.Column('sync_message', sa.TEXT, default=''),
         sa.Column('health_score', sa.Integer),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('resource_type', 'resource_id',
