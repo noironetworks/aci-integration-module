@@ -23,14 +23,14 @@ import gevent
 from oslo_config import cfg
 from oslo_log import log as logging
 
-
+LOG = logging.getLogger(__name__)
 AIM_LOCK_PREFIX = 'aim_lock'
 OPENSTACK_VMM_TYPE = 'OpenStack'
 
 
 def log(method):
     """Decorator helping to log method calls."""
-    LOG = logging.getLogger(method.__module__)
+    _LOG = logging.getLogger(method.__module__)
 
     @functools.wraps(method)
     def wrapper(*args, **kwargs):
@@ -39,8 +39,8 @@ def log(method):
                                          instance.__class__.__name__),
                 "method_name": method.__name__,
                 "args": args[1:], "kwargs": kwargs}
-        LOG.debug('%(class_name)s method %(method_name)s'
-                  ' called with arguments %(args)s %(kwargs)s', data)
+        _LOG.debug('%(class_name)s method %(method_name)s'
+                   ' called with arguments %(args)s %(kwargs)s', data)
         return method(*args, **kwargs)
     return wrapper
 
@@ -82,6 +82,7 @@ class Counter(object):
 def exponential_backoff(max_time, tentative=None):
     tentative = tentative or Counter()
     sleep_time_secs = min(random.random() * (2 ** tentative.get()), max_time)
+    LOG.debug('Sleeping for %s seconds' % sleep_time_secs)
     gevent.sleep(sleep_time_secs)
     tentative.increment()
     return tentative
