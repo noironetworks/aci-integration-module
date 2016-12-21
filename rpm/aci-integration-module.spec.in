@@ -49,6 +49,7 @@ rm -rf %{buildroot}%{python2_sitelib}/aim/tests
 %{_bindir}/aim-event-service-polling
 %{_bindir}/aim-event-service-rpc
 %config(noreplace) %{_sysconfdir}/aim/aim.conf
+%config(noreplace) %{_sysconfdir}/aim/aimctl.conf
 %{_unitdir}/aim-aid.service
 %{_unitdir}/aim-event-service-polling.service
 %{_unitdir}/aim-event-service-rpc.service

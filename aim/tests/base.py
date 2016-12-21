@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import logging      # noqa
+import logging  # noqa
 import os
 
 from oslo_config import cfg
@@ -28,18 +28,9 @@ from aim import context
 from aim.db import api
 from aim.db import model_base
 
-
-global_opts = [
-    cfg.StrOpt('apic_system_id',
-               default='openstack',
-               help="Prefix for APIC domain/names/profiles created"),
-]
-
-
 CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
-CONF.register_opts(global_opts)
 o_log.register_options(aim_cfg.CONF)
 
 
