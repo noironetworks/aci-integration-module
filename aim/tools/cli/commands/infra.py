@@ -29,7 +29,7 @@ def get_apic_manager():
     network_config = {
         'vlan_ranges': apic_config.vlan_ranges,
         'switch_dict': cfg.create_switch_dictionary(),
-        'vpc_dict': cfg.create_vpc_dictionary(),
+        'vpc_dict': cfg.create_vpc_dictionary(apic_config),
         'external_network_dict': cfg.create_external_network_dictionary(),
     }
     db = noop_manager.NoopDbModel()

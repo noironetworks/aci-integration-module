@@ -21,16 +21,11 @@ from click import exceptions as exc
 import logging
 
 
-db_opts = [
-    config.cfg.StrOpt('connection',
-                      deprecated_name='sql_connection',
-                      default='',
-                      secret=True,
-                      help='URL to database'),
-    config.cfg.StrOpt('engine', default='',
-                      help='Database engine for which script will be '
-                           'generated when using offline migration.'),
+global_opts = [
+    config.cfg.StrOpt('apic_system_id',
+                      help="Prefix for APIC domain/names/profiles created"),
 ]
+config.CONF.register_opts(global_opts)
 
 
 @click.group()
@@ -47,6 +42,7 @@ def aim(ctx, config_file, debug):
         logging.getLogger().setLevel(logging.INFO)
     if ctx.obj is None:
         ctx.obj = {}
+
     args = []
     if config_file:
         for file in config_file:
