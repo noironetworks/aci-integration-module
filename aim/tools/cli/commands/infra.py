@@ -17,10 +17,13 @@ import click
 
 from apicapi import apic_manager
 from apicapi import config as cfg
-from apicapi.db import noop_manager
 from oslo_log import log as logging
 
+from aim import aim_manager
 from aim import config
+from aim import context
+from aim.db import api
+from aim.db import infra_model
 from aim.tools.cli.groups import aimcli
 
 
@@ -32,7 +35,10 @@ def get_apic_manager():
         'vpc_dict': cfg.create_vpc_dictionary(apic_config),
         'external_network_dict': cfg.create_external_network_dictionary(),
     }
-    db = noop_manager.NoopDbModel()
+    session = api.get_session()
+    aim_ctx = context.AimContext(db_session=session)
+    manager = aim_manager.AimManager()
+    db = infra_model.HostLinkManager(aim_ctx, manager)
     apic_system_id = config.CONF.apic_system_id
     return apic_manager.APICManager(db, logging, network_config, apic_config,
                                     None, None, apic_system_id)
