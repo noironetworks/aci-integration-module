@@ -271,6 +271,9 @@ class NatStrategyMixin(NatStrategy):
         """Create NAT EPG etc. in addition to creating L3Out."""
 
         with ctx.db_session.begin(subtransactions=True):
+            tenant = resource.Tenant(name=l3out.tenant_name)
+            if not self.mgr.get(ctx, tenant):
+                self.mgr.create(ctx, tenant)
             l3out_db = self.mgr.get(ctx, l3out)
             if not l3out_db:
                 l3out_db = self.mgr.create(ctx, l3out)

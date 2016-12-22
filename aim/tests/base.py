@@ -27,6 +27,7 @@ from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim.db import model_base
+from aim.tools.cli import shell  # noqa
 
 CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
