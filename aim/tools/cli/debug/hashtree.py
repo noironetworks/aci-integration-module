@@ -58,10 +58,13 @@ def dump(ctx, tenant, flavor):
     for t in tenants:
         try:
             tree = tenant_tree_mgr.get(aim_ctx, t, tree=search)
-            click.echo('Tenant: %s' % t)
-            click.echo(json.dumps(tree.root.to_dict(), indent=2))
+            if tree and tree.root:
+                click.echo('%s for tenant %s:' % (search.__name__, t))
+                click.echo(json.dumps(tree.root.to_dict(), indent=2))
+            else:
+                click.echo('%s not found for tenant %s' % (search.__name__, t))
         except h_exc.HashTreeNotFound:
-            click.echo('Tree not found for tenant %s' % t)
+            click.echo('%s not found for tenant %s' % (search.__name__, t))
 
 
 @hashtree.command(name='reset')

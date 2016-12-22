@@ -60,14 +60,13 @@ class TestShell(base.TestAimDBBase):
     def _verify_db_manager_params(self, db_manager):
         self.assertTrue(db_manager.called)
         param = db_manager.call_args_list[0][0][0]
-        self.assertEqual(3, len(param))
+        self.assertEqual(2, len(param))
         self.assertTrue(
             param['alembic_repo_path'].endswith(
                 'aim/db/migration/alembic_migrations'))
         self.assertTrue(
             param['alembic_ini_path'].endswith(
                 'aim/db/migration/alembic.ini'))
-        self.assertEqual('sqlite://', param['db_url'])
 
 
 class TestDebugShell(TestShell):
