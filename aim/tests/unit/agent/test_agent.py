@@ -562,10 +562,19 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         aim_sub = resource.Subnet(tenant_name=tenant_name, bd_name='bd1',
                                   gw_ip_mask='10.10.10.1/28')
         aim_sub = self.aim_manager.get(self.ctx, aim_sub)
+        # Create a managed sub
+        aim_sub2 = resource.Subnet(tenant_name=tenant_name, bd_name='bd1',
+                                   gw_ip_mask='10.10.11.1/28')
+        aim_sub2 = self.aim_manager.create(self.ctx, aim_sub2)
         self.assertTrue(aim_sub.monitored)
+        self.assertFalse(aim_sub2.monitored)
         # deleting the BD from aim fails because of FK
         self.assertRaises(exception.DBReferenceError, self.aim_manager.delete,
                           self.ctx, bd1)
+        # now delete managed sub
+        self.aim_manager.delete(self.ctx, aim_sub2)
+        # Deleting BD will now work
+        self.aim_manager.delete(self.ctx, bd1)
 
     def test_monitored_tree_serve_semantics(self):
         agent = self._create_agent()
@@ -616,6 +625,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe
         agent._daemon_loop()
         # Delete the tenant on AIM, agents should stop watching it
+        # TODO(ivar): delete monitored children
         self.aim_manager.delete(self.ctx, tn1)
         # This loop will have a consensus for deleting Tenant tn1
         agent._daemon_loop()

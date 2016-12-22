@@ -98,6 +98,7 @@ class TestNatStrategyBase(object):
                                 physical_domain_names=['phys'])]
 
     def test_l3outside(self):
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
         res = self.ns.create_l3outside(self.ctx, l3out)
@@ -117,6 +118,7 @@ class TestNatStrategyBase(object):
         self.assertEqual([], get_objs)
 
     def test_l3outside_multiple(self):
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
         l3out1 = a_res.L3Outside(tenant_name='t1', name='o1',
                                  display_name='OUT')
         self.ns.create_l3outside(self.ctx, l3out1)
@@ -152,6 +154,7 @@ class TestNatStrategyBase(object):
         self._verify(present=[l3out], absent=other_objs)
 
     def test_subnet(self):
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
         self.ns.create_l3outside(self.ctx, l3out)
@@ -172,6 +175,7 @@ class TestNatStrategyBase(object):
                                              '200.10.20.1/28'))
 
     def test_external_network(self):
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
         self.ns.create_l3outside(self.ctx, l3out)
@@ -221,6 +225,9 @@ class TestNatStrategyBase(object):
         ext_net = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
             display_name='INET1')
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept2'))
         self.ns.create_l3outside(self.ctx, l3out)
         self.ns.create_external_network(self.ctx, ext_net)
         self.ns.update_external_cidrs(self.ctx, ext_net,
@@ -264,6 +271,8 @@ class TestNatStrategyBase(object):
         ext_net = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
             display_name='INET1')
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
         self.ns.create_l3outside(self.ctx, l3out)
         self.ns.create_external_network(self.ctx, ext_net)
 
@@ -294,6 +303,8 @@ class TestNatStrategyBase(object):
         ext_net = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
             display_name='INET1')
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
         self.ns.create_l3outside(self.ctx, l3out)
         self.ns.create_external_network(self.ctx, ext_net)
         self.ns.update_external_cidrs(self.ctx, ext_net,
@@ -323,6 +334,9 @@ class TestNatStrategyBase(object):
         ext_net1 = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
             display_name='INET1')
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='t2'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
         self.ns.create_l3outside(self.ctx, l3out1)
         self.ns.create_external_network(self.ctx, ext_net1)
         self.ns.update_external_cidrs(self. ctx, ext_net1,
@@ -364,6 +378,9 @@ class TestNatStrategyBase(object):
         ext_net = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
             display_name='INET1')
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept2'))
         self.ns.create_l3outside(self.ctx, l3out)
         self.ns.create_external_network(self.ctx, ext_net)
         self.ns.update_external_cidrs(self. ctx, ext_net,
@@ -389,6 +406,8 @@ class TestNatStrategyBase(object):
         self._check_delete_ext_net_with_vrf('stage2')
 
     def test_delete_l3outside_with_vrf(self):
+        self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
+        self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
         ext_net = a_res.ExternalNetwork(

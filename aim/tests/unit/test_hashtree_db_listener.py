@@ -212,14 +212,18 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                 tenant_name=tn_name, app_profile_name='ap', name='epg',
                 bd_name='some')
             # Add Tenant and AP
+            self.mgr.create(self.ctx, aim_res.Tenant(name=tn_name))
+            # Called twice, one for tenant and one for Fault
+            exp_calls = [
+                mock.call(mock.ANY, 'serve', None),
+                mock.call(mock.ANY, 'reconcile', None)]
+            self._check_call_list(exp_calls, cast)
             self.mgr.create(self.ctx, tn)
-            cast.assert_called_once_with(mock.ANY, 'serve', None)
             cast.reset_mock()
             self.mgr.create(self.ctx, ap)
             self.mgr.create(self.ctx, epg)
             # Create AP will create tenant, create EPG will modify it
             exp_calls = [
-                mock.call(mock.ANY, 'serve', None),
                 mock.call(mock.ANY, 'reconcile', None),
                 mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)

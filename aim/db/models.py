@@ -33,12 +33,14 @@ def uniq_column(table, *args, **kwargs):
 
 
 class Tenant(model_base.Base, model_base.HasDisplayName,
-             model_base.AttributeMixin, model_base.IsMonitored):
+             model_base.HasAimId,
+             model_base.AttributeMixin, model_base.IsMonitored,
+             model_base.HasName):
     """DB model for Tenant."""
 
     __tablename__ = 'aim_tenants'
-
-    name = model_base.name_column(primary_key=True)
+    __table_args__ = (uniq_column(__tablename__, 'name') +
+                      to_tuple(model_base.Base.__table_args__))
 
 
 class BridgeDomainL3Out(model_base.Base):
@@ -60,6 +62,9 @@ class BridgeDomain(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_bridge_domains'
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      (sa.ForeignKeyConstraint(
+                          ['tenant_name'], ['aim_tenants.name'],
+                          name='fk_db_tn'),) +
                       to_tuple(model_base.Base.__table_args__))
 
     vrf_name = model_base.name_column()
@@ -119,6 +124,9 @@ class VRF(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_vrfs'
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      (sa.ForeignKeyConstraint(
+                          ['tenant_name'], ['aim_tenants.name'],
+                          name='fk_vrf_tn'),) +
                       to_tuple(model_base.Base.__table_args__))
 
     policy_enforcement_pref = sa.Column(sa.String(16))
@@ -133,6 +141,9 @@ class ApplicationProfile(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_app_profiles'
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      (sa.ForeignKeyConstraint(
+                          ['tenant_name'], ['aim_tenants.name'],
+                          name='fk_ap_tn'),) +
                       to_tuple(model_base.Base.__table_args__))
 
 
@@ -328,6 +339,9 @@ class Filter(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_filters'
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      (sa.ForeignKeyConstraint(
+                          ['tenant_name'], ['aim_tenants.name'],
+                          name='fk_flt_tn'),) +
                       to_tuple(model_base.Base.__table_args__))
 
 
@@ -370,6 +384,9 @@ class Contract(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_contracts'
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      (sa.ForeignKeyConstraint(
+                          ['tenant_name'], ['aim_tenants.name'],
+                          name='fk_brc_tn'),) +
                       to_tuple(model_base.Base.__table_args__))
 
     scope = sa.Column(sa.String(24))
@@ -470,6 +487,9 @@ class L3Outside(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_l3outsides'
     __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      (sa.ForeignKeyConstraint(
+                          ['tenant_name'], ['aim_tenants.name'],
+                          name='fk_l3o_tn'),) +
                       to_tuple(model_base.Base.__table_args__))
 
     vrf_name = model_base.name_column()

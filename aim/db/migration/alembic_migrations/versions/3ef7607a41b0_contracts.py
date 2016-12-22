@@ -42,7 +42,9 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_filters_identity'),
-        sa.Index('idx_aim_filters_identity', 'tenant_name', 'name'))
+        sa.Index('idx_aim_filters_identity', 'tenant_name', 'name'),
+        sa.ForeignKeyConstraint(
+            ['tenant_name'], ['aim_tenants.name'], name='fk_flt_tn'))
 
     op.create_table(
         'aim_filter_entries',
@@ -85,7 +87,9 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_contracts_identity'),
-        sa.Index('idx_aim_contracts_identity', 'tenant_name', 'name'))
+        sa.Index('idx_aim_contracts_identity', 'tenant_name', 'name'),
+        sa.ForeignKeyConstraint(
+            ['tenant_name'], ['aim_tenants.name'], name='fk_brc_tn'))
 
     op.create_table(
         'aim_contract_subjects',

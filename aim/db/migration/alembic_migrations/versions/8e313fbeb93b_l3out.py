@@ -53,7 +53,9 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_l3outsides_identity'),
-        sa.Index('idx_aim_l3outsides_identity', 'tenant_name', 'name'))
+        sa.Index('idx_aim_l3outsides_identity', 'tenant_name', 'name'),
+        sa.ForeignKeyConstraint(
+            ['tenant_name'], ['aim_tenants.name'], name='fk_l3o_tn'))
 
     op.create_table(
         'aim_external_networks',

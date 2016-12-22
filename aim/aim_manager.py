@@ -155,6 +155,10 @@ class AimManager(object):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
                 if isinstance(resource, api_res.AciResourceBase):
+                    # Recursively delete monitored children
+                    for child_res in self._iter_children(context, resource,
+                                                         monitored=True):
+                        self.delete(context, child_res)
                     status = self.get_status(context, resource)
                     if status:
                         for fault in status.faults:
@@ -276,13 +280,8 @@ class AimManager(object):
                         parent_klass.identity_attributes)}
                     self.set_resource_sync_pending(context,
                                                    parent_klass(**identity))
-                for child_klass in self._model_tree.get(
-                        type(resource), []):
-                    identity = {child_klass.identity_attributes[i]: v
-                                for i, v in enumerate(resource.identity)}
-                    for child_res in self.find(context, child_klass,
-                                               **identity):
-                        self.set_resource_sync_pending(context, child_res)
+                for child_res in self._iter_children(context, resource):
+                    self.set_resource_sync_pending(context, child_res)
 
     def set_resource_sync_error(self, context, resource, message=''):
         with context.db_session.begin(subtransactions=True):
@@ -292,16 +291,11 @@ class AimManager(object):
                     message=message,
                     exclude=[api_status.AciStatus.SYNC_FAILED]):
                 # Set sync_error for the whole subtree
-                for child_klass in self._model_tree.get(
-                        type(resource), []):
-                    identity = {child_klass.identity_attributes[i]: v
-                                for i, v in enumerate(resource.identity)}
-                    for child_res in self.find(context, child_klass,
-                                               **identity):
-                        self.set_resource_sync_error(
-                            context, child_res,
-                            message="Parent resource %s is "
-                                    "in error state" % str(resource))
+                for child_res in self._iter_children(context, resource):
+                    self.set_resource_sync_error(
+                        context, child_res,
+                        message="Parent resource %s is "
+                                "in error state" % str(resource))
 
     def set_fault(self, context, resource, fault):
         with context.db_session.begin(subtransactions=True):
@@ -424,3 +418,14 @@ class AimManager(object):
                      res_type)
             return None, None
         return res_type, res_id
+
+    def _iter_children(self, context, resource, **kwargs):
+        for child_klass in self._model_tree.get(
+                type(resource), []):
+            identity = {child_klass.identity_attributes[i]: v
+                        for i, v in enumerate(resource.identity)}
+            # Extra search attributes
+            identity.update(kwargs)
+            for child_res in self.find(context, child_klass,
+                                       **identity):
+                yield child_res

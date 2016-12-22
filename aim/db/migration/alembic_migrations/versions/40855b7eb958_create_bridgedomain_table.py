@@ -48,7 +48,9 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_bridge_domains_identity'),
-        sa.Index('idx_aim_bridge_domains_identity', 'tenant_name', 'name'))
+        sa.Index('idx_aim_bridge_domains_identity', 'tenant_name', 'name'),
+        sa.ForeignKeyConstraint(
+            ['tenant_name'], ['aim_tenants.name'], name='fk_bd_tn'))
 
 
 def downgrade():
