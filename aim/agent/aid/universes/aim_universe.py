@@ -22,6 +22,7 @@ from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
+from aim.common import utils
 from aim import context
 from aim.db import tree_model
 from aim import exceptions as aim_exc
@@ -45,6 +46,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._converter = converter.AciToAimModelConverter()
         self._converter_aim_to_aci = converter.AimToAciModelConverter()
         self._served_tenants = set()
+        self._monitored_state_update_failures = 0
+        self._max_monitored_state_update_failures = 5
         return self
 
     @property
@@ -188,6 +191,14 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                 # Resources
                                 continue
                             self.manager.delete(self.context, resource)
+                except aim_exc.InvalidMonitoredStateUpdate as e:
+                    msg = ("Failed to %s object %s in AIM: %s." %
+                           (method, resource, e.message))
+                    LOG.error(msg)
+                    self._monitored_state_update_failures += 1
+                    if (self._monitored_state_update_failures >
+                            self._max_monitored_state_update_failures):
+                        utils.perform_harakiri(LOG, msg)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, e.message))
@@ -199,6 +210,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     # operation for resync be triggered?)
                     if method == 'delete':
                         self.deletion_failed(resource)
+                else:
+                    self._monitored_state_update_failures = 0
 
     def _retrieve_fault_parent(self, fault):
         external = fault.external_identifier
