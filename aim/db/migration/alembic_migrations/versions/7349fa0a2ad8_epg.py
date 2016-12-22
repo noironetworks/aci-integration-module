@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Create table for tenant, subnet, vrf, app-profile and EPG.
+"""Create table for subnet, vrf, app-profile and EPG.
 
 Revision ID: 7349fa0a2ad8
 Revises: accfe645090a
@@ -32,16 +32,6 @@ import sqlalchemy as sa
 
 
 def upgrade():
-    op.create_table(
-        'aim_tenants',
-        sa.Column('aim_id', sa.Integer, autoincrement=True),
-        sa.Column('name', sa.String(64), nullable=False),
-        sa.Column('display_name', sa.String(256), nullable=False, default=''),
-        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
-        sa.PrimaryKeyConstraint('aim_id'),
-        sa.UniqueConstraint('name', name='uniq_aim_tenant_identity'),
-        sa.Index('idx_aim_tenant_identity', 'name'))
-
     op.create_table(
         'aim_subnets',
         sa.Column('aim_id', sa.Integer, autoincrement=True),
