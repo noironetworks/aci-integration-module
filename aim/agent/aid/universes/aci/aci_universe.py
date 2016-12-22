@@ -15,12 +15,14 @@
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
+import gevent
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource
+from aim.common import utils
 from aim import exceptions
 
 
@@ -64,6 +66,14 @@ class WebSocketContext(object):
         self.ws_urls = ['%s://%s' % (protocol, host) for host in
                         self.apic_hosts]
         self.establish_ws_session()
+        self.monitor_runs = float('inf')
+        self._spawn_monitors()
+
+    def _spawn_monitors(self):
+        gevent.spawn(self._thread_monitor, self.session.login_thread,
+                     'login_thread')
+        gevent.spawn(self._thread_monitor, self.session.subscription_thread,
+                     'subscription_thread')
 
     def _reload_websocket_config(self):
         # Don't subscribe in this case
@@ -115,6 +125,28 @@ class WebSocketContext(object):
         if self.session.session:
             self.session.close()
         self.establish_ws_session()
+
+    def _thread_monitor(self, thread, name):
+        # REVISIT(ivar): I could have used thread.join instead of this, but
+        # using gevent together with acitoolkit's standard threading doesn't
+        # seem to work very well. We should look at moving to something common
+        # (like eventlet monkey patch).
+        LOG.debug("Monitoring thread %s" % name)
+        try:
+            while self.monitor_runs:
+                if not thread.isAlive():
+                    utils.perform_harakiri(
+                        LOG, "Critical thread %s stopped working" % name)
+                else:
+                    LOG.debug("Thread %s is in good shape" % name)
+                gevent.sleep(10)
+                # for testing purposes
+                self.monitor_runs -= 1
+        except Exception as e:
+            msg = ("Unknown error in thread monitor "
+                   "for %s: %s" % (name, e.message))
+            LOG.error(msg)
+            utils.perform_harakiri(LOG, msg)
 
 
 def get_websocket_context(apic_config):
