@@ -18,6 +18,7 @@ import mock
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.common.hashtree import structured_tree
+from aim.common import utils
 from aim import config as aim_cfg
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
@@ -47,6 +48,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.is_warm',
             return_value=True)
         self.mock_is_warm.start()
+
         aci_tenant.AciTenantManager.health_state = True
         aci_tenant.AciTenantManager.kill = _kill_thread
         self.addCleanup(self.mock_start.stop)
@@ -242,6 +244,18 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         current_ws = self.universe.ws_context.session
         self.set_override('apic_hosts', ['3.1.1.1'], 'apic')
         self.assertTrue(current_ws is self.universe.ws_context.session)
+
+    def test_thread_monitor(self):
+        self.universe.ws_context.monitor_runs = 1
+        t = mock.Mock()
+        t.isAlive = mock.Mock(return_value=False)
+        with mock.patch.object(utils, 'perform_harakiri') as harakiri:
+            self.universe.ws_context._thread_monitor(t, 'test')
+            harakiri.assert_called_once_with(mock.ANY, mock.ANY)
+            harakiri.reset_mock()
+            t.isAlive = mock.Mock(return_value=True)
+            self.universe.ws_context._thread_monitor(t, 'test')
+            self.assertEqual(0, harakiri.call_count)
 
 
 class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):

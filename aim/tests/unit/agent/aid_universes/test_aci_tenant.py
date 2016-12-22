@@ -335,6 +335,11 @@ class TestAciClientMixin(object):
                 self._remove_server_data([event], manager=manager)
 
     def _do_aci_mocks(self):
+        self.monitors = mock.patch(
+            'aim.agent.aid.universes.aci.aci_universe.WebSocketContext.'
+            '_spawn_monitors')
+        self.monitors.start()
+
         self.set_override('apic_hosts', ['1.1.1.1'], 'apic')
         self.ws_login = mock.patch('acitoolkit.acitoolkit.Session.login')
         self.ws_login.start()
@@ -370,6 +375,7 @@ class TestAciClientMixin(object):
         self.addCleanup(self.process_q.stop)
         self.addCleanup(self.post_body.stop)
         self.addCleanup(self.delete.stop)
+        self.addCleanup(self.monitors.stop)
 
 
 class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
