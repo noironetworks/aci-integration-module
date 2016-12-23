@@ -443,8 +443,8 @@ class ConfigSubscriber(gevent.Greenlet):
         configs = {}
         # Copy the sub dictionary which might change during the iteration
         for group, items in copy.copy(self.subscription_map).iteritems():
-            for item, callbacks in items.iteritems():
-                for call_id, values in callbacks.iteritems():
+            for item, callbacks in copy.copy(items).iteritems():
+                for call_id, values in copy.copy(callbacks).iteritems():
                     for host in values['hosts']:
                         try:
                             # TODO(ivar): optimize to make a single DB call

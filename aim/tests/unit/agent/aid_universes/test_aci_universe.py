@@ -246,11 +246,17 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.assertTrue(current_ws is self.universe.ws_context.session)
 
     def test_thread_monitor(self):
-        self.universe.ws_context.monitor_runs = 1
+        self.set_override('apic_hosts', ['3.1.1.1', '3.1.1.2', '3.1.1.3'],
+                          'apic')
+        self.universe.ws_context._reload_websocket_config()
+        self.universe.ws_context.monitor_runs = 4
+        self.universe.ws_context.monitor_max_backoff = 0
+        self.universe.ws_context.monitor_sleep_time = 0
         t = mock.Mock()
         t.isAlive = mock.Mock(return_value=False)
         with mock.patch.object(utils, 'perform_harakiri') as harakiri:
             self.universe.ws_context._thread_monitor(t, 'test')
+            self.assertEqual(4, t.isAlive.call_count)
             harakiri.assert_called_once_with(mock.ANY, mock.ANY)
             harakiri.reset_mock()
             t.isAlive = mock.Mock(return_value=True)

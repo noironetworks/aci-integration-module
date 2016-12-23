@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
+
 from acitoolkit import acitoolkit
 from apicapi import apic_client
 import gevent
@@ -41,7 +43,7 @@ ws_context = None
 
 
 class WebSocketSessionLoginFailed(exceptions.AimException):
-    message = ("Web socket session failed to login for tenant %(tn_name)s "
+    message = ("Web socket session failed to login "
                "with error %(code)s: %(text)s")
 
 
@@ -50,6 +52,21 @@ class WebSocketContext(object):
 
     def __init__(self, apic_config):
         self.apic_config = apic_config
+        self._reload_websocket_config()
+        self.establish_ws_session()
+        self.monitor_runs = float('inf')
+        self.monitor_sleep_time = 10
+        self.monitor_max_backoff = 30
+        self._spawn_monitors()
+
+    def _spawn_monitors(self):
+        gevent.spawn(self._thread_monitor, self.session.login_thread,
+                     'login_thread')
+        gevent.spawn(self._thread_monitor, self.session.subscription_thread,
+                     'subscription_thread')
+
+    def _reload_websocket_config(self):
+        # Don't subscribe in this case
         self.apic_use_ssl = self.apic_config.get_option_and_subscribe(
             self._ws_config_callback, 'apic_use_ssl', group='apic')
         self.apic_hosts = self.apic_config.get_option_and_subscribe(
@@ -63,33 +80,8 @@ class WebSocketContext(object):
                 self._ws_config_callback, 'verify_ssl_certificate',
                 group='apic'))
         protocol = 'https' if self.apic_use_ssl else 'http'
-        self.ws_urls = ['%s://%s' % (protocol, host) for host in
-                        self.apic_hosts]
-        self.establish_ws_session()
-        self.monitor_runs = float('inf')
-        self._spawn_monitors()
-
-    def _spawn_monitors(self):
-        gevent.spawn(self._thread_monitor, self.session.login_thread,
-                     'login_thread')
-        gevent.spawn(self._thread_monitor, self.session.subscription_thread,
-                     'subscription_thread')
-
-    def _reload_websocket_config(self):
-        # Don't subscribe in this case
-        self.apic_use_ssl = self.apic_config.get_option(
-            'apic_use_ssl', group='apic')
-        self.apic_hosts = self.apic_config.get_option(
-            'apic_hosts', group='apic')
-        self.apic_username = self.apic_config.get_option(
-            'apic_username', group='apic')
-        self.apic_password = self.apic_config.get_option(
-            'apic_password', group='apic')
-        self.verify_ssl_certificate = self.apic_config.get_option(
-            'verify_ssl_certificate', group='apic')
-        protocol = 'https' if self.apic_use_ssl else 'http'
-        self.ws_urls = ['%s://%s' % (protocol, host) for host in
-                        self.apic_hosts]
+        self.ws_urls = collections.deque(
+            ['%s://%s' % (protocol, host) for host in self.apic_hosts])
 
     def establish_ws_session(self):
         # REVISIT(ivar): acitoolkit is missing some features like certificate
@@ -105,9 +97,7 @@ class WebSocketContext(object):
             verify_ssl=self.verify_ssl_certificate)
         resp = self.session.login()
         if not resp.ok:
-            # TODO(ivar): tenant name doesn't make sense here
-            raise WebSocketSessionLoginFailed(tn_name='',
-                                              code=resp.status_code,
+            raise WebSocketSessionLoginFailed(code=resp.status_code,
                                               text=resp.text)
 
     def _ws_config_callback(self, new_conf):
@@ -116,7 +106,6 @@ class WebSocketContext(object):
         if getattr(self, new_conf['key']) != new_conf['value']:
             LOG.debug("New APIC remote configuration, restarting web socket "
                       "session.")
-            self._reload_websocket_config()
             # Log out WS
             self.reconnect_ws_session()
 
@@ -124,6 +113,8 @@ class WebSocketContext(object):
         # Log out WS
         if self.session.session:
             self.session.close()
+        self._reload_websocket_config()
+        self.ws_urls.rotate()
         self.establish_ws_session()
 
     def _thread_monitor(self, thread, name):
@@ -131,15 +122,31 @@ class WebSocketContext(object):
         # using gevent together with acitoolkit's standard threading doesn't
         # seem to work very well. We should look at moving to something common
         # (like eventlet monkey patch).
+        retries = None
+        max_retries = len(self.ws_urls)
         LOG.debug("Monitoring thread %s" % name)
         try:
             while self.monitor_runs:
                 if not thread.isAlive():
-                    utils.perform_harakiri(
-                        LOG, "Critical thread %s stopped working" % name)
+                    if retries and retries.get() >= max_retries:
+                        utils.perform_harakiri(
+                            LOG, "Critical thread %s stopped working" % name)
+                    else:
+                        retries = utils.exponential_backoff(
+                            self.monitor_max_backoff, tentative=retries)
+                        try:
+                            self.reconnect_ws_session()
+                        except Exception as e:
+                            LOG.debug(
+                                "Monitor for thread %s tried to reconnect web "
+                                "socket, but something went wrong. Will retry "
+                                "%s more times: %s" %
+                                (name, max_retries - retries.get(), e.message))
+                            continue
                 else:
                     LOG.debug("Thread %s is in good shape" % name)
-                gevent.sleep(10)
+                    retries = None
+                gevent.sleep(self.monitor_sleep_time)
                 # for testing purposes
                 self.monitor_runs -= 1
         except Exception as e:
