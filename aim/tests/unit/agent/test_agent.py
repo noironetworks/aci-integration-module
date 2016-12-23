@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import json
 import time
 
 from apicapi import apic_client
@@ -54,7 +53,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager = aim_manager.AimManager()
         self.tree_manager = tree_model.TenantTreeManager(
             tree.StructuredHashTree)
-        self.old_post = apic_client.ApicSession.post_body
+        self.old_post = apic_client.ApicSession.post_body_dict
 
         self.addCleanup(self._reset_apic_client)
         self._do_aci_mocks()
@@ -88,11 +87,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.addCleanup(self.events_thread.stop)
 
     def _reset_apic_client(self):
-        apic_client.ApicSession.post_body = self.old_post
+        apic_client.ApicSession.post_body_dict = self.old_post
 
     def _mock_current_manager_post(self, mo, data, *params):
         # Each post, generates the same set of events for the WS interface
-        data = json.loads(data)
         events = []
         base = 'uni'
         container = mo.container
@@ -329,7 +327,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Events around the BD creation are now sent to the ACI universe, add
         # them to the observed tree
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         for tenant in agent.current_universe.serving_tenants.values():
             self._current_manager = tenant
@@ -457,7 +456,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tenant_name = 'test_monitored_tree_lifecycle'
         current_monitor = agent.multiverse[2]['current']
         desired_monitor = agent.multiverse[2]['desired']
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         # start by managing a single tenant (non-monitored)
         tn1 = resource.Tenant(name=tenant_name, monitored=True)
@@ -477,7 +477,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._set_events(
             [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
             tag=False)
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
 
         # Observe ACI events
@@ -526,7 +527,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         current_config = agent.multiverse[0]['current']
         desired_monitor = agent.multiverse[2]['desired']
         tenant_name = 'test_monitored_tree_fk_semantics'
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         # start by managing a single monitored tenant
         tn1 = resource.Tenant(name=tenant_name, monitored=True)
@@ -583,7 +585,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         desired_config = agent.multiverse[0]['desired']
 
         desired_monitor = agent.multiverse[2]['desired']
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         tenant_name = 'test_monitored_tree_serve_semantics'
         self.assertEqual({}, desired_monitor.aci_session._data_stash)
@@ -645,7 +648,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         tenant_name = 'test_monitored_tree_relationship'
         self.assertEqual({}, desired_monitor.aci_session._data_stash)
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
 
         tn1 = resource.Tenant(name=tenant_name)
@@ -715,7 +719,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         current_monitor = agent.multiverse[2]['current']
 
         tenant_name = 'test_monitored_tree_rs_objects'
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
 
         tn1 = resource.Tenant(name=tenant_name)
         # Create tenant in AIM to start serving it
@@ -793,7 +798,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         desired_config = agent.multiverse[0]['desired']
         current_monitor = agent.multiverse[2]['current']
         desired_monitor = agent.multiverse[2]['desired']
-        apic_client.ApicSession.post_body = self._mock_current_manager_post
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         # start by managing a single tenant (non-monitored)
         self.aim_manager.create(
