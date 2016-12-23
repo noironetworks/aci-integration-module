@@ -354,7 +354,7 @@ class TestAciClientMixin(object):
         self.process_q.start()
 
         self.post_body = mock.patch(
-            'apicapi.apic_client.ApicSession.post_body')
+            'apicapi.apic_client.ApicSession.post_body_dict')
         self.post_body.start()
 
         self.delete = mock.patch(
@@ -461,19 +461,17 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         transactions = self._objects_transaction_create([bd1, bd2, subj1],
                                                         top_send=True)
         exp_calls = [
-            mock.call(mock.ANY,
-                      json.dumps(transactions[0].get_top_level_roots()[0][1]),
+            mock.call(mock.ANY, transactions[0].get_top_level_roots()[0][1],
                       'test-tenant', 'test'),
-            mock.call(mock.ANY,
-                      json.dumps(transactions[1].get_top_level_roots()[0][1]),
+            mock.call(mock.ANY, transactions[1].get_top_level_roots()[0][1],
                       'test-tenant', 'test2'),
-            mock.call(mock.ANY,
-                      json.dumps(transactions[2].get_top_level_roots()[0][1]),
+            mock.call(mock.ANY, transactions[2].get_top_level_roots()[0][1],
                       'test-tenant', 'c', 's')]
-        self._check_call_list(exp_calls, self.manager.aci_session.post_body)
+        self._check_call_list(exp_calls,
+                              self.manager.aci_session.post_body_dict)
 
         # Delete AIM resources
-        self.manager.aci_session.post_body.reset_mock()
+        self.manager.aci_session.post_body_dict.reset_mock()
         f1 = {'vzRsFiltAtt__In': {'attributes': {
             'dn': 'uni/tn-test-tenant/brc-c/subj-s/intmnl/rsfiltAtt-i1'}}}
         f2 = {'vzRsFiltAtt__Out': {'attributes': {
@@ -490,16 +488,16 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self._check_call_list(exp_calls, self.manager.aci_session.DELETE)
 
         # Create AND delete aim resources
-        self.manager.aci_session.post_body.reset_mock()
+        self.manager.aci_session.post_body_dict.reset_mock()
         self.manager.push_aim_resources(collections.OrderedDict(
             [('create', [bd1]), ('delete', [bda2])]))
         self.manager._push_aim_resources()
         transactions = self._objects_transaction_create([bd1])
         exp_calls = [
-            mock.call(mock.ANY,
-                      json.dumps(transactions[0].get_top_level_roots()[0][1]),
+            mock.call(mock.ANY, transactions[0].get_top_level_roots()[0][1],
                       'test-tenant', 'test')]
-        self._check_call_list(exp_calls, self.manager.aci_session.post_body)
+        self._check_call_list(exp_calls,
+                              self.manager.aci_session.post_body_dict)
         # Failure in pushing object
         self.manager.aci_session.DELETE = mock.Mock(
             side_effect=apic_client.cexc.ApicResponseNotOk
