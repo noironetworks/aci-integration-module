@@ -201,7 +201,7 @@ class TestAciClientMixin(object):
                                 curr = next[part[0]]['children']
                             else:
                                 raise apic_client.cexc.ApicResponseNotOk(
-                                    status='bad request', reason='bad request',
+                                    status=400, reason='bad request',
                                     request='create', err_code=400,
                                     err_text='bad request')
                         else:

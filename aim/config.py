@@ -67,6 +67,9 @@ agent_opts = [
     cfg.IntOpt('max_operation_retry', default=5,
                help="How many creations/deletions are attempted by AID before "
                     "declaring failure on a specific object"),
+    cfg.IntOpt('retry_cooldown', default=3,
+               help="How many seconds AID needs to wait between the same "
+                    "failure before considering it a new tentative"),
     cfg.StrOpt('unix_socket_path', default='/run/aid/events/aid.sock',
                help="Host where this agent/controller is running"),
     cfg.BoolOpt('recovery_restart', default=True,

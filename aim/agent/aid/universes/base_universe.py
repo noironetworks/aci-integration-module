@@ -20,8 +20,10 @@ import time
 
 from oslo_log import log as logging
 
+from aim.agent.aid.universes import errors
 from aim import aim_manager
 from aim.common.hashtree import structured_tree
+from aim.common import utils
 from aim import context
 
 
@@ -34,7 +36,7 @@ DELETE = 'delete'
 class BaseUniverse(object):
     """Universe Base Class
 
-    A Univers is a component of the AID (ACI Inconsistency Detector) that
+    A Universe is a component of the AID (ACI Inconsistency Detector) that
     represents the state of a specific system.
     The observed state could either be the Desired or the Operational one.
     Each state is grouped by AIM tenant and should be stored in a format that
@@ -218,7 +220,15 @@ class HashTreeStoredUniverse(AimUniverse):
             'max_operation_retry', 'aim')
         # Don't increase retry value if at least retry_cooldown seconds have
         # passed
-        self.retry_cooldown = 3
+        self.retry_cooldown = self.conf_manager.get_option(
+            'retry_cooldown', 'aim')
+        self.error_handlers = {
+            errors.OPERATION_TRANSIENT: self._retry_until_max,
+            errors.UNKNOWN: self._retry_until_max,
+            errors.OPERATION_CRITICAL: self._surrender_operation,
+            errors.SYSTEM_CRITICAL: self._fail_agent,
+        }
+
         return self
 
     def _dissect_key(self, key):
@@ -312,13 +322,20 @@ class HashTreeStoredUniverse(AimUniverse):
         self.failure_log.pop(aim_id, None)
         self.manager.set_resource_sync_synced(self.context, aim_object)
 
-    def creation_failed(self, aim_object, reason='unknown'):
-        self._fail_aim_synchronization(aim_object, 'creation', reason)
+    def creation_failed(self, aim_object, reason='unknown',
+                        error=errors.UNKNOWN):
+        self._fail_aim_synchronization(aim_object, 'creation', reason, error)
 
-    def deletion_failed(self, aim_object, reason='unknown'):
-        self._fail_aim_synchronization(aim_object, 'deletion', reason)
+    def deletion_failed(self, aim_object, reason='unknown',
+                        error=errors.UNKNOWN):
+        self._fail_aim_synchronization(aim_object, 'deletion', reason, error)
 
-    def _fail_aim_synchronization(self, aim_object, operation, reason):
+    def _fail_aim_synchronization(self, aim_object, operation, reason,
+                                  error):
+        return self.error_handlers.get(error, self._noop)(
+            aim_object, operation, reason)
+
+    def _retry_until_max(self, aim_object, operation, reason):
         aim_id = self._get_aim_object_identifier(aim_object)
         failures, last = self.failure_log.get(aim_id, (0, None))
         curr_time = time.time()
@@ -333,10 +350,22 @@ class HashTreeStoredUniverse(AimUniverse):
                                                      message=reason)
                 self.failure_log.pop(aim_id, None)
 
+    def _surrender_operation(self, aim_object, operation, reason):
+        aim_id = self._get_aim_object_identifier(aim_object)
+        self.manager.set_resource_sync_error(self.context, aim_object,
+                                             message=reason)
+        self.failure_log.pop(aim_id, None)
+
+    def _fail_agent(self, aim_object, operation, reason):
+        utils.perform_harakiri(LOG, message=reason)
+
     def _get_aim_object_identifier(self, aim_object):
         # Identify AIM object unequivocally
         return (type(aim_object).__name__, ) + tuple(
             [getattr(aim_object, x) for x in aim_object.identity_attributes])
+
+    def _noop(self, *args, **kwargs):
+        return
 
     @property
     def state(self):
