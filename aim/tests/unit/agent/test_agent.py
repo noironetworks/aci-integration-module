@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 import time
 
 from apicapi import apic_client
@@ -876,12 +877,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tenant._event_loop()
 
     def _assert_universe_sync(self, desired, current):
+
+        def printable_state(universe):
+            return json.dumps({x: y.root.to_dict() if y.root else {}
+                               for x, y in universe.state.iteritems()},
+                              indent=2)
         self.assertEqual(current.state, desired.state,
                          'Not in sync:\n current\n: %s \n\n desired\n: %s' %
-                         ({x: str(y) for x, y in
-                           current.state.iteritems()},
-                          {x: str(y) for x, y in
-                           desired.state.iteritems()}))
+                         (printable_state(current), printable_state(desired)))
 
     def _assert_reset_consistency(self, tenant=None):
         ctx = mock.Mock()

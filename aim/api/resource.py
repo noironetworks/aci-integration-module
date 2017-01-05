@@ -66,11 +66,19 @@ class ResourceBase(object):
         return (cls.identity_attributes + cls.other_attributes +
                 cls.db_attributes)
 
+    @property
+    def members(self):
+        return {x: self.__dict__[x] for x in self.attributes() +
+                ['pre_existing'] if x in self.__dict__}
+
     def __str__(self):
         return '%s(%s)' % (type(self).__name__, ','.join(self.identity))
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
+
+    def __repr__(self):
+        return '%s(%s)' % (super(ResourceBase, self).__repr__(), self.members)
 
 
 class AciResourceBase(ResourceBase):

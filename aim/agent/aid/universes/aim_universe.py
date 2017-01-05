@@ -130,6 +130,12 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     if res_db:
                         result.append(res_db)
                         id_set.add(id_tuple)
+                    else:
+                        LOG.debug("Resource %s not found in AIM, here is a "
+                                  "list of similar resources: %s" %
+                                  (str(res_db),
+                                   [str(x) for x in self.manager.find(
+                                       self.context, type(res))]))
                 except aim_exc.UnknownResourceType:
                     LOG.warn("Resource %s is not defined in AIM", dissected)
                     result.append(res)

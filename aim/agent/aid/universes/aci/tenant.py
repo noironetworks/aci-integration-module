@@ -287,7 +287,8 @@ class AciTenantManager(gevent.Greenlet):
             LOG.debug("Filled events: %s", events)
             # Manage Tags
             owned, monitored = self._filter_ownership(events)
-            LOG.debug("Filtered events: %s", events)
+            LOG.debug("Filtered events: owned: %s\n monitored: %s" %
+                      (owned, monitored))
             self._event_to_tree(owned, monitored)
         # yield for other threads
         gevent.sleep(max(0, self.polling_yield - (time.time() -
@@ -393,6 +394,7 @@ class AciTenantManager(gevent.Greenlet):
         :param events: an ACI event in the form of a list of objects
         :return:
         """
+
         config_tree = {'create': [], 'delete': []}
         operational_tree = {'create': [], 'delete': []}
         monitored_tree = {'create': [], 'delete': []}
@@ -422,16 +424,16 @@ class AciTenantManager(gevent.Greenlet):
         for event in monitored:
             evaluate_event(event)
 
-        def _monitor(state, obj):
-            if state is self._monitored_state:
+        def monitor(tree_type, obj):
+            if tree_type is 'monitored':
                 obj.monitored = True
             return obj
 
-        def _screen_monitored(objs):
+        def screen_monitored(objs):
             return self.to_aim_converter.convert(
                 self.to_aci_converter.convert(objs))
 
-        def _set_pre_existing(obj):
+        def set_pre_existing(obj):
             obj.monitored = False
             obj.pre_existing = True
             return obj
@@ -440,31 +442,34 @@ class AciTenantManager(gevent.Greenlet):
         for tree, readable in ((monitored_tree, 'monitored'),
                                (config_tree, 'configuration'),
                                (operational_tree, 'operational')):
+            LOG.debug("Updating ACI %s tree initially: %s" % (readable, tree))
             state = states[id(tree)]
-            tree['create'] = [_monitor(state, x) for x in
+            tree['create'] = [monitor(readable, x) for x in
                               self.to_aim_converter.convert(tree['create'])]
-            tree['delete'] = [_monitor(state, x) for x in
+            tree['delete'] = [monitor(readable, x) for x in
                               self.to_aim_converter.convert(tree['delete'])]
+            LOG.debug("Updating ACI %s tree after first conversion: %s" %
+                      (readable, tree))
             modified = False
             # Config tree also gets monitored events
             if state is self._state:
                 # Need double conversion to screen unwanted objects
-                screened = _screen_monitored(
+                screened = screen_monitored(
                     copy.deepcopy(monitored_tree['create']))
                 additional_objects = dict(
-                    (x.dn, _set_pre_existing(x)) for x in screened)
+                    (x.dn, set_pre_existing(x)) for x in screened)
                 for obj in tree['create']:
                     if obj.dn in additional_objects:
-                        _set_pre_existing(obj)
+                        set_pre_existing(obj)
                 tree['create'].extend(additional_objects.values())
 
-                screened = _screen_monitored(
+                screened = screen_monitored(
                     copy.deepcopy(monitored_tree['delete']))
                 additional_objects = dict(
-                    (x.dn, _set_pre_existing(x)) for x in screened)
+                    (x.dn, set_pre_existing(x)) for x in screened)
                 for obj in tree['delete']:
                     if obj.dn in additional_objects:
-                        _set_pre_existing(obj)
+                        set_pre_existing(obj)
                 tree['delete'].extend(additional_objects.values())
 
             if tree['delete']:
