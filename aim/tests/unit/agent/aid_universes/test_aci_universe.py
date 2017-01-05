@@ -17,6 +17,7 @@ import mock
 
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
+from aim.api import resource
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import config as aim_cfg
@@ -262,6 +263,31 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             t.isAlive = mock.Mock(return_value=True)
             self.universe.ws_context._thread_monitor(t, 'test')
             self.assertEqual(0, harakiri.call_count)
+
+    def test_creation_failed_cooldown(self):
+        curr_cooldown = self.universe.retry_cooldown
+        curr_max_retries = self.universe.max_create_retry
+        aim_object = resource.Tenant(name='test_creation_failed_cooldown')
+        aim_id = self.universe._get_aim_object_identifier(aim_object)
+        # Set max_retry to infinity, we don't care about failing the object
+        self.universe.max_create_retry = float('inf')
+        # Fail first operation
+        self.universe.creation_failed(aim_object)
+        self.assertEqual((1, mock.ANY), self.universe.failure_log[aim_id])
+        # If the cooldown is high enough, the object will not increase in retry
+        # value as it keeps failing
+        self.universe.retry_cooldown = float('inf')
+        for x in range(10):
+            self.universe.creation_failed(aim_object)
+        self.assertEqual((1, mock.ANY), self.universe.failure_log[aim_id])
+        # If the cooldown is low enough, we will see an increase in tentatives
+        self.universe.retry_cooldown = -1
+        for x in range(10):
+            self.universe.creation_failed(aim_object)
+        self.assertEqual((11, mock.ANY), self.universe.failure_log[aim_id])
+
+        self.universe.retry_cooldown = curr_cooldown
+        self.universe.max_create_retry = curr_max_retries
 
 
 class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):

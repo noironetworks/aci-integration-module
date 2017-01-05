@@ -306,8 +306,26 @@ class AciTenantManager(gevent.Greenlet):
         :param resources: a dictionary with "create" and "delete" resources
         :return:
         """
-        # TODO(ivar): improve performance by squashing similar events
-        self.object_backlog.put(resources)
+        backlock = Queue.Queue()
+        while not self.object_backlog.empty():
+            requests = self.object_backlog.get()
+            # check if there's an event to squash
+            for op in ['create', 'delete']:
+                for i, req in enumerate(requests[op]):
+                    for j, new in enumerate(resources[op]):
+                        if req.dn == new.dn:
+                            # Replace old with new
+                            requests[i] = new
+                            break
+                    else:
+                        # No colliding item found
+                        continue
+                    # new can be removed from resources
+                    resources[op].pop(j)
+            backlock.put(requests)
+        if any(resources.values()):
+            backlock.put(resources)
+        self.object_backlog = backlock
 
     def _push_aim_resources(self):
         while not self.object_backlog.empty():
