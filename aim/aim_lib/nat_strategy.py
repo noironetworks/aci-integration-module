@@ -20,9 +20,14 @@ from oslo_log import log as logging
 
 from aim.aim_lib.db import model
 from aim.api import resource
+from aim import exceptions
 from aim import utils as aim_utils
 
 LOG = logging.getLogger(__name__)
+
+
+class VrfNotVisibleFromExternalNetwork(exceptions.AimException):
+    message = "%(vrf)s is not visible from %(ext_net)s."
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -326,31 +331,6 @@ class NatStrategyMixin(NatStrategy):
                     self._update_contract(ctx, ext_net_db, contract,
                                           is_remove=True)
 
-    def _set_bd_l3out(self, ctx, l3outside, vrf):
-        # update all the BDs
-        for bd in self.mgr.find(ctx, resource.BridgeDomain,
-                                tenant_name=vrf.tenant_name,
-                                vrf_name=vrf.name):
-            # Add L3Out to existing list
-            self.mgr.update(ctx, bd,
-                            l3out_names=bd.l3out_names + [l3outside.name])
-        # TODO(ivar): if the VRF is in common tenant, then great pain
-        # awaits, since any BD in the system could be pointing to it
-        # if no local reference exists.
-
-    def _unset_bd_l3out(self, ctx, l3outside, vrf):
-        # update all the BDs
-        for bd in self.mgr.find(ctx, resource.BridgeDomain,
-                                tenant_name=vrf.tenant_name,
-                                vrf_name=vrf.name):
-            # Remove L3Out from existing list
-            if l3outside.name in bd.l3out_names:
-                bd.l3out_names.remove(l3outside.name)
-            self.mgr.update(ctx, bd, l3out_names=bd.l3out_names)
-        # TODO(ivar): if the VRF is in common tenant, then great pain
-        # awaits, since any BD in the system could be pointing to it
-        # if no local reference exists.
-
     def _manage_external_subnets(self, ctx, ext_net, new_cidrs):
         new_cidrs = new_cidrs[:] if new_cidrs else []
         ext_sub_attr = dict(tenant_name=ext_net.tenant_name,
@@ -487,6 +467,9 @@ class NatStrategyMixin(NatStrategy):
                                   consumed_contract_names=cons)
         return ext_net
 
+    def _is_visible(self, target_tenant, from_tenant):
+        return (target_tenant == from_tenant or target_tenant == 'common')
+
 
 class NoNatStrategy(NatStrategyMixin):
     """No NAT Strategy.
@@ -495,43 +478,146 @@ class NoNatStrategy(NatStrategyMixin):
     address translation.
     """
 
+    def delete_external_network(self, ctx, external_network):
+        """Clean-up any connected VRFs before deleting the external network."""
+
+        with ctx.db_session.begin(subtransactions=True):
+            ext_net = self.mgr.get(ctx, external_network)
+            if not ext_net:
+                return
+            l3out = self.mgr.get(ctx,
+                                 self._ext_net_to_l3out(external_network))
+            vrf = self._vrf_by_name(ctx, l3out.vrf_name, l3out.tenant_name)
+            if vrf:
+                self._disconnect_vrf_from_l3out(ctx, l3out, vrf)
+            self._delete_ext_net(ctx, ext_net)
+
     def connect_vrf(self, ctx, external_network, vrf):
         """Allow external connectivity to VRF.
 
         Make external_network provide/consume specified contracts.
         Set vrf_name of L3Outside to VRF.
+        Set vrf_name of NAT-BD of L3Outside to VRF.
         Locate BDs referring to the VRF, and include L3Outside
         in their l3out_names.
         """
         with ctx.db_session.begin(subtransactions=True):
+            if not self._is_visible(vrf.tenant_name,
+                                    external_network.tenant_name):
+                raise VrfNotVisibleFromExternalNetwork(
+                    vrf=vrf, ext_net=external_network)
+            ext_net = self.mgr.get(ctx, external_network)
+            if not ext_net:
+                return
+            l3out = self.mgr.get(ctx,
+                                 self._ext_net_to_l3out(external_network))
+            if l3out.vrf_name != self._get_nat_vrf(ctx, l3out).name:
+                old_vrf = self._vrf_by_name(ctx, l3out.vrf_name,
+                                            l3out.tenant_name)
+                if old_vrf:
+                    self._disconnect_vrf_from_l3out(ctx, l3out, old_vrf)
+
+            nat_bd = self._get_nat_bd(ctx, l3out)
+            self.mgr.update(ctx, nat_bd, vrf_name=vrf.name)
+            self.mgr.update(ctx, l3out, vrf_name=vrf.name)
+            self._set_bd_l3out(ctx, l3out, vrf)
+
             self.mgr.update(
                 ctx, external_network,
                 **{k: getattr(external_network, k)
                    for k in ['provided_contract_names',
                              'consumed_contract_names']})
-            l3outside = self._ext_net_to_l3out(external_network)
-            l3outside = self.mgr.update(ctx, l3outside, vrf_name=vrf.name)
-            self._set_bd_l3out(ctx, l3outside, vrf)
 
     def disconnect_vrf(self, ctx, external_network, vrf):
         """Remove external connectivity for VRF.
 
         Remove contracts provided/consumed by external_network.
-        Unset vrf_name of L3Outside.
+        Reset vrf_name of L3Outside and NAT-BD to the NAT-VRF.
         Locate BDs referring to the VRF, and exclude L3Outside
         from their l3out_names.
         """
         with ctx.db_session.begin(subtransactions=True):
-            l3outside = self.mgr.get(ctx,
-                                     self._ext_net_to_l3out(external_network))
-            contract = self._get_nat_contract(ctx, l3outside)
+            ext_net = self.mgr.get(ctx, external_network)
+            if not ext_net:
+                return
+            l3out = self.mgr.get(ctx,
+                                 self._ext_net_to_l3out(external_network))
+            old_vrf = self._vrf_by_name(ctx, l3out.vrf_name,
+                                        l3out.tenant_name)
+            if old_vrf and old_vrf.identity != vrf.identity:
+                LOG.info('disconnect_vrf: %s is not connected to %s',
+                         ext_net, vrf)
+                return
+            self._disconnect_vrf_from_l3out(ctx, l3out, vrf)
+
+            contract = self._get_nat_contract(ctx, l3out)
             self.mgr.update(ctx, external_network,
                             provided_contract_names=[contract.name],
                             consumed_contract_names=[contract.name])
-            nat_vrf = self._get_nat_vrf(ctx, l3outside)
-            self.mgr.update(ctx, l3outside,
-                            vrf_name=nat_vrf.name)
-            self._unset_bd_l3out(ctx, l3outside, vrf)
+
+    def _get_bds_in_vrf_for_l3out(self, ctx, vrf, l3out):
+        if vrf.tenant_name == 'common' and l3out.tenant_name == 'common':
+            # BDs in all tenants are candidates - locate all BDs whose
+            # vrf_name matches vrf.name, and exclude those that have a
+            # local VRF aliasing the given VRF.
+            all_bds = self.mgr.find(ctx, resource.BridgeDomain,
+                                    vrf_name=vrf.name)
+            bd_tenants = set([b.tenant_name for b in all_bds])
+            bd_tenants = [t for t in bd_tenants
+                          if not self.mgr.get(
+                              ctx, resource.VRF(tenant_name=t, name=vrf.name))]
+            return [b for b in all_bds if b.tenant_name in bd_tenants]
+        elif (vrf.tenant_name == 'common' or
+              vrf.tenant_name == l3out.tenant_name):
+            # VRF and L3out are visible only to BDs in l3out's tenant
+            return self.mgr.find(ctx, resource.BridgeDomain,
+                                 tenant_name=l3out.tenant_name,
+                                 vrf_name=vrf.name)
+        # Other combinations of L3Out and VRF are not valid
+        # configurations and can be excluded:
+        # 1. L3out in common, VRF not in common: VRF is not
+        #    visible to L3out
+        # 2. L3Out and VRF are in different non-common tenants:
+        #    VRF is not visible to L3out
+        return []
+
+    def _set_bd_l3out(self, ctx, l3outside, vrf):
+        # update all the BDs
+        for bd in self._get_bds_in_vrf_for_l3out(ctx, vrf, l3outside):
+            # Add L3Out to existing list
+            if l3outside.name not in bd.l3out_names:
+                self.mgr.update(ctx, bd,
+                                l3out_names=bd.l3out_names + [l3outside.name])
+
+    def _unset_bd_l3out(self, ctx, l3outside, vrf):
+        # update all the BDs
+        for bd in self._get_bds_in_vrf_for_l3out(ctx, vrf, l3outside):
+            # Remove L3Out from existing list
+            if l3outside.name in bd.l3out_names:
+                bd.l3out_names.remove(l3outside.name)
+                self.mgr.update(ctx, bd, l3out_names=bd.l3out_names)
+
+    def _vrf_by_name(self, ctx, vrf_name, tenant_name_hint):
+        vrfs = self.mgr.find(ctx, resource.VRF,
+                             tenant_name=tenant_name_hint,
+                             name=vrf_name)
+        if vrfs:
+            return vrfs[0]
+        vrfs = self.mgr.find(ctx, resource.VRF, tenant_name='common',
+                             name=vrf_name)
+        if vrfs:
+            return vrfs[0]
+
+    def _disconnect_vrf_from_l3out(self, ctx, l3outside, vrf):
+        nat_vrf = self._get_nat_vrf(ctx, l3outside)
+        if nat_vrf.identity == vrf.identity:
+            # disconnecting the NAT-VRF is no-op
+            return
+        nat_bd = self._get_nat_bd(ctx, l3outside)
+        self.mgr.update(ctx, l3outside,
+                        vrf_name=nat_vrf.name)
+        self.mgr.update(ctx, nat_bd, vrf_name=nat_vrf.name)
+        self._unset_bd_l3out(ctx, l3outside, vrf)
 
 
 class DistributedNatStrategy(NatStrategyMixin):
