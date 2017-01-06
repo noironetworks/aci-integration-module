@@ -16,6 +16,7 @@
 
 import abc
 import six
+import time
 
 from oslo_log import log as logging
 
@@ -215,6 +216,9 @@ class HashTreeStoredUniverse(AimUniverse):
         self.failure_log = {}
         self.max_create_retry = self.conf_manager.get_option(
             'max_operation_retry', 'aim')
+        # Don't increase retry value if at least retry_cooldown seconds have
+        # passed
+        self.retry_cooldown = 3
         return self
 
     def _dissect_key(self, key):
@@ -314,16 +318,18 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _fail_aim_synchronization(self, aim_object, operation, reason):
         aim_id = self._get_aim_object_identifier(aim_object)
-        failures = self.failure_log.get(aim_id, 0)
-        self.failure_log[aim_id] = failures + 1
-        if self.failure_log[aim_id] >= self.max_create_retry:
-            LOG.warn("AIM object %s failed %s more than %s times in %s, "
-                     "setting its state to Error" %
-                     (aim_id, operation, self.max_create_retry, self.name))
-            # Surrender
-            self.manager.set_resource_sync_error(self.context, aim_object,
-                                                 message=reason)
-            self.failure_log.pop(aim_id, None)
+        failures, last = self.failure_log.get(aim_id, (0, None))
+        curr_time = time.time()
+        if not last or curr_time - last >= self.retry_cooldown:
+            self.failure_log[aim_id] = (failures + 1, curr_time)
+            if self.failure_log[aim_id][0] >= self.max_create_retry:
+                LOG.warn("AIM object %s failed %s more than %s times in %s, "
+                         "setting its state to Error" %
+                         (aim_id, operation, self.max_create_retry, self.name))
+                # Surrender
+                self.manager.set_resource_sync_error(self.context, aim_object,
+                                                     message=reason)
+                self.failure_log.pop(aim_id, None)
 
     def _get_aim_object_identifier(self, aim_object):
         # Identify AIM object unequivocally

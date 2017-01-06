@@ -760,3 +760,34 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         events, _ = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted(complete), sorted(events))
+
+    def test_squash_operations(self):
+        # Craft some objects and push them
+        tn = a_res.Tenant(name='tn1', display_name='foo')
+        bd = a_res.BridgeDomain(tenant_name='tn1', name='bd1',
+                                display_name='bar')
+        vrf = a_res.VRF(tenant_name='tn1', name='vrf1', display_name='pippo')
+        self.manager.push_aim_resources({'create': [tn, bd], 'delete': [vrf]})
+        self.assertEqual(1, len(self.manager.object_backlog.queue))
+        old = self.manager.object_backlog.queue[0]
+        # Idempotent
+        self.manager.push_aim_resources({'create': [tn, bd], 'delete': [vrf]})
+        self.assertEqual(1, len(self.manager.object_backlog.queue))
+        curr = self.manager.object_backlog.queue[0]
+        self.assertEqual(old, curr)
+        # Now replace something
+        bd2 = a_res.BridgeDomain(tenant_name='tn1', name='bd2',
+                                 display_name='bar')
+        bd.display_name = 'foobar'
+        self.manager.push_aim_resources({'create': [bd2, bd], 'delete': []})
+        self.assertEqual(2, len(self.manager.object_backlog.queue))
+        self.assertEqual({'create': [bd2], 'delete': []},
+                         self.manager.object_backlog.queue[1])
+        self.assertEqual(
+            'foobar',
+            self.manager.object_backlog.queue[0]['create'][1].display_name)
+        # Add something completely different
+        vrf2 = a_res.VRF(tenant_name='tn1', name='vrf2', display_name='pippo')
+        self.manager.push_aim_resources({'create': [vrf2], 'delete': [bd]})
+        self.assertEqual({'create': [vrf2], 'delete': [bd]},
+                         self.manager.object_backlog.queue[2])

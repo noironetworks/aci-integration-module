@@ -253,10 +253,10 @@ class TenantTreeManager(object):
                                  self._after_session_flush):
             sa_event.listen(session, 'after_flush',
                             self._after_session_flush)
-        if not sa_event.contains(session, 'after_commit',
-                                 self._after_session_commit):
-            sa_event.listen(session, 'after_commit',
-                            self._after_session_commit)
+        if not sa_event.contains(session, 'after_transaction_end',
+                                 self._after_transaction_end):
+            sa_event.listen(session, 'after_transaction_end',
+                            self._after_transaction_end)
 
     def _after_session_flush(self, session, _):
         # Stash tree modifications
@@ -277,9 +277,17 @@ class TenantTreeManager(object):
         session._aim_stash['updated'] |= updated
         session._aim_stash['deleted'] |= deleted
 
-    def _after_session_commit(self, session):
-        LOG.debug("Invoking after session commit on tree manager for session "
-                  "%s" % session)
+    def _after_transaction_end(self, session, transaction):
+        # Check if outermost transaction
+        try:
+            if transaction.parent is not None:
+                return
+        except AttributeError:
+            # sqlalchemy 1.0.11 and below
+            if transaction._parent is not None:
+                return
+        LOG.debug("Invoking after transaction commit on tree manager for "
+                  "session %s" % session)
         try:
             added = session._aim_stash['added']
             updated = session._aim_stash['updated']
@@ -288,8 +296,8 @@ class TenantTreeManager(object):
             LOG.debug("_aim_stash disappeared in postcommit tree operation")
             return
         for func in self._after_commit_listeners[:]:
-            LOG.debug("Invoking after-commit hook %s with %d add(s), "
-                      "%d update(s), %d delete(s)",
+            LOG.debug("Invoking after transaction commit hook %s with "
+                      "%d add(s), %d update(s), %d delete(s)",
                       func.__name__, len(added), len(updated), len(deleted))
             try:
                 func(session, added, updated, deleted)

@@ -213,10 +213,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                 bd_name='some')
             # Add Tenant and AP
             self.mgr.create(self.ctx, aim_res.Tenant(name=tn_name))
-            # Called twice, one for tenant and one for Fault
             exp_calls = [
-                mock.call(mock.ANY, 'serve', None),
-                mock.call(mock.ANY, 'reconcile', None)]
+                mock.call(mock.ANY, 'serve', None)]
             self._check_call_list(exp_calls, cast)
             self.mgr.create(self.ctx, tn)
             cast.reset_mock()
@@ -232,4 +230,35 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             cast.assert_called_once_with(mock.ANY, 'reconcile', None)
             cast.reset_mock()
             self.tt_mgr.delete_by_tenant_rn(self.ctx, 'test_tree_hooks_2')
+            cast.assert_called_once_with(mock.ANY, 'serve', None)
+
+    def test_tree_hooks_transactions(self):
+        with mock.patch('aim.agent.aid.event_services.'
+                        'rpc.AIDEventRpcApi._cast') as cast:
+            tn = aim_res.Tenant(name='test_tree_hooks')
+            ap = aim_res.ApplicationProfile(tenant_name='test_tree_hooks',
+                                            name='ap')
+            epg = aim_res.EndpointGroup(
+                tenant_name='test_tree_hooks', app_profile_name='ap',
+                name='epg', bd_name='some')
+
+            tn1 = aim_res.Tenant(name='test_tree_hooks1')
+            ap1 = aim_res.ApplicationProfile(tenant_name='test_tree_hooks1',
+                                             name='ap')
+            epg1 = aim_res.EndpointGroup(
+                tenant_name='test_tree_hooks1', app_profile_name='ap',
+                name='epg', bd_name='some')
+            # Try a transaction
+            with self.ctx.db_session.begin(subtransactions=True):
+                with self.ctx.db_session.begin(subtransactions=True):
+                    self.mgr.create(self.ctx, tn)
+                    self.mgr.create(self.ctx, ap)
+                    self.mgr.create(self.ctx, epg)
+                self.assertEqual(0, cast.call_count)
+                with self.ctx.db_session.begin(subtransactions=True):
+                    self.mgr.create(self.ctx, tn1)
+                    self.mgr.create(self.ctx, ap1)
+                    self.mgr.create(self.ctx, epg1)
+                self.assertEqual(0, cast.call_count)
+            # Only a single "serve" call is issued
             cast.assert_called_once_with(mock.ANY, 'serve', None)

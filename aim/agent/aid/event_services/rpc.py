@@ -71,7 +71,8 @@ class AIDEventRpcApi(object):
     def tree_creation_postcommit(self, session, added, updated, deleted):
         if added or deleted:
             self.serve({})
-        if updated:
+        elif updated:
+            # Serve implies a reconcile
             self.reconcile({})
 
 
