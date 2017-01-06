@@ -262,3 +262,51 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                 self.assertEqual(0, cast.call_count)
             # Only a single "serve" call is issued
             cast.assert_called_once_with(mock.ANY, 'serve', None)
+
+    def test_monitored_state_change(self):
+        tn_name = 'test_monitored_state_change'
+        tn = aim_res.Tenant(name=tn_name, monitored=True)
+        ap = aim_res.ApplicationProfile(tenant_name=tn_name, name='ap',
+                                        monitored=True)
+        epg = aim_res.EndpointGroup(
+            tenant_name=tn_name, app_profile_name='ap', name='epg',
+            bd_name='some', monitored=True)
+        self.mgr.create(self.ctx, tn)
+        self.mgr.create(self.ctx, ap)
+        self.mgr.create(self.ctx, epg)
+        cfg_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.MONITORED_TREE)
+        # Create my own tree representation
+        my_cfg_tree = tree.StructuredHashTree()
+        my_mon_tree = tree.StructuredHashTree()
+        self.db_l.tt_maker.update(my_mon_tree, [tn, ap, epg])
+
+        self.assertEqual(my_mon_tree, mon_tree)
+        self.assertEqual(my_cfg_tree, cfg_tree)
+        # Change ownership of the AP
+        self.mgr.update(self.ctx, ap, monitored=False)
+        my_mon_tree = tree.StructuredHashTree()
+        # This is equivalent of adding only tenant and epg to the conf tree
+        self.db_l.tt_maker.update(my_mon_tree, [tn, epg])
+        self.db_l.tt_maker.update(my_cfg_tree, [ap])
+        # Refresh trees
+        cfg_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.MONITORED_TREE)
+        self.assertEqual(my_mon_tree, mon_tree)
+        self.assertEqual(my_cfg_tree, cfg_tree)
+        # Unset monitored to EPG as well
+        self.mgr.update(self.ctx, epg, monitored=False)
+        my_mon_tree = tree.StructuredHashTree()
+        self.db_l.tt_maker.update(my_mon_tree, [tn])
+        self.db_l.tt_maker.update(my_cfg_tree, [epg])
+        # Refresh trees
+        cfg_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.MONITORED_TREE)
+        self.assertEqual(my_mon_tree, mon_tree)
+        self.assertEqual(my_cfg_tree, cfg_tree)

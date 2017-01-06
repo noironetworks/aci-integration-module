@@ -89,7 +89,7 @@ class AimManager(object):
         self._update_listeners = []
         self._hashtree_db_listener = ht_db_l.HashTreeDbListener(self)
 
-    def create(self, context, resource, overwrite=False):
+    def create(self, context, resource, overwrite=False, fix_ownership=False):
         """Persist AIM resource to the database.
 
         If 'overwrite' is True, and an object exists in the database
@@ -103,10 +103,14 @@ class AimManager(object):
             if overwrite:
                 db_obj = self._query_db_obj(context.db_session, resource)
                 if db_obj:
-                    if (getattr(db_obj, 'monitored', None) !=
-                            getattr(resource, 'monitored', None)):
-                        raise exc.InvalidMonitoredStateUpdate(
-                            object=resource)
+                    old_monitored = getattr(db_obj, 'monitored', None)
+                    new_monitored = getattr(resource, 'monitored', None)
+                    if (new_monitored is not None and
+                            old_monitored != new_monitored):
+                        if fix_ownership or (old_monitored is False):
+                            # Cannot move from owned to monitored
+                            raise exc.InvalidMonitoredStateUpdate(
+                                object=resource)
                     attr_val = self._extract_attributes(resource, "other")
                     db_obj.from_attr(context.db_session, attr_val)
             db_obj = db_obj or self._make_db_obj(context.db_session, resource)
@@ -116,7 +120,8 @@ class AimManager(object):
             self.set_resource_sync_pending(context, resource)
             return self.get(context, resource)
 
-    def update(self, context, resource, **update_attr_val):
+    def update(self, context, resource, fix_ownership=False,
+               **update_attr_val):
         """Persist updates to AIM resource to the database.
 
         Values of identity attributes of parameter 'resource' are used
@@ -130,11 +135,14 @@ class AimManager(object):
         with context.db_session.begin(subtransactions=True):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
-                if 'monitored' in update_attr_val:
-                    # TODO(ivar) Accept monitored state change.
-                    # To implement this, we need to realize what changed
-                    # in the before_flush hooks.
-                    raise exc.InvalidMonitoredStateUpdate(object=resource)
+                old_monitored = getattr(db_obj, 'monitored', None)
+                new_monitored = update_attr_val.get('monitored')
+                if (new_monitored is not None
+                        and old_monitored != new_monitored):
+                    if fix_ownership or (old_monitored is False):
+                        LOG.info("INFO: %s" % [old_monitored, new_monitored])
+                        # Cannot move from owned to monitored
+                        raise exc.InvalidMonitoredStateUpdate(object=resource)
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
                             if k in resource.other_attributes}
                 db_obj.from_attr(context.db_session, attr_val)

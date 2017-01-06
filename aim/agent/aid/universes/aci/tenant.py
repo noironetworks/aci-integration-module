@@ -412,7 +412,6 @@ class AciTenantManager(gevent.Greenlet):
         :param events: an ACI event in the form of a list of objects
         :return:
         """
-
         config_tree = {'create': [], 'delete': []}
         operational_tree = {'create': [], 'delete': []}
         monitored_tree = {'create': [], 'delete': []}
@@ -461,47 +460,44 @@ class AciTenantManager(gevent.Greenlet):
                                (config_tree, 'configuration'),
                                (operational_tree, 'operational')):
             LOG.debug("Updating ACI %s tree initially: %s" % (readable, tree))
-            state = states[id(tree)]
             tree['create'] = [monitor(readable, x) for x in
                               self.to_aim_converter.convert(tree['create'])]
             tree['delete'] = [monitor(readable, x) for x in
                               self.to_aim_converter.convert(tree['delete'])]
             LOG.debug("Updating ACI %s tree after first conversion: %s" %
                       (readable, tree))
-            modified = False
             # Config tree also gets monitored events
-            if state is self._state:
+            if readable is 'configuration':
                 # Need double conversion to screen unwanted objects
-                screened = screen_monitored(
-                    copy.deepcopy(monitored_tree['create']))
-                additional_objects = dict(
-                    (x.dn, set_pre_existing(x)) for x in screened)
-                for obj in tree['create']:
-                    if obj.dn in additional_objects:
-                        set_pre_existing(obj)
-                tree['create'].extend(additional_objects.values())
+                for action in ['create', 'delete']:
+                    screened = screen_monitored(
+                        copy.deepcopy(monitored_tree[action]))
+                    additional_objects = dict(
+                        (x.dn, set_pre_existing(x)) for x in screened)
+                    for obj in tree[action]:
+                        if obj.dn in additional_objects:
+                            set_pre_existing(obj)
+                    tree[action].extend(additional_objects.values())
 
-                screened = screen_monitored(
-                    copy.deepcopy(monitored_tree['delete']))
-                additional_objects = dict(
-                    (x.dn, set_pre_existing(x)) for x in screened)
-                for obj in tree['delete']:
-                    if obj.dn in additional_objects:
-                        set_pre_existing(obj)
-                tree['delete'].extend(additional_objects.values())
+        # Perform tree actions after all the conversions are done
+        for tree, readable in ((monitored_tree, 'monitored'),
+                               (config_tree, 'configuration'),
+                               (operational_tree, 'operational')):
+            state = states[id(tree)]
+            self.tree_maker.delete(state, tree['delete'])
+            if readable is 'configuration':
+                # Delete also from Operational tree for branch cleanup
+                self.tree_maker.delete(self._operational_state,
+                                       tree['delete'])
+                # Clear monitored nodes from config tree
+                self.tree_maker.clear(state, monitored_tree['create'])
+            elif readable is 'monitored':
+                # Clear config nodes from monitored tree
+                self.tree_maker.clear(state, config_tree['create'])
 
-            if tree['delete']:
-                modified = True
-                self.tree_maker.delete(state, tree['delete'])
-                if state is self._state:
-                    # Delete also from Operational tree for branch cleanup
-                    self.tree_maker.delete(self._operational_state,
-                                           tree['delete'])
-            if tree['create']:
-                modified = True
-                self.tree_maker.update(state, tree['create'])
+            self.tree_maker.update(state, tree['create'])
 
-            if modified:
+            if any(tree.values()):
                 LOG.debug("New %s tree for tenant %s: %s" %
                           (readable, self.tenant_name, str(state)))
                 event_handler.EventHandler.reconcile()
@@ -542,6 +538,23 @@ class AciTenantManager(gevent.Greenlet):
             res_type = event.keys()[0]
             status = resource['attributes'].get(STATUS_FIELD)
             raw_dn = resource['attributes'].get('dn')
+            if res_type == TAG_KEY:
+                # We need to make sure to retrieve the parent object as well
+                try:
+                    decomposed = (
+                        apic_client.DNManager().aci_decompose_dn_guess(
+                            raw_dn, res_type))
+                    parent_dn = apic_client.DNManager().build(
+                        decomposed[1][:-1])
+                    if parent_dn not in visited:
+                        events.append(
+                            {decomposed[1][-2][0]:
+                             {'attributes': {
+                                 'dn': parent_dn,
+                                 'status': converter.MODIFIED_STATUS}}})
+                except apic_client.DNManager.InvalidNameFormat:
+                    LOG.debug("Tag with DN %s is not supported." % raw_dn)
+                continue
             if status == converter.DELETED_STATUS and not (
                     AciTenantManager.is_rs_object(res_type)):
                 if raw_dn not in visited:
@@ -633,10 +646,11 @@ class AciTenantManager(gevent.Greenlet):
             if event.keys()[0] == TAG_KEY:
                 decomposed = event.values()[0]['attributes']['dn'].split('/')
                 if decomposed[-1] == 'tag-' + self.tag_name:
+                    parent_dn = '/'.join(decomposed[:-1])
                     if self._is_deleting(event):
-                        self.tag_set.discard('/'.join(decomposed[:-1]))
+                        self.tag_set.discard(parent_dn)
                     else:
-                        self.tag_set.add('/'.join(decomposed[:-1]))
+                        self.tag_set.add(parent_dn)
             else:
                 managed.append(event)
         for event in managed:

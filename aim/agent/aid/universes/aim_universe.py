@@ -154,6 +154,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def _push_resources(self, resources, monitored=False):
         fault_method = {'create': self.manager.set_fault,
                         'delete': self.manager.clear_fault}
+        self.context.db_session.expunge_all()
         for method in resources:
             if method == 'delete':
                 # Use ACI items directly
@@ -186,17 +187,30 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                     [resource])
                                 resource = self._converter.convert(resource)[0]
                                 resource.monitored = monitored
-                            self.manager.create(self.context, resource,
-                                                overwrite=True)
-                            # Declare victory for the created object
-                            self.creation_succeeded(resource)
+                            with self.context.db_session.begin(
+                                    subtransactions=True):
+                                self.manager.create(self.context, resource,
+                                                    overwrite=True,
+                                                    fix_ownership=monitored)
+                                # Declare victory for the created object
+                                self.creation_succeeded(resource)
                         else:
                             if isinstance(resource,
                                           aim_resource.Tenant) and monitored:
                                 # Monitored Universe doesn't delete Tenant
                                 # Resources
                                 continue
-                            self.manager.delete(self.context, resource)
+                            if monitored:
+                                # Only delete a resource if monitored
+                                with self.context.db_session.begin(
+                                        subtransactions=True):
+                                    existing = self.manager.get(self.context,
+                                                                resource)
+                                    if existing and existing.monitored:
+                                        self.manager.delete(self.context,
+                                                            resource)
+                            else:
+                                self.manager.delete(self.context, resource)
                 except aim_exc.InvalidMonitoredStateUpdate as e:
                     msg = ("Failed to %s object %s in AIM: %s." %
                            (method, resource, e.message))

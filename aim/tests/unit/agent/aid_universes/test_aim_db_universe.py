@@ -34,6 +34,7 @@ class TestAimDbUniverseBase(object):
         self.universe = klass().initialize(
             self.session, aim_cfg.ConfigManager(self.ctx, ''))
         self.tree_mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
+        self.monitor_universe = False
 
     def test_serve(self):
         # Serve the first batch of tenants
@@ -244,11 +245,15 @@ class TestAimDbUniverseBase(object):
         managed_epg = resource.EndpointGroup(
             tenant_name='t1', app_profile_name='a1', name='managed')
         aim_mgr.create(self.ctx, managed_epg)
-        # Delete AP before EPG (AP can't be deleted)
+        # EPG cannot be deleted since is managed
         self.universe.push_resources({'create': [],
                                       'delete': [ap_aim, managed_epg]})
         res = aim_mgr.get(self.ctx, managed_epg)
-        self.assertIsNone(res)
+        if self.monitor_universe:
+            self.assertIsNotNone(res)
+            aim_mgr.delete(self.ctx, managed_epg)
+        else:
+            self.assertIsNone(res)
         res = aim_mgr.get(self.ctx, ap_aim)
         self.assertIsNotNone(res)
 
@@ -298,6 +303,7 @@ class TestAimDbMonitoredUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
     def setUp(self):
         super(TestAimDbMonitoredUniverse, self).setUp(
             klass=aim_universe.AimDbMonitoredUniverse)
+        self.monitor_universe = True
 
     def test_state(self):
         super(TestAimDbMonitoredUniverse, self).test_state(

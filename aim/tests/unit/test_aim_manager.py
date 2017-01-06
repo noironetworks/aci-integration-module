@@ -378,13 +378,20 @@ class TestResourceOpsBase(object):
             # Cannot create overwrite if monitored is changed
             r1.monitored = False
             self.assertRaises(exc.InvalidMonitoredStateUpdate,
-                              self.mgr.create, self.ctx, r1, overwrite=True)
+                              self.mgr.create, self.ctx, r1,
+                              fix_ownership=True, overwrite=True)
 
             # Updating the monitored attribute fails
             res.monitored = False
             self.assertRaises(exc.InvalidMonitoredStateUpdate,
                               self.mgr.update, self.ctx, res,
-                              monitored=False)
+                              fix_ownership=True, monitored=False)
+
+            r1 = self.mgr.create(self.ctx, r1, overwrite=True)
+            self.assertFalse(r1.monitored)
+            # Updating monitored from False to True doesn't work
+            self.assertRaises(exc.InvalidMonitoredStateUpdate,
+                              self.mgr.update, self.ctx, r1, monitored=True)
 
             # Deleting it works
             self.mgr.delete(self.ctx, res)

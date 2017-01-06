@@ -99,12 +99,18 @@ class HashTreeDbListener(object):
             # Update Configuration Tree
             self.tt_maker.update(ttree, upd[conf][0])
             self.tt_maker.delete(ttree, upd[conf][1])
+            # Clear new monitored objects
+            self.tt_maker.clear(ttree, upd[monitor][0])
+
             # Update Operational Tree
             self.tt_maker.update(ttree_operational, upd[oper][0])
             self.tt_maker.delete(ttree_operational, upd[oper][1])
+
             # Update Monitored Tree
             self.tt_maker.update(ttree_monitor, upd[monitor][0])
             self.tt_maker.delete(ttree_monitor, upd[monitor][1])
+            # Clear new owned objects
+            self.tt_maker.clear(ttree_monitor, upd[conf][0])
 
             if ttree.root_key:
                 upd_trees.append(ttree)

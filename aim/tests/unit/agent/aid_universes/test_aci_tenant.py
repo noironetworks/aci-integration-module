@@ -200,7 +200,6 @@ class TestAciClientMixin(object):
                                 prev = curr
                                 curr = next[part[0]]['children']
                             else:
-                                # TODO(ivar): find out right exception
                                 raise apic_client.cexc.ApicResponseNotOk(
                                     status='bad request', reason='bad request',
                                     request='create', err_code=400,
