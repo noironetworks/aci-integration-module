@@ -629,7 +629,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe
         agent._daemon_loop()
         # Delete the tenant on AIM, agents should stop watching it
-        # TODO(ivar): delete monitored children
         self.aim_manager.delete(self.ctx, tn1)
         # This loop will have a consensus for deleting Tenant tn1
         agent._daemon_loop()
@@ -923,6 +922,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
             tenant_name=tenant_name, app_profile_name='ap1', name='epg1'))
         self.assertFalse(epg.monitored)
+        # We keep and own the contracts
+        self.assertEqual(['c'], epg.provided_contract_names)
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
@@ -931,6 +932,33 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             desired_monitor.serving_tenants[tenant_name].aci_session,
             'mo/' + epg.dn + '/tag-openstack_aid')
         self.assertIsNotNone(tag)
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+
+        # Put back EPG into monitored state
+        epg = self.aim_manager.update(self.ctx, epg, monitored=True)
+        self.assertTrue(epg.monitored)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
+        # Tag doesn't exist anymore
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + epg.dn + '/tag-openstack_aid')
+        # Object is in monitored universe and in good shape
+        epg = self.aim_manager.get(self.ctx, epg)
+        self.assertTrue(epg.monitored)
+        # Still keeping whatever contract we had, but monitored this time
+        self.assertEqual(['c'], epg.provided_contract_names)
+        status = self.aim_manager.get_status(self.ctx, epg)
+        self.assertEqual(status.SYNCED, status.sync_status)
 
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():

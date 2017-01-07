@@ -75,9 +75,11 @@ class AimManager(object):
 
     # Build adjacency graph (Key: <ACI Resource> Value: <Key's children>)
     _model_tree = {}
+    _res_by_aci_type = {}
     for klass in _db_model_map:
         try:
             _model_tree.setdefault(klass._tree_parent, []).append(klass)
+            _res_by_aci_type[klass._aci_mo_name] = klass
         except AttributeError:
             pass
 
@@ -99,25 +101,29 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         with context.db_session.begin(subtransactions=True):
-            db_obj = None
+            old_db_obj = None
             if overwrite:
-                db_obj = self._query_db_obj(context.db_session, resource)
-                if db_obj:
-                    old_monitored = getattr(db_obj, 'monitored', None)
+                old_db_obj = self._query_db_obj(context.db_session, resource)
+                if old_db_obj:
+                    old_monitored = getattr(old_db_obj, 'monitored', None)
                     new_monitored = getattr(resource, 'monitored', None)
-                    if (new_monitored is not None and
-                            old_monitored != new_monitored):
-                        if fix_ownership or (old_monitored is False):
-                            # Cannot move from owned to monitored
-                            raise exc.InvalidMonitoredStateUpdate(
-                                object=resource)
+                    if fix_ownership and old_monitored != new_monitored:
+                        raise exc.InvalidMonitoredStateUpdate(object=resource)
                     attr_val = self._extract_attributes(resource, "other")
-                    db_obj.from_attr(context.db_session, attr_val)
-            db_obj = db_obj or self._make_db_obj(context.db_session, resource)
+                    old_db_obj.from_attr(context.db_session, attr_val)
+            db_obj = old_db_obj or self._make_db_obj(context.db_session,
+                                                     resource)
             self._add_commit_hook(context.db_session)
             context.db_session.add(db_obj)
             # Propagate sync status to neighbor objects
-            self.set_resource_sync_pending(context, resource)
+            # TODO(ivar): workaround for newly created monitored Tenant that
+            # will always stay in pending state.
+            if not old_db_obj and isinstance(
+                    resource, api_res.Tenant) and getattr(
+                    resource, 'monitored', None):
+                self.set_resource_sync_synced(context, resource)
+            else:
+                self.set_resource_sync_pending(context, resource)
             return self.get(context, resource)
 
     def update(self, context, resource, fix_ownership=False,
@@ -137,12 +143,8 @@ class AimManager(object):
             if db_obj:
                 old_monitored = getattr(db_obj, 'monitored', None)
                 new_monitored = update_attr_val.get('monitored')
-                if (new_monitored is not None
-                        and old_monitored != new_monitored):
-                    if fix_ownership or (old_monitored is False):
-                        LOG.info("INFO: %s" % [old_monitored, new_monitored])
-                        # Cannot move from owned to monitored
-                        raise exc.InvalidMonitoredStateUpdate(object=resource)
+                if fix_ownership and old_monitored != new_monitored:
+                    raise exc.InvalidMonitoredStateUpdate(object=resource)
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
                             if k in resource.other_attributes}
                 db_obj.from_attr(context.db_session, attr_val)
@@ -163,11 +165,17 @@ class AimManager(object):
             db_obj = self._query_db_obj(context.db_session, resource)
             if db_obj:
                 if isinstance(resource, api_res.AciResourceBase):
+                    status = self.get_status(context, resource)
+                    if status and getattr(db_obj, 'monitored', None):
+                        if status.sync_status == status.SYNC_PENDING:
+                            # Cannot delete monitored objects if sync status
+                            # is pending, or ownership flip might fail
+                            raise exc.InvalidMonitoredObjectDelete(
+                                object=resource)
                     # Recursively delete monitored children
                     for child_res in self._iter_children(context, resource,
                                                          monitored=True):
                         self.delete(context, child_res)
-                    status = self.get_status(context, resource)
                     if status:
                         for fault in status.faults:
                             self.clear_fault(context, fault)
@@ -270,7 +278,7 @@ class AimManager(object):
     def set_resource_sync_synced(self, context, resource):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
-    def set_resource_sync_pending(self, context, resource):
+    def set_resource_sync_pending(self, context, resource, top=True):
         # When a resource goes in pending state, propagate to both parent
         # and subtree
         with context.db_session.begin(subtransactions=True):
@@ -279,7 +287,8 @@ class AimManager(object):
             if self._set_resource_sync(
                     context, resource, api_status.AciStatus.SYNC_PENDING,
                     exclude=[api_status.AciStatus.SYNCED,
-                             api_status.AciStatus.SYNC_PENDING]):
+                             api_status.AciStatus.SYNC_PENDING]
+                    if not top else []):
                 # Change parent first
                 parent_klass = resource._tree_parent
                 if parent_klass:
@@ -287,9 +296,11 @@ class AimManager(object):
                                 for i, v in enumerate(
                         parent_klass.identity_attributes)}
                     self.set_resource_sync_pending(context,
-                                                   parent_klass(**identity))
+                                                   parent_klass(**identity),
+                                                   top=False)
                 for child_res in self._iter_children(context, resource):
-                    self.set_resource_sync_pending(context, child_res)
+                    self.set_resource_sync_pending(context, child_res,
+                                                   top=False)
 
     def set_resource_sync_error(self, context, resource, message=''):
         with context.db_session.begin(subtransactions=True):

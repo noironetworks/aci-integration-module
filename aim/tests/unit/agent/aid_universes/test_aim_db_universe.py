@@ -147,6 +147,10 @@ class TestAimDbUniverseBase(object):
         aim_mgr.set_fault(self.ctx, bd1, bd1_fault2)
 
         aim_mgr.create(self.ctx, bd2)
+        aim_mgr.set_resource_sync_synced(self.ctx, t1)
+        aim_mgr.set_resource_sync_synced(self.ctx, t2)
+        aim_mgr.set_resource_sync_synced(self.ctx, bd2)
+        aim_mgr.set_resource_sync_synced(self.ctx, bd1)
 
         # Two trees exist
         trees = tree_mgr.find(self.ctx, tree=tree_type)

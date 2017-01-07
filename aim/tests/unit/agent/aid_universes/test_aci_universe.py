@@ -36,7 +36,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self._do_aci_mocks()
         self.universe = (universe_klass or
                          aci_universe.AciUniverse)().initialize(
-            self.ctx, aim_cfg.ConfigManager(self.ctx, 'h1'))
+            self.ctx.db_session, aim_cfg.ConfigManager(self.ctx, 'h1'))
         # Mock ACI tenant manager
         self.mock_start = mock.patch(
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.start')
@@ -229,6 +229,18 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                  'vzOutTerm|outtmnl', 'vzRsFiltAtt|h'), ]
         result = self.universe.get_resources_for_delete(keys)
         self.assertEqual(sorted(objs), sorted(result))
+        # Create a pending monitored object
+        self.universe.manager.create(self.ctx, resource.Tenant(name='tn1',
+                                                               monitored=True))
+        self.universe.manager.create(self.ctx, resource.BridgeDomain(
+            tenant_name='tn1', name='monitoredBD', monitored=True))
+        result = self.universe.get_resources_for_delete(
+            [('fvTenant|tn1', 'fvBD|monitoredBD')])
+        self.assertEqual(1, len(result))
+        result = result[0]
+        self.assertEqual('tagInst', result.keys()[0])
+        self.assertEqual('uni/tn-tn1/BD-monitoredBD/tag-openstack_aid',
+                         result.values()[0]['attributes']['dn'])
 
     def test_ws_config_changed(self):
         # Refresh subscriptions

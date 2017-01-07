@@ -281,10 +281,22 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # Create my own tree representation
         my_cfg_tree = tree.StructuredHashTree()
         my_mon_tree = tree.StructuredHashTree()
-        self.db_l.tt_maker.update(my_mon_tree, [tn, ap, epg])
-
+        self.db_l.tt_maker.update(my_mon_tree, [tn])
+        # Since the objects except the tenant created are in sync pending,
+        # they will be out of all trees
         self.assertEqual(my_mon_tree, mon_tree)
         self.assertEqual(my_cfg_tree, cfg_tree)
+        # Succeed their creation
+        self.mgr.set_resource_sync_synced(self.ctx, ap)
+        self.mgr.set_resource_sync_synced(self.ctx, epg)
+        self.db_l.tt_maker.update(my_mon_tree, [ap, epg])
+        cfg_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(self.ctx, tn_name,
+                                   tree=tree_model.MONITORED_TREE)
+        self.assertEqual(my_mon_tree, mon_tree)
+        self.assertEqual(my_cfg_tree, cfg_tree)
+
         # Change ownership of the AP
         self.mgr.update(self.ctx, ap, monitored=False)
         my_mon_tree = tree.StructuredHashTree()

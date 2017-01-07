@@ -122,7 +122,7 @@ class AciTenantManager(gevent.Greenlet):
 
     def __init__(self, tenant_name, apic_config, apic_session, ws_context,
                  creation_succeeded=None, creation_failed=None,
-                 *args, **kwargs):
+                 aim_system_id=None, *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
         LOG.info("Init manager for tenant %s" % tenant_name)
         self.apic_config = apic_config
@@ -147,7 +147,8 @@ class AciTenantManager(gevent.Greenlet):
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
         self.tree_maker = tree_model.AimHashTreeMaker()
-        self.tag_name = self.apic_config.get_option('aim_system_id', 'aim')
+        self.tag_name = aim_system_id or self.apic_config.get_option(
+            'aim_system_id', 'aim')
         self.tag_set = set()
         self.failure_log = {}
 
@@ -352,10 +353,11 @@ class AciTenantManager(gevent.Greenlet):
                     if method == base_universe.CREATE:
                         # No need to deal with tags on deletion
                         for obj in to_push:
-                            dn = obj.values()[0]['attributes']['dn']
-                            dn += '/tag-%s' % self.tag_name
-                            tags.append({"tagInst__%s" % obj.keys()[0]:
-                                         {"attributes": {"dn": dn}}})
+                            if not obj.keys()[0].startswith(TAG_KEY):
+                                dn = obj.values()[0]['attributes']['dn']
+                                dn += '/tag-%s' % self.tag_name
+                                tags.append({"tagInst__%s" % obj.keys()[0]:
+                                             {"attributes": {"dn": dn}}})
                     LOG.debug("Pushing %s into APIC: %s" %
                               (method, to_push + tags))
                     # Multiple objects could result from a conversion, push
@@ -554,7 +556,6 @@ class AciTenantManager(gevent.Greenlet):
                                  'status': converter.MODIFIED_STATUS}}})
                 except apic_client.DNManager.InvalidNameFormat:
                     LOG.debug("Tag with DN %s is not supported." % raw_dn)
-                continue
             if status == converter.DELETED_STATUS and not (
                     AciTenantManager.is_rs_object(res_type)):
                 if raw_dn not in visited:
