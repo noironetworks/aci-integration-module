@@ -57,9 +57,11 @@ class HashTreeDbListener(object):
                     # Remove main object from config tree if in sync error
                     # during an update
                     if res.sync_status == res.SYNC_FAILED:
-                        if tree_index == 0:
-                            # Pretend that the object has been deleted
-                            all_updates[-1].append(parent)
+                        parent = self.aim_manager.get_by_id(
+                            ctx, res.parent_class, res.resource_id)
+                        # Put the object in error state
+                        parent._error = True
+                        all_updates[1].append(parent)
                     elif res.sync_status == res.SYNC_PENDING:
                         # A sync pending monitored object is in a limbo state,
                         # potentially switching from Owned to Monitored, and
@@ -125,7 +127,6 @@ class HashTreeDbListener(object):
                 udp_op_trees.append(ttree_operational)
             if ttree_monitor.root_key:
                 udp_mon_trees.append(ttree_monitor)
-
         # Finally save the modified trees
         if upd_trees:
             self.tt_mgr.update_bulk(ctx, upd_trees)

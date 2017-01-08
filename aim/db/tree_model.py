@@ -363,6 +363,33 @@ class AimHashTreeMaker(object):
     def _extract_tenant_name(root_key):
         return root_key[0][root_key[0].find('|') + 1:]
 
+    def _prepare_aim_resource(self, tree, aim_res):
+        result = {}
+        is_error = getattr(aim_res, '_error', False)
+        to_aci = converter.AimToAciModelConverter()
+        aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
+        if not aim_res_dn:
+            return result
+
+        # Remove "related" child-nodes
+        aim_res_key = AimHashTreeMaker._build_hash_tree_key(aim_res)
+        node = tree.find(aim_res_key) if aim_res_key else None
+        for child in (node.get_children() if node else []):
+            if child.metadata.get('related'):
+                tree.pop(child.key)
+
+        for obj in to_aci.convert([aim_res]):
+            for mo, v in obj.iteritems():
+                attr = v.get('attributes', {})
+                dn = attr.pop('dn', None)
+                key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
+                if key:
+                    if dn != aim_res_dn:
+                        attr['_metadata'] = {'related': True}
+                    attr['_error'] = is_error
+                    result[key] = attr
+        return result
+
     def update(self, tree, updates):
         """Add/update AIM resource to tree.
 
@@ -372,28 +399,8 @@ class AimHashTreeMaker(object):
         :return: The updated tree (value is also changed)
         """
         to_update = {}
-        to_aci = converter.AimToAciModelConverter()
         for aim_res in updates:
-            aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
-            if not aim_res_dn:
-                continue
-
-            # Remove "related" child-nodes
-            aim_res_key = AimHashTreeMaker._build_hash_tree_key(aim_res)
-            node = tree.find(aim_res_key) if aim_res_key else None
-            for child in (node.get_children() if node else []):
-                if child.metadata.get('related'):
-                    tree.pop(child.key)
-
-            for obj in to_aci.convert([aim_res]):
-                for mo, v in obj.iteritems():
-                    attr = v.get('attributes', {})
-                    dn = attr.pop('dn', None)
-                    key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
-                    if key:
-                        if dn != aim_res_dn:
-                            attr['_metadata'] = {'related': True}
-                        to_update[key] = attr
+            to_update.update(self._prepare_aim_resource(tree, aim_res))
         for k, v in to_update.iteritems():
             tree.add(k, **v)
         return tree

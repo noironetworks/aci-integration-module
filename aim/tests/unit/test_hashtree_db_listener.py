@@ -116,85 +116,112 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
     def _test_sync_failed(self, monitored=False):
         tn_name = 'tn1'
-        tn = aim_res.Tenant(name=tn_name)
-        ap = aim_res.ApplicationProfile(tenant_name=tn_name, name='ap')
+        tn = aim_res.Tenant(name=tn_name, monitored=monitored)
+        ap = aim_res.ApplicationProfile(tenant_name=tn_name, name='ap',
+                                        monitored=monitored)
         epg = aim_res.EndpointGroup(
             tenant_name=tn_name, app_profile_name='ap', name='epg',
             monitored=monitored, bd_name='some')
         epg2 = aim_res.EndpointGroup(
             tenant_name=tn_name, app_profile_name='ap', name='epg2',
             monitored=monitored, bd_name='some')
+        empty_map = {True: tree_model.CONFIG_TREE,
+                     False: tree_model.MONITORED_TREE}
 
+        exp_tree = tree.StructuredHashTree()
+        exp_empty_tree = tree.StructuredHashTree()
         # Add Tenant and AP
-        self.mgr.create(self.ctx, tn)
-        no_ap_tree_cfg = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
-        no_ap_tree_mon = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
-
-        self.mgr.create(self.ctx, ap)
-        self.mgr.create(self.ctx, epg2)
-        # Get the tree
-        no_epg_tree_cfg = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
-        no_epg_tree_mon = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
-        # Now add EPG
-        self.mgr.create(self.ctx, epg)
-        # Get the tree once again and verify it's different from the previous
-        # one
-        epg_tree_cfg = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
-        epg_tree_mon = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
-
-        self.assertNotEqual(epg_tree_cfg, no_epg_tree_cfg)
-        self.assertNotEqual(epg_tree_mon, no_epg_tree_mon)
+        tn = self.mgr.create(self.ctx, tn)
+        self.mgr.set_resource_sync_synced(self.ctx, tn)
+        ap = self.mgr.create(self.ctx, ap)
+        self.mgr.set_resource_sync_synced(self.ctx, ap)
+        epg2 = self.mgr.create(self.ctx, epg2)
+        self.mgr.set_resource_sync_synced(self.ctx, epg2)
+        epg = self.mgr.create(self.ctx, epg)
+        self.mgr.set_resource_sync_synced(self.ctx, epg)
         # Set EPG status to delete error
         self.mgr.set_resource_sync_error(self.ctx, epg)
-        # Get tree once again
-        final_tree_cfg = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
-        final_tree_mon = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
-        # This tree is just like the one without EPG
-        self.assertEqual(no_epg_tree_cfg, final_tree_cfg)
-        self.assertEqual(no_epg_tree_mon, final_tree_mon)
+        # Get the trees
+        empty_tree = self.tt_mgr.get(
+            self.ctx, tn_name, tree=empty_map[monitored])
+        configured_tree = self.tt_mgr.get(
+            self.ctx, tn_name, tree=empty_map[not monitored])
+
+        epg._error = True
+        self.db_l.tt_maker.update(exp_tree, [tn, ap, epg2, epg])
+        self.assertEqual({'add': [], 'remove': []},
+                         exp_tree.diff(configured_tree))
+        self.assertEqual({'add': [], 'remove': []},
+                         exp_empty_tree.diff(empty_tree))
+        # Even if something changes in the EPG the difference will still be
+        # empty
+        epg.display_name = 'somethingelse'
+        self.db_l.tt_maker.update(exp_tree, [epg])
+        self.assertEqual({'add': [], 'remove': []},
+                         exp_tree.diff(configured_tree))
+        self.assertEqual({'add': [], 'remove': []},
+                         exp_empty_tree.diff(empty_tree))
+
         # Update epg, it will be re-created. Note that I'm not actually
-        # changing attributed
-        self.mgr.update(self.ctx, epg, bd_name='some')
-        final_tree_cfg = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
-        final_tree_mon = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
-        self.assertEqual(epg_tree_cfg, final_tree_cfg)
-        self.assertEqual(epg_tree_mon, final_tree_mon)
+        # changing attributes
+        epg = self.mgr.update(self.ctx, epg, bd_name='some')
+        self.mgr.set_resource_sync_synced(self.ctx, epg)
+        # Fix the expected tree as well
+        self.db_l.tt_maker.update(exp_tree, [epg])
+        # Get the trees
+        empty_tree = self.tt_mgr.get(
+            self.ctx, tn_name, tree=empty_map[monitored])
+        configured_tree = self.tt_mgr.get(
+            self.ctx, tn_name, tree=empty_map[not monitored])
+        self.assertEqual(exp_tree, configured_tree)
+        self.assertEqual(exp_empty_tree, empty_tree)
+
+        # Modifying the EPG will make the difference visible
+        epg.display_name = 'somethingelse'
+        self.db_l.tt_maker.update(exp_tree, [epg])
+        self.assertEqual({'add': [('fvTenant|tn1', 'fvAp|ap', 'fvAEPg|epg')],
+                          'remove': []},
+                         exp_tree.diff(configured_tree))
+        self.assertEqual({'add': [], 'remove': []},
+                         exp_empty_tree.diff(empty_tree))
 
         # Set AP in error state, will effect all the children
         self.mgr.set_resource_sync_error(self.ctx, ap)
-        tenant_only_cfg = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
-        tenant_only_mon = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
-        self.assertEqual(no_ap_tree_cfg, tenant_only_cfg)
-        self.assertEqual(no_ap_tree_mon, tenant_only_mon)
+        empty_tree = self.tt_mgr.get(
+            self.ctx, tn_name, tree=empty_map[monitored])
+        configured_tree = self.tt_mgr.get(
+            self.ctx, tn_name, tree=empty_map[not monitored])
+        # This time around, the AP and both its EPGs are in error state
+        ap._error = True
+        epg._error = True
+        epg2._error = True
+        self.db_l.tt_maker.update(exp_tree, [ap, epg, epg2])
+        self.assertEqual({'add': [], 'remove': []},
+                         exp_tree.diff(configured_tree))
+        self.assertEqual({'add': [], 'remove': []},
+                         exp_empty_tree.diff(empty_tree))
 
         # All the objects are in failed state
         for obj in [ap, epg2, epg]:
             self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
                              self.mgr.get_status(self.ctx, obj).sync_status)
         # Changing sync status of the EPG will bring everything back
-        self.mgr.update(self.ctx, epg)
-        full_cfg = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.CONFIG_TREE)
-        full_mon = self.tt_mgr.get(
-            self.ctx, tn_name, tree=tree_model.MONITORED_TREE)
+        epg = self.mgr.update(self.ctx, epg)
         # All the objects are in synced state
         for obj in [ap, epg2, epg]:
             self.assertEqual(aim_status.AciStatus.SYNC_PENDING,
                              self.mgr.get_status(self.ctx, obj).sync_status)
-        self.assertEqual(epg_tree_cfg, full_cfg)
-        self.assertEqual(epg_tree_mon, full_mon)
+        if not monitored:
+            empty_tree = self.tt_mgr.get(
+                self.ctx, tn_name, tree=empty_map[monitored])
+            configured_tree = self.tt_mgr.get(
+                self.ctx, tn_name, tree=empty_map[not monitored])
+            del ap._error
+            del epg2._error
+            self.db_l.tt_maker.update(exp_tree, [ap, epg, epg2])
+
+            self.assertEqual(exp_tree, configured_tree)
+            self.assertEqual(exp_empty_tree, empty_tree)
 
     def test_sync_failed(self):
         self._test_sync_failed(monitored=False)

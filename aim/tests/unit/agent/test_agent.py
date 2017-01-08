@@ -676,6 +676,18 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         bd = resource.BridgeDomain(name='mybd', tenant_name=tenant_name)
         bd = self.aim_manager.get(self.ctx, bd)
         self.assertTrue(bd.limit_ip_learn_to_subnets)
+        self.assertTrue(bd.monitored)
+        # Observe
+        self._observe_aci_events(current_config)
+        # Reconcile
+        agent._daemon_loop()
+        # Observe
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+        # Verify all trees converged
+        self._assert_universe_sync(desired_config, current_config)
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_reset_consistency()
         # Delete the ACI BD manually
         aci_bd['fvBD']['attributes']['status'] = 'deleted'
         self._set_events(
@@ -688,10 +700,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe
         self._observe_aci_events(current_config)
         agent._daemon_loop()
-        # Verify all tree converged
-        self._assert_universe_sync(desired_config, current_config)
-        self._assert_universe_sync(desired_monitor, current_monitor)
-        self._assert_reset_consistency()
         # Verify sync status of BD
         bd = self.aim_manager.get(self.ctx, bd)
         bd_status = self.aim_manager.get_status(self.ctx, bd)
@@ -704,6 +712,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
                          sub_status.sync_status)
         self.assertNotEqual('', sub_status.sync_message)
+        # Verify all tree converged
+        self._assert_universe_sync(desired_config, current_config)
+        self._assert_universe_sync(desired_monitor, current_monitor)
+        self._assert_reset_consistency()
 
     def test_monitored_tree_rs_objects(self):
         """Verify that RS objects can be synced for monitored objects
@@ -1009,10 +1021,17 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             return json.dumps({x: y.root.to_dict() if y.root else {}
                                for x, y in universe.state.iteritems()},
                               indent=2)
-        self.assertEqual(current.state, desired.state,
-                         'Not in sync:\n %s\n: %s \n\n %s\n: %s' %
-                         (current.name, printable_state(current),
-                          desired.name, printable_state(desired)))
+        # Because of the possible error nodes, we need to verify that the
+        # diff is empty
+        self.assertEqual(current.state.keys(), desired.state.keys(),
+                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
+                         (printable_state(current), printable_state(desired)))
+        for tenant in current.state:
+            self.assertEqual(
+                {"add": [], "remove": []},
+                current.state[tenant].diff(desired.state[tenant]),
+                'Not in sync:\n current\n: %s \n\n desired\n: %s' %
+                (printable_state(current), printable_state(desired)))
 
     def _assert_reset_consistency(self, tenant=None):
         ctx = mock.Mock()
