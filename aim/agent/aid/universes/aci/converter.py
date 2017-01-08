@@ -496,8 +496,6 @@ resource_map = {
         'resource': resource.L3Outside,
         'exceptions': {'tnFvCtxName': {'other': 'vrf_name'}},
         'to_resource': default_to_resource_strict,
-        'convert_pre_existing': True,
-        'convert_monitored': False
     }],
     'l3extRsL3DomAtt': [{
         'resource': resource.L3Outside,
@@ -513,8 +511,6 @@ resource_map = {
         'resource': resource.ExternalNetwork,
         'exceptions': {'tDn': {'other': 'nat_epg_dn'}},
         'to_resource': default_to_resource_strict,
-        'convert_pre_existing': True,
-        'convert_monitored': False
     }],
     'l3extSubnet': [{
         'resource': resource.ExternalSubnet,

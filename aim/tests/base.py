@@ -331,6 +331,15 @@ class TestAimDBBase(BaseTestCase):
         return example_l3o
 
     @classmethod
+    def _get_example_aci_l3_out_vrf_rs(cls, **kwargs):
+        example_l3o_vrf_rs = {"l3extRsEctx": {
+            "attributes": {
+                "dn": "uni/tn-common/out-default/rsectx",
+                "tnFvCtxName": "default"}}}
+        example_l3o_vrf_rs['l3extRsEctx']['attributes'].update(kwargs)
+        return example_l3o_vrf_rs
+
+    @classmethod
     def _get_example_aci_contract(cls, **kwargs):
         example_brcp = {
             "vzBrCP": {

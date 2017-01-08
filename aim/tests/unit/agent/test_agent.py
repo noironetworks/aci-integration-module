@@ -960,6 +960,44 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
 
+    def test_monitored_l3out_vrf_rs(self):
+        agent = self._create_agent()
+        tenant_name = 'test_monitored_l3out_vrf_rs'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name, monitored=True)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Create some manual stuff
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        aci_l3o = self._get_example_aci_l3_out(
+            dn='uni/tn-%s/out-out' % tenant_name, name='out')
+        aci_l3o_vrf_rs = self._get_example_aci_l3_out_vrf_rs(
+            dn='uni/tn-%s/out-out/rsectx' % tenant_name, tnFvCtxName='foo')
+
+        self._set_events(
+            [aci_tn, aci_l3o, aci_l3o_vrf_rs],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        l3o = self.aim_manager.get(self.ctx, resource.L3Outside(
+            tenant_name=tenant_name, name='out'))
+        self.assertIsNotNone(l3o)
+        self.assertTrue(l3o.monitored)
+        self.assertEqual('foo', l3o.vrf_name)
+
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
             self._current_manager = tenant
