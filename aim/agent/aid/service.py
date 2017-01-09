@@ -154,8 +154,12 @@ class AID(object):
             pair[CURRENT].observe()
 
         # Reconcile everything
+        changes = False
         for pair in self.multiverse:
-            pair[CURRENT].reconcile(pair[DESIRED], self.delete_candidates)
+            changes |= pair[CURRENT].reconcile(pair[DESIRED],
+                                               self.delete_candidates)
+        if not changes:
+            LOG.debug("Congratulations! your multiverse is nice and synced :)")
 
         # Delete tenants if there's consensus
         for tenant, votes in self.delete_candidates.iteritems():

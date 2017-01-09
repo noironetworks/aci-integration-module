@@ -277,12 +277,13 @@ class HashTreeStoredUniverse(AimUniverse):
         if not result.get(CREATE) and not result.get(DELETE):
             LOG.debug("Universe %s and %s are in sync." %
                       (self.name, other_universe.name))
-            return
+            return False
         # Get AIM resources at the end to reduce the number of transactions
         result[CREATE] = other_universe.get_resources(result[CREATE])
         result[DELETE] = self.get_resources_for_delete(result[DELETE])
         # Reconciliation method for pushing changes
         self.push_resources(result)
+        return True
 
     def reset(self, tenants):
         pass
