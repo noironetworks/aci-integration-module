@@ -52,16 +52,23 @@ class HashTreeDbListener(object):
             tree_index = 0 if idx < 2 else 1
             for res in all_updates[idx]:
                 if isinstance(res, aim_status.AciStatus):
+                    parent = self.aim_manager.get_by_id(ctx, res.parent_class,
+                                                        res.resource_id)
                     # Remove main object from config tree if in sync error
                     # during an update
-                    if res.sync_status == res.SYNC_FAILED and tree_index == 0:
-                        parent = self.aim_manager.get_by_id(
-                            ctx, res.parent_class, res.resource_id)
-                        # Pretend that the object has been deleted
-                        all_updates[-1].append(parent)
+                    if res.sync_status == res.SYNC_FAILED:
+                        if tree_index == 0:
+                            # Pretend that the object has been deleted
+                            all_updates[-1].append(parent)
                     elif res.sync_status == res.SYNC_PENDING:
-                        parent = self.aim_manager.get_by_id(
-                            ctx, res.parent_class, res.resource_id)
+                        # A sync pending monitored object is in a limbo state,
+                        # potentially switching from Owned to Monitored, and
+                        # therefore should be removed from all the trees
+                        if parent.monitored:
+                            all_updates[-1].append(parent)
+                        else:
+                            all_updates[1].append(parent)
+                    elif res.sync_status == res.SYNCED:
                         all_updates[1].append(parent)
                 key = self.tt_maker.get_tenant_key(res)
                 if not key:
@@ -99,12 +106,18 @@ class HashTreeDbListener(object):
             # Update Configuration Tree
             self.tt_maker.update(ttree, upd[conf][0])
             self.tt_maker.delete(ttree, upd[conf][1])
+            # Clear new monitored objects
+            self.tt_maker.clear(ttree, upd[monitor][0])
+
             # Update Operational Tree
             self.tt_maker.update(ttree_operational, upd[oper][0])
             self.tt_maker.delete(ttree_operational, upd[oper][1])
+
             # Update Monitored Tree
             self.tt_maker.update(ttree_monitor, upd[monitor][0])
             self.tt_maker.delete(ttree_monitor, upd[monitor][1])
+            # Clear new owned objects
+            self.tt_maker.clear(ttree_monitor, upd[conf][0])
 
             if ttree.root_key:
                 upd_trees.append(ttree)

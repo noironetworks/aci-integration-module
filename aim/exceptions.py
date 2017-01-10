@@ -75,3 +75,8 @@ class OneHostPerCallbackItemSubscriptionAllowed(AimException):
 
 class InvalidMonitoredStateUpdate(AimException):
     message = "Monitored state of object %(object)s cannot be updated"
+
+
+class InvalidMonitoredObjectDelete(AimException):
+    message = ("Monitored object %(object)s cannot be deleted while in "
+               "pending state")

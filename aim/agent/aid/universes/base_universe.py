@@ -239,6 +239,7 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _reconcile(self, other_universe, delete_candidates,
                    skip_dummy=False, always_vote_deletion=False):
+        # "self" is always the current state, "other" the desired
         my_state = self.state
         other_state = other_universe.get_optimized_state(my_state)
         result = {CREATE: [], DELETE: []}

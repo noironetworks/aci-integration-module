@@ -175,6 +175,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
         self.ws_context = get_websocket_context(self.conf_manager)
+        self.aim_system_id = self.conf_manager.get_option('aim_system_id',
+                                                          'aim')
         return self
 
     @property
@@ -234,7 +236,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     serving_tenants[added] = aci_tenant.AciTenantManager(
                         added, self.conf_manager, self.aci_session,
                         self.ws_context, self.creation_succeeded,
-                        self.creation_failed)
+                        self.creation_failed, self.aim_system_id)
                     serving_tenants[added].start()
         except Exception as e:
             LOG.error('Failed to serve new tenants %s' % tenants)
@@ -291,6 +293,17 @@ class AciUniverse(base.HashTreeStoredUniverse):
 
     def _retrieve_tenant_name(self, data):
         if isinstance(data, dict):
+            if data.keys()[0] == 'tagInst':
+                # Retrieve tag parent
+                dn = data.values()[0]['attributes']['dn']
+                decomposed = apic_client.DNManager().aci_decompose_dn_guess(
+                    dn, 'tagInst')
+                parent_type = decomposed[1][-2][0]
+                data = {
+                    parent_type: {
+                        'attributes': {
+                            'dn': apic_client.DNManager().build(
+                                decomposed[1][:-1])}}}
             data = self._aim_converter.convert([data])[0]
         if isinstance(data, resource.Tenant):
             return data.name
@@ -301,8 +314,24 @@ class AciUniverse(base.HashTreeStoredUniverse):
         result = []
         for key in resource_keys:
             key_parts = self._split_key(key)
+            # Verify whether it's an object switching ownership
+            aim_klass = None
             dn = apic_client.DNManager().build(key_parts)
-            result.append({key_parts[-1][0]: {'attributes': {'dn': dn}}})
+            aci_type = key_parts[-1][0]
+            for i in range(len(key_parts) - 1, -1, -1):
+                res_type = key_parts[i][0]
+                aim_klass = self.manager._res_by_aci_type.get(res_type)
+                if aim_klass:
+                    break
+            if aim_klass:
+                res_dn = apic_client.DNManager().build(key_parts[:i + 1])
+                res = self.manager.get(
+                    self.context, aim_klass.from_dn(res_dn))
+                if getattr(res, 'monitored', None):
+                    # Delete the TAG instead
+                    aci_type = 'tagInst'
+                    dn = dn + '/tag-' + self.aim_system_id
+            result.append({aci_type: {'attributes': {'dn': dn}}})
         return result
 
     def _get_state_copy(self, tenant):

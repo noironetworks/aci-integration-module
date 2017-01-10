@@ -244,7 +244,16 @@ class TestResourceOpsBase(object):
         if test_update_attributes:
             listener.reset_mock()
             res = self.mgr.update(self.ctx, res, **test_update_attributes)
-            listener.assert_called_with(mock.ANY, [], [res], [])
+            status = self.mgr.get_status(self.ctx, res)
+            if status:
+                exp_calls = [
+                    mock.call(mock.ANY, [], [res], []),
+                    mock.call(mock.ANY, [], [status], [])]
+                self._check_call_list(exp_calls, listener)
+            else:
+                # TODO(ivar): Agent object gets 2 calls to the hook on an
+                # update, figure out why
+                listener.assert_called_with(mock.ANY, [], [res], [])
 
         listener.reset_mock()
         self.mgr.delete(self.ctx, res)
@@ -378,15 +387,26 @@ class TestResourceOpsBase(object):
             # Cannot create overwrite if monitored is changed
             r1.monitored = False
             self.assertRaises(exc.InvalidMonitoredStateUpdate,
-                              self.mgr.create, self.ctx, r1, overwrite=True)
+                              self.mgr.create, self.ctx, r1,
+                              fix_ownership=True, overwrite=True)
 
             # Updating the monitored attribute fails
             res.monitored = False
             self.assertRaises(exc.InvalidMonitoredStateUpdate,
                               self.mgr.update, self.ctx, res,
-                              monitored=False)
+                              fix_ownership=True, monitored=False)
 
-            # Deleting it works
+            r1 = self.mgr.create(self.ctx, r1, overwrite=True)
+            self.assertFalse(r1.monitored)
+            r1 = self.mgr.update(self.ctx, r1, monitored=True)
+            self.assertTrue(r1.monitored)
+
+            self.mgr.set_resource_sync_pending(self.ctx, res)
+            # Deleting doesn't work because status is pending
+            self.assertRaises(exc.InvalidMonitoredObjectDelete,
+                              self.mgr.delete, self.ctx, res)
+            self.mgr.set_resource_sync_synced(self.ctx, res)
+            # Now delete works
             self.mgr.delete(self.ctx, res)
             self.assertIsNone(self.mgr.get(self.ctx, res))
 

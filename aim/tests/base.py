@@ -329,3 +329,35 @@ class TestAimDBBase(BaseTestCase):
                 "name": "default"}}}
         example_l3o['l3extOut']['attributes'].update(kwargs)
         return example_l3o
+
+    @classmethod
+    def _get_example_aci_l3_out_vrf_rs(cls, **kwargs):
+        example_l3o_vrf_rs = {"l3extRsEctx": {
+            "attributes": {
+                "dn": "uni/tn-common/out-default/rsectx",
+                "tnFvCtxName": "default"}}}
+        example_l3o_vrf_rs['l3extRsEctx']['attributes'].update(kwargs)
+        return example_l3o_vrf_rs
+
+    @classmethod
+    def _get_example_aci_contract(cls, **kwargs):
+        example_brcp = {
+            "vzBrCP": {
+                "attributes": {
+                    "dn": "uni/tn-common/brc-c",
+                    "name": "c"}}}
+        example_brcp['vzBrCP']['attributes'].update(kwargs)
+        return example_brcp
+
+    @classmethod
+    def _get_example_provided_contract(cls, **kwargs):
+        example_rsprov = {
+            "fvRsProv": {
+                "attributes": {
+                    "dn": "uni/tn-common/ap-ap/epg-epg/rsprov-c",
+                    "tnVzBrCPName": "c"
+                }
+            }
+        }
+        example_rsprov['fvRsProv']['attributes'].update(kwargs)
+        return example_rsprov

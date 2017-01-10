@@ -299,53 +299,20 @@ class StructuredHashTree(base.ComparableCollection):
     @utils.log
     def pop(self, key, default=None):
         result = default
-        if not self.root:
-            # Nothing to do
-            LOG.debug("root is None, returning default")
-            return result
-        if self.root.key == key:
-            LOG.debug("Removing root node with key %s" % key)
-            # Result returned in the form of a StructuredTree
-            result = StructuredHashTree(self.root)
-            self.root = None
-        elif self.root.key == (key[0],):
-            # Find parent node
-            parent = self.root
-            stack = [parent]
-            partial_key = (key[0],)
-            for part in key[1:-1]:
-                partial_key += (part,)
-                parent = parent.get_child(partial_key)
-                if not parent:
-                    # Not Found
-                    return result
-                stack.append(parent)
-            current = parent.get_child(key)
-            if current:
-                # We can remove the node and recalculate the tree
-                # Subtree is returned as StructuredTree
-                result = StructuredHashTree(current)
-                parent.remove_child(current.key)
-                # Remove empty nodes in from the stack
-                for i in range(len(stack) - 1, -1, -1):
-                    node = stack[i]
-                    if self._is_node_removable(node):
-                        # Nodes with no partial hash and no children are
-                        # considered dummies and should be removed
-                        if i == 0:
-                            # This is the root node
-                            self.root = None
-                        else:
-                            # Remove from parent
-                            stack[i - 1].remove_child(node.key)
-                        # A node was removed and can be popped from the stack
-                        stack.pop()
-                    else:
-                        # One single non-dummy node in the stack is enough to
-                        # guarantee that there are no more
-                        break
-                if stack:
-                    self._recalculate_parents_stack(stack)
+        current, stack = self._get_node_and_parent_stack(key)
+        if current:
+            if not stack:
+                # Current is root
+                self.root = None
+                return StructuredHashTree(current)
+            # We can remove the node and recalculate the tree
+            # Subtree is returned as StructuredTree
+            result = StructuredHashTree(current)
+            stack[-1].remove_child(current.key)
+            # Remove empty nodes in from the stack
+            self._clear_stack_from_dummies(stack)
+            if stack:
+                self._recalculate_parents_stack(stack)
         return result
 
     @utils.log
@@ -354,23 +321,25 @@ class StructuredHashTree(base.ComparableCollection):
             raise KeyError
 
     @utils.log
+    def clear(self, key):
+        # Set the specific node as Dummy
+        node, parents = self._get_node_and_parent_stack(key)
+        if not node:
+            return
+        # Make node dummy
+        node.partial_hash = self._hash_attributes(key=key)
+        node.full_hash = None
+        node.dummy = True
+        node.metadata = None
+        parents.append(node)
+        # Cleanup parent list if node is a leaf
+        self._clear_stack_from_dummies(parents)
+        if parents:
+            self._recalculate_parents_stack(parents)
+
+    @utils.log
     def find(self, key):
-        if not self.root:
-            # Nothing ot look for
-            return None
-        if self.root.key == key:
-            return self.root
-        elif self.root.key == (key[0],):
-            node = self.root
-            partial_key = (key[0],)
-            for part in key[1:]:
-                partial_key += (part,)
-                node = node.get_child(partial_key)
-                if not node:
-                    # Not Found
-                    return None
-            return node
-        return None
+        return self._get_node_and_parent_stack(key)[0]
 
     @utils.log
     def diff(self, other):
@@ -458,3 +427,43 @@ class StructuredHashTree(base.ComparableCollection):
     def _is_node_removable(self, node):
         # A removable node has no children, and dummy
         return node.dummy and not node.get_children()
+
+    def _get_node_and_parent_stack(self, key):
+        not_found = None, []
+        if not self.root:
+            return not_found
+        if self.root.key == key:
+            return self.root, []
+        elif self.root.key == (key[0],):
+            parent = self.root
+            stack = [parent]
+            partial_key = (key[0],)
+            for part in key[1:-1]:
+                partial_key += (part,)
+                parent = parent.get_child(partial_key)
+                if not parent:
+                    # Not Found
+                    return not_found
+                stack.append(parent)
+            current = parent.get_child(key)
+            return current, stack
+        return not_found
+
+    def _clear_stack_from_dummies(self, stack):
+        for i in range(len(stack) - 1, -1, -1):
+            node = stack[i]
+            if self._is_node_removable(node):
+                # Nodes with no partial hash and no children are
+                # considered dummies and should be removed
+                if i == 0:
+                    # This is the root node
+                    self.root = None
+                else:
+                    # Remove from parent
+                    stack[i - 1].remove_child(node.key)
+                # A node was removed and can be popped from the stack
+                stack.pop()
+            else:
+                # One single non-dummy node in the stack is enough to
+                # guarantee that there are no more
+                break

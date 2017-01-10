@@ -394,6 +394,22 @@ class TestStructuredHashTree(base.BaseTestCase):
         data.pop(('keyA', 'keyB'))
         self.assertIsNone(data.root)
 
+    def test_clear(self):
+        data = tree.StructuredHashTree().include(
+            [{'key': ('keyA', )}, {'key': ('keyA', 'keyB')},
+             {'key': ('keyA', 'keyB', 'keyC')}])
+        data_copy = tree.StructuredHashTree().from_string(str(data))
+        data.clear(('keyA', 'keyB', 'keyNO'))
+        self.assertEqual(data_copy, data)
+        self.assertEqual(1, len(data.root.get_children()))
+        self.assertFalse(data.root.get_children()[0].dummy)
+        data.clear(('keyA', 'keyB'))
+        self.assertTrue(data.root.get_children()[0].dummy)
+        self.assertNotEqual(data_copy, data)
+        data.clear(('keyA', 'keyB', 'keyC'))
+        # Dummies removed
+        self.assertEqual(0, len(data.root.get_children()))
+
     def test_find(self):
         data = tree.StructuredHashTree()
         # root None

@@ -412,6 +412,23 @@ class AimHashTreeMaker(object):
                 tree.pop(key)
         return tree
 
+    def clear(self, tree, resources):
+        """Set AIM resources to dummy in tree
+
+        :param tree:
+        :param items:
+        :return:
+        """
+        to_aci = converter.AimToAciModelConverter()
+        for obj in to_aci.convert(resources):
+            for mo, v in obj.iteritems():
+                attr = v.get('attributes', {})
+                dn = attr.pop('dn', None)
+                key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
+                if key:
+                    tree.clear(key)
+        return tree
+
     def get_tenant_key(self, resource):
         key = self._build_hash_tree_key(resource)
         return self._extract_tenant_name(key) if key else None

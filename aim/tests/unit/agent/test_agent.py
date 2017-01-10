@@ -629,7 +629,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe
         agent._daemon_loop()
         # Delete the tenant on AIM, agents should stop watching it
-        # TODO(ivar): delete monitored children
         self.aim_manager.delete(self.ctx, tn1)
         # This loop will have a consensus for deleting Tenant tn1
         agent._daemon_loop()
@@ -871,6 +870,134 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             desired_monitor.serving_tenants[tenant_name].aci_session,
             'mo/' + aci_contract_rs['fvRsProv']['attributes']['dn'])
 
+    def test_monitored_state_change(self):
+        agent = self._create_agent()
+        tenant_name = 'test_monitored_state_change'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name, monitored=True)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Create some manual stuff
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        aci_ap = self._get_example_aci_app_profile(
+            dn='uni/tn-%s/ap-ap1' % tenant_name, name='ap1')
+        aci_epg = self._get_example_aci_epg(
+            dn='uni/tn-%s/ap-ap1/epg-epg1' % tenant_name)
+        aci_contract = self._get_example_aci_contract(
+            dn='uni/tn-%s/brc-c' % tenant_name)
+        aci_prov_contract = self._get_example_provided_contract(
+            dn='uni/tn-%s/ap-ap1/epg-epg1/rsprov-c' % tenant_name)
+
+        self._set_events(
+            [aci_tn, aci_ap, aci_epg, aci_contract, aci_prov_contract],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        # retrieve the corresponding AIM objects
+        ap = self.aim_manager.get(self.ctx, resource.ApplicationProfile(
+            tenant_name=tenant_name, name='ap1'))
+        epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
+            tenant_name=tenant_name, app_profile_name='ap1', name='epg1'))
+        contract = self.aim_manager.get(self.ctx, resource.Contract(
+            tenant_name=tenant_name, name='c'))
+        self.assertTrue(bool(ap.monitored and epg.monitored and
+                             contract.monitored))
+        self.assertEqual(['c'], epg.provided_contract_names)
+
+        # Now take control of the EPG
+        self.aim_manager.update(self.ctx, epg, monitored=False)
+        epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
+            tenant_name=tenant_name, app_profile_name='ap1', name='epg1'))
+        self.assertFalse(epg.monitored)
+        # We keep and own the contracts
+        self.assertEqual(['c'], epg.provided_contract_names)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
+        # Tag exists in ACI
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + epg.dn + '/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+
+        # Put back EPG into monitored state
+        epg = self.aim_manager.update(self.ctx, epg, monitored=True)
+        self.assertTrue(epg.monitored)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
+        # Tag doesn't exist anymore
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + epg.dn + '/tag-openstack_aid')
+        # Object is in monitored universe and in good shape
+        epg = self.aim_manager.get(self.ctx, epg)
+        self.assertTrue(epg.monitored)
+        # Still keeping whatever contract we had, but monitored this time
+        self.assertEqual(['c'], epg.provided_contract_names)
+        status = self.aim_manager.get_status(self.ctx, epg)
+        self.assertEqual(status.SYNCED, status.sync_status)
+
+    def test_monitored_l3out_vrf_rs(self):
+        agent = self._create_agent()
+        tenant_name = 'test_monitored_l3out_vrf_rs'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name, monitored=True)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Create some manual stuff
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        aci_l3o = self._get_example_aci_l3_out(
+            dn='uni/tn-%s/out-out' % tenant_name, name='out')
+        aci_l3o_vrf_rs = self._get_example_aci_l3_out_vrf_rs(
+            dn='uni/tn-%s/out-out/rsectx' % tenant_name, tnFvCtxName='foo')
+
+        self._set_events(
+            [aci_tn, aci_l3o, aci_l3o_vrf_rs],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        l3o = self.aim_manager.get(self.ctx, resource.L3Outside(
+            tenant_name=tenant_name, name='out'))
+        self.assertIsNotNone(l3o)
+        self.assertTrue(l3o.monitored)
+        self.assertEqual('foo', l3o.vrf_name)
+
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
             self._current_manager = tenant
@@ -883,8 +1010,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                for x, y in universe.state.iteritems()},
                               indent=2)
         self.assertEqual(current.state, desired.state,
-                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
-                         (printable_state(current), printable_state(desired)))
+                         'Not in sync:\n %s\n: %s \n\n %s\n: %s' %
+                         (current.name, printable_state(current),
+                          desired.name, printable_state(desired)))
 
     def _assert_reset_consistency(self, tenant=None):
         ctx = mock.Mock()
@@ -912,3 +1040,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                     self.aim_manager._hashtree_db_listener.tt_mgr.get(
                         self.ctx, tenant.name, tree=type))
         return result
+
+    def _sync_and_verify(self, agent, to_observe, couples):
+        agent._daemon_loop()
+        self._observe_aci_events(to_observe)
+        agent._daemon_loop()
+        # Verify everything is fine
+        for couple in couples:
+            self._assert_universe_sync(couple[0], couple[1])
+        self._assert_reset_consistency()

@@ -156,7 +156,7 @@ class TestAciClientMixin(object):
         for resource in copy.deepcopy(data):
             resource.values()[0]['attributes'].pop('status', None)
             data_type = resource.keys()[0]
-            if data_type == 'tagInst' and tag:
+            if data_type == 'tagInst' and tag and add:
                 continue
             decomposed = dn_mgr.aci_decompose_dn_guess(
                 resource.values()[0]['attributes']['dn'], data_type)[1]
@@ -200,7 +200,6 @@ class TestAciClientMixin(object):
                                 prev = curr
                                 curr = next[part[0]]['children']
                             else:
-                                # TODO(ivar): find out right exception
                                 raise apic_client.cexc.ApicResponseNotOk(
                                     status='bad request', reason='bad request',
                                     request='create', err_code=400,
