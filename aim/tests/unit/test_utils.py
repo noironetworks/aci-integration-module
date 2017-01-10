@@ -31,8 +31,8 @@ class TestUtils(base.TestAimDBBase):
 
     def test_sanitize_display_name(self):
         self.assertEqual(
-            'some_name',
-            utils.sanitize_display_name('some name'))
+            's0m_e_N.a_me-_',
+            utils.sanitize_display_name('s0m_e N.a/me-+'))
 
         self.assertEqual(
             'some' * 14 + 'som',

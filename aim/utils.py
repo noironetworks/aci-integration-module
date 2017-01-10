@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
 
 def sanitize_display_name(display_name):
-    return display_name[:59].replace(' ', '_')
+    return re.sub(r'[^a-zA-Z0-9_.-]', '_', display_name[:59])
