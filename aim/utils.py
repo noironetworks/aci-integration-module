@@ -15,5 +15,6 @@
 
 import re
 
+
 def sanitize_display_name(display_name):
     return re.sub(r'[^a-zA-Z0-9_.-]', '_', display_name[:59])
