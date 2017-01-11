@@ -137,7 +137,7 @@ class TestNatStrategyBase(object):
         self.ns.delete_l3outside(self.ctx, l3out2)
         self._verify(absent=[l3out1, l3out2] + other_objs1 + other_objs2)
 
-    def test_l3outside_pre(self):
+    def test_l3outside_pre(self, ownership_change=False):
         self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
         vrf = a_res.VRF(tenant_name='t1', name='ctx1', monitored=True)
         self.mgr.create(self.ctx, vrf)
@@ -146,20 +146,17 @@ class TestNatStrategyBase(object):
                                 monitored=True)
         self.mgr.create(self.ctx, l3out)
         self.ns.create_l3outside(self.ctx, l3out)
-        other_objs = self._get_l3out_objects()
-        l3out.vrf_name = 'EXT-o1'
-        self._verify(present=[l3out] + other_objs)
-
-        self.ns.delete_l3outside(self.ctx, l3out)
-        l3out.vrf_name = ''
-        self._verify(present=[l3out], absent=other_objs)
         other_objs = self._get_l3out_objects(nat_vrf_name='ctx1')
+        if ownership_change:
+            l3out.monitored = False
         self._verify(present=[l3out, vrf] + other_objs)
 
         get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
         self._assert_res_list_eq(other_objs + [l3out, vrf], get_objs)
 
         self.ns.delete_l3outside(self.ctx, l3out)
+        if ownership_change:
+            l3out.monitored = True
         self._verify(present=[l3out, vrf], absent=other_objs)
 
         get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
@@ -253,6 +250,10 @@ class TestNatStrategyBase(object):
         self.mgr.create(self.ctx, bd1)
         ext_net.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
         ext_net.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        self._check_connect_vrfs('stage1')
+
+        # connect vrf_1 again - should be no-op
         self.ns.connect_vrf(self.ctx, ext_net, vrf1)
         self._check_connect_vrfs('stage1')
 
@@ -627,6 +628,10 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
     vrf2_tenant_name = 't1'
     bd1_tenant_name = 't1'
 
+    def test_l3outside_pre(self):
+        super(TestNoNatStrategy, self).test_l3outside_pre(
+            ownership_change=True)
+
     def _get_vrf_1_ext_net_1_objects(self, connected=True):
         return {
             'l3out': a_res.L3Outside(
@@ -706,11 +711,12 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
     def _check_vrf_contract_update(self, stage):
-        e1 = a_res.ExternalNetwork(
-            tenant_name='t1', l3out_name='o1',
-            name='inet1', display_name='INET1',
-            provided_contract_names=['p1_vrf1', 'p2_vrf1'],
-            consumed_contract_names=['c1_vrf1', 'c2_vrf1'])
+        objs = self._get_vrf_1_ext_net_1_objects()
+        objs.pop('ext_sub_1')
+        objs.pop('ext_sub_2')
+        e1 = objs.pop('ext_net')
+        objs = objs.values()
+
         e2 = copy.deepcopy(e1)
         e2.provided_contract_names = ['arp', 'p2_vrf1']
         e2.consumed_contract_names = ['arp', 'c2_vrf1']
@@ -720,11 +726,11 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         e3.consumed_contract_names = []
 
         if stage == 'stage1':
-            self._verify(present=[e1])
+            self._verify(present=objs + [e1])
         elif stage == 'stage2':
-            self._verify(present=[e2])
+            self._verify(present=objs + [e2])
         elif stage == 'stage3':
-            self._verify(present=[e3])
+            self._verify(present=objs + [e3])
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 

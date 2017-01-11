@@ -51,6 +51,23 @@ class CloneL3Out(model_base.Base):
     name = model_base.name_column(nullable=False, primary_key=True)
 
 
+class SavedL3Out(model_base.Base):
+    """DB model for saved state of L3Out."""
+
+    __tablename__ = 'aim_lib_save_l3out'
+    __table_args__ = (
+        (sa.ForeignKeyConstraint(
+            ['tenant_name', 'name'],
+            ['aim_l3outsides.tenant_name', 'aim_l3outsides.name'],
+            name='fk_save_l3out_l3out', ondelete='CASCADE'),) +
+        models.to_tuple(model_base.Base.__table_args__))
+    tenant_name = model_base.name_column(nullable=False, primary_key=True)
+    name = model_base.name_column(nullable=False, primary_key=True)
+
+    monitored = sa.Column(sa.Boolean, nullable=True)
+    vrf_name = model_base.name_column(nullable=True)
+
+
 class CloneL3OutManager(object):
 
     def set(self, context, source, clone):
@@ -95,3 +112,34 @@ class CloneL3OutManager(object):
         if kwargs:
             query = query.filter_by(**kwargs)
         return query
+
+
+class SavedL3OutManager(object):
+
+    def push(self, context, l3out, attribute, value):
+        with context.db_session.begin(subtransactions=True):
+            obj = (context.db_session.query(SavedL3Out)
+                   .filter_by(tenant_name=l3out.tenant_name,
+                              name=l3out.name)
+                   .first() or
+                   SavedL3Out(tenant_name=l3out.tenant_name, name=l3out.name))
+            setattr(obj, attribute, value)
+            context.db_session.add(obj)
+
+    def pop(self, context, l3out, attribute):
+        with context.db_session.begin(subtransactions=True):
+            obj = (context.db_session.query(SavedL3Out)
+                   .filter_by(tenant_name=l3out.tenant_name,
+                              name=l3out.name)
+                   .first())
+            if obj and getattr(obj, attribute) is not None:
+                result = getattr(obj, attribute)
+                setattr(obj, attribute, None)
+                context.db_session.add(obj)
+                return result
+
+    def delete(self, context, l3out):
+        with context.db_session.begin(subtransactions=True):
+            (context.db_session.query(SavedL3Out)
+             .filter_by(tenant_name=l3out.tenant_name, name=l3out.name)
+             .delete())

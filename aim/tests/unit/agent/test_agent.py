@@ -22,6 +22,7 @@ from oslo_db import exception
 
 from aim.agent.aid import service
 from aim.agent.aid.universes.aci import aci_universe
+from aim.aim_lib import nat_strategy
 from aim import aim_manager
 from aim.api import resource
 from aim.api import status as aim_status
@@ -979,6 +980,127 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(['c'], epg.provided_contract_names)
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
+
+    def test_no_nat_strategy_lifecycle(self):
+        """Test ownership changes made by no-NAT strategy."""
+        agent = self._create_agent()
+        tenant_name = 'test_no_nat_strategy_lifecycle'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        desired_config.max_create_retry = float("inf")
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+
+        tn = resource.Tenant(name=tenant_name, monitored=True)
+        self.aim_manager.create(self.ctx, tn)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+
+        # simulate pre-existing VRF, L3Out and ExternalNetwork
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        aci_vrf = self._get_example_aci_vrf(
+            dn='uni/tn-%s/ctx-shared' % tenant_name, name='shared')
+        aci_l3out = {'l3extOut':
+                     {'attributes':
+                      {'dn': 'uni/tn-%s/out-l3out' % tenant_name,
+                       'name': 'l3out'}}}
+        aci_ctxRs = {'l3extRsEctx':
+                     {'attributes':
+                      {'dn': 'uni/tn-%s/out-l3out/rsectx' % tenant_name,
+                       'tnFvCtxName': 'shared'}}}
+        aci_instP = {'l3extInstP':
+                     {'attributes':
+                      {'dn': 'uni/tn-%s/out-l3out/instP-inet' % tenant_name,
+                       'name': 'inet'}}}
+        self._set_events(
+            [aci_tn, aci_vrf, aci_l3out, aci_ctxRs, aci_instP],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        # retrieve the corresponding AIM objects
+        l3out = self.aim_manager.get(self.ctx, resource.L3Outside(
+            tenant_name=tenant_name, name='l3out'))
+        ext_net = self.aim_manager.get(self.ctx, resource.ExternalNetwork(
+            tenant_name=tenant_name, l3out_name='l3out', name='inet'))
+        self.assertTrue(bool(l3out.monitored and ext_net.monitored))
+
+        ns = nat_strategy.NoNatStrategy(self.aim_manager)
+        # Start using L3out from NAT strategy -> take ownership
+        ns.create_l3outside(self.ctx, l3out)
+        ns.create_external_network(self.ctx, ext_net)
+
+        l3out = self.aim_manager.get(self.ctx, resource.L3Outside(
+            tenant_name=tenant_name, name='l3out'))
+        self.assertFalse(l3out.monitored)
+        for x in range(0, 2):
+            agent._daemon_loop()
+            self._observe_aci_events(current_config)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+
+        # Use l3out with VRF
+        vrf1 = resource.VRF(tenant_name=tenant_name, name='foo')
+        self.aim_manager.create(self.ctx, vrf1)
+        ns.connect_vrf(self.ctx, ext_net, vrf1)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+        ctxRs = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/rsectx')
+        self.assertEqual('foo', ctxRs)
+
+        # Disconnect VRF
+        ns.disconnect_vrf(self.ctx, ext_net, vrf1)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+        ctxRs = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/rsectx')
+        self.assertEqual('shared', ctxRs)
+
+        # Stop using L3Out -> give back ownership
+        ns.delete_l3outside(self.ctx, l3out)
+        l3out = self.aim_manager.get(self.ctx, resource.L3Outside(
+            tenant_name=tenant_name, name='l3out'))
+        self.assertTrue(l3out.monitored)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/tag-openstack_aid')
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
 
     def test_monitored_l3out_vrf_rs(self):
         agent = self._create_agent()

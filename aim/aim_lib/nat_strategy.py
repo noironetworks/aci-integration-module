@@ -491,6 +491,30 @@ class NoNatStrategy(NatStrategyMixin):
     address translation.
     """
 
+    def __init__(self, mgr):
+        super(NoNatStrategy, self).__init__(mgr)
+        self.saved_l3out = model.SavedL3OutManager()
+
+    def create_l3outside(self, ctx, l3outside):
+        """Create L3Out as normal, and take ownership of the object.
+
+        Taking ownership allows us to modify the vrf_name of the L3Out.
+        """
+        with ctx.db_session.begin(subtransactions=True):
+            l3out_db = self._create_l3out(ctx, l3outside)
+            if l3out_db and l3out_db.monitored:
+                self.saved_l3out.push(ctx, l3out_db, 'monitored', True)
+                l3out_db = self.mgr.update(ctx, l3outside, monitored=False)
+            return l3out_db
+
+    def delete_l3outside(self, ctx, l3outside):
+        """Delete L3Out as normal, and relinquish ownership of the object."""
+        with ctx.db_session.begin(subtransactions=True):
+            old_monitored = self.saved_l3out.pop(ctx, l3outside, 'monitored')
+            if old_monitored is not None:
+                self.mgr.update(ctx, l3outside, monitored=old_monitored)
+            self._delete_l3out(ctx, l3outside)
+
     def delete_external_network(self, ctx, external_network):
         """Clean-up any connected VRFs before deleting the external network."""
 
@@ -524,16 +548,17 @@ class NoNatStrategy(NatStrategyMixin):
                 return
             l3out = self.mgr.get(ctx,
                                  self._ext_net_to_l3out(external_network))
-            if l3out.vrf_name != self._get_nat_vrf(ctx, l3out).name:
-                old_vrf = self._vrf_by_name(ctx, l3out.vrf_name,
-                                            l3out.tenant_name)
-                if old_vrf:
-                    self._disconnect_vrf_from_l3out(ctx, l3out, old_vrf)
+            old_vrf = self._vrf_by_name(ctx, l3out.vrf_name,
+                                        l3out.tenant_name)
+            if old_vrf:
+                l3out = self._disconnect_vrf_from_l3out(ctx, l3out,
+                                                        old_vrf)
 
+            self.saved_l3out.push(ctx, l3out, 'vrf_name', l3out.vrf_name)
             nat_bd = self._get_nat_bd(ctx, l3out)
+            self._set_bd_l3out(ctx, l3out, vrf, exclude_bd=nat_bd)
             self.mgr.update(ctx, nat_bd, vrf_name=vrf.name)
             self.mgr.update(ctx, l3out, vrf_name=vrf.name)
-            self._set_bd_l3out(ctx, l3out, vrf)
 
             self.mgr.update(
                 ctx, external_network,
@@ -594,32 +619,34 @@ class NoNatStrategy(NatStrategyMixin):
         #    VRF is not visible to L3out
         return []
 
-    def _set_bd_l3out(self, ctx, l3outside, vrf):
+    def _set_bd_l3out(self, ctx, l3outside, vrf, exclude_bd=None):
         # update all the BDs
         for bd in self._get_bds_in_vrf_for_l3out(ctx, vrf, l3outside):
+            if exclude_bd and exclude_bd.identity == bd.identity:
+                continue
             # Add L3Out to existing list
             if l3outside.name not in bd.l3out_names:
                 self.mgr.update(ctx, bd,
                                 l3out_names=bd.l3out_names + [l3outside.name])
 
-    def _unset_bd_l3out(self, ctx, l3outside, vrf):
+    def _unset_bd_l3out(self, ctx, l3outside, vrf, exclude_bd=None):
         # update all the BDs
         for bd in self._get_bds_in_vrf_for_l3out(ctx, vrf, l3outside):
+            if exclude_bd and exclude_bd.identity == bd.identity:
+                continue
             # Remove L3Out from existing list
             if l3outside.name in bd.l3out_names:
                 bd.l3out_names.remove(l3outside.name)
                 self.mgr.update(ctx, bd, l3out_names=bd.l3out_names)
 
     def _disconnect_vrf_from_l3out(self, ctx, l3outside, vrf):
-        nat_vrf = self._get_nat_vrf(ctx, l3outside)
-        if nat_vrf.identity == vrf.identity:
-            # disconnecting the NAT-VRF is no-op
-            return
         nat_bd = self._get_nat_bd(ctx, l3outside)
-        self.mgr.update(ctx, l3outside,
-                        vrf_name=nat_vrf.name)
-        self.mgr.update(ctx, nat_bd, vrf_name=nat_vrf.name)
-        self._unset_bd_l3out(ctx, l3outside, vrf)
+        old_vrf_name = self.saved_l3out.pop(ctx, l3outside, 'vrf_name')
+        if old_vrf_name is not None:
+            l3outside = self.mgr.update(ctx, l3outside, vrf_name=old_vrf_name)
+            self.mgr.update(ctx, nat_bd, vrf_name=old_vrf_name)
+        self._unset_bd_l3out(ctx, l3outside, vrf, exclude_bd=nat_bd)
+        return l3outside
 
 
 class DistributedNatStrategy(NatStrategyMixin):
