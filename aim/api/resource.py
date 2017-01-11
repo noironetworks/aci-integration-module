@@ -69,7 +69,7 @@ class ResourceBase(object):
     @property
     def members(self):
         return {x: self.__dict__[x] for x in self.attributes() +
-                ['pre_existing'] if x in self.__dict__}
+                ['pre_existing'] + ['_error'] if x in self.__dict__}
 
     def __str__(self):
         return '%s(%s)' % (type(self).__name__, ','.join(self.identity))

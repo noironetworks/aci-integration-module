@@ -39,8 +39,8 @@ class TestStructuredNode(base.BaseTestCase):
         self.assertEqual({'foo': True}, node.metadata)
         self.assertEqual(
             ('{"key": ["key"], "partial_hash": "partial_hash", '
-             '"full_hash": "partial_hash", "dummy": true, "_children": [], '
-             '"metadata": {"foo": true}}'),
+             '"full_hash": "partial_hash", "dummy": true, "error": false, '
+             '"_children": [], "metadata": {"foo": true}}'),
             str(node))
 
     def test_set_child(self):
@@ -542,6 +542,50 @@ class TestStructuredHashTree(base.BaseTestCase):
         self.assertTrue(data is not data2)
         self.assertEqual(data, data2)
         self.assertTrue(self._tree_deep_check(data.root, data2.root))
+
+    def test_error_nodes(self):
+
+        data = tree.StructuredHashTree().include(
+            [{'key': ('keyA',)},
+             {'key': ('keyA', 'keyC'), '_error': True},
+             {'key': ('keyA', 'keyB')},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+
+        data2 = tree.StructuredHashTree().include(
+            [{'key': ('keyA',)},
+             {'key': ('keyA', 'keyC'), 'foo': 'bar'},
+             {'key': ('keyA', 'keyB')},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+
+        # The diff will be empty since the only different node is in error
+        # state
+        self.assertEqual({"add": [], "remove": []}, data.diff(data2))
+        self.assertEqual({"add": [], "remove": []}, data2.diff(data))
+
+        # Remove the error state to get the difference
+        data.add(('keyA', 'keyC'))
+        self.assertEqual({"add": [('keyA', 'keyC')], "remove": []},
+                         data.diff(data2))
+        self.assertEqual({"add": [('keyA', 'keyC')], "remove": []},
+                         data2.diff(data))
+
+        # Set error state again, but change child
+        data.add(('keyA', 'keyC'), _error=True)
+        data.add(('keyA', 'keyC', 'keyD'), foo='bar')
+        # Child difference will be noticed
+        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')], "remove": []},
+                         data.diff(data2))
+        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')], "remove": []},
+                         data2.diff(data))
+        # Same goes for extra subtree
+        data.add(('keyA', 'keyC', 'keyE'))
+        self.assertEqual({"add": [('keyA', 'keyC', 'keyD'),
+                                  ('keyA', 'keyC', 'keyE')],
+                          "remove": []},
+                         data.diff(data2))
+        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')],
+                          "remove": [('keyA', 'keyC', 'keyE')]},
+                         data2.diff(data))
 
 
 class TestHashTreeExceptions(base.BaseTestCase):

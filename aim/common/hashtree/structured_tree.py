@@ -35,13 +35,14 @@ class StructuredTreeNode:
                          # to the resource from which this node was generated
         'full_hash',  # hash(partial_hash, children.full_hash)
         'dummy',  # whether or not this node is dummy
+        'error',  # When True, skip to compare children
         '_children',  # underlying nodes
         'metadata'  # Additional "user" data dict, not used for
                     # tree comparison
     ]
 
     def __init__(self, key, partial_hash=None, full_hash=None, dummy=True,
-                 metadata=None):
+                 metadata=None, error=False):
         self.key = key
         self.partial_hash = partial_hash
         # Same as partial hash by default
@@ -49,6 +50,7 @@ class StructuredTreeNode:
         self._children = ChildrenList()
         self.dummy = dummy
         self.metadata = metadata or {}
+        self.error = error
 
     def __cmp__(self, other):
         return cmp(self.key, getattr(other, 'key', other))
@@ -75,7 +77,8 @@ class StructuredTreeNode:
         root = collections.OrderedDict(
             [('key', self.key), ('partial_hash', self.partial_hash),
              ('full_hash', self.full_hash), ('dummy', self.dummy),
-             ('_children', []), ('metadata', self.metadata)])
+             ('error', self.error), ('_children', []),
+             ('metadata', self.metadata)])
         for children in self.get_children():
             root['_children'].append(children.to_dict())
         return root
@@ -224,6 +227,7 @@ class StructuredHashTree(base.ComparableCollection):
                                   root_dict['partial_hash'],
                                   root_dict['full_hash'],
                                   dummy=root_dict['dummy'],
+                                  error=root_dict['error'],
                                   metadata=root_dict.get('metadata'))
         for child in root_dict['_children']:
             root._children.add(StructuredHashTree._build_tree(child))
@@ -236,12 +240,13 @@ class StructuredHashTree(base.ComparableCollection):
             return self
         has_metadata = '_metadata' in kwargs
         metadata = kwargs.pop('_metadata', None)
+        error = kwargs.pop('_error', False)
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
             LOG.debug("Root initialized")
             self.root = StructuredTreeNode(
                 (key[0],), self._hash_attributes(key=(key[0],)),
-                metadata=metadata)
+                metadata=metadata, error=error)
             self.root_key = self.root.key
         else:
             # With the first element of the key, verify that this is not an
@@ -265,6 +270,7 @@ class StructuredHashTree(base.ComparableCollection):
         node.partial_hash = self._hash_attributes(key=key, **kwargs)
         # When a node is explicitly added, it is not dummy anymore
         node.dummy = False
+        node.error = error
         if has_metadata:
             node.metadata = metadata or {}
         # Recalculate full hashes navigating the stack backwards
@@ -368,9 +374,10 @@ class StructuredHashTree(base.ComparableCollection):
             else:
                 # Common child
                 if childrenl[node.key].partial_hash != node.partial_hash:
-                    LOG.debug("Node %s out of sync" % str(node.key))
-                    # This node needs to be modified as well
-                    result['add'].append(node.key)
+                    if not (node.error or childrenl[node.key].error):
+                        LOG.debug("Node %s out of sync" % str(node.key))
+                        # This node needs to be modified as well
+                        result['add'].append(node.key)
                 if childrenl[node.key].full_hash != node.full_hash:
                     # Evaluate all their children
                     self._diff_children(childrenl[node.key]._children,
@@ -386,7 +393,7 @@ class StructuredHashTree(base.ComparableCollection):
         # traverse the tree and returns all its keys
         if not root:
             return []
-        result = [root.key] if not root.dummy else []
+        result = [root.key] if not (root.dummy or root.error) else []
         for node in root.get_children():
             result += self._get_subtree_keys(node)
         return result
