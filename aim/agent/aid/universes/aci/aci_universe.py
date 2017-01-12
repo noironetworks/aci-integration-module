@@ -266,7 +266,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
             try:
                 serving_tenants[tenant].push_aim_resources(conf)
             except KeyError:
-                LOG.warn("Tenant %s is not being served anymore" % tenant)
+                LOG.warn("Tenant %s is not being served anymore. "
+                         "Currently served tenants: %s" % (
+                             tenant, serving_tenants.keys()))
 
     def _split_key(self, key):
         return [k.split('|', 2) for k in key]

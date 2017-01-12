@@ -166,6 +166,16 @@ class TestAimDBBase(BaseTestCase):
         return example_bd
 
     @classmethod
+    def _get_example_aci_rs_ctx(cls, **kwargs):
+        example_rsctx = {
+            "fvRsCtx": {
+                "attributes": {
+                    "tnFvCtxName": "default",
+                    "dn": "uni/tn-test-tenant/BD-test/rsctx"}}}
+        example_rsctx['fvRsCtx']['attributes'].update(kwargs)
+        return example_rsctx
+
+    @classmethod
     def _get_example_aim_vrf(cls, **kwargs):
         example = resource.VRF(
             tenant_name='test-tenant',

@@ -475,8 +475,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         aci_bd = self._get_example_aci_bd(
             tenant_name=tenant_name, name='default',
             dn='uni/tn-%s/BD-default' % tenant_name)
+        aci_rsctx = self._get_example_aci_rs_ctx(
+            dn='uni/tn-%s/BD-default/rsctx' % tenant_name)
         self._set_events(
-            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
+            [aci_bd, aci_rsctx],
+            manager=desired_monitor.serving_tenants[tenant_name],
             tag=False)
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
@@ -491,6 +494,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
             tenant_name=tenant_name, name='default'))
         self.assertTrue(aim_bd.monitored)
+        self.assertEqual('default', aim_bd.vrf_name)
         # This BD's sync state should be OK
         aim_bd_status = self.aim_manager.get_status(self.ctx, aim_bd)
         self.assertEqual(aim_status.AciStatus.SYNCED,
@@ -508,9 +512,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertTrue(aim_bd.monitored)
         # Send delete event
         aci_bd['fvBD']['attributes']['status'] = 'deleted'
+        aci_rsctx['fvRsCtx']['attributes']['status'] = 'deleted'
+        ac_bd_tag = {'tagInst': {'attributes': {
+            'dn': aci_bd['fvBD']['attributes']['dn'] + '/tag-' + self.sys_id,
+            'status': 'deleted'}}}
         self._set_events(
-            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
-            tag=False)
+            [ac_bd_tag, aci_rsctx, aci_bd],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
         # Observe ACI events
         self._observe_aci_events(current_config)
         # Run the loop for reconciliation

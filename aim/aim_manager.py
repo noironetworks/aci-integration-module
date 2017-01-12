@@ -265,6 +265,8 @@ class AimManager(object):
 
     def _set_resource_sync(self, context, resource, sync_status, message='',
                            exclude=None):
+        if isinstance(resource, api_status.AciStatus):
+            return False
         with context.db_session.begin(subtransactions=True):
             self._validate_resource_class(resource)
             status = self.get_status(context, resource)

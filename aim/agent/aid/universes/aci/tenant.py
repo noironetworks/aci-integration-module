@@ -485,6 +485,7 @@ class AciTenantManager(gevent.Greenlet):
         for tree, readable in ((monitored_tree, 'monitored'),
                                (config_tree, 'configuration'),
                                (operational_tree, 'operational')):
+            LOG.debug("Updating ACI %s tree finally: %s" % (readable, tree))
             state = states[id(tree)]
             self.tree_maker.delete(state, tree['delete'])
             if readable is 'configuration':
@@ -560,15 +561,19 @@ class AciTenantManager(gevent.Greenlet):
                     AciTenantManager.is_rs_object(res_type)):
                 if raw_dn not in visited:
                     result.append(event)
+                    visited.add(raw_dn)
             elif get_all or status or res_type in OPERATIONAL_LIST:
                 try:
                     # Use the parent type and DN for related objects (like RS)
                     # Event is an ACI resource
+                    LOG.debug("Retrieving ACI resource: %s", event)
                     aim_resources = to_aim_converter.convert([event])
                     for aim_res in aim_resources:
                         dn = aim_res.dn
                         res_type = aim_res._aci_mo_name
                         if dn in visited:
+                            LOG.debug("ACI resource %s already "
+                                      "visited for DN %s" % (event, dn))
                             continue
                         query_targets = set([res_type])
                         if include_tags:
@@ -590,6 +595,7 @@ class AciTenantManager(gevent.Greenlet):
                             LOG.warn("Resource %s not found", dn)
                             # The object doesn't exist anymore, a delete event
                             # is expected.
+                            continue
                         for item in data:
                             if item.values()[0][
                                     'attributes']['dn'] not in visited:
