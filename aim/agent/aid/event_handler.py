@@ -23,6 +23,8 @@ from gevent import queue
 from gevent import socket
 from oslo_log import log as logging
 
+from aim.common import utils
+
 
 LOG = logging.getLogger(__name__)
 EVENT_SERVE = 'serve'
@@ -165,13 +167,19 @@ class EventHandler(EventHandlerBase):
 class EventSender(SenderBase):
 
     def initialize(self, conf):
-        self.conf_manager = conf
-        self.us_path = self.conf_manager.get_option('unix_socket_path',
-                                                    group='aim')
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-        self.sock.connect(self.us_path)
-        LOG.info("Connected to %s" % self.us_path)
-        return self
+        try:
+            self.conf_manager = conf
+            self.us_path = self.conf_manager.get_option('unix_socket_path',
+                                                        group='aim')
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            self.sock.connect(self.us_path)
+            LOG.info("Connected to %s" % self.us_path)
+            return self
+        except Exception as e:
+            LOG.debug(traceback.format_exc())
+            utils.perform_harakiri(
+                LOG, "An exception has occurred during EventSender "
+                     "initialization: %s" % e.message)
 
     def serve(self):
         self._send(EVENT_SERVE)
