@@ -52,7 +52,7 @@ class TestNatStrategyBase(object):
 
     def _assert_res_list_eq(self, lhs, rhs):
         self.assertEqual(len(lhs), len(rhs),
-                         'Expected: %s, Found %s' % (lhs, rhs))
+                         '\nExpected: %s\nFound %s' % (lhs, rhs))
         lhs = sorted(lhs, key=lambda x: x.dn)
         rhs = sorted(rhs, key=lambda x: x.dn)
         for idx in range(0, len(lhs)):
@@ -68,10 +68,12 @@ class TestNatStrategyBase(object):
             self.assertIsNone(self.mgr.get(self.ctx, o),
                               'Resource %s' % o)
 
-    def _get_l3out_objects(self, l3out_name=None, l3out_display_name=None):
+    def _get_l3out_objects(self, l3out_name=None, l3out_display_name=None,
+                           nat_vrf_name=None):
         name = 'EXT-%s' % (l3out_name or 'o1')
         d_name = 'EXT-%s' % (l3out_display_name or 'OUT')
-        return [
+        nat_vrf = a_res.VRF(tenant_name='t1', name=name, display_name=d_name)
+        return ([
             a_res.Filter(tenant_name='t1', name=name,
                          display_name=d_name),
             a_res.FilterEntry(tenant_name='t1', filter_name=name,
@@ -81,11 +83,9 @@ class TestNatStrategyBase(object):
             a_res.ContractSubject(tenant_name='t1', contract_name=name,
                                   name='Allow', display_name='Allow',
                                   bi_filters=[name]),
-            a_res.VRF(tenant_name='t1', name=name,
-                      display_name=d_name),
             a_res.BridgeDomain(tenant_name='t1', name=name,
                                display_name=d_name,
-                               vrf_name=name,
+                               vrf_name=nat_vrf_name or name,
                                l3out_names=[l3out_name or 'o1']),
             a_res.ApplicationProfile(tenant_name='t1', name='myapp',
                                      display_name='myapp'),
@@ -95,7 +95,8 @@ class TestNatStrategyBase(object):
                                 provided_contract_names=[name],
                                 consumed_contract_names=[name],
                                 openstack_vmm_domain_names=['ostack'],
-                                physical_domain_names=['phys'])]
+                                physical_domain_names=['phys'])] +
+                ([nat_vrf] if nat_vrf_name is None else []))
 
     def test_l3outside(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
@@ -138,8 +139,10 @@ class TestNatStrategyBase(object):
 
     def test_l3outside_pre(self):
         self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
+        vrf = a_res.VRF(tenant_name='t1', name='ctx1', monitored=True)
+        self.mgr.create(self.ctx, vrf)
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
-                                display_name='OUT',
+                                display_name='OUT', vrf_name='ctx1',
                                 monitored=True)
         self.mgr.create(self.ctx, l3out)
         self.ns.create_l3outside(self.ctx, l3out)
@@ -150,6 +153,17 @@ class TestNatStrategyBase(object):
         self.ns.delete_l3outside(self.ctx, l3out)
         l3out.vrf_name = ''
         self._verify(present=[l3out], absent=other_objs)
+        other_objs = self._get_l3out_objects(nat_vrf_name='ctx1')
+        self._verify(present=[l3out, vrf] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        self._assert_res_list_eq(other_objs + [l3out, vrf], get_objs)
+
+        self.ns.delete_l3outside(self.ctx, l3out)
+        self._verify(present=[l3out, vrf], absent=other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        self.assertEqual([l3out, vrf], get_objs)
 
     def test_subnet(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
