@@ -115,7 +115,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                               res.identity_attributes])
             if fault_code:
                 id_tuple += ('fault', fault_code)
-            id_tuple = (aci_klass, ) + id_tuple
+            id_tuple = (klass, ) + id_tuple
             if id_tuple not in id_set:
                 try:
                     if fault_code:

@@ -160,15 +160,16 @@ class TestAciClientMixin(object):
                 continue
             decomposed = dn_mgr.aci_decompose_dn_guess(
                 resource.values()[0]['attributes']['dn'], data_type)[1]
-            prev = manager.aci_session._data_stash
             if add:
                 curr = manager.aci_session._data_stash.setdefault(
                     decomposed[0][1], [])
             else:
                 curr = manager.aci_session._data_stash.get(decomposed[0][1],
                                                            [])
+            prev = None
             child_index = None
             last_index = len(decomposed) - 1
+            is_new = False
             for out_index, part in enumerate(decomposed):
                 # Look at the current's children and find the proper node.
                 # if not found, it's a new node
@@ -213,7 +214,7 @@ class TestAciClientMixin(object):
                             curr.append(obj)
                             resource.values()[0].pop('children', None)
                             obj[part[0]].update(resource.values()[0])
-                        return
+                            is_new = True
                     else:
                         # Not found
                         return
@@ -223,11 +224,12 @@ class TestAciClientMixin(object):
                     prev.pop(child_index)
                     if prev is manager.aci_session._data_stash[
                             decomposed[0][1]]:
+                        # Tenant is now empty
                         manager.aci_session._data_stash.pop(decomposed[0][1])
                 else:
                     # Root node
-                    prev.pop(decomposed[0][1])
-            elif child_index is not None:
+                    manager.aci_session._data_stash.pop(decomposed[0][1])
+            elif child_index is not None and not is_new:
                 prev[child_index].update(resource)
 
     def _add_server_data(self, data, manager=None, tag=True,

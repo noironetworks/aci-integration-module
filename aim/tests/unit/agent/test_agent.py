@@ -1021,10 +1021,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._set_events(
             [aci_tn, aci_vrf, aci_l3out, aci_ctxRs, aci_instP],
             manager=desired_monitor.serving_tenants[tenant_name], tag=False)
-
         self._sync_and_verify(agent, current_config,
-                              [(current_config, desired_config),
-                               (current_monitor, desired_monitor)])
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
         # retrieve the corresponding AIM objects
         l3out = self.aim_manager.get(self.ctx, resource.L3Outside(
             tenant_name=tenant_name, name='l3out'))
@@ -1089,6 +1088,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         l3out = self.aim_manager.get(self.ctx, resource.L3Outside(
             tenant_name=tenant_name, name='l3out'))
         self.assertTrue(l3out.monitored)
+        # Given the order in which the universes are processed, removing
+        # ownership of an AIM resource needs an extra AID iteration. More
+        # specifically, the first iteration will delete the Tags from ACI
+        # which then needs to send back an event in order for the Monitored
+        # universe to eventually sync up.
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
@@ -1158,7 +1164,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         for tenant in current.state:
             self.assertEqual(
                 {"add": [], "remove": []},
-                current.state[tenant].diff(desired.state[tenant]),
+                desired.state[tenant].diff(current.state[tenant]),
                 'Not in sync:\n current\n: %s \n\n desired\n: %s' %
                 (printable_state(current), printable_state(desired)))
 
