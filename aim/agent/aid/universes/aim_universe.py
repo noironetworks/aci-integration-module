@@ -115,6 +115,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                               res.identity_attributes])
             if fault_code:
                 id_tuple += ('fault', fault_code)
+            id_tuple = (klass, ) + id_tuple
             if id_tuple not in id_set:
                 try:
                     if fault_code:
@@ -141,7 +142,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     result.append(res)
                     id_set.add(id_tuple)
         if resource_keys:
-            LOG.debug("Result for keys %s in AIM Universe: %s" %
+            LOG.debug("Result for keys %s\n in AIM Universe:\n %s" %
                       (resource_keys, result))
         return list(result)
 

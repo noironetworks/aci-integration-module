@@ -389,12 +389,8 @@ class AciTenantManager(gevent.Greenlet):
                             self.creation_succeeded(aim_object)
                     except apic_exc.ApicResponseNotOk as e:
                         LOG.debug(traceback.format_exc())
-                        try:
-                            printable = aim_object.__dict__
-                        except AttributeError:
-                            printable = aim_object
-                        LOG.error("An error as occurred during %s for "
-                                  "object %s" % (method, printable))
+                        LOG.error("An error has occurred during %s for "
+                                  "object %s" % (method, aim_object))
                         if method == base_universe.CREATE:
                             self.creation_failed(aim_object, e.msg)
 

@@ -28,6 +28,7 @@ class AimException(Exception):
         try:
             super(AimException, self).__init__(self.message % kwargs)
             self.msg = self.message % kwargs
+            self.message = self.msg
         except Exception:
             self.msg = self.message
             raise
