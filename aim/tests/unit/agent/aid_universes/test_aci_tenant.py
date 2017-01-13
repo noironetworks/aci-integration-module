@@ -213,6 +213,7 @@ class TestAciClientMixin(object):
                             curr.append(obj)
                             resource.values()[0].pop('children', None)
                             obj[part[0]].update(resource.values()[0])
+                        return
                     else:
                         # Not found
                         return
@@ -226,6 +227,8 @@ class TestAciClientMixin(object):
                 else:
                     # Root node
                     prev.pop(decomposed[0][1])
+            elif child_index is not None:
+                prev[child_index].update(resource)
 
     def _add_server_data(self, data, manager=None, tag=True,
                          create_parents=False):

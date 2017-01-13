@@ -1040,9 +1040,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         l3out = self.aim_manager.get(self.ctx, resource.L3Outside(
             tenant_name=tenant_name, name='l3out'))
         self.assertFalse(l3out.monitored)
-        for x in range(0, 2):
-            agent._daemon_loop()
-            self._observe_aci_events(current_config)
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
@@ -1069,7 +1066,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         ctxRs = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tenant_name].aci_session,
             'mo/' + l3out.dn + '/rsectx')
-        self.assertEqual('foo', ctxRs)
+        self.assertEqual('foo',
+                         ctxRs[0].values()[0]['attributes']['tnFvCtxName'])
 
         # Disconnect VRF
         ns.disconnect_vrf(self.ctx, ext_net, vrf1)
@@ -1083,7 +1081,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         ctxRs = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tenant_name].aci_session,
             'mo/' + l3out.dn + '/rsectx')
-        self.assertEqual('shared', ctxRs)
+        self.assertEqual('shared',
+                         ctxRs[0].values()[0]['attributes']['tnFvCtxName'])
 
         # Stop using L3Out -> give back ownership
         ns.delete_l3outside(self.ctx, l3out)
