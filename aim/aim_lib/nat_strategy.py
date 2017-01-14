@@ -14,6 +14,7 @@
 # under the License.
 
 import abc
+import copy
 import six
 
 from oslo_log import log as logging
@@ -287,8 +288,9 @@ class NatStrategyMixin(NatStrategy):
                 ext_vrf = self._get_nat_vrf(ctx, l3out)
                 if not self.mgr.get(ctx, ext_vrf):
                     self.mgr.create(ctx, ext_vrf)
-                l3out.vrf_name = ext_vrf.name
-                l3out_db = self.mgr.create(ctx, l3out)
+                l3out_db = copy.copy(l3out)
+                l3out_db.vrf_name = ext_vrf.name
+                l3out_db = self.mgr.create(ctx, l3out_db)
             self._create_nat_epg(ctx, l3out_db)
             return l3out_db
 
