@@ -316,7 +316,14 @@ class AciTenantManager(gevent.Greenlet):
             for op in ['create', 'delete']:
                 for i, req in enumerate(requests[op]):
                     for j, new in enumerate(resources[op]):
-                        if req.dn == new.dn:
+                        if op is 'create':
+                            req_dn = req.dn
+                            new_dn = new.dn
+                        else:
+                            # Delete items are in ACI format
+                            req_dn = req.values()[0]['attributes']['dn']
+                            new_dn = new.values()[0]['attributes']['dn']
+                        if req_dn == new_dn:
                             # Replace old with new
                             requests[i] = new
                             break

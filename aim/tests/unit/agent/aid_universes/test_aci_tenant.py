@@ -767,15 +767,19 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
     def test_squash_operations(self):
         # Craft some objects and push them
+        aim_converter = converter.AimToAciModelConverter()
         tn = a_res.Tenant(name='tn1', display_name='foo')
         bd = a_res.BridgeDomain(tenant_name='tn1', name='bd1',
                                 display_name='bar')
         vrf = a_res.VRF(tenant_name='tn1', name='vrf1', display_name='pippo')
-        self.manager.push_aim_resources({'create': [tn, bd], 'delete': [vrf]})
+        self.manager.push_aim_resources(
+            {'create': [tn, bd],
+             'delete': aim_converter.convert([vrf])})
         self.assertEqual(1, len(self.manager.object_backlog.queue))
         old = self.manager.object_backlog.queue[0]
         # Idempotent
-        self.manager.push_aim_resources({'create': [tn, bd], 'delete': [vrf]})
+        self.manager.push_aim_resources(
+            {'create': [tn, bd], 'delete': aim_converter.convert([vrf])})
         self.assertEqual(1, len(self.manager.object_backlog.queue))
         curr = self.manager.object_backlog.queue[0]
         self.assertEqual(old, curr)
@@ -792,6 +796,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             self.manager.object_backlog.queue[0]['create'][1].display_name)
         # Add something completely different
         vrf2 = a_res.VRF(tenant_name='tn1', name='vrf2', display_name='pippo')
-        self.manager.push_aim_resources({'create': [vrf2], 'delete': [bd]})
-        self.assertEqual({'create': [vrf2], 'delete': [bd]},
-                         self.manager.object_backlog.queue[2])
+        self.manager.push_aim_resources(
+            {'create': [vrf2],
+             'delete': aim_converter.convert([bd])})
+        self.assertEqual(
+            {'create': [vrf2],
+             'delete': aim_converter.convert([bd])},
+            self.manager.object_backlog.queue[2])
