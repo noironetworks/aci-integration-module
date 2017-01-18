@@ -27,6 +27,7 @@ from oslo_log import log as logging
 
 from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import converter
+from aim.agent.aid.universes.aci import error
 from aim.agent.aid.universes import base_universe
 from aim.common.hashtree import structured_tree
 from aim.common import utils
@@ -162,6 +163,7 @@ class AciTenantManager(gevent.Greenlet):
         self.ws_context = ws_context
         self.recovery_retries = None
         self.max_retries = 5
+        self.error_handler = error.APICAPIErrorHandler()
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
@@ -387,12 +389,18 @@ class AciTenantManager(gevent.Greenlet):
                         # Object creation was successful, change object state
                         if method == base_universe.CREATE:
                             self.creation_succeeded(aim_object)
-                    except apic_exc.ApicResponseNotOk as e:
+                    except Exception as e:
                         LOG.debug(traceback.format_exc())
                         LOG.error("An error has occurred during %s for "
                                   "object %s" % (method, aim_object))
                         if method == base_universe.CREATE:
-                            self.creation_failed(aim_object, e.msg)
+                            err_type = self.error_handler.analyze_exception(e)
+                            # REVISIT(ivar): for now, treat UNKNOWN errors the
+                            # same way as OPERATION_TRANSIENT. Investigate a
+                            # way to understand when such errors might require
+                            # agent restart.
+                            self.creation_failed(aim_object, e.message,
+                                                 err_type)
 
     def _unsubscribe_tenant(self):
         LOG.debug("Unsubscribing tenant websocket %s" % self.tenant_name)

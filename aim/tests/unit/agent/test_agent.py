@@ -14,9 +14,11 @@
 #    under the License.
 
 import json
+from requests import exceptions as rexc
 import time
 
 from apicapi import apic_client
+from apicapi import exceptions as aexc
 import mock
 from oslo_db import exception
 
@@ -27,6 +29,7 @@ from aim import aim_manager
 from aim.api import resource
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
+from aim.common import utils
 from aim import config
 from aim.db import tree_model
 from aim.tests import base
@@ -1144,6 +1147,96 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertIsNotNone(l3o)
         self.assertTrue(l3o.monitored)
         self.assertEqual('foo', l3o.vrf_name)
+
+    def test_aci_errors(self):
+        self.set_override('max_operation_retry', 2, 'aim')
+        self.set_override('retry_cooldown', -1, 'aim')
+        agent = self._create_agent()
+        tenant_name = 'test_manual_rs'
+        current_config = agent.multiverse[0]['current']
+        tn = resource.Tenant(name=tenant_name)
+        tn = self.aim_manager.create(self.ctx, tn)
+        # Serve tenant
+        agent._daemon_loop()
+        # Try to create the tenant in multiple iterations and test different
+        # errors
+        with mock.patch.object(utils, 'perform_harakiri') as harakiri:
+            # OPERATION_CRITICAL (fail object immediately)
+            apic_client.ApicSession.post_body_dict = mock.Mock(
+                side_effect=aexc.ApicResponseNotOk(
+                    request='', status='400', reason='',
+                    err_text='', err_code='122'))
+            # Observe and Reconcile
+            self._observe_aci_events(current_config)
+            agent._daemon_loop()
+            # Tenant object should be in sync_error state
+            self.assertEqual(
+                aim_status.AciStatus.SYNC_FAILED,
+                self.aim_manager.get_status(self.ctx, tn).sync_status)
+            # Put tenant back in pending state
+            self.aim_manager.update(self.ctx, tn)
+            agent._daemon_loop()
+
+            # OPERATION_TRANSIENT (fail object after max retries)
+            apic_client.ApicSession.post_body_dict = mock.Mock(
+                side_effect=aexc.ApicResponseNotOk(
+                    request='', status='400', reason='',
+                    err_text='', err_code='102'))
+            # Observe and Reconcile
+            self._observe_aci_events(current_config)
+            agent._daemon_loop()
+            # Tenant is still in SYNC_PENDING state
+            self.assertEqual(
+                aim_status.AciStatus.SYNC_PENDING,
+                self.aim_manager.get_status(self.ctx, tn).sync_status)
+            # Another tentative, however, will fail the object
+            self._observe_aci_events(current_config)
+            agent._daemon_loop()
+            # Tenant is still in SYNC_PENDING state
+            self.assertEqual(
+                aim_status.AciStatus.SYNC_FAILED,
+                self.aim_manager.get_status(self.ctx, tn).sync_status)
+            # Put tenant back in pending state
+            self.aim_manager.update(self.ctx, tn)
+
+            # SYSTEM_TRANSIENT (never fail the object)
+            apic_client.ApicSession.post_body_dict = mock.Mock(
+                side_effect=rexc.Timeout())
+            # This will not fail the object
+            for x in range(3):
+                # Observe and Reconcile
+                self._observe_aci_events(current_config)
+                agent._daemon_loop()
+                # Tenant is still in SYNC_PENDING state
+                self.assertEqual(
+                    aim_status.AciStatus.SYNC_PENDING,
+                    self.aim_manager.get_status(self.ctx, tn).sync_status)
+
+            # SYSTEM_CRITICAL perform harakiri
+            apic_client.ApicSession.post_body_dict = mock.Mock(
+                side_effect=aexc.ApicResponseNoCookie(request=''))
+            self.assertEqual(0, harakiri.call_count)
+            self._observe_aci_events(current_config)
+            agent._daemon_loop()
+            self.assertEqual(1, harakiri.call_count)
+
+            # UNKNOWN (fail after max retries)
+            apic_client.ApicSession.post_body_dict = mock.Mock(
+                side_effect=Exception())
+            # Observe and Reconcile
+            self._observe_aci_events(current_config)
+            agent._daemon_loop()
+            # Tenant is still in SYNC_PENDING state
+            self.assertEqual(
+                aim_status.AciStatus.SYNC_PENDING,
+                self.aim_manager.get_status(self.ctx, tn).sync_status)
+            # Another tentative, however, will fail the object
+            self._observe_aci_events(current_config)
+            agent._daemon_loop()
+            # Tenant is still in SYNC_PENDING state
+            self.assertEqual(
+                aim_status.AciStatus.SYNC_FAILED,
+                self.aim_manager.get_status(self.ctx, tn).sync_status)
 
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
