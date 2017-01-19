@@ -507,16 +507,17 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
             display_name='INET1',
             provided_contract_names=['EXT-o1'],
             consumed_contract_names=['EXT-o1'])
+        l3out_objs = self._get_l3out_objects()
         v1_e1 = self._get_vrf_1_ext_net_1_objects()
         v2_e1 = self._get_vrf_2_ext_net_1_objects()
         if stage == 'stage1':
-            self._verify(present=[en] + v1_e1)
+            self._verify(present=l3out_objs + [en] + v1_e1)
         elif stage == 'stage2':
-            self._verify(present=[en] + v1_e1 + v2_e1)
+            self._verify(present=l3out_objs + [en] + v1_e1 + v2_e1)
         elif stage == 'stage3':
-            self._verify(present=[en] + v2_e1, absent=v1_e1)
+            self._verify(present=l3out_objs + [en] + v2_e1, absent=v1_e1)
         elif stage == 'stage4':
-            self._verify(present=[en], absent=v1_e1 + v2_e1)
+            self._verify(present=l3out_objs + [en], absent=v1_e1 + v2_e1)
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
@@ -684,6 +685,8 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         l3out = objs['l3out']
         ext_net = objs['ext_net']
         nat_bd = objs['nat_bd']
+        l3out_objs = [o for o in self._get_l3out_objects()
+                      if not isinstance(o, a_res.BridgeDomain)]
         bd1 = a_res.BridgeDomain(tenant_name='t1', name='bd1',
                                  vrf_name='vrf1',
                                  l3out_names=['o1'])
@@ -691,14 +694,14 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                                  vrf_name='vrf2',
                                  l3out_names=['o1'])
         if stage == 'stage1':
-            self._verify(present=objs.values() + [bd1])
+            self._verify(present=objs.values() + l3out_objs + [bd1])
         elif stage == 'stage2' or stage == 'stage3':
             bd1.l3out_names = []
             l3out.vrf_name = 'vrf2'
             nat_bd.vrf_name = 'vrf2'
             ext_net.provided_contract_names = ['p1_vrf2', 'p2_vrf2']
             ext_net.consumed_contract_names = ['c1_vrf2', 'c2_vrf2']
-            self._verify(present=objs.values() + [bd1, bd2])
+            self._verify(present=objs.values() + l3out_objs + [bd1, bd2])
         elif stage == 'stage4':
             bd1.l3out_names = []
             bd2.l3out_names = []
@@ -706,7 +709,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             nat_bd.vrf_name = 'EXT-o1'
             ext_net.provided_contract_names = ['EXT-o1']
             ext_net.consumed_contract_names = ['EXT-o1']
-            self._verify(present=objs.values() + [bd1, bd2])
+            self._verify(present=objs.values() + l3out_objs + [bd1, bd2])
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 

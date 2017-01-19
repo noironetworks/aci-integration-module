@@ -294,7 +294,7 @@ class NatStrategyMixin(NatStrategy):
             self._create_nat_epg(ctx, l3out_db)
             return l3out_db
 
-    def _delete_l3out(self, ctx, l3out):
+    def _delete_l3out(self, ctx, l3out, delete_epg=True):
         """Delete NAT EPG etc. in addition to deleting L3Out."""
 
         with ctx.db_session.begin(subtransactions=True):
@@ -306,9 +306,10 @@ class NatStrategyMixin(NatStrategy):
                     self.delete_external_network(ctx, en)
                 if not l3out_db.monitored:
                     self.mgr.delete(ctx, l3out)
-                self._delete_nat_epg(ctx, l3out_db)
-                # delete NAT VRF if any
-                self.mgr.delete(ctx, self._get_nat_vrf(ctx, l3out_db))
+                if delete_epg:
+                    self._delete_nat_epg(ctx, l3out_db)
+                    # delete NAT VRF if any
+                    self.mgr.delete(ctx, self._get_nat_vrf(ctx, l3out_db))
 
     def _create_ext_net(self, ctx, ext_net):
         with ctx.db_session.begin(subtransactions=True):
@@ -800,7 +801,7 @@ class DistributedNatStrategy(NatStrategyMixin):
                             tenant_name=l3out.tenant_name,
                             l3out_name=l3out.name)
         if not ens:
-            self._delete_l3out(ctx, l3out)
+            self._delete_l3out(ctx, l3out, delete_epg=False)
 
 
 class EdgeNatStrategy(DistributedNatStrategy):
