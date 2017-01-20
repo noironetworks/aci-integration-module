@@ -51,10 +51,7 @@ def upgrade():
         sa.Column('vmm_name', sa.String(64), nullable=False),
         sa.PrimaryKeyConstraint('epg_aim_id', 'vmm_type', 'vmm_name'),
         sa.ForeignKeyConstraint(
-            ['epg_aim_id'], ['aim_endpoint_groups.aim_id']),
-        sa.ForeignKeyConstraint(
-            ['vmm_type', 'vmm_name'],
-            ['aim_vmm_domains.type', 'aim_vmm_domains.name']))
+            ['epg_aim_id'], ['aim_endpoint_groups.aim_id']))
 
     op.create_table(
         'aim_endpoint_group_physical_domains',
@@ -62,9 +59,7 @@ def upgrade():
         sa.Column('physdom_name', sa.String(64), nullable=False),
         sa.PrimaryKeyConstraint('epg_aim_id', 'physdom_name'),
         sa.ForeignKeyConstraint(
-            ['epg_aim_id'], ['aim_endpoint_groups.aim_id']),
-        sa.ForeignKeyConstraint(
-            ['physdom_name'], ['aim_physical_domains.name']))
+            ['epg_aim_id'], ['aim_endpoint_groups.aim_id']))
 
 
 def downgrade():
