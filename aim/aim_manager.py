@@ -122,7 +122,7 @@ class AimManager(object):
                     resource, api_res.Tenant) and getattr(
                     resource, 'monitored', None):
                 self.set_resource_sync_synced(context, resource)
-            else:
+            elif isinstance(resource, api_res.AciResourceBase):
                 self.set_resource_sync_pending(context, resource)
             return self.get(context, resource)
 
