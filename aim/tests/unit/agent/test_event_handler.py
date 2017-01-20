@@ -14,6 +14,7 @@
 #    under the License.
 
 import os
+import tempfile
 
 import gevent
 import mock
@@ -26,16 +27,30 @@ class TestEventHandler(base.TestAimDBBase):
 
     def setUp(self):
         super(TestEventHandler, self).setUp()
-        self.set_override('unix_socket_path', 'etc/aim/test_sock.sock',
+        self.sock_dir = tempfile.mkdtemp()
+        self.addCleanup(self._rm_socket_dir)
+        self.set_override('unix_socket_path',
+                          '%s/events/test.sock' % self.sock_dir,
                           group='aim')
+        self.set_override('recovery_restart', False, 'aim')
         self.handler = event_handler.EventHandler().initialize(
             self.cfg_manager)
+        # Context switch
         gevent.sleep(0)
+        self.addCleanup(self._unlink_socket)
+
         self.sender = event_handler.EventSender().initialize(self.cfg_manager)
         gevent.sleep(0)
         # Context switch
-        self.addCleanup(self.sender.sock.close)
-        self.addCleanup(self._unlink_socket)
+        if self.sender:
+            self.addCleanup(self.sender.sock.close)
+
+    def _rm_socket_dir(self):
+        try:
+            os.rmdir('%s/events' % self.sock_dir)
+        except OSError:
+            pass
+        os.rmdir(self.sock_dir)
 
     def _unlink_socket(self):
         os.unlink(self.handler.us_path)
