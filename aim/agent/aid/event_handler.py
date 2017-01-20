@@ -105,6 +105,9 @@ class EventHandler(EventHandlerBase):
             if os.path.exists(self.us_path):
                 raise
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        sock_dir = os.path.dirname(self.us_path)
+        if not os.path.exists(sock_dir):
+            os.makedirs(sock_dir)
         self.sock.bind(self.us_path)
 
     def _spawn_listener(self):
@@ -124,7 +127,7 @@ class EventHandler(EventHandlerBase):
             except Exception as e:
                 LOG.debug(traceback.format_exc())
                 LOG.error("An error as occurred in the event listener "
-                          "thread: %s" % e.message)
+                          "thread: %s" % e)
                 # TODO(ivar): exponentially backoff before reconnecting
                 gevent.sleep(2)
             finally:
@@ -179,7 +182,7 @@ class EventSender(SenderBase):
             LOG.debug(traceback.format_exc())
             utils.perform_harakiri(
                 LOG, "An exception has occurred during EventSender "
-                     "initialization: %s" % e.message)
+                     "initialization for socket %s: %s" % (self.us_path, e))
 
     def serve(self):
         self._send(EVENT_SERVE)
