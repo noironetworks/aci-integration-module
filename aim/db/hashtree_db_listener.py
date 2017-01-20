@@ -56,22 +56,33 @@ class HashTreeDbListener(object):
                                                         res.resource_id)
                     # Remove main object from config tree if in sync error
                     # during an update
-                    if res.sync_status == res.SYNC_FAILED:
-                        parent = self.aim_manager.get_by_id(
-                            ctx, res.parent_class, res.resource_id)
-                        # Put the object in error state
-                        parent._error = True
-                        all_updates[1].append(parent)
-                    elif res.sync_status == res.SYNC_PENDING:
-                        # A sync pending monitored object is in a limbo state,
-                        # potentially switching from Owned to Monitored, and
-                        # therefore should be removed from all the trees
-                        if parent.monitored:
-                            all_updates[-1].append(parent)
-                        else:
+                    if tree_index == 0:
+                        if res.sync_status == res.SYNC_FAILED:
+                            parent = self.aim_manager.get_by_id(
+                                ctx, res.parent_class, res.resource_id)
+                            # Put the object in error state
+                            parent._error = True
                             all_updates[1].append(parent)
-                    elif res.sync_status == res.SYNCED:
-                        all_updates[1].append(parent)
+                        elif res.sync_status == res.SYNC_PENDING:
+                            # A sync pending monitored object is in a limbo
+                            # state, potentially switching from Owned to
+                            # Monitored, and therefore should be removed from
+                            # all the trees
+                            if parent.monitored:
+                                all_updates[-1].append(parent)
+                            else:
+                                all_updates[1].append(parent)
+                        elif res.sync_status == res.SYNCED:
+                            all_updates[1].append(parent)
+                    else:
+                        if parent:
+                            # Delete parent on operational tree
+                            parent_key = self.tt_maker.get_tenant_key(parent)
+                            updates_by_tenant.setdefault(
+                                parent_key, {conf: ([], []), monitor: ([], []),
+                                             oper: ([], [])})
+                            updates_by_tenant[
+                                parent_key][oper][tree_index].append(parent)
                 key = self.tt_maker.get_tenant_key(res)
                 if not key:
                     continue
@@ -114,6 +125,9 @@ class HashTreeDbListener(object):
             # Update Operational Tree
             self.tt_maker.update(ttree_operational, upd[oper][0])
             self.tt_maker.delete(ttree_operational, upd[oper][1])
+            # Delete operational resources as well
+            self.tt_maker.delete(ttree_operational, upd[conf][1])
+            self.tt_maker.delete(ttree_operational, upd[monitor][1])
 
             # Update Monitored Tree
             self.tt_maker.update(ttree_monitor, upd[monitor][0])
