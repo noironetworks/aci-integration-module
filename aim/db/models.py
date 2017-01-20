@@ -176,12 +176,6 @@ class PhysicalDomain(model_base.Base, model_base.AttributeMixin):
 class EndpointGroupVMMDomain(model_base.Base):
     """DB model for Contracts used by EndpointGroup."""
     __tablename__ = 'aim_endpoint_group_vmm_domains'
-    __table_args__ = (
-        (sa.ForeignKeyConstraint(
-            ['vmm_type', 'vmm_name'],
-            ['aim_vmm_domains.type', 'aim_vmm_domains.name'],
-            name='fk_epg'),) +
-        to_tuple(model_base.Base.__table_args__))
 
     epg_aim_id = sa.Column(sa.Integer,
                            sa.ForeignKey('aim_endpoint_groups.aim_id'),
@@ -193,11 +187,6 @@ class EndpointGroupVMMDomain(model_base.Base):
 class EndpointGroupPhysicalDomain(model_base.Base):
     """DB model for Contracts used by EndpointGroup."""
     __tablename__ = 'aim_endpoint_group_physical_domains'
-    __table_args__ = (
-        (sa.ForeignKeyConstraint(
-            ['physdom_name'], ['aim_physical_domains.name'],
-            name='fk_epg'),) +
-        to_tuple(model_base.Base.__table_args__))
 
     epg_aim_id = sa.Column(sa.Integer,
                            sa.ForeignKey('aim_endpoint_groups.aim_id'),
