@@ -336,7 +336,6 @@ class StructuredHashTree(base.ComparableCollection):
         node.partial_hash = self._hash_attributes(key=key)
         node.full_hash = None
         node.dummy = True
-        node.metadata = None
         parents.append(node)
         # Cleanup parent list if node is a leaf
         self._clear_stack_from_dummies(parents)

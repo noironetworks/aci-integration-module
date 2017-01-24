@@ -205,13 +205,15 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         for obj in [ap, epg2, epg]:
             self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
                              self.mgr.get_status(self.ctx, obj).sync_status)
-        # Changing sync status of the EPG will bring everything back
-        epg = self.mgr.update(self.ctx, epg)
-        # All the objects are in synced state
-        for obj in [ap, epg2, epg]:
-            self.assertEqual(aim_status.AciStatus.SYNC_PENDING,
-                             self.mgr.get_status(self.ctx, obj).sync_status)
+
         if not monitored:
+            # Changing sync status of the EPG will bring everything back
+            epg = self.mgr.update(self.ctx, epg)
+            # All the objects are in synced state
+            for obj in [ap, epg2, epg]:
+                self.assertEqual(
+                    aim_status.AciStatus.SYNC_PENDING,
+                    self.mgr.get_status(self.ctx, obj).sync_status)
             empty_tree = self.tt_mgr.get(
                 self.ctx, tn_name, tree=empty_map[monitored])
             configured_tree = self.tt_mgr.get(

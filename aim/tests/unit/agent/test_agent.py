@@ -787,7 +787,25 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(current_config)
         # Observe
         agent._daemon_loop()
-
+        ext_net = self.aim_manager.get(self.ctx, ext_net)
+        self.assertEqual(['c1'], ext_net.provided_contract_names)
+        # Verify contract is provided in ACI
+        prov = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1' % tenant_name)
+        self.assertIsNotNone(prov[0])
+        # Also its tag exists
+        prov_tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1/'
+            'tag-openstack_aid' % tenant_name)
+        self.assertIsNotNone(prov_tag[0])
+        # Old contract still exists
+        prov_def = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/uni/tn-%s/out-default/instP-extnet/rsprov-default' %
+            tenant_name)
+        self.assertIsNotNone(prov_def[0])
         # Verify all tree converged
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_universe_sync(desired_config, current_config)
