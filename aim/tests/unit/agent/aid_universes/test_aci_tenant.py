@@ -230,7 +230,9 @@ class TestAciClientMixin(object):
                     # Root node
                     manager.aci_session._data_stash.pop(decomposed[0][1])
             elif child_index is not None and not is_new:
+                children = prev[child_index].values()[0]['children']
                 prev[child_index].update(resource)
+                prev[child_index].values()[0]['children'] = children
 
     def _add_server_data(self, data, manager=None, tag=True,
                          create_parents=False):
@@ -393,6 +395,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             aci_universe.get_websocket_context(self.cfg_manager))
 
     def test_event_loop(self):
+        old_name = self.manager.tenant_name
+        self.manager.tenant_name = 'test-tenant'
         self.manager._subscribe_tenant()
         # Runs with no events
         self.manager._event_loop()
@@ -401,8 +405,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.manager._subscribe_tenant()
         self._set_events(self._init_event())
         self.manager._event_loop()
-        # TODO(ivar): Now root will contain all those new objects, check once
-        # implemented
+        self.manager.tenant_name = old_name
 
     def test_login_failed(self):
         # Mock response and login
@@ -529,7 +532,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             "tnFvCtxName": "test", "extra": "something_important"}}}
         parent_bd = self._get_example_aci_bd()
         self._add_server_data([parent_bd, complete], create_parents=True)
-        events, _ = self.manager._filter_ownership(
+        events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted([complete, parent_bd]), sorted(events))
 
@@ -537,7 +540,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         events = [{"fvBD": {"attributes": {
             "arpFlood": "yes", "descr": "test",
             "dn": "uni/tn-test-tenant/BD-test", "status": "modified"}}}]
-        events, _ = self.manager._filter_ownership(
+        events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted([parent_bd, complete]), sorted(events))
 
@@ -550,7 +553,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         parent_bd = self._get_example_aci_bd()
         # fvRsCtx is missing on server side
         self._add_server_data([parent_bd], create_parents=True)
-        events, _ = self.manager._filter_ownership(
+        events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual([parent_bd], events)
 
@@ -561,7 +564,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 "dn": "uni/tn-test-tenant/BD-test/rsctx",
                 "tnFvCtxName": "test", "status": "modified"}}},
         ]
-        events, _ = self.manager._filter_ownership(
+        events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual([], events)
 
@@ -711,35 +714,26 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 'ack': 'no', 'delegated': 'no',
                 'code': 'F0952', 'type': 'config'}}}
         ]
-        result, _ = self.manager._filter_ownership(events)
+        result = self.manager._filter_ownership(events)
         self.assertEqual(set(), self.manager.tag_set)
-        self.assertEqual([], result)
+        self.assertEqual(events, result)
 
         # Now a tag is added to set ownership of one of the to contexts
         tag = {'tagInst': {
                'attributes': {
                    'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/'
                          'tag-' + self.sys_id}}}
-        events.append(tag)
-        result, _ = self.manager._filter_ownership(events)
+        events_with_tag = events + [tag]
+        result = self.manager._filter_ownership(events_with_tag)
         self.assertEqual(set(['uni/tn-ivar-wstest/BD-test-2/rsctx']),
                          self.manager.tag_set)
-        self.assertEqual(
-            sorted([
-                {'fvRsCtx': {
-                    'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx',
-                                   'tnFvCtxName': 'asasa'}}},
-                {'faultInst': {'attributes': {
-                    'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/fault-F0952',
-                    'ack': 'no', 'delegated': 'no',
-                    'code': 'F0952', 'type': 'config'}}}]),
-            sorted(result))
+        self.assertEqual(events, result)
 
         # Now delete the tag
         tag['tagInst']['attributes']['status'] = 'deleted'
-        result, _ = self.manager._filter_ownership(events)
+        result = self.manager._filter_ownership(events_with_tag)
         self.assertEqual(set(), self.manager.tag_set)
-        self.assertEqual([], result)
+        self.assertEqual(events, result)
 
     def test_fill_events_fault(self):
         events = [
@@ -761,7 +755,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
              'code': 'F0952', 'type': 'config'}}},
         ]
         self._add_server_data(complete, create_parents=True)
-        events, _ = self.manager._filter_ownership(
+        events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted(complete), sorted(events))
 
@@ -803,3 +797,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             {'create': [vrf2],
              'delete': aim_converter.convert([bd])},
             self.manager.object_backlog.queue[2])
+
+    def test_aci_types_not_convertible_if_monitored(self):
+        self.assertEqual({'fvRsProv': ['l3extInstP'],
+                          'fvRsCons': ['l3extInstP']},
+                         aci_tenant.ACI_TYPES_NOT_CONVERT_IF_MONITOR)

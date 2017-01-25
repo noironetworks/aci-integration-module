@@ -102,6 +102,8 @@ class AimManager(object):
         self._validate_resource_class(resource)
         with context.db_session.begin(subtransactions=True):
             old_db_obj = None
+            old_monitored = None
+            new_monitored = None
             if overwrite:
                 old_db_obj = self._query_db_obj(context.db_session, resource)
                 if old_db_obj:
@@ -123,7 +125,11 @@ class AimManager(object):
                     resource, 'monitored', None):
                 self.set_resource_sync_synced(context, resource)
             elif isinstance(resource, api_res.AciResourceBase):
-                self.set_resource_sync_pending(context, resource)
+                # Monitored objects that are not changing the monitored status
+                # should not go in pending.
+                if self._should_set_pending(old_db_obj, old_monitored,
+                                            new_monitored):
+                    self.set_resource_sync_pending(context, resource)
             return self.get(context, resource)
 
     def update(self, context, resource, fix_ownership=False,
@@ -150,8 +156,17 @@ class AimManager(object):
                 db_obj.from_attr(context.db_session, attr_val)
                 context.db_session.add(db_obj)
                 self._add_commit_hook(context.db_session)
-                self.set_resource_sync_pending(context, resource)
+                if isinstance(resource, api_res.AciResourceBase):
+                    # Monitored objects that are not changing the monitored
+                    # status should not go in pending.
+                    if self._should_set_pending(db_obj, old_monitored,
+                                                new_monitored):
+                        self.set_resource_sync_pending(context, resource)
                 return self.get(context, resource)
+
+    def _should_set_pending(self, old_obj, old_monitored, new_monitored):
+        return (not old_obj or not old_monitored or
+                new_monitored is not None and old_monitored != new_monitored)
 
     def delete(self, context, resource):
         """Delete AIM resource from the database.

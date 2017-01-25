@@ -20,27 +20,31 @@ from oslo_log import log as logging
 from aim.api import status as aim_status
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
+from aim import context
 from aim.db import tree_model
 
 
 LOG = logging.getLogger(__name__)
 
 
-class HashTreeDbListener(object):
-    """Updates persistent hash-tree in response to DB updates."""
+class HashTreeBuilder(object):
+    CONFIG = 'config'
+    OPER = 'oper'
+    MONITOR = 'monitor'
 
     def __init__(self, aim_manager):
         self.aim_manager = aim_manager
-        self.aim_manager.register_update_listener(self.on_commit)
-        self.tt_mgr = tree_model.TenantHashTreeManager()
         self.tt_maker = tree_model.AimHashTreeMaker()
 
-    def on_commit(self, session, added, updated, deleted):
-        # Query hash-tree for each tenant and modify the tree based on DB
-        # updates
-        class DummyContext(object):
-            db_session = session
-        ctx = DummyContext()
+    def build(self, added, updated, deleted, tree_map, aim_ctx=None):
+        """Build hash tree
+
+        :param updated: list of AIM objects
+        :param deleted: list of AIM objects
+        :param tree_map: map of trees by type and tenant
+        eg: {'config': {'tn1': <tenant hashtree>}}
+        :return: tree updates
+        """
 
         # Segregate updates by tenant
         updates_by_tenant = {}
@@ -51,15 +55,15 @@ class HashTreeDbListener(object):
         for idx in range(len(all_updates)):
             tree_index = 0 if idx < 2 else 1
             for res in all_updates[idx]:
-                if isinstance(res, aim_status.AciStatus):
-                    parent = self.aim_manager.get_by_id(ctx, res.parent_class,
-                                                        res.resource_id)
+                if isinstance(res, aim_status.AciStatus) and aim_ctx:
+                    parent = self.aim_manager.get_by_id(
+                        aim_ctx, res.parent_class, res.resource_id)
                     # Remove main object from config tree if in sync error
                     # during an update
                     if tree_index == 0:
                         if res.sync_status == res.SYNC_FAILED:
                             parent = self.aim_manager.get_by_id(
-                                ctx, res.parent_class, res.resource_id)
+                                aim_ctx, res.parent_class, res.resource_id)
                             # Put the object in error state
                             parent._error = True
                             all_updates[1].append(parent)
@@ -108,14 +112,9 @@ class HashTreeDbListener(object):
 
         upd_trees, udp_op_trees, udp_mon_trees = [], [], []
         for tenant, upd in updates_by_tenant.iteritems():
-            try:
-                ttree = self.tt_mgr.get(ctx, tenant, tree=conf)
-                ttree_operational = self.tt_mgr.get(ctx, tenant, tree=oper)
-                ttree_monitor = self.tt_mgr.get(ctx, tenant, tree=monitor)
-            except hexc.HashTreeNotFound:
-                ttree = htree.StructuredHashTree()
-                ttree_operational = htree.StructuredHashTree()
-                ttree_monitor = htree.StructuredHashTree()
+            ttree = tree_map[self.CONFIG][tenant]
+            ttree_operational = tree_map[self.OPER][tenant]
+            ttree_monitor = tree_map[self.MONITOR][tenant]
             # Update Configuration Tree
             self.tt_maker.update(ttree, upd[conf][0])
             self.tt_maker.delete(ttree, upd[conf][1])
@@ -141,6 +140,61 @@ class HashTreeDbListener(object):
                 udp_op_trees.append(ttree_operational)
             if ttree_monitor.root_key:
                 udp_mon_trees.append(ttree_monitor)
+        return upd_trees, udp_op_trees, udp_mon_trees
+
+
+class HashTreeDbListener(object):
+    """Updates persistent hash-tree in response to DB updates."""
+
+    def __init__(self, aim_manager):
+        self.aim_manager = aim_manager
+        self.aim_manager.register_update_listener(self.on_commit)
+        self.tt_mgr = tree_model.TenantHashTreeManager()
+        self.tt_maker = tree_model.AimHashTreeMaker()
+        self.tt_builder = HashTreeBuilder(self.aim_manager)
+
+    def on_commit(self, session, added, updated, deleted, curr_cfg=None,
+                  curr_oper=None, curr_monitor=None):
+        # Query hash-tree for each tenant and modify the tree based on DB
+        # updates
+        ctx = context.AimContext(session)
+        # Build tree map
+
+        conf = tree_model.CONFIG_TREE
+        monitor = tree_model.MONITORED_TREE
+        oper = tree_model.OPERATIONAL_TREE
+        tree_map = {}
+        affected_tenants = set()
+        for resources in added, updated, deleted:
+            for res in resources:
+                if isinstance(res, aim_status.AciStatus):
+                    # TODO(ivar): this is a DB query not worth doing. Fing
+                    # a better way to retrieve tenant from a Status object
+                    res = self.aim_manager.get_by_id(
+                        ctx, res.parent_class, res.resource_id)
+                key = self.tt_maker.get_tenant_key(res)
+                if key:
+                    affected_tenants.add(key)
+
+        for tenant in affected_tenants:
+            try:
+                ttree = self.tt_mgr.get(ctx, tenant, tree=conf)
+                ttree_operational = self.tt_mgr.get(ctx, tenant, tree=oper)
+                ttree_monitor = self.tt_mgr.get(ctx, tenant, tree=monitor)
+            except hexc.HashTreeNotFound:
+                ttree = htree.StructuredHashTree()
+                ttree_operational = htree.StructuredHashTree()
+                ttree_monitor = htree.StructuredHashTree()
+            tree_map.setdefault(
+                self.tt_builder.CONFIG, {})[tenant] = ttree
+            tree_map.setdefault(
+                self.tt_builder.OPER, {})[tenant] = ttree_operational
+            tree_map.setdefault(
+                self.tt_builder.MONITOR, {})[tenant] = ttree_monitor
+
+        upd_trees, udp_op_trees, udp_mon_trees = self.tt_builder.build(
+            added, updated, deleted, tree_map, aim_ctx=ctx)
+
         # Finally save the modified trees
         if upd_trees:
             self.tt_mgr.update_bulk(ctx, upd_trees)
