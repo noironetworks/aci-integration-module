@@ -69,7 +69,7 @@ class NatStrategy(object):
     ns.update_external_cidrs(ctx, ext_net2, ['200.200.0.0/16',
                                              '300.0.0.0/8'])
 
-    3. To provide external-connectivity to a VRF, connect the VRF to
+    4. To provide external-connectivity to a VRF, connect the VRF to
     ExternalNetwork with appropriate contracts.
 
     ext_net1.provided_contract_names = ['http', 'icmp']
@@ -79,18 +79,18 @@ class NatStrategy(object):
 
     ns.connect_vrf(ctx, ext_net1, vrf)
 
-    4. Call connect_vrf() again to update the contracts
+    5. Call connect_vrf() again to update the contracts
 
     ext_net1.provided_contract_names = ['http', 'https']
     ext_net1.consumed_contract_names = ['ping']
 
     ns.connect_vrf(ctx, ext_net1, vrf)
 
-    5. Disallow external-connectivity to VRF
+    6. Disallow external-connectivity to VRF
 
     ns.disconnect_vrf(ctx, ext_net1, vrf)
 
-    6. Delete ExternalNetwork, subnet and L3Outside
+    7. Delete ExternalNetwork, subnet and L3Outside
 
     ns.delete_external_network(ctx, ext_net1)
     ns.delete_external_network(ctx, ext_net2)
