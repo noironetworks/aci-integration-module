@@ -321,9 +321,6 @@ class AimHashTreeMaker(object):
     list('apicType|res-name', 'apicChildType|res-name')
     """
 
-    # Change this to be by object type if ever needed
-    _exclude = ['display_name']
-
     def __init__(self):
         pass
 

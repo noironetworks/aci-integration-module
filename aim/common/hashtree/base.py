@@ -20,6 +20,7 @@ import six
 @six.add_metaclass(abc.ABCMeta)
 class ComparableCollection(object):
     """Defines base ComparableCollection API."""
+    __slots__ = ()
 
     @abc.abstractmethod
     def add(self, key, **kwargs):

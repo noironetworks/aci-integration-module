@@ -463,7 +463,7 @@ class AciTenantManager(gevent.Greenlet):
             else:
                 updated.append(event)
         # Some objects are both monitored and owned in this case (think of
-        LOG.info("Hashtree Builder called with: %s %s", updated, removed)
+        LOG.debug("Hashtree Builder called with: %s %s", updated, removed)
         upd_trees, upd_op_trees, upd_mon_trees = self.tree_builder.build(
             [], updated, removed,
             {self.tree_builder.CONFIG: {self.tenant_name: self._state},

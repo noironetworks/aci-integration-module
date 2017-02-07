@@ -27,7 +27,7 @@ from aim.common import utils
 LOG = log.getLogger(__name__)
 
 
-class StructuredTreeNode:
+class StructuredTreeNode(object):
     # Use lightweight class
     __slots__ = [
         'key',  # iterable that defines hierarchical order
@@ -84,7 +84,7 @@ class StructuredTreeNode:
         return root
 
 
-class ChildrenList:
+class ChildrenList(object):
     """Children List.
 
     A useful support structure for StructuredTreeNodes, it is a collection
@@ -193,6 +193,8 @@ class StructuredHashTree(base.ComparableCollection):
     Pop a subtree if present
     tree.pop(('tn-tenant', 'bd-bridge3'))
     """
+
+    __slots__ = ['root', 'root_key']
 
     def __init__(self, root=None, root_key=None):
         """Initialize a Structured Hash Tree.
