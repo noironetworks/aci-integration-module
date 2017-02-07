@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import bisect
 import collections
 import hashlib
 import json
@@ -49,7 +48,10 @@ class StructuredTreeNode(object):
         self.full_hash = full_hash or self.partial_hash
         self._children = ChildrenList()
         self.dummy = dummy
-        self.metadata = metadata or {}
+        self.metadata = metadata or KeyValueStore()
+        if isinstance(self.metadata, dict):
+            self.metadata = KeyValueStore().include(
+                [KeyValue(k, v) for k, v in self.metadata.iteritems()])
         self.error = error
 
     def __cmp__(self, other):
@@ -78,84 +80,52 @@ class StructuredTreeNode(object):
             [('key', self.key), ('partial_hash', self.partial_hash),
              ('full_hash', self.full_hash), ('dummy', self.dummy),
              ('error', self.error), ('_children', []),
-             ('metadata', self.metadata)])
+             ('metadata', {})])
         for children in self.get_children():
             root['_children'].append(children.to_dict())
+        for item in self.metadata:
+            root['metadata'][item.key] = item.value
         return root
 
 
-class ChildrenList(object):
-    """Children List.
-
-    A useful support structure for StructuredTreeNodes, it is a collection
-    of nodes that is kept ordered for tree repeatability. Fast access to
-    a node takes log(n) time because of the use of bisection, while keeping
-    the data structure small without the use of hash tables.
-    """
+class ChildrenList(base.OrderedList):
 
     __slots__ = ['_stash']
 
-    def __init__(self):
-        self._stash = []
+    def transform_key(self, key):
+        return StructuredTreeNode(key)
 
-    def __iter__(self):
-        return self._stash.__iter__()
 
-    def add(self, item):
-        i = self.index(item.key)
-        if i is not None:
-            # Already present, replace
-            self._stash[i] = item
-        else:
-            bisect.insort(self._stash, item)
-        return item
+class KeyValue(object):
 
-    def remove(self, key):
-        i = self.index(key)
-        if i is not None:
-            self._stash.pop(i)
+    __slots__ = ['key', 'value']
 
-    def __getitem__(self, item):
-        i = self.index(item)
-        if i is not None:
-            return self._stash[i]
-        raise KeyError
-
-    def index(self, key):
-        i = bisect.bisect_left(self._stash, StructuredTreeNode(key))
-        if i != len(self._stash) and self._stash[i].key == key:
-            return i
-        return None
-
-    def setdefault(self, key, default=None):
-        """Return item with specified Key.
-
-        add with default value if not present
-        """
-        current = self.get(key)
-        if not current:
-            # Not present, set
-            current = default or StructuredTreeNode(key)
-            self.add(current)
-        return current
-
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-    def __str__(self):
-        return "[" + ",".join("%s" % x for x in self._stash) + "]"
-
-    def __len__(self):
-        return len(self._stash)
+    def __init__(self, key, value=None):
+        self.key = key
+        self.value = value
 
     def __cmp__(self, other):
-        return cmp(self._stash, other._stash)
+        return cmp(self.key, other.key)
 
-    def __nonzero__(self):
-        return len(self) != 0
+    def __str__(self):
+        return "(%s, %s)" % (self.key, self.value)
+
+
+class KeyValueStore(base.OrderedList):
+
+    __slots__ = ['_stash']
+
+    def transform_key(self, key):
+        return KeyValue(key)
+
+    def __cmp__(self, other):
+        if isinstance(other, KeyValueStore):
+            return super(KeyValueStore, self).__cmp__(other)
+        if isinstance(other, dict):
+            return super(KeyValueStore, self).__cmp__(
+                KeyValueStore().include([KeyValue(k, v) for k, v in
+                                         other.iteritems()]))
+        return False
 
 
 class StructuredHashTree(base.ComparableCollection):
@@ -241,7 +211,10 @@ class StructuredHashTree(base.ComparableCollection):
             # nothing to do
             return self
         has_metadata = '_metadata' in kwargs
-        metadata = kwargs.pop('_metadata', None)
+        metadata_dict = kwargs.pop('_metadata', {}) or {}
+        metadata = KeyValueStore()
+        for meta_key, value in metadata_dict.iteritems():
+            metadata.add(KeyValue(meta_key, value))
         error = kwargs.pop('_error', False)
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
@@ -274,7 +247,7 @@ class StructuredHashTree(base.ComparableCollection):
         node.dummy = False
         node.error = error
         if has_metadata:
-            node.metadata = metadata or {}
+            node.metadata = metadata
         # Recalculate full hashes navigating the stack backwards
         self._recalculate_parents_stack(stack)
         return self

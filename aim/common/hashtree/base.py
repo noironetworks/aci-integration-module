@@ -14,6 +14,7 @@
 #    under the License.
 
 import abc
+import bisect
 import six
 
 
@@ -83,3 +84,91 @@ class ComparableCollection(object):
         :return: dictionary containing operations {"add":[<keys>],
                                                    "remove":[<keys>]}
         """
+
+
+@six.add_metaclass(abc.ABCMeta)
+class OrderedList(object):
+    """Ordered List.
+
+    A useful support structure for comparable objects, it is a collection
+    of nodes that is kept ordered for tree repeatability. Fast access to
+    a node takes log(n) time because of the use of bisection, while keeping
+    the data structure small without the use of hash tables.
+    """
+
+    __slots__ = ['_stash']
+
+    def __init__(self):
+        self._stash = []
+
+    def __iter__(self):
+        return self._stash.__iter__()
+
+    @abc.abstractmethod
+    def transform_key(self, key):
+        """Transform key
+
+        Wrap or transform key into a comparable form.
+        :return: Comparable key
+        """
+
+    def include(self, items):
+        for item in items:
+            self.add(item)
+        return self
+
+    def add(self, item):
+        i = self.index(item.key)
+        if i is not None:
+            # Already present, replace
+            self._stash[i] = item
+        else:
+            bisect.insort(self._stash, item)
+        return item
+
+    def remove(self, key):
+        i = self.index(key)
+        if i is not None:
+            self._stash.pop(i)
+
+    def __getitem__(self, item):
+        i = self.index(item)
+        if i is not None:
+            return self._stash[i]
+        raise KeyError
+
+    def index(self, key):
+        i = bisect.bisect_left(self._stash, self.transform_key(key))
+        if i != len(self._stash) and self._stash[i].key == key:
+            return i
+        return None
+
+    def setdefault(self, key, default=None):
+        """Return item with specified Key.
+
+        add with default value if not present
+        """
+        current = self.get(key)
+        if not current:
+            # Not present, set
+            current = default or self.transform_key(key)
+            self.add(current)
+        return current
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def __str__(self):
+        return "[" + ",".join("%s" % x for x in self._stash) + "]"
+
+    def __len__(self):
+        return len(self._stash)
+
+    def __cmp__(self, other):
+        return cmp(self._stash, other._stash)
+
+    def __nonzero__(self):
+        return len(self) != 0
