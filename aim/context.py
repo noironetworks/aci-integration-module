@@ -13,9 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from aim import aim_store
+
 
 class AimContext(object):
     """Holds contextual information needed for AimManager calls."""
 
     def __init__(self, db_session=None):
-        self.db_session = db_session
+        if db_session:
+            self.store = aim_store.SqlAlchemyStore(db_session)
+        else:
+            self.store = None
+
+    # For backwards compatibility
+    @property
+    def db_session(self):
+        return self.store.db_session

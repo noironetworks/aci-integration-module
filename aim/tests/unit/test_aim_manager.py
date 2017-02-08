@@ -353,7 +353,7 @@ class TestResourceOpsBase(object):
 
         # Delete resource and verify that status is deleted as well
         self.mgr.set_fault(self.ctx, res, fault_2)
-        db_res = self.mgr._query_db_obj(self.ctx.db_session, res)
+        db_res = self.mgr._query_db_obj(self.ctx.store, res)
         try:
             aim_id = db_res.aim_id
         except AttributeError:
@@ -362,7 +362,7 @@ class TestResourceOpsBase(object):
         else:
             self.mgr.delete(self.ctx, res)
             status_db = self.mgr._query_db_obj(
-                self.ctx.db_session,
+                self.ctx.store,
                 aim_status.AciStatus(resource_type=type(res).__name__,
                                      resource_id=aim_id))
             self.assertIsNone(status_db)
