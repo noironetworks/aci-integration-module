@@ -112,6 +112,15 @@ class OrderedList(object):
         :return: Comparable key
         """
 
+    @abc.abstractmethod
+    def transform_value(self, value):
+        """Transform value
+
+        Transforms a list item before returning it
+        :param value:
+        :return:
+        """
+
     def include(self, items):
         for item in items:
             self.add(item)
@@ -134,7 +143,7 @@ class OrderedList(object):
     def __getitem__(self, item):
         i = self.index(item)
         if i is not None:
-            return self._stash[i]
+            return self.transform_value(self._stash[i])
         raise KeyError
 
     def index(self, key):

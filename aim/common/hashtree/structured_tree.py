@@ -95,6 +95,9 @@ class ChildrenList(base.OrderedList):
     def transform_key(self, key):
         return StructuredTreeNode(key)
 
+    def transform_value(self, value):
+        return value
+
 
 class KeyValue(object):
 
@@ -117,6 +120,9 @@ class KeyValueStore(base.OrderedList):
 
     def transform_key(self, key):
         return KeyValue(key)
+
+    def transform_value(self, value):
+        return value.value
 
     def __cmp__(self, other):
         if isinstance(other, KeyValueStore):

@@ -458,6 +458,8 @@ class TestStructuredHashTree(base.BaseTestCase):
              {'key': ('keyA', 'keyC'), '_metadata': {'b': 1}},
              {'key': ('keyA', 'keyC', 'keyD')}])
         self.assertTrue(data4 == data)
+        node = data4.find(('keyA', 'keyB'))
+        self.assertEqual(1, node.metadata['a'])
 
     def test_remove(self):
         data = tree.StructuredHashTree().include(
