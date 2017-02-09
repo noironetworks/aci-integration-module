@@ -100,6 +100,41 @@ class TestManager(base.TestShell):
         self.assertEqual(set(['phys2', 'phys']),
                          set(pre_epg2.physical_domain_names))
 
+    def _parse_sync_find_output(self, result):
+        res = result.output_bytes.split('\n')[1:-1]
+        output = []
+        for token in res:
+            output.append(tuple(filter(None, token.split(' '))))
+        return output
+
+    def test_sync_state_find(self):
+        # Create 2 APs and 2 BDs for each state
+        tn = self.mgr.create(self.ctx, resource.Tenant(name='tn1'))
+        self.mgr.set_resource_sync_synced(self.ctx, tn)
+        expected = {'error': set(), 'synced': set(), 'pending': set()}
+        expected['synced'].add(('tenant', 'tn1'))
+        for state, f in [('error', self.mgr.set_resource_sync_error),
+                         ('synced', self.mgr.set_resource_sync_synced),
+                         ('pending', self.mgr.set_resource_sync_pending)]:
+            for i in range(2):
+                name = '%s_%s' % (state, i)
+                for res, nice in [(resource.VRF, 'vrf'),
+                                  (resource.BridgeDomain, 'bridge-domain')]:
+                    item = self.mgr.create(self.ctx, res(tenant_name='tn1',
+                                                         name=name))
+                    f(self.ctx, item)
+                    expected[state].add((nice, 'tn1,%s' % name))
+
+        for state in ['error', 'synced', 'pending']:
+            result = self.run_command(
+                'manager sync-state-find -p -s %s' % state)
+            parsed = self._parse_sync_find_output(result)
+            if state is 'synced':
+                self.assertEqual(5, len(parsed))
+            else:
+                self.assertEqual(4, len(parsed))
+            self.assertEqual(expected[state], set(parsed))
+
 
 class TestManagerResourceOpsBase(object):
     test_default_values = {}

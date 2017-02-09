@@ -22,6 +22,7 @@ from tabulate import tabulate
 
 from aim import aim_manager
 from aim.api import resource
+from aim.api import status as status_res
 from aim.common import utils
 from aim import context
 from aim.db import api
@@ -233,6 +234,38 @@ def load_domains(ctx, replace, enforce):
                     manager.update(aim_ctx, epg,
                                    openstack_vmm_domain_names=os_vmm_names,
                                    physical_domain_names=phys_names))
+
+
+@manager.command(name='sync-state-find')
+@click.option('--state', '-s', default=status_res.AciStatus.SYNC_FAILED)
+@click.option('--plain', '-p', default=False, is_flag=True)
+@click.pass_context
+def sync_state_find(ctx, state, plain):
+    manager = ctx.obj['manager']
+    aim_ctx = ctx.obj['aim_ctx']
+    error = [status_res.AciStatus.SYNC_FAILED, 'error', 'sync_error', 'failed']
+    pending = [status_res.AciStatus.SYNC_PENDING, 'pending', 'sync_pending']
+    synced = [status_res.AciStatus.SYNCED, 'synced', 'ok']
+    state = state.lower()
+    for states in (error, pending, synced):
+        if state in states:
+            state = states[0]
+            break
+
+    with aim_ctx.db_session.begin(subtransactions=True):
+        statuses = manager.find(aim_ctx, status_res.AciStatus,
+                                sync_status=state)
+    # Could aggregate the queries to make it more efficient in future
+    rows = []
+    for status in statuses:
+        aim_res = manager.get_by_id(
+            aim_ctx, status.parent_class, status.resource_id)
+        name = convert(aim_res.__class__.__name__)
+        identity = ','.join([getattr(aim_res, a, None)
+                             for a in aim_res.identity_attributes])
+        rows.append([name, identity])
+    click.echo(tabulate(rows, headers=['Class', 'Identity'],
+                        tablefmt='plain' if plain else 'psql'))
 
 
 def convert(name):
