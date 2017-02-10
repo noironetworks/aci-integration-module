@@ -194,6 +194,10 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             self._get_example_aci_fault(),
             self._get_example_aci_bd(),
             {'vzSubj': {'attributes': {'dn': u'uni/tn-t1/brc-c/subj-s'}}},
+            {'vzInTerm': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/intmnl'}}},
+            {'vzOutTerm': {'attributes': {
+                'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl'}}},
             {'vzRsSubjFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f'}}},
             {'vzRsFiltAtt': {'attributes': {

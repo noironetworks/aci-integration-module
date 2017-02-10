@@ -104,6 +104,17 @@ def default_to_resource_strict(converted, helper, to_aim=True):
             return {helper['resource']: {'attributes': values}}
 
 
+def to_resource_filter_container(converted, helper, to_aim=True):
+    if to_aim:
+        return default_to_resource(converted, helper, to_aim=to_aim)
+    else:
+        in_ = helper['resource'] is 'vzInTerm' and converted.get('inFilters')
+        out = helper['resource'] is 'vzOutTerm' and converted.get('outFilters')
+        if in_ or out:
+            return {
+                helper['resource']: {'attributes': {'dn': converted['dn']}}}
+
+
 def convert_attribute(aim_attribute, to_aim=True):
     """Convert attribute name from AIM to ACI format
 
@@ -488,6 +499,14 @@ resource_map = {
                      'converter': vzInTerm_vzRsFiltAtt_converter},
                     {'resource': resource.ContractSubject,
                      'converter': vzOutTerm_vzRsFiltAtt_converter}],
+    'vzInTerm': [{
+        'resource': resource.ContractSubject,
+        'to_resource': to_resource_filter_container,
+    }],
+    'vzOutTerm': [{
+        'resource': resource.ContractSubject,
+        'to_resource': to_resource_filter_container,
+    }],
     'l3extOut': [{
         'resource': resource.L3Outside,
         'skip': ['vrf_name', 'l3_domain_dn']

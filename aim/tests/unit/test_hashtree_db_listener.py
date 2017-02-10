@@ -352,6 +352,42 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.assertEqual(my_mon_tree, mon_tree)
         self.assertEqual(my_cfg_tree, cfg_tree)
 
+    def test_subject_related_objects(self):
+        self.mgr.create(self.ctx, aim_res.Tenant(name='common'))
+        self.mgr.create(
+            self.ctx, aim_res.Contract(tenant_name='common', name='c-name'))
+        subj = aim_res.ContractSubject(
+            **{'contract_name': 'c-name',
+               'out_filters': ['pr_1', 'reverse-pr_1', 'pr_2', 'reverse-pr_2'],
+               'name': 's-name',
+               'tenant_name': 'common', 'monitored': False, 'bi_filters': [],
+               'in_filters': ['pr_1', 'reverse-pr_1', 'pr_2', 'reverse-pr_2']})
+        subj = self.mgr.create(self.ctx, subj)
+        cfg_tree = self.tt_mgr.get(self.ctx, 'common',
+                                   tree=tree_model.CONFIG_TREE)
+        # verify pr_1 and its reverse are in the tree
+        pr_1 = cfg_tree.find(
+            ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
+             "vzOutTerm|outtmnl", "vzRsFiltAtt|pr_1"))
+        rev_pr_1 = cfg_tree.find(
+            ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
+             "vzOutTerm|outtmnl", "vzRsFiltAtt|reverse-pr_1"))
+        self.assertIsNotNone(pr_1)
+        self.assertIsNotNone(rev_pr_1)
+
+        self.mgr.update(self.ctx, subj, out_filters=['pr_2', 'reverse-pr_2'],
+                        in_filters=['pr_2', 'reverse-pr_2'])
+        cfg_tree = self.tt_mgr.get(self.ctx, 'common',
+                                   tree=tree_model.CONFIG_TREE)
+        pr_1 = cfg_tree.find(
+            ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
+             "vzOutTerm|outtmnl", "vzRsFiltAtt|pr_1"))
+        rev_pr_1 = cfg_tree.find(
+            ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
+             "vzOutTerm|outtmnl", "vzRsFiltAtt|reverse-pr_1"))
+        self.assertIsNone(pr_1)
+        self.assertIsNone(rev_pr_1)
+
     # REVISIT(ivar): for some reason, FK cascade is not honored by our UTs
     # therefore the following test doesn't pass. Need to find the root cause.
     # def test_aim_status_deleted(self):

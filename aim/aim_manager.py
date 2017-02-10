@@ -19,6 +19,7 @@ from sqlalchemy import event as sa_event
 from aim.api import infra as api_infra
 from aim.api import resource as api_res
 from aim.api import status as api_status
+from aim.common import utils
 from aim.db import agent_model
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import infra_model
@@ -91,6 +92,7 @@ class AimManager(object):
         self._update_listeners = []
         self._hashtree_db_listener = ht_db_l.HashTreeDbListener(self)
 
+    @utils.log
     def create(self, context, resource, overwrite=False, fix_ownership=False):
         """Persist AIM resource to the database.
 
@@ -132,6 +134,7 @@ class AimManager(object):
                     self.set_resource_sync_pending(context, resource)
             return self.get(context, resource)
 
+    @utils.log
     def update(self, context, resource, fix_ownership=False,
                **update_attr_val):
         """Persist updates to AIM resource to the database.
@@ -168,6 +171,7 @@ class AimManager(object):
         return (not old_obj or not old_monitored or
                 new_monitored is not None and old_monitored != new_monitored)
 
+    @utils.log
     def delete(self, context, resource):
         """Delete AIM resource from the database.
 
@@ -263,6 +267,7 @@ class AimManager(object):
                     return status
         return None
 
+    @utils.log
     def update_status(self, context, resource, status):
         """Update the status of an AIM resource.
 
@@ -333,6 +338,7 @@ class AimManager(object):
                         message="Parent resource %s is "
                                 "in error state" % str(resource))
 
+    @utils.log
     def set_fault(self, context, resource, fault):
         with context.db_session.begin(subtransactions=True):
             status = self.get_status(context, resource)
@@ -340,6 +346,7 @@ class AimManager(object):
                 fault.status_id = status.id
                 self.create(context, fault, overwrite=True)
 
+    @utils.log
     def clear_fault(self, context, fault, **kwargs):
         with context.db_session.begin(subtransactions=True):
             db_fault = self._query_db(
