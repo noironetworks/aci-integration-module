@@ -55,8 +55,10 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return "AIM_Config_Universe"
 
     def serve(self, tenants):
-        LOG.debug('Serving tenants: %s' % tenants)
-        self._served_tenants = set(tenants)
+        tenants = set(tenants)
+        if self._served_tenants != tenants:
+            LOG.debug('%s serving tenants: %s' % (self.name, tenants))
+            self._served_tenants = set(tenants)
 
     def observe(self):
         pass

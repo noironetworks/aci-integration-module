@@ -18,7 +18,6 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.sql.expression import func
 
-from aim.common import utils
 from aim import context
 from aim.db import model_base
 from aim.db import tree_model
@@ -53,7 +52,6 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
                                   cascade='all, delete-orphan',
                                   lazy="joined")
 
-    @utils.log
     def set_hash_trees(self, session, trees, **kwargs):
         if trees is None:
             return
@@ -64,6 +62,8 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
                 keep.append(curr)
                 trees.remove(curr.tree_tenant_rn)
         self.hash_trees = keep
+        if trees:
+            LOG.debug("Adding trees for agent %s: %s" % (self.id, trees))
         with session.begin(subtransactions=True):
             for tree in trees:
                 # Verify that the tree exists

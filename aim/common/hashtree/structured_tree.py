@@ -327,7 +327,6 @@ class StructuredHashTree(base.ComparableCollection):
     def find(self, key):
         return self._get_node_and_parent_stack(key)[0]
 
-    @utils.log
     def diff(self, other):
         # TODO(ivar): exclude dummy nodes
         if not self.root:
