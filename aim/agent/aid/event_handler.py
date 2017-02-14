@@ -31,6 +31,7 @@ EVENT_SERVE = 'serve'
 EVENT_RECONCILE = 'reconcile'
 EVENTS = [EVENT_SERVE, EVENT_RECONCILE]
 PAYLOAD_MAX_LEN = 1024
+SOCKET_RECONNECT_MAX_WAIT = 10
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -89,6 +90,7 @@ class EventHandler(EventHandlerBase):
 
     def initialize(self, conf_manager):
         LOG.info("Initialize Event Handler")
+        self.recovery_retries = None
         self.conf_manager = conf_manager
         self.listener = self._spawn_listener()
         EventHandler.q = queue.Queue()
@@ -121,6 +123,7 @@ class EventHandler(EventHandlerBase):
                 LOG.info("Listening for Events on %s", self.us_path)
                 while True:
                     self._recv_loop()
+                self.recovery_retries = None
             except gevent.GreenletExit:
                 LOG.warn("Killed event listener thread")
                 return
@@ -128,8 +131,9 @@ class EventHandler(EventHandlerBase):
                 LOG.debug(traceback.format_exc())
                 LOG.error("An error as occurred in the event listener "
                           "thread: %s" % e)
-                # TODO(ivar): exponentially backoff before reconnecting
-                gevent.sleep(2)
+                self.recovery_retries = utils.exponential_backoff(
+                    SOCKET_RECONNECT_MAX_WAIT,
+                    tentative=self.recovery_retries)
             finally:
                 try:
                     self.sock.close()
@@ -169,6 +173,9 @@ class EventHandler(EventHandlerBase):
 
 class EventSender(SenderBase):
 
+    def __init__(self):
+        self.recovery_retries = None
+
     def initialize(self, conf):
         try:
             self.conf_manager = conf
@@ -177,12 +184,12 @@ class EventSender(SenderBase):
             self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
             self.sock.connect(self.us_path)
             LOG.info("Connected to %s" % self.us_path)
+            self.recovery_retries = None
             return self
-        except Exception as e:
+        except Exception:
             LOG.debug(traceback.format_exc())
-            utils.perform_harakiri(
-                LOG, "An exception has occurred during EventSender "
-                     "initialization for socket %s: %s" % (self.us_path, e))
+            self.recovery_retries = utils.exponential_backoff(
+                SOCKET_RECONNECT_MAX_WAIT, tentative=self.recovery_retries)
 
     def serve(self):
         self._send(EVENT_SERVE)

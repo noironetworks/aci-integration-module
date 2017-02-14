@@ -190,8 +190,11 @@ class AID(object):
             self.agent = self.manager.get(context, self.agent)
             down_time = self.agent.down_time(context)
             if min(0, down_time or 0) > self.max_down_time:
+                LOG.error("Agent has been down for %s seconds.", down_time)
                 utils.perform_harakiri(LOG, "Agent has been down for %s "
                                             "seconds." % down_time)
+            else:
+                LOG.debug("Agent is up, current down time is %s" % down_time)
             # Get peers
             agents = [
                 x for x in self.manager.find(context, resource.Agent,

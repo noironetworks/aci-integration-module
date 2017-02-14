@@ -43,6 +43,7 @@ SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
 CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
 OPERATIONAL_LIST = [FAULT_KEY]
+TENANT_FAILURE_MAX_WAIT = 60
 ACI_TYPES_NOT_CONVERT_IF_MONITOR = {}
 for typ in converter.resource_map:
     if "__" not in typ:
@@ -259,7 +260,7 @@ class AciTenantManager(gevent.Greenlet):
             self.health_state = False
             self._unsubscribe_tenant()
             self.recovery_retries = utils.exponential_backoff(
-                10, tentative=self.recovery_retries)
+                TENANT_FAILURE_MAX_WAIT, tentative=self.recovery_retries)
             if self.recovery_retries.get() >= self.max_retries:
                 LOG.error("Exceeded max recovery retries for tenant %s. "
                           "Destroying the manager." %

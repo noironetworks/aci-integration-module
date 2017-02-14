@@ -57,7 +57,13 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     def set_hash_trees(self, session, trees, **kwargs):
         if trees is None:
             return
-        self.hash_trees = []
+        keep = []
+        trees = set(trees)
+        for curr in self.hash_trees:
+            if curr.tree_tenant_rn in trees:
+                keep.append(curr)
+                trees.remove(curr.tree_tenant_rn)
+        self.hash_trees = keep
         with session.begin(subtransactions=True):
             for tree in trees:
                 # Verify that the tree exists
