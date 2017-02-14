@@ -34,7 +34,7 @@ LOG = logging.getLogger(__name__)
 
 
 agent_opts = [
-    cfg.IntOpt('agent_down_time', default=75,
+    cfg.IntOpt('agent_down_time', default=120,
                help=("Seconds to regard the agent is down; should be at "
                      "least twice agent_report_interval.")),
     cfg.FloatOpt('agent_polling_interval', default=0,
@@ -49,7 +49,7 @@ agent_opts = [
                        "an event is received before starting the "
                        "reconciliation. This will squash similar events "
                        "together")),
-    cfg.IntOpt('agent_report_interval', default=30,
+    cfg.IntOpt('agent_report_interval', default=60,
                help=("Number of seconds after which an agent reports his "
                      "state")),
     cfg.IntOpt('config_polling_interval', default=30,

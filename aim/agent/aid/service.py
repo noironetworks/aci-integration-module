@@ -189,12 +189,12 @@ class AID(object):
             # Refresh this agent
             self.agent = self.manager.get(context, self.agent)
             down_time = self.agent.down_time(context)
-            if min(0, down_time or 0) > self.max_down_time:
-                LOG.error("Agent has been down for %s seconds.", down_time)
+            if max(0, down_time or 0) > self.max_down_time:
                 utils.perform_harakiri(LOG, "Agent has been down for %s "
                                             "seconds." % down_time)
             else:
-                LOG.debug("Agent is up, current down time is %s" % down_time)
+                LOG.debug("Agent is up, current down time is %s, max down "
+                          "time is %s" % (down_time, self.max_down_time))
             # Get peers
             agents = [
                 x for x in self.manager.find(context, resource.Agent,
@@ -215,7 +215,6 @@ class AID(object):
             # Store result in DB
             self.agent.hash_trees = result
             self.manager.create(context, self.agent, overwrite=True)
-            LOG.debug("Calculated tenant list: %s" % result)
             return result
 
     def _tenant_assignation_algorithm(self, context, agents):

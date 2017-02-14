@@ -188,12 +188,15 @@ class Agent(ResourceBase):
         return self.id == other.id
 
     def is_down(self, context):
-        LOG.debug("Checking whether agent %s (timestamp %s) is down" %
-                  (self.id, self.heartbeat_timestamp))
         current = context.db_session.query(func.now()).scalar()
         result = current - self.heartbeat_timestamp >= datetime.timedelta(
             seconds=cfg.CONF.aim.agent_down_time)
-        LOG.debug("Agent %s is down: %s" % (self.id, result))
+        if result:
+            LOG.warn("Agent %s is down. Last heartbeat was %s" %
+                     (self.id, self.heartbeat_timestamp))
+        else:
+            LOG.debug("Agent %s is alive, its last heartbeat was %s" %
+                      (self.id, self.heartbeat_timestamp))
         return result
 
     def down_time(self, context):
