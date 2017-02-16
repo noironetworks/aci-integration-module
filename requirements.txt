@@ -8,6 +8,7 @@ alembic
 -e git+https://github.com/datacenter/acitoolkit.git@v0.3.2#egg=acitoolkit
 Click
 gevent>=1.1.0
+jsonschema  # MIT
 oslo.concurrency
 oslo.config
 oslo.db

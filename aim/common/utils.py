@@ -16,6 +16,7 @@
 import functools
 import os
 import random
+import re
 import time
 import uuid
 
@@ -102,3 +103,8 @@ def stob(s):
     if s.lower() in ['false', 'no', 'f', 'n', '0']:
         return False
     return None
+
+
+def camel_to_snake(name):
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()

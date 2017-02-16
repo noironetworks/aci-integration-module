@@ -21,6 +21,7 @@ from oslo_log import log as logging
 
 from aim.api import resource
 from aim.api import status as aim_status
+from aim.api import types as t
 from aim.common import utils
 
 LOG = logging.getLogger(__name__)
@@ -80,8 +81,7 @@ def default_to_resource(converted, helper, to_aim=True):
         return klass(
             _set_default=False,
             **dict([(k, v) for k, v in converted.iteritems() if k in
-                    (klass.identity_attributes + klass.db_attributes +
-                     klass.other_attributes)]))
+                    klass.attributes()]))
     else:
         for s in default_skip + helper.get('skip', []):
             converted.pop(s, None)
@@ -161,29 +161,13 @@ def mapped_attribute(value_map):
     return mapped
 
 
-tcp_flags = mapped_attribute({resource.FilterEntry.UNSPECIFIED: ""})
-port = mapped_attribute(
-    {'0': resource.FilterEntry.UNSPECIFIED, '20': 'ftpData', '25': 'smtp',
-     '53': 'dns', '80': 'http', '110': 'pop3', '443': 'https', '554': 'rstp'})
-arp_opcode = mapped_attribute({'0': resource.FilterEntry.UNSPECIFIED,
-                               '1': 'req', '2': 'reply'})
-ether_type = mapped_attribute(
-    {'0': resource.FilterEntry.UNSPECIFIED, '0x22F3': 'trill', '0x806': 'arp',
-     '0x8847': 'mpls_ucast', '0x88E5': 'mac_security', '0x8906': 'fcoe',
-     '0xABCD': 'ip'})
-icmpv4_type = mapped_attribute({'0': 'echo-rep', '3': 'dst-unreach',
-                                '4': 'src-quench', '8': 'echo',
-                                '11': 'time-exceeded', '255': 'unspecified'})
-
-icmpv6_type = mapped_attribute({'0': resource.FilterEntry.UNSPECIFIED,
-                                '1': 'dst-unreach', '3': 'time-exceeded',
-                                '128': 'echo-req', '129': 'echo-rep',
-                                '135': 'nbr-solicit', '136': 'nbr-advert',
-                                '137': 'redirect'})
-ip_protocol = mapped_attribute(
-    {'0': resource.FilterEntry.UNSPECIFIED, '1': 'icmp', '2': 'igmp',
-     '6': 'tcp', '8': 'egp', '9': 'igp', '17': 'udp', '58': 'icmpv6',
-     '88': 'eigrp', '89': 'ospfigp', '103': 'pim', '115': 'l2tp'})
+tcp_flags = mapped_attribute(t.tcp_flags)
+port = mapped_attribute(t.ports)
+arp_opcode = mapped_attribute(t.arp_opcode)
+ether_type = mapped_attribute(t.ether_type)
+icmpv4_type = mapped_attribute(t.icmpv4_type)
+icmpv6_type = mapped_attribute(t.icmpv6_type)
+ip_protocol = mapped_attribute(t.ip_protocol)
 
 
 def fault_inst_to_resource(converted, helper, to_aim=True):

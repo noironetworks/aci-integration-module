@@ -19,6 +19,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from sqlalchemy.sql.expression import func
 
+from aim.api import types as t
 from aim.common import utils
 from aim import exceptions as exc
 
@@ -42,7 +43,7 @@ class ResourceBase(object):
     that are managed by the database layer, eg: timestamp, incremental counter.
     """
 
-    db_attributes = []
+    db_attributes = t.db()
 
     def __init__(self, defaults, **kwargs):
         unset_attr = [k for k in self.identity_attributes
@@ -59,12 +60,12 @@ class ResourceBase(object):
 
     @property
     def identity(self):
-        return [getattr(self, x) for x in self.identity_attributes]
+        return [getattr(self, x) for x in self.identity_attributes.keys()]
 
     @classmethod
     def attributes(cls):
-        return (cls.identity_attributes + cls.other_attributes +
-                cls.db_attributes)
+        return (cls.identity_attributes.keys() + cls.other_attributes.keys() +
+                cls.db_attributes.keys())
 
     @property
     def members(self):
@@ -122,8 +123,11 @@ class Tenant(AciResourceBase):
     """
     tenant_ref_attribute = 'name'
 
-    identity_attributes = ['name']
-    other_attributes = ['display_name', 'monitored']
+    identity_attributes = t.identity(
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'fvTenant'
     _tree_parent = None
@@ -138,16 +142,19 @@ class BridgeDomain(AciResourceBase):
     Identity attributes are RNs for ACI tenant and bridge-domain.
     """
 
-    identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name',
-                        'vrf_name',
-                        'enable_arp_flood',
-                        'enable_routing',
-                        'limit_ip_learn_to_subnets',
-                        'l2_unknown_unicast_mode',
-                        'ep_move_detect_mode',
-                        'l3out_names',
-                        'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('vrf_name', t.name),
+        ('enable_arp_flood', t.bool),
+        ('enable_routing', t.bool),
+        ('limit_ip_learn_to_subnets', t.bool),
+        ('l2_unknown_unicast_mode', t.enum("", "flood", "proxy")),
+        ('ep_move_detect_mode', t.enum("", "garp")),
+        ('l3out_names', t.list_of_names),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'fvBD'
     _tree_parent = Tenant
@@ -167,17 +174,18 @@ class BridgeDomain(AciResourceBase):
 class Agent(ResourceBase):
     """Resource representing an AIM Agent"""
 
-    identity_attributes = ['id']
-    other_attributes = ['agent_type',
-                        'host',
-                        'binary_file',
-                        'admin_state_up',
-                        'description',
-                        'hash_trees',
-                        'beat_count',
-                        'version']
+    identity_attributes = t.identity(('id', t.id))
+    other_attributes = t.other(
+        ('agent_type', t.string(255)),
+        ('host', t.string(255)),
+        ('binary_file', t.string(255)),
+        ('admin_state_up', t.bool),
+        ('description', t.string(255)),
+        ('hash_trees', t.list_of_ids),
+        ('beat_count', t.number),
+        ('version', t.string()))
     # Attrbutes completely managed by the DB (eg. timestamps)
-    db_attributes = ['heartbeat_timestamp']
+    db_attributes = t.db(('heartbeat_timestamp', t.string()))
 
     def __init__(self, **kwargs):
         super(Agent, self).__init__({'admin_state_up': True,
@@ -214,10 +222,14 @@ class Subnet(AciResourceBase):
     may be used to construct the IP-address & mask value.
     """
 
-    identity_attributes = ['tenant_name', 'bd_name', 'gw_ip_mask']
-    other_attributes = ['scope',
-                        'display_name',
-                        'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('bd_name', t.name),
+        ('gw_ip_mask', t.ip_cidr))
+    other_attributes = t.other(
+        ('scope', t.enum("", "public", "private", "shared")),
+        ('display_name', t.name),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'fvSubnet'
     _tree_parent = BridgeDomain
@@ -240,10 +252,13 @@ class VRF(AciResourceBase):
     Identity attributes: name of ACI tenant, name of VRF.
     """
 
-    identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name',
-                        'policy_enforcement_pref',
-                        'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('policy_enforcement_pref', t.enum("", "enforced", "unenforced")),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'fvCtx'
     _tree_parent = Tenant
@@ -264,8 +279,12 @@ class ApplicationProfile(AciResourceBase):
     Identity attributes: name of ACI tenant, name of app-profile.
     """
 
-    identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name', 'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'fvAp'
     _tree_parent = Tenant
@@ -288,17 +307,20 @@ class EndpointGroup(AciResourceBase):
             this EndpointGroup on the specified switch-port. Must be specified
             in the format 'vlan-<vlan-id>' for VLAN encapsulation
     """
-
-    identity_attributes = ['tenant_name', 'app_profile_name', 'name']
-    other_attributes = ['display_name',
-                        'bd_name',
-                        'policy_enforcement_pref',
-                        'provided_contract_names',
-                        'consumed_contract_names',
-                        'openstack_vmm_domain_names',
-                        'physical_domain_names',
-                        'static_paths',
-                        'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('app_profile_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('bd_name', t.name),
+        ('policy_enforcement_pref', t.enum("", "enforced", "unenforced")),
+        ('provided_contract_names', t.list_of_names),
+        ('consumed_contract_names', t.list_of_names),
+        ('openstack_vmm_domain_names', t.list_of_names),
+        ('physical_domain_names', t.list_of_names),
+        ('static_paths', t.list_of_static_paths),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'fvAEPg'
     _tree_parent = ApplicationProfile
@@ -325,8 +347,12 @@ class Filter(AciResourceBase):
     Identity attributes: name of ACI tenant and name of filter.
     """
 
-    identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name', 'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'vzFilter'
     _tree_parent = Tenant
@@ -361,18 +387,30 @@ class FilterEntry(AciResourceBase):
 
     """
 
-    identity_attributes = ['tenant_name', 'filter_name', 'name']
-    other_attributes = ['display_name',
-                        'arp_opcode', 'ether_type', 'ip_protocol',
-                        'icmpv4_type', 'icmpv6_type',
-                        'source_from_port', 'source_to_port',
-                        'dest_from_port', 'dest_to_port',
-                        'tcp_flags', 'stateful', 'fragment_only', 'monitored']
+    UNSPECIFIED = 'unspecified'
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('filter_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('arp_opcode', t.string()),
+        ('ether_type', t.string()),
+        ('ip_protocol', t.string()),
+        ('icmpv4_type', t.string()),
+        ('icmpv6_type', t.string()),
+        ('source_from_port', t.port),
+        ('source_to_port', t.port),
+        ('dest_from_port', t.port),
+        ('dest_to_port', t.port),
+        ('tcp_flags', t.string()),
+        ('stateful', t.bool),
+        ('fragment_only', t.bool),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'vzEntry'
     _tree_parent = Filter
-
-    UNSPECIFIED = 'unspecified'
 
     def __init__(self, **kwargs):
         super(FilterEntry, self).__init__(
@@ -398,8 +436,14 @@ class Contract(AciResourceBase):
     Identity attributes: name of ACI tenant and name of contract.
     """
 
-    identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name', 'scope', 'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('scope', t.enum("", "tenant", "context", "global",
+                         "application-profile")),
+        ('display_name', t.name),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'vzBrCP'
     _tree_parent = Tenant
@@ -421,10 +465,16 @@ class ContractSubject(AciResourceBase):
     name of subject.
     """
 
-    identity_attributes = ['tenant_name', 'contract_name', 'name']
-    other_attributes = ['display_name',
-                        'in_filters', 'out_filters', 'bi_filters',
-                        'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('in_filters', t.list_of_names),
+        ('out_filters', t.list_of_names),
+        ('bi_filters', t.list_of_names),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'vzSubj'
     _tree_parent = Contract
@@ -441,9 +491,13 @@ class Endpoint(ResourceBase):
     Identity attribute: UUID of the endpoint.
     """
 
-    identity_attributes = ['uuid']
-    other_attributes = ['display_name',
-                        'epg_tenant_name', 'epg_app_profile_name', 'epg_name']
+    identity_attributes = t.identity(
+        ('uuid', t.id))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('epg_tenant_name', t.name),
+        ('epg_app_profile_name', t.name),
+        ('epg_name', t.name))
 
     def __init__(self, **kwargs):
         super(Endpoint, self).__init__({'epg_name': None,
@@ -458,13 +512,15 @@ class VMMDomain(ResourceBase):
     Identity attributes: VMM type (eg. Openstack) and name
     """
 
-    identity_attributes = ['type', 'name']
+    identity_attributes = t.identity(
+        ('type', t.enum("VMWare", "OpenStack")),
+        ('name', t.name))
     # REVISIT(ivar): A VMM has a plethora of attributes, references and child
     # objects that needs to be created. For now, this will however be just
     # the stub connecting what is explicitly created through the Infra and
     # what is managed by AIM, therefore we keep the stored information to
     # the very minimum
-    other_attributes = []
+    other_attributes = t.other()
     _aci_mo_name = 'vmmDomP'
     _tree_parent = None
 
@@ -478,13 +534,13 @@ class PhysicalDomain(ResourceBase):
     Identity attributes: name
     """
 
-    identity_attributes = ['name']
+    identity_attributes = t.identity(('name', t.name))
     # REVISIT(ivar): A Physical Domain has a plethora of attributes, references
     # and child objects that needs to be created. For now, this will however be
     # just the stub connecting what is explicitly created through the Infra and
     # what is managed by AIM, therefore we keep the stored information to
     # the very minimum
-    other_attributes = []
+    other_attributes = t.other()
     _aci_mo_name = 'physDomP'
     _tree_parent = None
 
@@ -498,9 +554,14 @@ class L3Outside(AciResourceBase):
     Identity attributes: name of ACI tenant, name of L3Out.
     """
 
-    identity_attributes = ['tenant_name', 'name']
-    other_attributes = ['display_name', 'vrf_name',
-                        'l3_domain_dn', 'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('vrf_name', t.name),
+        ('l3_domain_dn', t.string()),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'l3extOut'
     _tree_parent = Tenant
@@ -521,10 +582,16 @@ class ExternalNetwork(AciResourceBase):
     network.
     """
 
-    identity_attributes = ['tenant_name', 'l3out_name', 'name']
-    other_attributes = ['display_name', 'nat_epg_dn',
-                        'provided_contract_names', 'consumed_contract_names',
-                        'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('nat_epg_dn', t.string()),
+        ('provided_contract_names', t.list_of_names),
+        ('consumed_contract_names', t.list_of_names),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'l3extInstP'
     _tree_parent = L3Outside
@@ -544,9 +611,14 @@ class ExternalSubnet(AciResourceBase):
     network, network CIDR of the subnet.
     """
 
-    identity_attributes = ['tenant_name', 'l3out_name',
-                           'external_network_name', 'cidr']
-    other_attributes = ['display_name', 'monitored']
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('external_network_name', t.name),
+        ('cidr', t.ip_cidr))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
 
     _aci_mo_name = 'l3extSubnet'
     _tree_parent = ExternalNetwork

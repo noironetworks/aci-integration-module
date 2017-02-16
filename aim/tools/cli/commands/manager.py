@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 import re
 
 from apicapi import config
@@ -22,6 +23,7 @@ from tabulate import tabulate
 
 from aim import aim_manager
 from aim.api import resource
+from aim.api import schema
 from aim.api import status as status_res
 from aim.common import utils
 from aim import context
@@ -268,6 +270,12 @@ def sync_state_find(ctx, state, plain):
                         tablefmt='plain' if plain else 'psql'))
 
 
+@manager.command(name='schema-get')
+def schema_get():
+    schema_dict = schema.generate_schema()
+    click.echo(json.dumps(schema_dict, indent=4))
+
+
 def convert(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1).lower()
@@ -275,12 +283,16 @@ def convert(name):
 for res in aim_manager.AimManager._db_model_map:
     # runtime create commands
     def specify_other_attrs(f):
-        for opt in reversed(res.other_attributes):
+        for opt in res.other_attributes:
             f = click.option('--%s' % opt, default=ATTR_UNSPECIFIED)(f)
         return f
 
     def specify_id_attrs(f):
-        for id in reversed(res.identity_attributes):
+        try:
+            ids = res.identity_attributes.keys()
+        except AttributeError:
+            ids = res.identity_attributes
+        for id in reversed(ids):
             f = click.argument(id, required=True)(f)
         return f
 
@@ -290,7 +302,7 @@ for res in aim_manager.AimManager._db_model_map:
         return f
 
     def specify_id_attrs_as_options(f):
-        for opt in reversed(res.identity_attributes):
+        for opt in res.identity_attributes:
             f = click.option('--%s' % opt, default=ATTR_UNSPECIFIED)(f)
         return f
 
