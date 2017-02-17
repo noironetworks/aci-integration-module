@@ -815,6 +815,56 @@ class TestHostLinkMixin(object):
     res_command = 'host-link'
 
 
+class TestSecurityGroupMixin(object):
+    resource_class = resource.SecurityGroup
+    test_identity_attributes = {'tenant_name': 'tenant1', 'name': 'sg1'}
+    test_required_attributes = {'tenant_name': 'tenant1', 'name': 'sg1'}
+    test_search_attributes = {'display_name': 'sg-display'}
+    test_update_attributes = {'display_name': 'sg-display2'}
+    test_dn = 'uni/tn-tenant1/pol-sg1'
+    res_command = 'security-group'
+
+
+class TestSecurityGroupSubjectMixin(object):
+    resource_class = resource.SecurityGroupSubject
+    prereq_objects = [
+        resource.SecurityGroup(tenant_name='tenant1', name='sg1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1',
+                                'name': 'subject1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1',
+                                'name': 'subject1'}
+    test_search_attributes = {'display_name': 'sgs-display'}
+    test_update_attributes = {'display_name': 'sgs-display-2'}
+    test_dn = 'uni/tn-tenant1/pol-sg1/subj-subject1'
+    res_command = 'security-group-subject'
+
+
+class TestSecurityGroupRuleMixin(object):
+    resource_class = resource.SecurityGroupRule
+    prereq_objects = [
+        resource.SecurityGroup(tenant_name='tenant1', name='sg1'),
+        resource.SecurityGroupSubject(
+            tenant_name='tenant1', security_group_name='sg1', name='subject1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1',
+                                'security_group_subject_name': 'subject1',
+                                'name': 'rule1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1',
+                                'security_group_subject_name': 'subject1',
+                                'name': 'rule1',
+                                'direction': 'ingress',
+                                'remote_ips': ['10.0.0.1/30',
+                                               '192.168.0.0/24']}
+    test_search_attributes = {'direction': 'ingress'}
+    test_update_attributes = {'remote_ips': [], 'from_port': '80',
+                              'to_port': '443'}
+    test_dn = 'uni/tn-tenant1/pol-sg1/subj-subject1/rule-rule1'
+    res_command = 'security-group-rule'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -969,3 +1019,18 @@ class TestHostLink(TestHostLinkMixin, TestAciResourceOpsBase,
 
     def test_status(self):
         pass
+
+
+class TestSecurityGroup(TestSecurityGroupMixin, TestAciResourceOpsBase,
+                        base.TestAimDBBase):
+    pass
+
+
+class TestSecurityGroupSubject(TestSecurityGroupSubjectMixin,
+                               TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestSecurityGroupRule(TestSecurityGroupRuleMixin,
+                            TestAciResourceOpsBase, base.TestAimDBBase):
+    pass

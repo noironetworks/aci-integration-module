@@ -377,3 +377,19 @@ class TestExternalSubnet(test_aim_manager.TestExternalSubnetMixin,
 class TestHostLink(test_aim_manager.TestHostLinkMixin,
                    TestManagerResourceOpsBase, base.TestShell):
     pass
+
+
+class TestSecurityGroup(test_aim_manager.TestSecurityGroupMixin,
+                        TestManagerResourceOpsBase,
+                        base.TestShell):
+    pass
+
+
+class TestSecurityGroupSubject(test_aim_manager.TestSecurityGroupSubjectMixin,
+                               TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestSecurityGroupRule(test_aim_manager.TestSecurityGroupRuleMixin,
+                            TestManagerResourceOpsBase, base.TestShell):
+    pass

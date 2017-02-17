@@ -1286,3 +1286,75 @@ class TestAimToAciConverterExternalSubnet(TestAimToAciConverterBase,
         [_aci_obj('l3extSubnet',
                   dn='uni/tn-t1/out-l1/instP-inet2/extsubnet-[2.11.0.0/16]',
                   nameAlias='alias')]]
+
+
+def get_example_aim_security_group(**kwargs):
+    example = resource.SecurityGroup(tenant_name='t1', name='sg1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterSecurityGroup(TestAimToAciConverterBase,
+                                         base.TestAimDBBase):
+    sample_input = [get_example_aim_security_group(),
+                    get_example_aim_security_group(name='sg2')]
+
+    sample_output = [
+        [_aci_obj('hostprotPol', dn='uni/tn-t1/pol-sg1', nameAlias='')],
+        [_aci_obj('hostprotPol', dn='uni/tn-t1/pol-sg2', nameAlias='')]]
+
+
+def get_example_aim_security_group_subject(**kwargs):
+    example = resource.SecurityGroupSubject(
+        tenant_name='t1', security_group_name='sg1', name='sgs1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterSecurityGroupSubject(TestAimToAciConverterBase,
+                                                base.TestAimDBBase):
+    sample_input = [get_example_aim_security_group_subject(),
+                    get_example_aim_security_group_subject(
+                        security_group_name='sg2')]
+
+    sample_output = [
+        [_aci_obj('hostprotSubj', dn='uni/tn-t1/pol-sg1/subj-sgs1',
+                  nameAlias='')],
+        [_aci_obj('hostprotSubj', dn='uni/tn-t1/pol-sg2/subj-sgs1',
+                  nameAlias='')]]
+
+
+def get_example_aim_security_group_rule(**kwargs):
+    example = resource.SecurityGroupRule(
+        tenant_name='t1', security_group_name='sg1',
+        security_group_subject_name='sgs1', name='rule1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
+                                             base.TestAimDBBase):
+    sample_input = [get_example_aim_security_group_rule(),
+                    get_example_aim_security_group_rule(
+                        security_group_name='sg2', ip_protocol=115,
+                        from_port='80', to_port='443',
+                        remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
+                        direction='egress', ethertype='1')]
+
+    sample_output = [
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-t1/pol-sg1/subj-sgs1/rule-rule1',
+                  direction='ingress', protocol='unspecified',
+                  fromPort='unspecified', toPort='unspecified',
+                  ethertype='undefined', nameAlias='')],
+        [_aci_obj('hostprotRule', dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1',
+                  protocol='l2tp', fromPort='http', toPort='https',
+                  direction='egress', ethertype='ipv4', nameAlias=''),
+         _aci_obj(
+             'hostprotRemoteIp',
+             dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/ip-[10.0.1.0/24]',
+             addr='10.0.1.0/24'),
+         _aci_obj(
+             'hostprotRemoteIp',
+             dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/ip-[192.168.0.0/24]',
+             addr='192.168.0.0/24')]]
