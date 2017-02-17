@@ -14,17 +14,21 @@
 #    under the License.
 
 from aim.api import resource
+from aim.api import types as t
 
 
 class HostLink(resource.ResourceBase):
     """Switch-port connection information for a host node."""
 
-    identity_attributes = ['host_name', 'interface_name']
-    other_attributes = ['interface_mac',
-                        'switch_id',
-                        'module',
-                        'port',
-                        'path']
+    identity_attributes = t.identity(
+        ('host_name', t.string(36)),
+        ('interface_name', t.string(36)))
+    other_attributes = t.other(
+        ('interface_mac', t.mac_address),
+        ('switch_id', t.string()),
+        ('module', t.string()),
+        ('port', t.string()),
+        ('path', t.string()))
 
     def __init__(self, **kwargs):
         super(HostLink, self).__init__({'interface_mac': '',

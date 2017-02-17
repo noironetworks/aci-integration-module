@@ -23,11 +23,14 @@ Tests for `aim_manager` module.
 import copy
 import time
 
+import jsonschema
+from jsonschema import exceptions as schema_exc
 import mock
 
 from aim import aim_manager
 from aim.api import infra
 from aim.api import resource
+from aim.api import schema
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
 from aim import config  # noqa
@@ -103,6 +106,7 @@ class TestResourceOpsBase(object):
             self.test_default_values.setdefault('display_name', '')
         self.mgr = aim_manager.AimManager()
         self.mgr._update_listeners = []
+        self.schema_dict = schema.generate_schema()
 
     def _test_resource_ops(self, resource, test_identity_attributes,
                            test_required_attributes, test_search_attributes,
@@ -179,7 +183,7 @@ class TestResourceOpsBase(object):
         for k, v in test_update_attributes.iteritems():
             self.assertEqual(v, getattr_canonical(r3, k))
         # check other attributes are unaffected
-        for attr in r1.identity_attributes + r1.other_attributes:
+        for attr in r1.attributes():
             if attr not in test_update_attributes:
                 self.assertEqual(getattr_canonical(r1, attr),
                                  getattr_canonical(r3, attr))
@@ -199,6 +203,16 @@ class TestResourceOpsBase(object):
         r4 = self.mgr.update(self.ctx, res, something='foo')
         self.assertIsNone(r4)
 
+        # Test jsonschema
+        jsonschema.validate({'type': res.__class__.__name__,
+                             'attributes': res.__dict__}, self.schema_dict)
+        attributes = copy.deepcopy(res.__dict__)
+        attributes.pop(res.identity_attributes.keys()[0])
+        # Verify that removing a required attribute will fail
+        self.assertRaises(
+            schema_exc.ValidationError, jsonschema.validate,
+            {'type': res.__class__.__name__, 'attributes': attributes},
+            self.schema_dict)
         # Test delete nonexisting object (no error)
         self.mgr.delete(self.ctx, res)
 

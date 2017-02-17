@@ -234,9 +234,7 @@ class AimManager(object):
         """
         self._validate_resource_class(resource_class)
         attr_val = {k: v for k, v in kwargs.iteritems()
-                    if k in (resource_class.other_attributes +
-                             resource_class.identity_attributes +
-                             resource_class.db_attributes)}
+                    if k in resource_class.attributes()}
         result = []
         for obj in self._query_db(context.db_session,
                                   resource_class, **attr_val).all():
@@ -419,8 +417,7 @@ class AimManager(object):
 
     def _make_resource(self, session, cls, db_obj):
         attr_val = {k: v for k, v in db_obj.to_attr(session).iteritems()
-                    if k in (cls.other_attributes + cls.identity_attributes +
-                             cls.db_attributes)}
+                    if k in cls.attributes()}
         return cls(**attr_val)
 
     def _add_commit_hook(self, session):
@@ -465,7 +462,7 @@ class AimManager(object):
     def _iter_children(self, context, resource, **kwargs):
         for child_klass in self._model_tree.get(
                 type(resource), []):
-            identity = {child_klass.identity_attributes[i]: v
+            identity = {child_klass.identity_attributes.keys()[i]: v
                         for i, v in enumerate(resource.identity)}
             # Extra search attributes
             identity.update(kwargs)

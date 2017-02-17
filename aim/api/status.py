@@ -16,6 +16,7 @@
 from oslo_utils import importutils
 
 from aim.api import resource
+from aim.api import types as t
 
 resource_paths = ('aim.api.resource',)
 
@@ -36,19 +37,22 @@ class AciStatus(resource.ResourceBase, OperationalResource):
     * faults - List of AciFault objects as reported by APIC
     """
 
-    identity_attributes = ['resource_type', 'resource_id']
-    other_attributes = ['sync_status',
-                        'sync_message',
-                        'health_score',
-                        'faults']
-    db_attributes = ['id']
-
     # ACI object create/update is pending
     SYNC_PENDING = 'sync_pending'
     # ACI object was created/updated. It may or may not be in healthy state
     SYNCED = 'synced'
     # Create/update of ACI object failed
     SYNC_FAILED = 'sync_failed'
+
+    identity_attributes = t.identity(
+        ('resource_type', t.string()),
+        ('resource_id', t.id))
+    other_attributes = t.other(
+        ('sync_status', t.enum(SYNCED, SYNC_PENDING, SYNC_FAILED, None)),
+        ('sync_message', t.string()),
+        ('health_score', t.number),
+        ('faults', t.list_of_strings))
+    db_attributes = t.db(('id', t.string(36)))
 
     HEALTH_POOR = "Poor Health Score"
     HEALTH_FAIR = "Fair Health Score"
@@ -113,12 +117,17 @@ class AciFault(resource.ResourceBase, OperationalResource):
     SEV_CRITICAL = 'critical'
 
     _aci_mo_name = 'faultInst'
-    identity_attributes = ['fault_code', 'external_identifier']
-    other_attributes = ['severity',
-                        'status_id',
-                        'cause',
-                        'description']
-    db_attributes = ['last_update_timestamp']
+    identity_attributes = t.identity(
+        ('fault_code', t.string()),
+        ('external_identifier', t.string()))
+    other_attributes = t.other(
+        ('severity', t.enum(SEV_CLEARED, SEV_CRITICAL, SEV_INFO, SEV_WARNING,
+                            SEV_MAJOR, SEV_MINOR)),
+        ('status_id', t.id),
+        ('cause', t.string()),
+        ('description', t.string(255)))
+
+    db_attributes = t.db(('last_update_timestamp', t.string()))
 
     def __init__(self, **kwargs):
         super(AciFault, self).__init__(
