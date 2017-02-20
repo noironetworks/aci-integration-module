@@ -24,11 +24,14 @@ schema_spec = "http://json-schema.org/draft-04/schema#"
 
 def generate_schema():
     definitions = collections.OrderedDict()
-    any_of = []
+    type_enum = []
+    top_properties = {"type": {"enum": type_enum}}
     base = collections.OrderedDict(
         [("$schema", schema_spec),
-         ("definitions", definitions),
-         ("anyOf", any_of)])
+         ("type", "object"),
+         ("title", "AciObjectSpec"),
+         ("properties", top_properties),
+         ("definitions", definitions)])
     for klass in writable_classes:
         required = klass.identity_attributes.keys()
         properties = {}
@@ -41,11 +44,8 @@ def generate_schema():
         definitions[utils.camel_to_snake(title)] = collections.OrderedDict(
             [("type", "object"),
              ("title", title),
-             ("properties", collections.OrderedDict(
-                 [("type", {"enum": [title]}),
-                  ("attributes", collections.OrderedDict(
-                      [("type", "object"), ("properties", properties),
-                       ("required", required)]))])),
-             ("required", ['type', 'attributes'])])
-        any_of.append({"$ref": "#/definitions/%s" % name})
+             ("properties", properties),
+             ("required", required)])
+        type_enum.append(title)
+        top_properties[name] = {"$ref": "#/definitions/%s" % name}
     return base

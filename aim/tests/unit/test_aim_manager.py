@@ -33,6 +33,7 @@ from aim.api import resource
 from aim.api import schema
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
+from aim.common import utils
 from aim import config  # noqa
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
@@ -204,14 +205,17 @@ class TestResourceOpsBase(object):
         self.assertIsNone(r4)
 
         # Test jsonschema
-        jsonschema.validate({'type': res.__class__.__name__,
-                             'attributes': res.__dict__}, self.schema_dict)
+        klass_name = res.__class__.__name__
+        jsonschema.validate({'type': klass_name,
+                             utils.camel_to_snake(klass_name): res.__dict__},
+                            self.schema_dict)
         attributes = copy.deepcopy(res.__dict__)
         attributes.pop(res.identity_attributes.keys()[0])
         # Verify that removing a required attribute will fail
         self.assertRaises(
             schema_exc.ValidationError, jsonschema.validate,
-            {'type': res.__class__.__name__, 'attributes': attributes},
+            {'type': klass_name,
+             utils.camel_to_snake(klass_name): attributes},
             self.schema_dict)
         # Test delete nonexisting object (no error)
         self.mgr.delete(self.ctx, res)
