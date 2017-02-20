@@ -52,7 +52,7 @@ def db(*db_attributes):
 
 
 def enum(*args):
-    return {"enum": list(args)}
+    return {"type": "string", "enum": list(args)}
 
 
 def string(length=None):
@@ -93,12 +93,14 @@ ipv6_cidr = {
                "){0,5}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|["
                "1-9]?d)){3}))|:)))(%.+)?s*(\/([0-9]|[1-9][0-9]|1[0-1][0-9]|12"
                "[0-8]))?$"}
-ip_cidr = {"oneOf": [ipv4_cidr, ipv6_cidr]}
-port = {"oneOf": [{"type": "number", "minimum": 0, "maximum": 65535},
-                  enum(*ports.values()),
-                  {"type": "string",
-                   "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|"
-                              "65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$"}]}
+ip_cidr = {"type": "string", "oneOf": [ipv4_cidr, ipv6_cidr]}
+port = {
+    "type": "string",
+    "oneOf": [enum(*ports.values()),
+              {"type": "string",
+               "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|"
+                          "65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$"}]
+}
 mac_address = {
     "type": "string",
     "pattern": "^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$"}

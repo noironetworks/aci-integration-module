@@ -25,7 +25,7 @@ schema_spec = "http://json-schema.org/draft-04/schema#"
 def generate_schema():
     definitions = collections.OrderedDict()
     type_enum = []
-    top_properties = {"type": {"enum": type_enum}}
+    top_properties = {"type": {"type": "string", "enum": type_enum}}
     base = collections.OrderedDict(
         [("$schema", schema_spec),
          ("type", "object"),
