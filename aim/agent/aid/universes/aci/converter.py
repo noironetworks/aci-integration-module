@@ -168,6 +168,7 @@ ether_type = mapped_attribute(t.ether_type)
 icmpv4_type = mapped_attribute(t.icmpv4_type)
 icmpv6_type = mapped_attribute(t.icmpv6_type)
 ip_protocol = mapped_attribute(t.ip_protocol)
+ethertype = mapped_attribute(t.ethertype)
 
 
 def fault_inst_to_resource(converted, helper, to_aim=True):
@@ -319,6 +320,7 @@ def fv_rs_path_att_converter(object_dict, otype, helper,
 # not be performed when the AIM object is marked "monitored". Default is True.
 # - skip: list of AIM resource attributes that should not be converted
 
+hostprotRemoteIp_converter = child_list('remote_ips', 'addr')
 fvRsBDToOut_converter = child_list('l3out_names', 'tnL3extOutName')
 fvRsProv_converter = child_list('provided_contract_names', 'tnVzBrCPName')
 fvRsCons_converter = child_list('consumed_contract_names', 'tnVzBrCPName')
@@ -522,6 +524,30 @@ resource_map = {
         'resource': resource.EndpointGroup,
         'converter': fv_rs_path_att_converter,
     }],
+    'hostprotPol': [{
+        'resource': resource.SecurityGroup,
+    }],
+    'hostprotSubj': [{
+        'resource': resource.SecurityGroupSubject,
+    }],
+    'hostprotRule': [{
+        'resource': resource.SecurityGroupRule,
+        'skip': ['remote_ips'],
+        'exceptions': {
+            'protocol': {'other': 'ip_protocol',
+                         'converter': ip_protocol},
+            'fromPort': {'other': 'from_port',
+                         'converter': port},
+            'toPort': {'other': 'to_port',
+                       'converter': port},
+            'ethertype': {'other': 'ethertype',
+                          'converter': ethertype},
+        }
+    }],
+    'hostprotRemoteIp': [{
+        'resource': resource.SecurityGroupRule,
+        'converter': hostprotRemoteIp_converter,
+    }]
 }
 
 

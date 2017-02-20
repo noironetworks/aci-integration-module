@@ -72,7 +72,10 @@ class AimManager(object):
                      api_res.L3Outside: models.L3Outside,
                      api_res.ExternalNetwork: models.ExternalNetwork,
                      api_res.ExternalSubnet: models.ExternalSubnet,
-                     api_infra.HostLink: infra_model.HostLink}
+                     api_infra.HostLink: infra_model.HostLink,
+                     api_res.SecurityGroup: models.SecurityGroup,
+                     api_res.SecurityGroupSubject: models.SecurityGroupSubject,
+                     api_res.SecurityGroupRule: models.SecurityGroupRule}
 
     # Build adjacency graph (Key: <ACI Resource> Value: <Key's children>)
     _model_tree = {}

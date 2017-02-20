@@ -91,6 +91,8 @@ class AciResourceBase(ResourceBase):
     """
     tenant_ref_attribute = 'tenant_name'
 
+    UNSPECIFIED = t.UNSPECIFIED
+
     def __init__(self, defaults, **kwargs):
         cls = type(self)
         for ra in ['_tree_parent', '_aci_mo_name']:
@@ -387,8 +389,6 @@ class FilterEntry(AciResourceBase):
 
     """
 
-    UNSPECIFIED = 'unspecified'
-
     identity_attributes = t.identity(
         ('tenant_name', t.name),
         ('filter_name', t.name),
@@ -625,3 +625,81 @@ class ExternalSubnet(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(ExternalSubnet, self).__init__({'monitored': False}, **kwargs)
+
+
+class SecurityGroup(AciResourceBase):
+    """Resource representing a Security Group in ACI.
+
+    Identity attributes: name of ACI tenant and name of security group
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotPol'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        super(SecurityGroup, self).__init__({'monitored': False}, **kwargs)
+
+
+class SecurityGroupSubject(AciResourceBase):
+    """Resource representing a subject within a security group in ACI.
+
+    Identity attributes: name of ACI tenant, name of security group and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotSubj'
+    _tree_parent = SecurityGroup
+
+    def __init__(self, **kwargs):
+        super(SecurityGroupSubject, self).__init__({'monitored': False},
+                                                   **kwargs)
+
+
+class SecurityGroupRule(AciResourceBase):
+    """Resource representing a SG subject's rule in ACI.
+
+    Identity attributes: name of ACI tenant, name of security group, name of
+    subject and name of rule
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name),
+        ('security_group_subject_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('direction', t.enum("", "ingress", "egress")),
+        ('ethertype', t.enum("", "undefined", "ipv4", "ipv6")),
+        ('remote_ips', t.list_of_strings),
+        ('ip_protocol', t.string()),
+        ('from_port', t.port),
+        ('to_port', t.port),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotRule'
+    _tree_parent = SecurityGroupSubject
+
+    def __init__(self, **kwargs):
+        super(SecurityGroupRule, self).__init__(
+            {'direction': 'ingress',
+             'ethertype': "undefined",
+             'remote_ips': [],
+             'ip_protocol': self.UNSPECIFIED,
+             'from_port': self.UNSPECIFIED,
+             'to_port': self.UNSPECIFIED,
+             'monitored': False}, **kwargs)

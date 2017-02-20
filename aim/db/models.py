@@ -543,3 +543,88 @@ class ExternalSubnet(model_base.Base, model_base.HasAimId,
     l3out_name = model_base.name_column(nullable=False)
     external_network_name = model_base.name_column(nullable=False)
     cidr = sa.Column(sa.String(64), nullable=False)
+
+
+class SecurityGroup(model_base.Base, model_base.HasAimId,
+                    model_base.HasName, model_base.HasDisplayName,
+                    model_base.HasTenantName, model_base.AttributeMixin,
+                    model_base.IsMonitored):
+    """DB model for SecurityGroup."""
+
+    __tablename__ = 'aim_security_groups'
+    __table_args__ = (uniq_column(__tablename__, 'tenant_name', 'name') +
+                      to_tuple(model_base.Base.__table_args__))
+
+
+class SecurityGroupSubject(model_base.Base, model_base.HasAimId,
+                           model_base.HasName, model_base.HasDisplayName,
+                           model_base.HasTenantName,
+                           model_base.AttributeMixin,
+                           model_base.IsMonitored):
+    """DB model SecurityGroup Subject."""
+    __tablename__ = 'aim_security_group_subjects'
+    __table_args__ = (
+        uniq_column(__tablename__, 'tenant_name', 'security_group_name',
+                    'name') +
+        (sa.ForeignKeyConstraint(
+            ['tenant_name', 'security_group_name'],
+            ['aim_security_groups.tenant_name', 'aim_security_groups.name'],
+            name='fk_security_group'),) +
+        to_tuple(model_base.Base.__table_args__))
+
+    security_group_name = model_base.name_column(nullable=False)
+
+
+class SecurityGroupRuleRemoteIp(model_base.Base):
+    __tablename__ = 'aim_security_group_rule_remote_ips'
+
+    security_group_rule_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_security_group_rules.aim_id'),
+        primary_key=True)
+    cidr = sa.Column(sa.String(64), nullable=False, primary_key=True)
+
+
+class SecurityGroupRule(model_base.Base, model_base.HasAimId,
+                        model_base.HasName, model_base.HasDisplayName,
+                        model_base.HasTenantName,
+                        model_base.AttributeMixin,
+                        model_base.IsMonitored):
+    """DB model SecurityGroup Subject."""
+    __tablename__ = 'aim_security_group_rules'
+    __table_args__ = (
+        uniq_column(__tablename__, 'tenant_name', 'security_group_name',
+                    'security_group_subject_name', 'name') +
+        (sa.ForeignKeyConstraint(
+            ['tenant_name', 'security_group_name',
+             'security_group_subject_name'],
+            ['aim_security_group_subjects.tenant_name',
+             'aim_security_group_subjects.security_group_name',
+             'aim_security_group_subjects.name'],
+            name='fk_security_group_rule'),) +
+        to_tuple(model_base.Base.__table_args__))
+    security_group_name = model_base.name_column(nullable=False)
+    security_group_subject_name = model_base.name_column(nullable=False)
+    remote_ips = orm.relationship(SecurityGroupRuleRemoteIp,
+                                  backref='security_group_rule',
+                                  cascade='all, delete-orphan',
+                                  lazy='joined')
+    direction = sa.Column(sa.String(16))
+    ethertype = sa.Column(sa.String(16))
+    ip_protocol = sa.Column(sa.String(16))
+    from_port = sa.Column(sa.String(16))
+    to_port = sa.Column(sa.String(16))
+
+    def from_attr(self, session, res_attr):
+        if 'remote_ips' in res_attr:
+            self.remote_ips = []
+            for f in (res_attr.pop('remote_ips', []) or []):
+                self.remote_ips.append(
+                    SecurityGroupRuleRemoteIp(cidr=f))
+
+        # map remaining attributes to model
+        super(SecurityGroupRule, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(SecurityGroupRule, self).to_attr(session)
+        res_attr['remote_ips'] = [x.cidr for x in res_attr['remote_ips']]
+        return res_attr
