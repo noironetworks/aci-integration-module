@@ -19,11 +19,11 @@ from aim import aim_store
 class AimContext(object):
     """Holds contextual information needed for AimManager calls."""
 
-    def __init__(self, db_session=None):
+    def __init__(self, db_session=None, store=None):
         if db_session:
             self.store = aim_store.SqlAlchemyStore(db_session)
         else:
-            self.store = None
+            self.store = store
 
     # For backwards compatibility
     @property

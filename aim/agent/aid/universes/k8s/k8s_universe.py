@@ -13,19 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import collections
-
-from acitoolkit import acitoolkit
-from apicapi import apic_client
-import gevent
 from oslo_log import log as logging
 
-from aim.agent.aid.universes.aci import converter
-from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
-from aim.api import resource
-from aim.common import utils
-from aim import exceptions
 
 
 LOG = logging.getLogger(__name__)

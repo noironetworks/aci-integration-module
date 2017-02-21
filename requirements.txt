@@ -9,6 +9,7 @@ alembic
 Click
 gevent>=1.1.0
 jsonschema  # MIT
+kubernetes
 oslo.concurrency
 oslo.config
 oslo.db

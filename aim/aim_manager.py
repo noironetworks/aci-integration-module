@@ -395,7 +395,7 @@ class AimManager(object):
 
     def _query_db(self, store, resource_class, **kwargs):
         db_cls = store.resource_to_db_type(resource_class)
-        return store.query(db_cls, **kwargs)
+        return store.query(db_cls, resource_class, **kwargs)
 
     def _query_db_obj(self, store, resource):
         id_attr = self._extract_attributes(resource, "id")
@@ -412,8 +412,9 @@ class AimManager(object):
             val.update({k: getattr(resource, k, None)
                         for k in resource.other_attributes})
         if not attr_type or attr_type == "db":
-            val.update({k: getattr(resource, k, None)
-                        for k in resource.db_attributes})
+            val.update({k: getattr(resource, k)
+                        for k in resource.db_attributes
+                        if hasattr(resource, k)})
         return val
 
     def _make_db_obj(self, store, resource):

@@ -21,6 +21,7 @@ Tests for `aim_manager` module.
 """
 
 import copy
+import os
 import time
 
 import jsonschema
@@ -28,6 +29,7 @@ from jsonschema import exceptions as schema_exc
 import mock
 
 from aim import aim_manager
+from aim import aim_store
 from aim.api import infra
 from aim.api import resource
 from aim.api import schema
@@ -35,6 +37,7 @@ from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import config  # noqa
+from aim import context
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
 from aim.tests import base
@@ -108,6 +111,17 @@ class TestResourceOpsBase(object):
         self.mgr = aim_manager.AimManager()
         self.mgr._update_listeners = []
         self.schema_dict = schema.generate_schema()
+
+    def _set_store(self, caller):
+        if os.environ.get('K8S_STORE'):
+            caller = type(self).__name__.lower() + caller.replace('_', '-')
+            self.ctx = context.AimContext(store=aim_store.K8sStore(
+                namespace=caller))
+            self.ctx.store.klient.delete_collection_namespaced_aci(caller)
+            self.addCleanup(self._cleanup_namespace, caller)
+
+    def _cleanup_namespace(self, namespace):
+        self.ctx.store.klient.delete_collection_namespaced_aci(namespace)
 
     def _test_resource_ops(self, resource, test_identity_attributes,
                            test_required_attributes, test_search_attributes,
@@ -334,7 +348,8 @@ class TestResourceOpsBase(object):
                                              status.resource_id)
         self.assertEqual(res, res_from_status)
         new_timestamp = status.faults[0].last_update_timestamp
-        self.assertTrue(new_timestamp > timestamp)
+        if self.ctx.store.current_timestamp:
+            self.assertTrue(new_timestamp > timestamp)
         self.assertFalse(status.is_error())
 
         # Add fault with same code
@@ -372,6 +387,7 @@ class TestResourceOpsBase(object):
             self.mgr.create(self.ctx, obj)
 
     def test_lifecycle(self):
+        self._set_store('test_lifecycle')
         self._create_prerequisite_objects()
         self._test_resource_ops(
             self.resource_class,
@@ -383,14 +399,17 @@ class TestResourceOpsBase(object):
             self.test_dn)
 
     def test_hooks(self):
-        self._create_prerequisite_objects()
-        self._test_commit_hook(
-            self.resource_class,
-            self.test_identity_attributes,
-            self.test_required_attributes,
-            self.test_update_attributes)
+        self._set_store('test_hooks')
+        if self.ctx.store.supports_hooks:
+            self._create_prerequisite_objects()
+            self._test_commit_hook(
+                self.resource_class,
+                self.test_identity_attributes,
+                self.test_required_attributes,
+                self.test_update_attributes)
 
     def test_monitored(self):
+        self._set_store('test_monitored')
         if 'monitored' in self.resource_class.other_attributes:
             self._create_prerequisite_objects()
             creation_attributes = {'monitored': True}
@@ -433,11 +452,13 @@ class TestResourceOpsBase(object):
 class TestAciResourceOpsBase(TestResourceOpsBase):
 
     def test_status(self):
+        self._set_store('test_status')
         attr = {k: v for k, v in self.test_identity_attributes.iteritems()}
         attr.update(self.test_required_attributes)
         self._test_resource_status(self.resource_class, attr)
 
     def test_dn_op(self):
+        self._set_store('test_dn_op')
         res = self.resource_class(**self.test_required_attributes)
         self.assertEqual(self.test_dn, res.dn)
 
@@ -890,36 +911,42 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
             self.ctx, [structured_tree.StructuredHashTree(root_key=('t1',)),
                        structured_tree.StructuredHashTree(root_key=('t2',))])
 
-        self.addCleanup(self._clean_trees)
+    def _set_store(self, caller):
+        super(TestAgent, self)._set_store(caller)
+        if self.ctx.store.supports_hooks:
+            self.addCleanup(self._clean_trees)
 
     def _clean_trees(self):
         tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't1')
         tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't2')
 
     def test_timestamp(self):
-        agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
-                               binary_file='binary_file', version='1.0')
+        self._set_store('test_update_other_attributes')
+        if self.ctx.store.current_timestamp:
+            agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
+                                   binary_file='binary_file', version='1.0')
 
-        # Verify successful creation
-        agent = self.mgr.create(self.ctx, agent, overwrite=True)
-        hbeat = agent.heartbeat_timestamp
+            # Verify successful creation
+            agent = self.mgr.create(self.ctx, agent, overwrite=True)
+            hbeat = agent.heartbeat_timestamp
 
-        # DB side timestamp has granularity in seconds
-        time.sleep(1)
-        # Update and verify that timestamp changed
-        agent = self.mgr.update(self.ctx, agent,
-                                beat_count=agent.beat_count + 1)
-        # Hbeat is updated
-        self.assertTrue(hbeat < agent.heartbeat_timestamp)
+            # DB side timestamp has granularity in seconds
+            time.sleep(1)
+            # Update and verify that timestamp changed
+            agent = self.mgr.update(self.ctx, agent,
+                                    beat_count=agent.beat_count + 1)
+            # Hbeat is updated
+            self.assertTrue(hbeat < agent.heartbeat_timestamp)
 
     def test_agent_down(self):
+        self._set_store('test_update_other_attributes')
         agent = resource.Agent(agent_type='aid', host='host',
                                binary_file='binary_file', version='1.0')
-        self.assertRaises(AttributeError, agent.is_down, self.ctx)
         agent = self.mgr.create(self.ctx, agent)
         self.assertFalse(agent.is_down(self.ctx))
-        self.set_override('agent_down_time', 0, 'aim')
-        self.assertTrue(agent.is_down(self.ctx))
+        if self.ctx.store.current_timestamp:
+            self.set_override('agent_down_time', 0, 'aim')
+            self.assertTrue(agent.is_down(self.ctx))
 
     def test_status(self):
         pass
@@ -942,6 +969,7 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
                         base.TestAimDBBase):
 
     def test_update_other_attributes(self):
+        self._set_store('test_update_other_attributes')
         self._create_prerequisite_objects()
 
         res = resource.EndpointGroup(**self.test_required_attributes)
