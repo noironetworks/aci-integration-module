@@ -38,6 +38,8 @@ class AciContainersObject(dict):
                     return self['metadata']['name']
                 if item in ['last_update_timestamp', 'heartbeat_timestamp']:
                     return self['metadata']['creationTimestamp']
+                if item in ['version']:
+                    return self['metadata']['resourceVersion']
             except KeyError:
                 pass
         raise AttributeError

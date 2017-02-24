@@ -15,16 +15,10 @@
 
 from oslo_log import log as logging
 
-from aim import aim_store
 from aim.api import infra as api_infra
 from aim.api import resource as api_res
 from aim.api import status as api_status
 from aim.common import utils
-from aim.db import agent_model
-from aim.db import hashtree_db_listener as ht_db_l
-from aim.db import infra_model
-from aim.db import models
-from aim.db import status_model
 from aim import exceptions as exc
 
 
@@ -53,36 +47,39 @@ class AimManager(object):
         retrieved_bd = mgr.get(a_ctx, bd)
     """
 
-    _db_model_map = aim_store.SqlAlchemyStore.db_model_map
-    _db_model_map.update(
-        {api_res.BridgeDomain: models.BridgeDomain,
-         api_res.Agent: agent_model.Agent,
-         api_res.Tenant: models.Tenant,
-         api_res.Subnet: models.Subnet,
-         api_res.VRF: models.VRF,
-         api_res.ApplicationProfile: models.ApplicationProfile,
-         api_res.EndpointGroup: models.EndpointGroup,
-         api_res.Filter: models.Filter,
-         api_res.FilterEntry: models.FilterEntry,
-         api_res.Contract: models.Contract,
-         api_res.ContractSubject: models.ContractSubject,
-         api_status.AciStatus: status_model.Status,
-         api_status.AciFault: status_model.Fault,
-         api_res.Endpoint: models.Endpoint,
-         api_res.VMMDomain: models.VMMDomain,
-         api_res.PhysicalDomain: models.PhysicalDomain,
-         api_res.L3Outside: models.L3Outside,
-         api_res.ExternalNetwork: models.ExternalNetwork,
-         api_res.ExternalSubnet: models.ExternalSubnet,
-         api_infra.HostLink: infra_model.HostLink,
-         api_res.SecurityGroup: models.SecurityGroup,
-         api_res.SecurityGroupSubject: models.SecurityGroupSubject,
-         api_res.SecurityGroupRule: models.SecurityGroupRule})
+    # TODO(ivar): aim_resources should eventually replace _db_model_map
+    # Set of managed AIM resources.
+    aim_resources = {api_res.BridgeDomain,
+                     api_res.Agent,
+                     api_res.Tenant,
+                     api_res.Subnet,
+                     api_res.VRF,
+                     api_res.ApplicationProfile,
+                     api_res.EndpointGroup,
+                     api_res.Filter,
+                     api_res.FilterEntry,
+                     api_res.Contract,
+                     api_res.ContractSubject,
+                     api_status.AciStatus,
+                     api_status.AciFault,
+                     api_res.Endpoint,
+                     api_res.VMMDomain,
+                     api_res.PhysicalDomain,
+                     api_res.L3Outside,
+                     api_res.ExternalNetwork,
+                     api_res.ExternalSubnet,
+                     api_infra.HostLink,
+                     api_res.SecurityGroup,
+                     api_res.SecurityGroupSubject,
+                     api_res.SecurityGroupRule,
+                     api_res.Configuration}
+    # Keep _db_model_map in AIM manager for backward compatibility
+    _db_model_map = {k: None for k in aim_resources}
 
     # Build adjacency graph (Key: <ACI Resource> Value: <Key's children>)
     _model_tree = {}
     _res_by_aci_type = {}
-    for klass in _db_model_map:
+    for klass in aim_resources:
         try:
             _model_tree.setdefault(klass._tree_parent, []).append(klass)
             _res_by_aci_type[klass._aci_mo_name] = klass
@@ -90,12 +87,7 @@ class AimManager(object):
             pass
 
     def __init__(self):
-        # TODO(amitbose): initialize anything we need, for example DB stuff
-        self._resource_map = {}
-        for k, v in self._db_model_map.iteritems():
-            self._resource_map[v] = k
-        self._update_listeners = []
-        self._hashtree_db_listener = ht_db_l.HashTreeDbListener(self)
+        pass
 
     @utils.log
     def create(self, context, resource, overwrite=False, fix_ownership=False):
@@ -220,15 +212,15 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         db_obj = self._query_db_obj(context.store, resource)
-        return self._make_resource(
-            context.store, type(resource), db_obj) if db_obj else None
+        return context.store.make_resource(
+            type(resource), db_obj) if db_obj else None
 
     def get_by_id(self, context, resource_class, aim_id):
         self._validate_resource_class(resource_class)
         db_obj = self._query_db(context.store,
                                 resource_class, aim_id=aim_id)
-        return self._make_resource(
-            context.store, resource_class, db_obj[0]) if db_obj else None
+        return context.store.make_resource(
+            resource_class, db_obj[0]) if db_obj else None
 
     def find(self, context, resource_class, **kwargs):
         """Find AIM resources from the database that match specified criteria.
@@ -245,7 +237,7 @@ class AimManager(object):
         for obj in self._query_db(context.store,
                                   resource_class, **attr_val):
             result.append(
-                self._make_resource(context.store, resource_class, obj))
+                context.store.make_resource(resource_class, obj))
         return result
 
     def get_status(self, context, resource):
@@ -360,38 +352,11 @@ class AimManager(object):
                 context.store.delete(db_fault[0])
                 self._add_commit_hook(context.store)
 
-    def register_update_listener(self, func):
-        """Register callback for update to AIM objects.
-
-        Parameter 'func' should be a function that accepts 4 parameters.
-        The first parameter is SQLAlchemy ORM session in which AIM objects
-        are being updated. Rest of the parameters are lists of AIM resources
-        that were added, updated and deleted respectively.
-        The callback will be invoked before the database transaction
-        that updated the AIM object commits.
-
-        Example:
-
-        def my_listener(session, added, updated, deleted):
-            "Iterate over 'added', 'updated', 'deleted'
-
-        a_mgr = AimManager()
-        a_mgr.register_update_listener(my_listener)
-
-        """
-        self._update_listeners.append(func)
-
-    def unregister_update_listener(self, func):
-        """Remove callback for update to AIM objects."""
-        self._update_listeners.remove(func)
-
     def _validate_resource_class(self, resource_or_class):
         res_cls = (resource_or_class if isinstance(resource_or_class, type)
                    else type(resource_or_class))
-        db_cls = self._db_model_map.get(res_cls)
-        if not db_cls:
+        if res_cls not in self.aim_resources:
             raise exc.UnknownResourceType(type=res_cls)
-        return db_cls
 
     def _query_db(self, store, resource_class, **kwargs):
         db_cls = store.resource_to_db_type(resource_class)
@@ -424,33 +389,8 @@ class AimManager(object):
                         self._extract_attributes(resource))
         return obj
 
-    def _make_resource(self, store, cls, db_obj):
-        attr_val = {k: v for k, v in store.to_attr(cls, db_obj).iteritems()
-                    if k in cls.attributes()}
-        return cls(**attr_val)
-
     def _add_commit_hook(self, store):
-        store.add_commit_hook(self._before_session_commit)
-
-    def _before_session_commit(self, session, flush_context, instances):
-        added = []
-        updated = []
-        deleted = []
-        store = aim_store.SqlAlchemyStore(db_session=session)
-        modified = [(session.new, added),
-                    (session.dirty, updated),
-                    (session.deleted, deleted)]
-        for mod_set, res_list in modified:
-            for db_obj in mod_set:
-                res_cls = self._resource_map.get(type(db_obj))
-                if res_cls:
-                    res = self._make_resource(store, res_cls, db_obj)
-                    res_list.append(res)
-        for func in self._update_listeners[:]:
-            LOG.debug("Invoking pre-commit hook %s with %d add(s), "
-                      "%d update(s), %d delete(s)",
-                      func.__name__, len(added), len(updated), len(deleted))
-            func(session, added, updated, deleted)
+        store.add_commit_hook()
 
     def _get_status_params(self, context, resource):
         res_type = type(resource).__name__

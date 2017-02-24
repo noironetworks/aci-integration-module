@@ -113,3 +113,14 @@ def camel_to_snake(name):
 def snake_to_lower_camel(name):
     split = name.split('_')
     return split[0] + ''.join(word.capitalize() for word in split[1:])
+
+
+class FakeContext(object):
+
+    def __init__(self, session=None, store=None):
+        if session:
+            self.db_session = session
+        if store:
+            self.store = store
+            if session:
+                self.store.db_session = session

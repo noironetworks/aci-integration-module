@@ -706,3 +706,17 @@ class SecurityGroupRule(AciResourceBase):
              'from_port': self.UNSPECIFIED,
              'to_port': self.UNSPECIFIED,
              'monitored': False}, **kwargs)
+
+
+class Configuration(ResourceBase):
+
+    identity_attributes = t.identity(
+        ('key', t.string(52)),
+        ('host', t.string(52)),
+        ('group', t.string(52))
+    )
+    other_attributes = t.other(('value', t.string(512)))
+    db_attributes = t.db(('version', t.string(36)))
+
+    def __init__(self, **kwargs):
+        super(Configuration, self).__init__({}, **kwargs)

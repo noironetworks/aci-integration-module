@@ -21,6 +21,7 @@ from oslo_log import log as o_log
 from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
+from aim import aim_store
 from aim.api import resource
 from aim.api import status as aim_status
 from aim import config as aim_cfg
@@ -130,9 +131,23 @@ class TestAimDBBase(BaseTestCase):
             CONF.set_override(item, value, group)
         else:
             CONF.set_override(item, value)
-        self.cfg_manager.to_db(CONF, host=host)
+        self.cfg_manager.override(item, value, group=group or 'default',
+                                  host=host, context=self.ctx)
         if poll:
             self.cfg_manager.subs_mgr._poll_and_execute()
+
+    def _set_store(self, caller):
+        if os.environ.get('K8S_STORE'):
+            caller = type(self).__name__.lower() + caller.replace('_', '-')
+            self.ctx = context.AimContext(store=aim_store.K8sStore(
+                namespace=caller))
+            self.ctx.store.klient.delete_collection_namespaced_aci(caller)
+            self.addCleanup(self._cleanup_namespace, caller)
+            self.cfg_manager.context = self.ctx
+            self.cfg_manager.replace_all(CONF)
+
+    def _cleanup_namespace(self, namespace):
+        self.ctx.store.klient.delete_collection_namespaced_aci(namespace)
 
     @classmethod
     def _get_example_aim_bd(cls, **kwargs):

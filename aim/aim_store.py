@@ -20,7 +20,17 @@ from oslo_log import log as logging
 from sqlalchemy import event as sa_event
 from sqlalchemy.sql.expression import func
 
+from aim import aim_manager
+from aim.api import infra as api_infra
+from aim.api import resource as api_res
+from aim.api import status as api_status
 from aim.common import utils
+from aim.db import agent_model
+from aim.db import config_model
+from aim.db import hashtree_db_listener as ht_db_l
+from aim.db import infra_model
+from aim.db import models
+from aim.db import status_model
 from aim.k8s import api_v1
 
 
@@ -34,6 +44,9 @@ def _begin(**kwargs):
 
 class AimStore(object):
     """Interface to backend persistence for AIM resources."""
+
+    def __init__(self):
+        self._update_listeners = []
 
     @property
     def supports_hooks(self):
@@ -66,7 +79,7 @@ class AimStore(object):
         # Return list of objects that match specified criteria
         pass
 
-    def add_commit_hook(self, callback_func):
+    def add_commit_hook(self):
         pass
 
     def from_attr(self, db_obj, resource_klass, attribute_dict):
@@ -77,14 +90,76 @@ class AimStore(object):
         # Construct attribute dictionary from DB object
         pass
 
+    def make_resource(self, cls, db_obj):
+        attr_val = {k: v for k, v in self.to_attr(cls, db_obj).iteritems()
+                    if k in cls.attributes()}
+        return cls(**attr_val)
+
+    def register_update_listener(self, func):
+        """Register callback for update to AIM objects.
+
+        Parameter 'func' should be a function that accepts 4 parameters.
+        The first parameter is SQLAlchemy ORM session in which AIM objects
+        are being updated. Rest of the parameters are lists of AIM resources
+        that were added, updated and deleted respectively.
+        The callback will be invoked before the database transaction
+        that updated the AIM object commits.
+
+        Example:
+
+        def my_listener(session, added, updated, deleted):
+            "Iterate over 'added', 'updated', 'deleted'
+
+        a_mgr = AimManager()
+        a_mgr.register_update_listener(my_listener)
+
+        """
+        self._update_listeners.append(func)
+
+    def unregister_update_listener(self, func):
+        """Remove callback for update to AIM objects."""
+        self._update_listeners.remove(func)
+
 
 class SqlAlchemyStore(AimStore):
 
     # Dict mapping AIM resources to DB model objects
-    db_model_map = {}
+    db_model_map = {api_res.BridgeDomain: models.BridgeDomain,
+                    api_res.Agent: agent_model.Agent,
+                    api_res.Tenant: models.Tenant,
+                    api_res.Subnet: models.Subnet,
+                    api_res.VRF: models.VRF,
+                    api_res.ApplicationProfile: models.ApplicationProfile,
+                    api_res.EndpointGroup: models.EndpointGroup,
+                    api_res.Filter: models.Filter,
+                    api_res.FilterEntry: models.FilterEntry,
+                    api_res.Contract: models.Contract,
+                    api_res.ContractSubject: models.ContractSubject,
+                    api_status.AciStatus: status_model.Status,
+                    api_status.AciFault: status_model.Fault,
+                    api_res.Endpoint: models.Endpoint,
+                    api_res.VMMDomain: models.VMMDomain,
+                    api_res.PhysicalDomain: models.PhysicalDomain,
+                    api_res.L3Outside: models.L3Outside,
+                    api_res.ExternalNetwork: models.ExternalNetwork,
+                    api_res.ExternalSubnet: models.ExternalSubnet,
+                    api_infra.HostLink: infra_model.HostLink,
+                    api_res.SecurityGroup: models.SecurityGroup,
+                    api_res.SecurityGroupSubject: models.SecurityGroupSubject,
+                    api_res.SecurityGroupRule: models.SecurityGroupRule,
+                    api_res.Configuration: config_model.Configuration}
 
     def __init__(self, db_session):
+        super(SqlAlchemyStore, self).__init__()
         self.db_session = db_session
+        self.resource_map = {}
+        self._update_listeners = []
+        for k, v in self.db_model_map.iteritems():
+            self.resource_map[v] = k
+        # SQL store needs Hashtree DB listener
+        self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
+            aim_manager.AimManager(), self)
+        self.register_update_listener(self._hashtree_db_listener.on_commit)
 
     @property
     def current_timestamp(self):
@@ -105,16 +180,36 @@ class SqlAlchemyStore(AimStore):
     def query(self, db_obj_type, resource_klass, **filters):
         return self.db_session.query(db_obj_type).filter_by(**filters).all()
 
-    def add_commit_hook(self, callback_func):
+    def add_commit_hook(self):
         if not sa_event.contains(self.db_session, 'before_flush',
-                                 callback_func):
-            sa_event.listen(self.db_session, 'before_flush', callback_func)
+                                 self._before_session_commit):
+            sa_event.listen(self.db_session, 'before_flush',
+                            self._before_session_commit)
 
     def from_attr(self, db_obj, resource_klass, attribute_dict):
         db_obj.from_attr(self.db_session, attribute_dict)
 
     def to_attr(self, resource_klass, db_obj):
         return db_obj.to_attr(self.db_session)
+
+    def _before_session_commit(self, session, flush_context, instances):
+        added = []
+        updated = []
+        deleted = []
+        modified = [(session.new, added),
+                    (session.dirty, updated),
+                    (session.deleted, deleted)]
+        for mod_set, res_list in modified:
+            for db_obj in mod_set:
+                res_cls = self.resource_map.get(type(db_obj))
+                if res_cls:
+                    res = self.make_resource(res_cls, db_obj)
+                    res_list.append(res)
+        for f in self._update_listeners[:]:
+            LOG.debug("Invoking pre-commit hook %s with %d add(s), "
+                      "%d update(s), %d delete(s)",
+                      f.__name__, len(added), len(updated), len(deleted))
+            f(session, added, updated, deleted)
 
 
 class K8sStore(AimStore):

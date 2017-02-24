@@ -1302,7 +1302,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             result[tenant.name] = {}
             for type in tree_model.SUPPORTED_TREES:
                 result[tenant.name][type] = (
-                    self.aim_manager._hashtree_db_listener.tt_mgr.get(
+                    self.ctx.store._hashtree_db_listener.tt_mgr.get(
                         self.ctx, tenant.name, tree=type))
         return result
 

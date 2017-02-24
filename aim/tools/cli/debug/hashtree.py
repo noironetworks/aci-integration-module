@@ -76,8 +76,8 @@ def reset(ctx, tenant):
 
 def _reset(ctx, tenant):
     mgr = ctx.obj['manager']
-    listener = hashtree_db_listener.HashTreeDbListener(mgr)
     aim_ctx = ctx.obj['aim_ctx']
+    listener = hashtree_db_listener.HashTreeDbListener(mgr, aim_ctx.store)
     session = aim_ctx.db_session
     with session.begin(subtransactions=True):
         created = []

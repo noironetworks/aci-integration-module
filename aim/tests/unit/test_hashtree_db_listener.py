@@ -32,7 +32,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         super(TestHashTreeDbListener, self).setUp()
         self.tt_mgr = tree_model.TenantHashTreeManager()
         self.mgr = aim_manager.AimManager()
-        self.db_l = self.mgr._hashtree_db_listener
+        self.db_l = self.ctx.store._hashtree_db_listener
 
     def _test_resource_ops(self, resource, tenant, tree_objects,
                            tree_objects_update,

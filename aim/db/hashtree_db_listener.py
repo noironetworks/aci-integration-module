@@ -20,7 +20,7 @@ from oslo_log import log as logging
 from aim.api import status as aim_status
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
-from aim import context
+from aim.common import utils
 from aim.db import tree_model
 
 
@@ -146,18 +146,19 @@ class HashTreeBuilder(object):
 class HashTreeDbListener(object):
     """Updates persistent hash-tree in response to DB updates."""
 
-    def __init__(self, aim_manager):
+    def __init__(self, aim_manager, store):
         self.aim_manager = aim_manager
-        self.aim_manager.register_update_listener(self.on_commit)
         self.tt_mgr = tree_model.TenantHashTreeManager()
         self.tt_maker = tree_model.AimHashTreeMaker()
         self.tt_builder = HashTreeBuilder(self.aim_manager)
+        self.store = store
 
     def on_commit(self, session, added, updated, deleted, curr_cfg=None,
                   curr_oper=None, curr_monitor=None):
         # Query hash-tree for each tenant and modify the tree based on DB
         # updates
-        ctx = context.AimContext(session)
+        # TODO(ivar): Use proper store context once dependency issue is fixed
+        ctx = utils.FakeContext(session, self.store)
         # Build tree map
 
         conf = tree_model.CONFIG_TREE

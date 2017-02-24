@@ -21,7 +21,6 @@ Tests for `aim_manager` module.
 """
 
 import copy
-import os
 import time
 
 import jsonschema
@@ -29,15 +28,14 @@ from jsonschema import exceptions as schema_exc
 import mock
 
 from aim import aim_manager
-from aim import aim_store
 from aim.api import infra
 from aim.api import resource
+from aim.api import resource as aim_res
 from aim.api import schema
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import config  # noqa
-from aim import context
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
 from aim.tests import base
@@ -111,17 +109,6 @@ class TestResourceOpsBase(object):
         self.mgr = aim_manager.AimManager()
         self.mgr._update_listeners = []
         self.schema_dict = schema.generate_schema()
-
-    def _set_store(self, caller):
-        if os.environ.get('K8S_STORE'):
-            caller = type(self).__name__.lower() + caller.replace('_', '-')
-            self.ctx = context.AimContext(store=aim_store.K8sStore(
-                namespace=caller))
-            self.ctx.store.klient.delete_collection_namespaced_aci(caller)
-            self.addCleanup(self._cleanup_namespace, caller)
-
-    def _cleanup_namespace(self, namespace):
-        self.ctx.store.klient.delete_collection_namespaced_aci(namespace)
 
     def _test_resource_ops(self, resource, test_identity_attributes,
                            test_required_attributes, test_search_attributes,
@@ -211,7 +198,9 @@ class TestResourceOpsBase(object):
         # Test delete
         self.mgr.delete(self.ctx, res)
         self.assertIsNone(self.mgr.get(self.ctx, res))
-        self.assertEqual([], self.mgr.find(self.ctx, resource))
+        # TODO(ivar): Avoid config creation form AIM resources
+        if not isinstance(res, aim_res.Configuration):
+            self.assertEqual([], self.mgr.find(self.ctx, resource))
 
         # Test update nonexisting object
         r4 = self.mgr.update(self.ctx, res, **{})
@@ -253,7 +242,7 @@ class TestResourceOpsBase(object):
         """
         listener = mock.Mock()
         listener.__name__ = 'mock-listener'
-        self.mgr.register_update_listener(listener)
+        self.ctx.store.register_update_listener(listener)
 
         creation_attributes = {}
         creation_attributes.update(test_required_attributes),
@@ -268,7 +257,7 @@ class TestResourceOpsBase(object):
             exp_calls = [
                 mock.call(mock.ANY, [res], [], []),
                 mock.call(mock.ANY, [initial_status], [], []),
-                mock.call(mock.ANY, [], [status], [])]
+                mock.call(mock.ANY, [], [status, res], [])]
             self._check_call_list(exp_calls, listener)
         else:
             listener.assert_called_with(mock.ANY, [res], [], [])
@@ -281,7 +270,7 @@ class TestResourceOpsBase(object):
             if status:
                 exp_calls = [
                     mock.call(mock.ANY, [], [res], []),
-                    mock.call(mock.ANY, [], [status], [])]
+                    mock.call(mock.ANY, [], [status, res], [])]
                 self._check_call_list(exp_calls, listener)
             else:
                 # TODO(ivar): Agent object gets 2 calls to the hook on an
@@ -292,7 +281,7 @@ class TestResourceOpsBase(object):
         self.mgr.delete(self.ctx, res)
         listener.assert_called_with(mock.ANY, [], [], [res])
 
-        self.mgr.unregister_update_listener(listener)
+        self.ctx.store.unregister_update_listener(listener)
 
         listener.reset_mock()
         self.mgr.create(self.ctx, res)
@@ -891,6 +880,19 @@ class TestSecurityGroupRuleMixin(object):
     res_command = 'security-group-rule'
 
 
+class TestConfigurationMixin(object):
+    resource_class = resource.Configuration
+    test_identity_attributes = {'key': 'apic_hosts',
+                                'host': 'h1',
+                                'group': 'default'}
+    test_required_attributes = {'key': 'apic_hosts',
+                                'host': 'h1',
+                                'group': 'default'}
+    test_search_attributes = {'value': 'v1'}
+    test_update_attributes = {'value': 'v2'}
+    res_command = 'configuration'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1066,4 +1068,9 @@ class TestSecurityGroupSubject(TestSecurityGroupSubjectMixin,
 
 class TestSecurityGroupRule(TestSecurityGroupRuleMixin,
                             TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestConfiguration(TestConfigurationMixin, TestResourceOpsBase,
+                        base.TestAimDBBase):
     pass

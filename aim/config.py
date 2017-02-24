@@ -24,8 +24,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from aim.common import utils
-from aim import context as aim_ctx
-from aim.db import api
 from aim.db import config_model
 from aim import exceptions as exc
 
@@ -175,6 +173,11 @@ class ConfigManager(object):
                  "with: %s" % (host, configs))
         self.db.replace_all(context or self.context, configs, host=host)
 
+    def override(self, item, value, group='default', host=None, context=None):
+        value = self._convert_value(value)
+        self.db.update(context or self.context, group, item, value,
+                       host=host or '')
+
     def _get_option(self, item, group, host):
         # Get per host config if any, or default one
         try:
@@ -208,6 +211,12 @@ class ConfigManager(object):
                 "item %s in group %s for host %s doesn't exist. "
                 "Trying with default group." % (item, group, host))
             return self._get_option(item, group, '')
+
+    def _convert_value(self, value):
+        if isinstance(value, list):
+            return ','.join(value)
+        else:
+            return str(value)
 
     def get_option(self, item, group='default', host=None):
         host = host or self.host
@@ -319,8 +328,6 @@ class ConfigSubscriber(gevent.Greenlet):
         self.map_by_callback_id = {}  # for easier unsubscribe
         self.config_mgr = config_mgr
         # Configuration poller  has its own DB session
-        self.session = api.get_session()
-        self.context = aim_ctx.AimContext(self.session)
         self._polling_interval = None
 
     @property
