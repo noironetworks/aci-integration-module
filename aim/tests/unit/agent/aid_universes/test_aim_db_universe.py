@@ -32,7 +32,7 @@ class TestAimDbUniverseBase(object):
     def setUp(self, klass=aim_universe.AimDbUniverse):
         super(TestAimDbUniverseBase, self).setUp()
         self.universe = klass().initialize(
-            self.session, aim_cfg.ConfigManager(self.ctx, ''))
+            self.store, aim_cfg.ConfigManager(self.ctx, ''))
         self.tree_mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
         self.monitor_universe = False
 

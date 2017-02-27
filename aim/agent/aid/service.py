@@ -51,27 +51,27 @@ class AID(object):
     def __init__(self, conf):
         self.run_daemon_loop = True
         self.host = conf.aim.aim_service_identifier
-        self.session = api.get_session()
-        self.context = context.AimContext(self.session)
+        self.store = api.get_store()
+        self.context = context.AimContext(store=self.store)
         self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)
 
         # Define multiverse pairs, First position is desired state
         self.multiverse = [
             # Configuration Universe (AIM to ACI)
             {DESIRED: aim_universe.AimDbUniverse().initialize(
-                api.get_session(), self.conf_manager),
+                api.get_store(), self.conf_manager),
              CURRENT: aci_universe.AciUniverse().initialize(
-                 api.get_session(), self.conf_manager)},
+                 api.get_store(), self.conf_manager)},
             # Operational Universe (ACI to AIM)
             {DESIRED: aci_universe.AciOperationalUniverse().initialize(
-                api.get_session(), self.conf_manager),
+                api.get_store(), self.conf_manager),
              CURRENT: aim_universe.AimDbOperationalUniverse().initialize(
-                 api.get_session(), self.conf_manager)},
+                 api.get_store(), self.conf_manager)},
             # Monitored Universe (ACI to AIM)
             {DESIRED: aci_universe.AciMonitoredUniverse().initialize(
-                api.get_session(), self.conf_manager),
+                api.get_store(), self.conf_manager),
              CURRENT: aim_universe.AimDbMonitoredUniverse().initialize(
-                 api.get_session(), self.conf_manager)},
+                 api.get_store(), self.conf_manager)},
         ]
         # delete_candidates contains tenants that are candidate for deletion.
         # when the consensus is reach by all the universe, the state will
@@ -185,7 +185,7 @@ class AID(object):
 
     def _calculate_tenants(self, context):
         # REVISIT(ivar): should we lock the Agent table?
-        with context.db_session.begin(subtransactions=True):
+        with context.store.begin(subtransactions=True):
             # Refresh this agent
             self.agent = self.manager.get(context, self.agent)
             down_time = self.agent.down_time(context)

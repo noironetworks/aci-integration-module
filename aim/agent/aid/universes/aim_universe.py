@@ -39,10 +39,10 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     from the AIM database.
     """
 
-    def initialize(self, db_session, conf_mgr):
-        super(AimDbUniverse, self).initialize(db_session, conf_mgr)
+    def initialize(self, store, conf_mgr):
+        super(AimDbUniverse, self).initialize(store, conf_mgr)
         self.tree_manager = tree_model.TenantHashTreeManager()
-        self.context = context.AimContext(db_session)
+        self.context = context.AimContext(store=store)
         self._converter = converter.AciToAimModelConverter()
         self._converter_aim_to_aci = converter.AimToAciModelConverter()
         self._served_tenants = set()
@@ -190,7 +190,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                     [resource])
                                 resource = self._converter.convert(resource)[0]
                                 resource.monitored = monitored
-                            with self.context.db_session.begin(
+                            with self.context.store.begin(
                                     subtransactions=True):
                                 self.manager.create(self.context, resource,
                                                     overwrite=True,
@@ -205,7 +205,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                 continue
                             if monitored:
                                 # Only delete a resource if monitored
-                                with self.context.db_session.begin(
+                                with self.context.store.begin(
                                         subtransactions=True):
                                     existing = self.manager.get(self.context,
                                                                 resource)

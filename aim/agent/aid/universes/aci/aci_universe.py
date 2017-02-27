@@ -170,8 +170,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
     from the ACI REST API.
     """
 
-    def initialize(self, db_session, conf_mgr):
-        super(AciUniverse, self).initialize(db_session, conf_mgr)
+    def initialize(self, store, conf_mgr):
+        super(AciUniverse, self).initialize(store, conf_mgr)
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
         self.ws_context = get_websocket_context(self.conf_manager)

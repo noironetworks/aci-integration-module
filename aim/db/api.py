@@ -16,6 +16,8 @@
 from oslo_config import cfg
 from oslo_db.sqlalchemy import session
 
+from aim import aim_store
+
 
 _FACADE = None
 
@@ -47,3 +49,8 @@ def get_session(autocommit=True, expire_on_commit=False, use_slave=False):
     return facade.get_session(autocommit=autocommit,
                               expire_on_commit=expire_on_commit,
                               use_slave=use_slave)
+
+
+def get_store():
+    db_session = get_session()
+    return aim_store.SqlAlchemyStore(db_session)

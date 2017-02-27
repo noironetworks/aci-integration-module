@@ -103,7 +103,8 @@ class TestAimDBBase(BaseTestCase):
             model_base.Base.metadata.create_all(self.engine)
             TestAimDBBase._TABLES_ESTABLISHED = True
         self.session = api.get_session(expire_on_commit=True)
-        self.ctx = context.AimContext(db_session=self.session)
+        self.store = aim_store.SqlAlchemyStore(self.session)
+        self.ctx = context.AimContext(store=self.store)
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
         resource.ResourceBase.__eq__ = resource_equal
         self.cfg_manager.replace_all(CONF)

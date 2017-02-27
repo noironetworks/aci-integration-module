@@ -29,8 +29,8 @@ class K8sUniverse(base.HashTreeStoredUniverse):
     from the Kubernetes REST API.
     """
 
-    def initialize(self, db_session, conf_mgr):
-        super(K8sUniverse, self).initialize(db_session, conf_mgr)
+    def initialize(self, store, conf_mgr):
+        super(K8sUniverse, self).initialize(store, conf_mgr)
         return self
 
     @property
