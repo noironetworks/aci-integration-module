@@ -36,7 +36,7 @@ def upgrade():
 
     op.create_table(
         'aim_agents',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.String(64), primary_key=True),
         sa.Column('agent_type', sa.String(255), nullable=False),
         sa.Column('host', sa.String(255), nullable=False),
         sa.Column('binary_file', sa.String(255), nullable=False),
@@ -52,7 +52,7 @@ def upgrade():
 
     op.create_table(
         'aim_agent_to_tree_associations',
-        sa.Column('agent_id', sa.String(length=36), nullable=True),
+        sa.Column('agent_id', sa.String(length=64), nullable=True),
         sa.Column('tree_tenant_rn', sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(['tree_tenant_rn'],
                                 ['aim_tenant_trees.tenant_rn'],

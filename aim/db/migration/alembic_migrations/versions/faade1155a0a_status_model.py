@@ -36,7 +36,7 @@ def upgrade():
 
     op.create_table(
         'aim_statuses',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.String(64), primary_key=True),
         sa.Column('resource_type', sa.String(255), nullable=False),
         sa.Column('resource_id', sa.Integer, nullable=False),
         sa.Column('sync_status', sa.String(50), nullable=True),
@@ -49,7 +49,7 @@ def upgrade():
 
     op.create_table(
         'aim_faults',
-        sa.Column('status_id', sa.String(length=36), nullable=False),
+        sa.Column('status_id', sa.String(length=64), nullable=False),
         sa.Column('fault_code', sa.String(25), nullable=False),
         sa.Column('severity', sa.String(25), nullable=False),
         sa.Column('description', sa.String(255), default=''),

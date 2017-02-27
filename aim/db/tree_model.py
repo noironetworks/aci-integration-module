@@ -39,7 +39,7 @@ class AgentToHashTreeAssociation(model_base.Base):
     """Many to many relation between Agents and the trees they serve."""
     __tablename__ = 'aim_agent_to_tree_associations'
     agent_id = sa.Column(
-        sa.String(36), sa.ForeignKey('aim_agents.id', ondelete='CASCADE'),
+        sa.String(64), sa.ForeignKey('aim_agents.id', ondelete='CASCADE'),
         primary_key=True,)
     tree_tenant_rn = sa.Column(
         sa.String(64), sa.ForeignKey('aim_tenant_trees.tenant_rn',

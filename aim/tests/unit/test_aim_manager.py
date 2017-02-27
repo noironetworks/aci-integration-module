@@ -185,7 +185,8 @@ class TestResourceOpsBase(object):
             self.assertEqual(v, getattr_canonical(r3, k))
         # check other attributes are unaffected
         for attr in r1.attributes():
-            if attr not in test_update_attributes:
+            if attr not in (test_update_attributes.keys() +
+                            res.db_attributes.keys()):
                 self.assertEqual(getattr_canonical(r1, attr),
                                  getattr_canonical(r3, attr))
 
