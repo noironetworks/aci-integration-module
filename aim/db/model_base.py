@@ -45,7 +45,7 @@ class HasName(object):
 class HasId(object):
     """id mixin, add to subclasses that have an id."""
 
-    id = sa.Column(sa.String(64),
+    id = sa.Column(sa.String(255),
                    primary_key=True,
                    default=utils.generate_uuid)
 

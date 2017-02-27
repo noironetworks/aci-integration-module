@@ -29,8 +29,8 @@ class Fault(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_faults'
     __table_args__ = ((sa.Index('idx_aim_faults_status_id', 'status_id'), ) +
                       models.to_tuple(model_base.Base.__table_args__))
-    status_id = sa.Column(sa.String(64), sa.ForeignKey('aim_statuses.id',
-                                                       ondelete='CASCADE'),
+    status_id = sa.Column(sa.String(255), sa.ForeignKey('aim_statuses.id',
+                                                        ondelete='CASCADE'),
                           nullable=False)
     fault_code = sa.Column(sa.String(25), nullable=False)
     severity = sa.Column(sa.String(25), nullable=False)
