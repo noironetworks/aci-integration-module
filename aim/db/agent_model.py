@@ -16,9 +16,10 @@
 from oslo_log import log as logging
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.orm import exc as sql_exc
 from sqlalchemy.sql.expression import func
 
-from aim.common import utils
+from aim.common.hashtree import exceptions as exc
 from aim.db import model_base
 from aim.db import tree_model
 
@@ -66,11 +67,7 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
             LOG.debug("Adding trees for agent %s: %s" % (self.id, trees))
         with session.begin(subtransactions=True):
             for tree in trees:
-                # TODO(ivar): Use proper store context once dependency issue
-                # is fixed
-                # Verify that the tree exists
-                tree_model.TenantHashTreeManager().get(
-                    utils.FakeContext(session), tree)
+                self.tenant_tree_exists(session, tree)
                 # Check whether the current object already has an ID, use
                 # the one passed in the getter otherwise.
                 db_obj = tree_model.AgentToHashTreeAssociation(
@@ -80,3 +77,10 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     def get_hash_trees(self, session):
         # Only return the trees' identifier
         return [getattr(x, 'tree_tenant_rn') for x in self.hash_trees or []]
+
+    def tenant_tree_exists(self, session, tenant_rn):
+        try:
+            session.query(tree_model.ConfigTenantTree).filter(
+                tree_model.ConfigTenantTree.tenant_rn == tenant_rn).one()
+        except sql_exc.NoResultFound:
+            raise exc.HashTreeNotFound(tenant_rn=tenant_rn)

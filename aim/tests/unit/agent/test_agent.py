@@ -31,10 +31,10 @@ from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
 from aim import config
-from aim.db import tree_model
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
 from aim.tools.cli.debug import hashtree as treecli
+from aim import tree_manager
 
 
 def run_once_loop(agent):
@@ -56,7 +56,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.set_override('agent_polling_interval', 0, 'aim')
         self.set_override('aci_tenant_polling_yield', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
-        self.tree_manager = tree_model.TenantTreeManager(
+        self.tree_manager = tree_manager.TenantTreeManager(
             tree.StructuredHashTree)
         self.old_post = apic_client.ApicSession.post_body_dict
 
@@ -1300,7 +1300,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         result = {}
         for tenant in tenants:
             result[tenant.name] = {}
-            for type in tree_model.SUPPORTED_TREES:
+            for type in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][type] = (
                     self.ctx.store._hashtree_db_listener.tt_mgr.get(
                         self.ctx, tenant.name, tree=type))

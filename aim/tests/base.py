@@ -140,8 +140,8 @@ class TestAimDBBase(BaseTestCase):
     def _set_store(self, caller):
         if os.environ.get('K8S_STORE'):
             caller = type(self).__name__.lower() + caller.replace('_', '-')
-            self.ctx = context.AimContext(store=aim_store.K8sStore(
-                namespace=caller))
+            self.store = aim_store.K8sStore(namespace=caller)
+            self.ctx = context.AimContext(store=self.store)
             self.ctx.store.klient.delete_collection_namespaced_aci(caller)
             self.addCleanup(self._cleanup_namespace, caller)
             self.cfg_manager.context = self.ctx

@@ -24,6 +24,7 @@ from aim import aim_manager
 from aim.api import infra as api_infra
 from aim.api import resource as api_res
 from aim.api import status as api_status
+from aim.api import tree as api_tree
 from aim.common import utils
 from aim.db import agent_model
 from aim.db import config_model
@@ -31,6 +32,7 @@ from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import infra_model
 from aim.db import models
 from aim.db import status_model
+from aim.db import tree_model
 from aim.k8s import api_v1
 
 
@@ -75,7 +77,8 @@ class AimStore(object):
         # Delete object from backend if it exists
         pass
 
-    def query(self, db_obj_type, resource_klass, **filters):
+    def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
+              **filters):
         # Return list of objects that match specified criteria
         pass
 
@@ -120,6 +123,27 @@ class AimStore(object):
         """Remove callback for update to AIM objects."""
         self._update_listeners.remove(func)
 
+    def extract_attributes(self, resource, attr_type=None):
+        val = {}
+        if not attr_type or attr_type == "id":
+            val.update({k: getattr(resource, k)
+                        for k in resource.identity_attributes})
+        if not attr_type or attr_type == "other":
+            val.update({k: getattr(resource, k, None)
+                        for k in resource.other_attributes})
+        if not attr_type or attr_type == "db":
+            val.update({k: getattr(resource, k)
+                        for k in resource.db_attributes
+                        if hasattr(resource, k)})
+        return val
+
+    def make_db_obj(self, resource):
+        cls = self.resource_to_db_type(type(resource))
+        obj = cls()
+        self.from_attr(obj, type(resource),
+                       self.extract_attributes(resource))
+        return obj
+
 
 class SqlAlchemyStore(AimStore):
 
@@ -147,7 +171,14 @@ class SqlAlchemyStore(AimStore):
                     api_res.SecurityGroup: models.SecurityGroup,
                     api_res.SecurityGroupSubject: models.SecurityGroupSubject,
                     api_res.SecurityGroupRule: models.SecurityGroupRule,
-                    api_res.Configuration: config_model.Configuration}
+                    api_res.Configuration: config_model.Configuration,
+                    api_tree.TenantTree: tree_model.TenantTree,
+                    api_tree.ConfigTenantTree: (
+                        tree_model.ConfigTenantTree),
+                    api_tree.MonitoredTenantTree: (
+                        tree_model.MonitoredTenantTree),
+                    api_tree.OperationalTenantTree: (
+                        tree_model.OperationalTenantTree)}
 
     def __init__(self, db_session):
         super(SqlAlchemyStore, self).__init__()
@@ -177,8 +208,17 @@ class SqlAlchemyStore(AimStore):
     def delete(self, db_obj):
         self.db_session.delete(db_obj)
 
-    def query(self, db_obj_type, resource_klass, **filters):
-        return self.db_session.query(db_obj_type).filter_by(**filters).all()
+    def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
+              **filters):
+        query = self.db_session.query(db_obj_type)
+        for k, v in (in_ or {}).iteritems():
+            query = query.filter(getattr(db_obj_type, k).in_(v))
+        for k, v in (notin_ or {}).iteritems() or {}:
+            query = query.filter(getattr(db_obj_type, k).notin_(
+                [(x or '') for x in v]))
+        if filters:
+            query = query.filter_by(**filters)
+        return query.all()
 
     def add_commit_hook(self):
         if not sa_event.contains(self.db_session, 'before_flush',
@@ -279,7 +319,8 @@ class K8sStore(AimStore):
             else:
                 raise
 
-    def query(self, db_obj_type, resource_klass, **filters):
+    def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
+              **filters):
         name = utils.camel_to_snake(resource_klass.__name__)
         if 'aim_id' in filters:
             item = self.klient.read_namespaced_aci(filters.pop('aim_id'),
@@ -292,14 +333,22 @@ class K8sStore(AimStore):
             items = items['items']
         result = []
         for item in items:
-            if filters:
+            if filters or in_ or notin_:
                 for k, v in filters.iteritems():
                     if item['spec'][name].get(k) != v:
                         break
                 else:
-                    db_obj = api_v1.AciContainersObject()
-                    db_obj.update(item)
-                    result.append(db_obj)
+                    for k, v in (in_ or {}).iteritems():
+                        if item['spec'][name].get(k) not in v:
+                            break
+                    else:
+                        for k, v in (notin_ or {}).iteritems():
+                            if item['spec'][name].get(k) in v:
+                                break
+                        else:
+                            db_obj = api_v1.AciContainersObject()
+                            db_obj.update(item)
+                            result.append(db_obj)
             else:
                 db_obj = api_v1.AciContainersObject()
                 db_obj.update(item)

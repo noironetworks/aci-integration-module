@@ -22,8 +22,8 @@ from aim.common.hashtree import exceptions as h_exc
 from aim import context
 from aim.db import api
 from aim.db import hashtree_db_listener
-from aim.db import tree_model
 from aim.tools.cli.groups import aimcli
+from aim import tree_manager
 
 
 @aimcli.aim.group(name='hashtree')
@@ -31,7 +31,7 @@ from aim.tools.cli.groups import aimcli
 def hashtree(ctx):
     session = api.get_session(expire_on_commit=True)
     aim_ctx = context.AimContext(db_session=session)
-    tenant_tree_mgr = tree_model.TenantHashTreeManager()
+    tenant_tree_mgr = tree_manager.TenantHashTreeManager()
     manager = aim_manager.AimManager()
     ctx.obj['manager'] = manager
     ctx.obj['tenant_tree_mgr'] = tenant_tree_mgr
@@ -43,11 +43,11 @@ def hashtree(ctx):
 @click.option('--flavor', '-f')
 @click.pass_context
 def dump(ctx, tenant, flavor):
-    trees = {'configuration': tree_model.CONFIG_TREE,
-             'operational': tree_model.OPERATIONAL_TREE,
-             'monitored': tree_model.MONITORED_TREE}
+    trees = {'configuration': tree_manager.CONFIG_TREE,
+             'operational': tree_manager.OPERATIONAL_TREE,
+             'monitored': tree_manager.MONITORED_TREE}
     flavor = flavor or 'configuration'
-    search = tree_model.CONFIG_TREE
+    search = tree_manager.CONFIG_TREE
     for type, tree in trees.iteritems():
         if type.startswith(flavor):
             search = tree

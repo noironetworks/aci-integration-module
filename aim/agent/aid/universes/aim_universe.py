@@ -24,8 +24,8 @@ from aim.api import resource as aim_resource
 from aim.api import status as aim_status
 from aim.common import utils
 from aim import context
-from aim.db import tree_model
 from aim import exceptions as aim_exc
+from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
 
     def initialize(self, store, conf_mgr):
         super(AimDbUniverse, self).initialize(store, conf_mgr)
-        self.tree_manager = tree_model.TenantHashTreeManager()
+        self.tree_manager = tree_manager.TenantHashTreeManager()
         self.context = context.AimContext(store=store)
         self._converter = converter.AciToAimModelConverter()
         self._converter_aim_to_aci = converter.AimToAciModelConverter()
@@ -63,7 +63,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def observe(self):
         pass
 
-    def get_optimized_state(self, other_state, tree=tree_model.CONFIG_TREE):
+    def get_optimized_state(self, other_state, tree=tree_manager.CONFIG_TREE):
         request = {}
         for tenant in self._served_tenants:
             request[tenant] = None
@@ -78,7 +78,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def cleanup_state(self, key):
         self.tree_manager.delete_by_tenant_rn(self.context, key)
 
-    def _get_state(self, tree=tree_model.CONFIG_TREE):
+    def _get_state(self, tree=tree_manager.CONFIG_TREE):
         return self.tree_manager.find_changed(
             self.context, dict([(x, None) for x in self._served_tenants]),
             tree=tree)
@@ -252,7 +252,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
     @property
     def state(self):
-        return self._get_state(tree=tree_model.OPERATIONAL_TREE)
+        return self._get_state(tree=tree_manager.OPERATIONAL_TREE)
 
     @property
     def name(self):
@@ -260,7 +260,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
     def get_optimized_state(self, other_state):
         return super(AimDbOperationalUniverse, self).get_optimized_state(
-            other_state, tree=tree_model.OPERATIONAL_TREE)
+            other_state, tree=tree_manager.OPERATIONAL_TREE)
 
     def reconcile(self, other_universe, delete_candidates):
         # When the other universes are ok with deleting a Tenant, there's no
@@ -272,7 +272,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
 class AimDbMonitoredUniverse(AimDbUniverse):
     @property
     def state(self):
-        return self._get_state(tree=tree_model.MONITORED_TREE)
+        return self._get_state(tree=tree_manager.MONITORED_TREE)
 
     @property
     def name(self):
@@ -280,7 +280,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
 
     def get_optimized_state(self, other_state):
         return super(AimDbMonitoredUniverse, self).get_optimized_state(
-            other_state, tree=tree_model.MONITORED_TREE)
+            other_state, tree=tree_manager.MONITORED_TREE)
 
     def push_resources(self, resources):
         self._push_resources(resources, monitored=True)

@@ -110,11 +110,11 @@ class AimManager(object):
                     new_monitored = getattr(resource, 'monitored', None)
                     if fix_ownership and old_monitored != new_monitored:
                         raise exc.InvalidMonitoredStateUpdate(object=resource)
-                    attr_val = self._extract_attributes(resource, "other")
+                    attr_val = context.store.extract_attributes(resource,
+                                                                "other")
                     context.store.from_attr(old_db_obj, type(resource),
                                             attr_val)
-            db_obj = old_db_obj or self._make_db_obj(context.store,
-                                                     resource)
+            db_obj = old_db_obj or context.store.make_db_obj(resource)
             self._add_commit_hook(context.store)
             context.store.add(db_obj)
             # Propagate sync status to neighbor objects
@@ -363,31 +363,10 @@ class AimManager(object):
         return store.query(db_cls, resource_class, **kwargs)
 
     def _query_db_obj(self, store, resource):
-        id_attr = self._extract_attributes(resource, "id")
+        id_attr = store.extract_attributes(resource, "id")
         cls = type(resource)
         objs = self._query_db(store, cls, **id_attr)
         return objs[0] if objs else None
-
-    def _extract_attributes(self, resource, attr_type=None):
-        val = {}
-        if not attr_type or attr_type == "id":
-            val.update({k: getattr(resource, k)
-                        for k in resource.identity_attributes})
-        if not attr_type or attr_type == "other":
-            val.update({k: getattr(resource, k, None)
-                        for k in resource.other_attributes})
-        if not attr_type or attr_type == "db":
-            val.update({k: getattr(resource, k)
-                        for k in resource.db_attributes
-                        if hasattr(resource, k)})
-        return val
-
-    def _make_db_obj(self, store, resource):
-        cls = store.resource_to_db_type(type(resource))
-        obj = cls()
-        store.from_attr(obj, type(resource),
-                        self._extract_attributes(resource))
-        return obj
 
     def _add_commit_hook(self, store):
         store.add_commit_hook()

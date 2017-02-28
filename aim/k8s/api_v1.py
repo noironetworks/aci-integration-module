@@ -44,8 +44,24 @@ class AciContainersObject(dict):
                 pass
         raise AttributeError
 
-    def __setattr__(self, key, value):
-        self[key] = value
+    def __setattr__(self, item, value):
+        try:
+            self['spec'][self['spec']['type']][item] = value
+            return
+        except KeyError:
+            try:
+                if item in ['aim_id', 'id']:
+                    self['metadata']['name'] = value
+                    return
+                if item in ['last_update_timestamp', 'heartbeat_timestamp']:
+                    self['metadata']['creationTimestamp'] = value
+                    return
+                if item in ['version']:
+                    self['metadata']['resourceVersion'] = value
+                    return
+            except KeyError:
+                pass
+        self[item] = value
 
 
 class AciContainersV1(object):

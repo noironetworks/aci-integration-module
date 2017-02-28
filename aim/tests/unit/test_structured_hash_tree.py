@@ -19,8 +19,8 @@ from aim import aim_manager
 from aim.api import resource
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree as tree
-from aim.db import tree_model
 from aim.tests import base
+from aim import tree_manager
 
 
 class TestStructuredNode(base.BaseTestCase):
@@ -608,7 +608,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
     def setUp(self):
         super(TestHashTreeManager, self).setUp()
-        self.mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
+        self.mgr = tree_manager.TenantTreeManager(tree.StructuredHashTree)
 
     def test_update(self):
         data = tree.StructuredHashTree().include(
@@ -790,7 +790,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
 
     def setUp(self):
         super(TestAimHashTreeMaker, self).setUp()
-        self.maker = tree_model.AimHashTreeMaker()
+        self.maker = tree_manager.AimHashTreeMaker()
 
     def test_get_tenant_key(self):
         bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')

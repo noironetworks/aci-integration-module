@@ -39,6 +39,7 @@ from aim import config  # noqa
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
 from aim.tests import base
+from aim import tree_manager
 
 
 def getattr_canonical(obj, attr):
@@ -908,7 +909,7 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        self.tree_mgr = tree_model.TenantHashTreeManager()
+        self.tree_mgr = tree_manager.TenantHashTreeManager()
         self.tree_mgr.update_bulk(
             self.ctx, [structured_tree.StructuredHashTree(root_key=('t1',)),
                        structured_tree.StructuredHashTree(root_key=('t2',))])
@@ -919,8 +920,10 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
             self.addCleanup(self._clean_trees)
 
     def _clean_trees(self):
-        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't1')
-        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't2')
+        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
+                                                                 't1')
+        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
+                                                                 't2')
 
     def test_timestamp(self):
         self._set_store('test_update_other_attributes')

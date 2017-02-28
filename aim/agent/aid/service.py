@@ -32,7 +32,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim import context
 from aim.db import api
-from aim.db import tree_model
+from aim import tree_manager
 
 LOG = logging.getLogger(__name__)
 AGENT_TYPE = 'Aci Synchronization Module'
@@ -81,7 +81,7 @@ class AID(object):
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
         self.manager = aim_manager.AimManager()
-        self.tree_manager = tree_model.TenantHashTreeManager()
+        self.tree_manager = tree_manager.TenantHashTreeManager()
         self.agent_id = 'aid-%s' % self.host
         self.agent = resource.Agent(id=self.agent_id, agent_type=AGENT_TYPE,
                                     host=self.host, binary_file=AGENT_BINARY,
