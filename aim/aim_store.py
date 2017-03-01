@@ -268,9 +268,9 @@ class SqlAlchemyStore(AimStore):
 
 class K8sStore(AimStore):
 
-    def __init__(self, namespace=None):
+    def __init__(self, namespace=None, config_file=None):
         super(K8sStore, self).__init__()
-        self.klient = api_v1.AciContainersV1()
+        self.klient = api_v1.AciContainersV1(config_file=config_file)
         self.namespace = namespace or api_v1.K8S_DEFAULT_NAMESPACE
 
     @property

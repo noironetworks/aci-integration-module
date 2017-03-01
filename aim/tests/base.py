@@ -129,13 +129,11 @@ class TestAimDBBase(BaseTestCase):
         super(TestAimDBBase, self).setUp()
         self.test_id = uuidutils.generate_uuid()
         if not os.environ.get(K8S_STORE_VENV):
+            CONF.set_override('aim_store', 'sql', 'aim')
             self.engine = api.get_engine()
             if not TestAimDBBase._TABLES_ESTABLISHED:
                 model_base.Base.metadata.create_all(self.engine)
                 TestAimDBBase._TABLES_ESTABLISHED = True
-            self.session = api.get_session(expire_on_commit=True)
-            self.store = aim_store.SqlAlchemyStore(self.session)
-            self.ctx = context.AimContext(store=self.store)
 
             # Uncomment the line below to log SQL statements. Additionally, to
             # log results of queries, change INFO to DEBUG
@@ -149,13 +147,14 @@ class TestAimDBBase(BaseTestCase):
                         conn.execute(table.delete())
             self.addCleanup(clear_tables)
         else:
-            self.store = aim_store.K8sStore(namespace=self.test_id)
+            CONF.set_override('aim_store', 'k8s', 'aim')
+            CONF.set_override('k8s_namespace', self.test_id, 'aim_k8s')
             aim_store.K8sStore._post_deleted = _k8s_post_delete
             aim_store.K8sStore._post_create = _k8s_post_create
-            self.ctx = context.AimContext(store=self.store)
-            self._cleanup_namespace(self.test_id)
             self.addCleanup(self._cleanup_namespace, self.test_id)
 
+        self.store = api.get_store(expire_on_commit=True)
+        self.ctx = context.AimContext(store=self.store)
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
         resource.ResourceBase.__eq__ = resource_equal
         self.cfg_manager.replace_all(CONF)

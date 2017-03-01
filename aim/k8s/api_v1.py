@@ -91,13 +91,13 @@ class AciContainersV1(object):
     }
     base_path = '/apis/acicontainers.cisco.com/v1/namespaces/{namespace}/acis'
 
-    def __init__(self, api_client=None):
+    def __init__(self, api_client=None, config_file=None):
         config = client.Configuration()
         if api_client:
             self.api_client = api_client
         else:
             if not config.api_client:
-                konfig.load_kube_config()
+                konfig.load_kube_config(config_file=config_file)
                 config.api_client = klient.ApiClient()
             self.api_client = config.api_client
 

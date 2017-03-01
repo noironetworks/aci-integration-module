@@ -69,13 +69,20 @@ agent_opts = [
                help="How many seconds AID needs to wait between the same "
                     "failure before considering it a new tentative"),
     cfg.StrOpt('unix_socket_path', default='/run/aid/events/aid.sock',
-               help="Host where this agent/controller is running"),
+               help="Path to the unix socket used for notifications"),
     cfg.BoolOpt('recovery_restart', default=True,
                 help=("Set to True if you want the agents to exit in critical "
                       "situations.")),
     cfg.StrOpt('aim_service_identifier', default=socket.gethostname(),
                help="(Restart Required) Identifier for this specific AID "
                     "service, defaults to the hostname."),
+    cfg.StrOpt('aim_store', default='sql', choices=['k8s', 'sql'],
+               help="Backend store of this AIM installation. It can be either "
+                    "SQL via sqlalchemy or k8s via the Kubernetes API server."
+                    "If the former is chosen, a DB section needs to exist "
+                    "with info on how to create a DB session. In the case of "
+                    "the Kubernetes store, specify the config file path in "
+                    "the [aim_k8s] section")
 ]
 
 # TODO(ivar): move into AIM section
@@ -86,8 +93,16 @@ event_service_polling_opts = [
                        "notification")),
 ]
 
+k8s_options = [
+    cfg.StrOpt('k8s_config_path', default='/root/.kube/config',
+               help="Path to the Kubernetes configuration file."),
+    cfg.StrOpt('k8s_namespace', default='kube-system',
+               help="Kubernetes namespace used by this AIM installation.")
+]
+
 cfg.CONF.register_opts(agent_opts, 'aim')
 cfg.CONF.register_opts(event_service_polling_opts, 'aim_event_service_polling')
+cfg.CONF.register_opts(k8s_options, 'aim_k8s')
 CONF = cfg.CONF
 
 
