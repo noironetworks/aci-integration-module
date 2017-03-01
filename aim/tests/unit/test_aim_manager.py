@@ -387,14 +387,14 @@ class TestResourceOpsBase(object):
             self.test_default_values,
             self.test_dn)
 
+    @base.requires('hooks')
     def test_hooks(self):
-        if self.ctx.store.supports_hooks:
-            self._create_prerequisite_objects()
-            self._test_commit_hook(
-                self.resource_class,
-                self.test_identity_attributes,
-                self.test_required_attributes,
-                self.test_update_attributes)
+        self._create_prerequisite_objects()
+        self._test_commit_hook(
+            self.resource_class,
+            self.test_identity_attributes,
+            self.test_required_attributes,
+            self.test_update_attributes)
 
     def test_monitored(self):
         if 'monitored' in self.resource_class.other_attributes:

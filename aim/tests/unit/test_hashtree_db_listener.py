@@ -231,6 +231,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
     def test_sync_failed_monitored(self):
         self._test_sync_failed(monitored=True)
 
+    @base.requires('hooks')
     def test_tree_hooks(self):
         with mock.patch('aim.agent.aid.event_services.'
                         'rpc.AIDEventRpcApi._cast') as cast:
@@ -261,6 +262,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             self.tt_mgr.delete_by_tenant_rn(self.ctx, 'test_tree_hooks_2')
             cast.assert_called_once_with(mock.ANY, 'serve', None)
 
+    @base.requires('hooks')
     def test_tree_hooks_transactions(self):
         with mock.patch('aim.agent.aid.event_services.'
                         'rpc.AIDEventRpcApi._cast') as cast:
@@ -272,19 +274,19 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                 name='epg', bd_name='some')
 
             tn1 = aim_res.Tenant(name='test_tree_hooks1')
-            ap1 = aim_res.ApplicationProfile(tenant_name='test_tree_hooks1',
-                                             name='ap')
+            ap1 = aim_res.ApplicationProfile(
+                tenant_name='test_tree_hooks1', name='ap')
             epg1 = aim_res.EndpointGroup(
                 tenant_name='test_tree_hooks1', app_profile_name='ap',
                 name='epg', bd_name='some')
             # Try a transaction
-            with self.ctx.db_session.begin(subtransactions=True):
-                with self.ctx.db_session.begin(subtransactions=True):
+            with self.ctx.store.begin(subtransactions=True):
+                with self.ctx.store.begin(subtransactions=True):
                     self.mgr.create(self.ctx, tn)
                     self.mgr.create(self.ctx, ap)
                     self.mgr.create(self.ctx, epg)
                 self.assertEqual(0, cast.call_count)
-                with self.ctx.db_session.begin(subtransactions=True):
+                with self.ctx.store.begin(subtransactions=True):
                     self.mgr.create(self.ctx, tn1)
                     self.mgr.create(self.ctx, ap1)
                     self.mgr.create(self.ctx, epg1)

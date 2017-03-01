@@ -47,22 +47,26 @@ def _begin(**kwargs):
 class AimStore(object):
     """Interface to backend persistence for AIM resources."""
 
+    _features = []
+
     def __init__(self):
         self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
             aim_manager.AimManager(), self)
         self._update_listeners = []
 
+    def __getattr__(self, item):
+        if item.startswith('supports_'):
+            return item.replace('supports_', '') in self.features
+        else:
+            raise AttributeError(item)
+
     @property
-    def supports_hooks(self):
-        return True
+    def features(self):
+        return self._features
 
     @property
     def current_timestamp(self):
         return None
-
-    @property
-    def supports_foreign_keys(self):
-        return False
 
     def begin(self, **kwargs):
         # Begin transaction of updates, if applicable.
@@ -157,6 +161,8 @@ class AimStore(object):
 
 class SqlAlchemyStore(AimStore):
 
+    _features = ['foreign_keys', 'timestamp', 'hooks']
+
     # Dict mapping AIM resources to DB model objects
     db_model_map = {api_res.BridgeDomain: models.BridgeDomain,
                     api_res.Agent: agent_model.Agent,
@@ -198,6 +204,10 @@ class SqlAlchemyStore(AimStore):
         for k, v in self.db_model_map.iteritems():
             self.resource_map[v] = k
         self.register_update_listener(self._hashtree_db_listener.on_commit)
+
+    @property
+    def name(self):
+        return 'SQLAlchemy'
 
     @property
     def current_timestamp(self):
@@ -272,6 +282,10 @@ class K8sStore(AimStore):
         super(K8sStore, self).__init__()
         self.klient = api_v1.AciContainersV1(config_file=config_file)
         self.namespace = namespace or api_v1.K8S_DEFAULT_NAMESPACE
+
+    @property
+    def name(self):
+        return 'Kubernetes'
 
     @property
     def supports_hooks(self):

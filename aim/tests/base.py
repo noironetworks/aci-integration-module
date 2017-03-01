@@ -22,6 +22,7 @@ from oslo_utils import uuidutils
 from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
+from aim.agent.aid.universes.aci import aci_universe
 from aim import aim_manager
 from aim import aim_store
 from aim.api import resource
@@ -61,6 +62,17 @@ def resource_equal(self, other):
                 sort_if_list(getattr(other, attr, None))):
             return False
     return True
+
+
+def requires(requirements):
+    def wrap(func):
+        def inner(self, *args, **kwargs):
+            diff = set(requirements) - set(self.ctx.store.features)
+            if diff:
+                self.skipTest("Store %s doesn't support required "
+                              "features: %s" % (self.ctx.store.name, diff))
+        return inner
+    return wrap
 
 
 class BaseTestCase(base.BaseTestCase):
@@ -128,6 +140,8 @@ class TestAimDBBase(BaseTestCase):
     def setUp(self):
         super(TestAimDBBase, self).setUp()
         self.test_id = uuidutils.generate_uuid()
+        aim_cfg.OPTION_SUBSCRIBER_MANAGER = None
+        aci_universe.ws_context = None
         if not os.environ.get(K8S_STORE_VENV):
             CONF.set_override('aim_store', 'sql', 'aim')
             self.engine = api.get_engine()
@@ -149,7 +163,7 @@ class TestAimDBBase(BaseTestCase):
         else:
             CONF.set_override('aim_store', 'k8s', 'aim')
             CONF.set_override('k8s_namespace', self.test_id, 'aim_k8s')
-            aim_store.K8sStore._post_deleted = _k8s_post_delete
+            aim_store.K8sStore._post_delete = _k8s_post_delete
             aim_store.K8sStore._post_create = _k8s_post_create
             self.addCleanup(self._cleanup_namespace, self.test_id)
 

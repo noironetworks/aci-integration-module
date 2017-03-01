@@ -29,8 +29,7 @@ from aim import tree_manager
 @aimcli.aim.group(name='hashtree')
 @click.pass_context
 def hashtree(ctx):
-    session = api.get_session(expire_on_commit=True)
-    aim_ctx = context.AimContext(db_session=session)
+    aim_ctx = context.AimContext(store=api.get_store(expire_on_commit=True))
     tenant_tree_mgr = tree_manager.TenantHashTreeManager()
     manager = aim_manager.AimManager()
     ctx.obj['manager'] = manager
@@ -78,8 +77,7 @@ def _reset(ctx, tenant):
     mgr = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
     listener = hashtree_db_listener.HashTreeDbListener(mgr, aim_ctx.store)
-    session = aim_ctx.db_session
-    with session.begin(subtransactions=True):
+    with aim_ctx.store.begin(subtransactions=True):
         created = []
         # Delete existing trees
         filters = {}
@@ -89,7 +87,7 @@ def _reset(ctx, tenant):
         for t in tenants:
             listener.tt_mgr.delete_by_tenant_rn(aim_ctx, t.name)
         # Retrieve objects
-        for klass in aim_manager.AimManager._db_model_map:
+        for klass in aim_manager.AimManager.aim_resources:
             if issubclass(klass, resource.AciResourceBase):
                 filters = {}
                 if tenant:
@@ -104,4 +102,4 @@ def _reset(ctx, tenant):
                         del stat.faults
                     created.append(obj)
         # Reset the trees
-        listener.on_commit(session, created, [], [])
+        listener.on_commit(aim_ctx.db_session, created, [], [])

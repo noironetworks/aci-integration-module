@@ -153,6 +153,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(1, len(agents))
         self.assertEqual('aid-h1', agents[0].id)
 
+    @base.requires(['timestamp'])
     def test_send_heartbeat(self):
         agent = self._create_agent()
         current_tstamp = agent.agent.heartbeat_timestamp
@@ -534,6 +535,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_reset_consistency(tenant_name)
 
+    @base.requires('foreign_keys')
     def test_monitored_tree_fk_semantics(self):
         agent = self._create_agent()
 
@@ -713,11 +715,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(current_config)
         agent._daemon_loop()
         # Verify sync status of BD
-        bd = self.aim_manager.get(self.ctx, bd)
-        bd_status = self.aim_manager.get_status(self.ctx, bd)
-        self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
-                         bd_status.sync_status)
-        self.assertNotEqual('', bd_status.sync_message)
+        if self.ctx.store.supports_foreign_keys:
+            bd = self.aim_manager.get(self.ctx, bd)
+            bd_status = self.aim_manager.get_status(self.ctx, bd)
+            self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
+                             bd_status.sync_status)
+            self.assertNotEqual('', bd_status.sync_message)
+        else:
+            self.assertIsNone(self.aim_manager.get(self.ctx, bd))
         # Same for subnet
         sub = self.aim_manager.get(self.ctx, sub)
         sub_status = self.aim_manager.get_status(self.ctx, sub)
@@ -1002,6 +1007,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
 
+    @base.requires('foreign_keys')
     def test_no_nat_strategy_lifecycle(self):
         """Test ownership changes made by no-NAT strategy."""
         agent = self._create_agent()

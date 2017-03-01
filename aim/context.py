@@ -28,4 +28,7 @@ class AimContext(object):
     # For backwards compatibility
     @property
     def db_session(self):
-        return self.store.db_session
+        try:
+            return self.store.db_session
+        except AttributeError:
+            return None

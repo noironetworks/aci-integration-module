@@ -35,8 +35,7 @@ def get_apic_manager():
         'vpc_dict': cfg.create_vpc_dictionary(apic_config),
         'external_network_dict': cfg.create_external_network_dictionary(),
     }
-    session = api.get_session()
-    aim_ctx = context.AimContext(db_session=session)
+    aim_ctx = context.AimContext(store=api.get_store())
     manager = aim_manager.AimManager()
     db = infra_model.HostLinkManager(aim_ctx, manager)
     apic_system_id = config.CONF.apic_system_id

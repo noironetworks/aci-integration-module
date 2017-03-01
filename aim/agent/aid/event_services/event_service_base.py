@@ -35,8 +35,7 @@ class EventServiceBase(object):
 
     def __init__(self, conf):
         self.host = aim_cfg.CONF.aim.aim_service_identifier
-        self.session = api.get_session()
-        self.context = context.AimContext(self.session)
+        self.context = context.AimContext(store=api.get_store())
         self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)
         # TODO(ivar): heartbeat for these services?
         self.sender = event_handler.EventSender()
