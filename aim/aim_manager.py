@@ -256,8 +256,9 @@ class AimManager(object):
                         resource_type=res_type, resource_id=res_id))
                     if not status:
                         # Create one with default values
-                        return self.update_status(context, resource,
-                                                  api_status.AciStatus())
+                        return self.update_status(
+                            context, resource, api_status.AciStatus(
+                                resource_type=res_type, resource_id=res_id))
                     status.faults = self.find(context, api_status.AciFault,
                                               status_id=status.id)
                     return status
@@ -274,7 +275,7 @@ class AimManager(object):
         with context.store.begin(subtransactions=True):
             if isinstance(resource, api_res.AciResourceBase):
                 res_type, res_id = self._get_status_params(context, resource)
-                if res_type and res_id:
+                if res_type and res_id is not None:
                     status.resource_type = res_type
                     status.resource_id = res_id
                     return self.create(context, status, overwrite=True)

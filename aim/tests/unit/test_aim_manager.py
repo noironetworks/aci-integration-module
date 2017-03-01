@@ -377,7 +377,6 @@ class TestResourceOpsBase(object):
             self.mgr.create(self.ctx, obj)
 
     def test_lifecycle(self):
-        self._set_store('test_lifecycle')
         self._create_prerequisite_objects()
         self._test_resource_ops(
             self.resource_class,
@@ -389,7 +388,6 @@ class TestResourceOpsBase(object):
             self.test_dn)
 
     def test_hooks(self):
-        self._set_store('test_hooks')
         if self.ctx.store.supports_hooks:
             self._create_prerequisite_objects()
             self._test_commit_hook(
@@ -399,7 +397,6 @@ class TestResourceOpsBase(object):
                 self.test_update_attributes)
 
     def test_monitored(self):
-        self._set_store('test_monitored')
         if 'monitored' in self.resource_class.other_attributes:
             self._create_prerequisite_objects()
             creation_attributes = {'monitored': True}
@@ -442,13 +439,11 @@ class TestResourceOpsBase(object):
 class TestAciResourceOpsBase(TestResourceOpsBase):
 
     def test_status(self):
-        self._set_store('test_status')
         attr = {k: v for k, v in self.test_identity_attributes.iteritems()}
         attr.update(self.test_required_attributes)
         self._test_resource_status(self.resource_class, attr)
 
     def test_dn_op(self):
-        self._set_store('test_dn_op')
         res = self.resource_class(**self.test_required_attributes)
         self.assertEqual(self.test_dn, res.dn)
 
@@ -914,11 +909,6 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
             self.ctx, [structured_tree.StructuredHashTree(root_key=('t1',)),
                        structured_tree.StructuredHashTree(root_key=('t2',))])
 
-    def _set_store(self, caller):
-        super(TestAgent, self)._set_store(caller)
-        if self.ctx.store.supports_hooks:
-            self.addCleanup(self._clean_trees)
-
     def _clean_trees(self):
         tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
                                                                  't1')
@@ -926,7 +916,6 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
                                                                  't2')
 
     def test_timestamp(self):
-        self._set_store('test_update_other_attributes')
         if self.ctx.store.current_timestamp:
             agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
                                    binary_file='binary_file', version='1.0')
@@ -944,7 +933,6 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
             self.assertTrue(hbeat < agent.heartbeat_timestamp)
 
     def test_agent_down(self):
-        self._set_store('test_update_other_attributes')
         agent = resource.Agent(agent_type='aid', host='host',
                                binary_file='binary_file', version='1.0')
         agent = self.mgr.create(self.ctx, agent)
@@ -974,7 +962,6 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
                         base.TestAimDBBase):
 
     def test_update_other_attributes(self):
-        self._set_store('test_update_other_attributes')
         self._create_prerequisite_objects()
 
         res = resource.EndpointGroup(**self.test_required_attributes)

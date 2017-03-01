@@ -48,6 +48,8 @@ class AimStore(object):
     """Interface to backend persistence for AIM resources."""
 
     def __init__(self):
+        self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
+            aim_manager.AimManager(), self)
         self._update_listeners = []
 
     @property
@@ -58,12 +60,20 @@ class AimStore(object):
     def current_timestamp(self):
         return None
 
+    @property
+    def supports_foreign_keys(self):
+        return False
+
     def begin(self, **kwargs):
         # Begin transaction of updates, if applicable.
         # Should return a contextmanager object
 
         # default returns a no-op contextmanager
         return _begin(**kwargs)
+
+    def expunge_all(self):
+        # Expunge transaction artifacts if supported
+        pass
 
     def resource_to_db_type(self, resource_klass):
         # Returns the DB object type for an AIM resource type
@@ -187,17 +197,21 @@ class SqlAlchemyStore(AimStore):
         self._update_listeners = []
         for k, v in self.db_model_map.iteritems():
             self.resource_map[v] = k
-        # SQL store needs Hashtree DB listener
-        self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
-            aim_manager.AimManager(), self)
         self.register_update_listener(self._hashtree_db_listener.on_commit)
 
     @property
     def current_timestamp(self):
         return self.db_session.query(func.now()).scalar()
 
+    @property
+    def supports_foreign_keys(self):
+        return True
+
     def begin(self, **kwargs):
         return self.db_session.begin(subtransactions=True)
+
+    def expunge_all(self):
+        self.db_session.expunge_all()
 
     def resource_to_db_type(self, resource_klass):
         return self.db_model_map.get(resource_klass)
@@ -255,6 +269,7 @@ class SqlAlchemyStore(AimStore):
 class K8sStore(AimStore):
 
     def __init__(self, namespace=None):
+        super(K8sStore, self).__init__()
         self.klient = api_v1.AciContainersV1()
         self.namespace = namespace or api_v1.K8S_DEFAULT_NAMESPACE
 
@@ -289,6 +304,7 @@ class K8sStore(AimStore):
         return result
 
     def add(self, db_obj):
+        created = None
         try:
             curr = self.klient.read_namespaced_aci(db_obj['metadata']['name'],
                                                    self.namespace)
@@ -297,15 +313,19 @@ class K8sStore(AimStore):
                 curr['spec'] = db_obj['spec']
                 self.klient.replace_namespaced_aci(db_obj['metadata']['name'],
                                                    self.namespace, curr)
+                created = curr
         except api_v1.klient.ApiException as e:
             if str(e.status) == '404':
                 # Object doesn't exist, create it.
                 db_obj.pop('resourceVersion', None)
                 self.klient.create_namespaced_aci(self.namespace, db_obj)
+                created = db_obj
             else:
                 raise
+        self._post_create(created)
 
     def delete(self, db_obj):
+        deleted = db_obj
         try:
             self.klient.delete_collection_namespaced_aci(
                 self.namespace,
@@ -318,6 +338,7 @@ class K8sStore(AimStore):
                          db_obj['metadata']['name'])
             else:
                 raise
+        self._post_delete(deleted)
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
               **filters):
@@ -367,6 +388,14 @@ class K8sStore(AimStore):
 
     def _sanitize_name(self, name):
         return hashlib.sha1(name).hexdigest()
+
+    def _post_create(self, created):
+        # Can be patched in UTs to simulate Hashtree postcommit
+        pass
+
+    def _post_delete(self, deleted):
+        # Can be patched in UTs to simulate Hashtree postcommit
+        pass
 
 
 class KeyValueStore(AimStore):

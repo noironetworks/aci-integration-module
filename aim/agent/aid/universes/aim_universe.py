@@ -157,7 +157,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def _push_resources(self, resources, monitored=False):
         fault_method = {'create': self.manager.set_fault,
                         'delete': self.manager.clear_fault}
-        self.context.db_session.expunge_all()
+        self.context.store.expunge_all()
         for method in resources:
             if method == 'delete':
                 # Use ACI items directly

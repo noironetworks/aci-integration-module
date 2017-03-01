@@ -170,7 +170,7 @@ class HashTreeDbListener(object):
         for resources in added, updated, deleted:
             for res in resources:
                 if isinstance(res, aim_status.AciStatus):
-                    # TODO(ivar): this is a DB query not worth doing. Fing
+                    # TODO(ivar): this is a DB query not worth doing. Find
                     # a better way to retrieve tenant from a Status object
                     res = self.aim_manager.get_by_id(
                         ctx, res.parent_class, res.resource_id)

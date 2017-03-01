@@ -37,20 +37,13 @@ class TestAimDbUniverseBase(object):
         self.tree_mgr = tree_manager.TenantTreeManager(tree.StructuredHashTree)
         self.monitor_universe = False
 
-    def _set_store(self, caller):
-        super(TestAimDbUniverseBase, self)._set_store(caller)
-        self.universe = self.klass().initialize(
-            self.store, aim_cfg.ConfigManager(self.ctx, ''))
-
     def test_serve(self):
         # Serve the first batch of tenants
-        self._set_store('test_serve')
         tenants = ['tn%s' % x for x in range(10)]
         self.universe.serve(tenants)
         self.assertEqual(set(tenants), set(self.universe._served_tenants))
 
     def test_state(self, tree_type=tree_manager.CONFIG_TREE):
-        self._set_store('test_state')
         # Create some trees in the AIM DB
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
@@ -81,7 +74,6 @@ class TestAimDbUniverseBase(object):
         self.assertEqual(data1, state['tnA'])
 
     def test_get_optimized_state(self, tree_type=tree_manager.CONFIG_TREE):
-        self._set_store('test_get_optimized_state')
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
              {'key': ('tnA', 'keyC', 'keyD')}])
@@ -268,21 +260,23 @@ class TestAimDbUniverseBase(object):
             aim_mgr.delete(self.ctx, managed_epg)
         else:
             self.assertIsNone(res)
-        res = aim_mgr.get(self.ctx, ap_aim)
-        self.assertIsNotNone(res)
-
-        # Second time around, AP deletion  with monitored child works
-        epg_aim = aim_mgr.get(self.ctx, epg_aim)
-        self.universe.push_resources({'create': [],
-                                      'delete': [ap_aim, epg_aim]})
-        res = aim_mgr.get(self.ctx, ap_aim)
-        if epg_aim.monitored:
-            self.assertIsNone(res)
-        else:
-            self.assertIsNotNone(res)
-            self.universe.push_resources({'create': [], 'delete': [ap_aim]})
+        if self.ctx.store.supports_foreign_keys:
             res = aim_mgr.get(self.ctx, ap_aim)
-            self.assertIsNone(res)
+            self.assertIsNotNone(res)
+
+            # Second time around, AP deletion  with monitored child works
+            epg_aim = aim_mgr.get(self.ctx, epg_aim)
+            self.universe.push_resources({'create': [],
+                                          'delete': [ap_aim, epg_aim]})
+            res = aim_mgr.get(self.ctx, ap_aim)
+            if epg_aim.monitored:
+                self.assertIsNone(res)
+            else:
+                self.assertIsNotNone(res)
+                self.universe.push_resources({'create': [],
+                                              'delete': [ap_aim]})
+                res = aim_mgr.get(self.ctx, ap_aim)
+                self.assertIsNone(res)
 
 
 class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):

@@ -18,22 +18,27 @@ import os
 
 from oslo_config import cfg
 from oslo_log import log as o_log
+from oslo_utils import uuidutils
 from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
+from aim import aim_manager
 from aim import aim_store
 from aim.api import resource
 from aim.api import status as aim_status
+from aim.common import utils
 from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim.db import model_base
+from aim.k8s import api_v1
 from aim.tools.cli import shell  # noqa
 
 CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
 o_log.register_options(aim_cfg.CONF)
+K8S_STORE_VENV = 'K8S_STORE'
 
 
 def etcdir(*p):
@@ -92,35 +97,69 @@ class BaseTestCase(base.BaseTestCase):
                 msg='There are more calls than expected: %s' % str(observed))
 
 
+name_to_res = {utils.camel_to_snake(x.__name__): x for x in
+               aim_manager.AimManager.aim_resources}
+
+
+def _k8s_post_create(self, created):
+    if created:
+        res_klass = name_to_res.get(created['spec']['type'])
+        if res_klass:
+            db_obj = api_v1.AciContainersObject()
+            db_obj.update(created)
+            created = self.make_resource(res_klass, db_obj)
+            self._hashtree_db_listener.on_commit(None, [], [created], [])
+
+
+def _k8s_post_delete(self, deleted):
+    if deleted:
+        res_klass = name_to_res.get(deleted['spec']['type'])
+        if res_klass:
+            db_obj = api_v1.AciContainersObject()
+            db_obj.update(deleted)
+            deleted = self.make_resource(res_klass, db_obj)
+            self._hashtree_db_listener.on_commit(None, [], [], [deleted])
+
+
 class TestAimDBBase(BaseTestCase):
 
     _TABLES_ESTABLISHED = False
 
     def setUp(self):
         super(TestAimDBBase, self).setUp()
-        self.engine = api.get_engine()
-        if not TestAimDBBase._TABLES_ESTABLISHED:
-            model_base.Base.metadata.create_all(self.engine)
-            TestAimDBBase._TABLES_ESTABLISHED = True
-        self.session = api.get_session(expire_on_commit=True)
-        self.store = aim_store.SqlAlchemyStore(self.session)
-        self.ctx = context.AimContext(store=self.store)
+        self.test_id = uuidutils.generate_uuid()
+        if not os.environ.get(K8S_STORE_VENV):
+            self.engine = api.get_engine()
+            if not TestAimDBBase._TABLES_ESTABLISHED:
+                model_base.Base.metadata.create_all(self.engine)
+                TestAimDBBase._TABLES_ESTABLISHED = True
+            self.session = api.get_session(expire_on_commit=True)
+            self.store = aim_store.SqlAlchemyStore(self.session)
+            self.ctx = context.AimContext(store=self.store)
+
+            # Uncomment the line below to log SQL statements. Additionally, to
+            # log results of queries, change INFO to DEBUG
+            #
+            # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
+
+            def clear_tables():
+                with self.engine.begin() as conn:
+                    for table in reversed(
+                            model_base.Base.metadata.sorted_tables):
+                        conn.execute(table.delete())
+            self.addCleanup(clear_tables)
+        else:
+            self.store = aim_store.K8sStore(namespace=self.test_id)
+            aim_store.K8sStore._post_deleted = _k8s_post_delete
+            aim_store.K8sStore._post_create = _k8s_post_create
+            self.ctx = context.AimContext(store=self.store)
+            self._cleanup_namespace(self.test_id)
+            self.addCleanup(self._cleanup_namespace, self.test_id)
+
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
         resource.ResourceBase.__eq__ = resource_equal
         self.cfg_manager.replace_all(CONF)
-
-        # Uncomment the line below to log SQL statements. Additionally, to
-        # log results of queries, change INFO to DEBUG
-        #
-        # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
         self.sys_id = self.cfg_manager.get_option('aim_system_id', 'aim')
-
-        def clear_tables():
-            with self.engine.begin() as conn:
-                for table in reversed(
-                        model_base.Base.metadata.sorted_tables):
-                    conn.execute(table.delete())
-        self.addCleanup(clear_tables)
 
     def get_new_context(self):
         return context.AimContext(
@@ -136,16 +175,6 @@ class TestAimDBBase(BaseTestCase):
                                   host=host, context=self.ctx)
         if poll:
             self.cfg_manager.subs_mgr._poll_and_execute()
-
-    def _set_store(self, caller):
-        if os.environ.get('K8S_STORE'):
-            caller = type(self).__name__.lower() + caller.replace('_', '-')
-            self.store = aim_store.K8sStore(namespace=caller)
-            self.ctx = context.AimContext(store=self.store)
-            self.ctx.store.klient.delete_collection_namespaced_aci(caller)
-            self.addCleanup(self._cleanup_namespace, caller)
-            self.cfg_manager.context = self.ctx
-            self.cfg_manager.replace_all(CONF)
 
     def _cleanup_namespace(self, namespace):
         self.ctx.store.klient.delete_collection_namespaced_aci(namespace)

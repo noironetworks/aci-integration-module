@@ -36,7 +36,6 @@ class TestAimConfig(base.TestAimDBBase):
         config.OPTION_SUBSCRIBER_MANAGER = None
 
     def test_to_db(self):
-        self._set_store('test_to_db')
         config.CONF.set_override(
             'apic_hosts', ['1.1.1.1', '1.1.1.2', '1.1.1.3'], 'apic')
         config.CONF.set_override('openstack_user', 'user1', 'apic')
@@ -57,7 +56,6 @@ class TestAimConfig(base.TestAimDBBase):
             'my_id', self.cfg_mgr.get_option('aim_system_id', 'aim'))
 
     def test_get_wrong_conf(self):
-        self._set_store('test_get_wrong_conf')
         self.assertRaises(
             exc.UnsupportedAIMConfig,
             self.cfg_mgr.get_option, 'somestuff', 'apic')
@@ -66,7 +64,6 @@ class TestAimConfig(base.TestAimDBBase):
             self.cfg_mgr.get_option, 'apic_hosts', 'no')
 
     def test_update_idempotent(self):
-        self._set_store('test_update_idempotent')
         config.CONF.set_override(
             'apic_hosts', ['1.1.1.1', '1.1.1.2', '1.1.1.3'], 'apic')
         self.cfg_mgr.to_db(config.CONF, context=self.ctx)
@@ -76,7 +73,6 @@ class TestAimConfig(base.TestAimDBBase):
             self.cfg_mgr.get_option('apic_hosts', 'apic'))
 
     def test_version_change(self):
-        self._set_store('test_version_change')
         v1 = self.cfg_mgr.db._get(self.ctx, 'apic', 'apic_hosts').version
         self.set_override(
             'apic_hosts', ['1.1.1.4', '1.1.1.5', '1.1.1.6'], 'apic')
@@ -84,7 +80,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertNotEqual(v1, v2)
 
     def test_get_changed_1(self):
-        self._set_store('test_get_changed_1')
         v1 = self.cfg_mgr.db._to_dict(self.cfg_mgr.db._get(self.ctx, 'apic',
                                                            'apic_hosts'))
         self.set_override(
@@ -97,7 +92,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertNotEqual(v1['value'], v2[0]['value'])
 
     def test_get_changed_n(self):
-        self._set_store('test_get_changed_n')
         conf_map = {
             ('apic', 'apic_hosts', ''): self.cfg_mgr.db._to_dict(
                 self.cfg_mgr.db._get(self.ctx, 'apic',
@@ -131,7 +125,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertEqual(4, len(v2))
 
     def test_get_changed_0(self):
-        self._set_store('test_get_changed_0')
         conf_map = {
             ('apic', 'apic_hosts', ''): self.cfg_mgr.db._to_dict(
                 self.cfg_mgr.db._get(self.ctx, 'apic',
@@ -157,7 +150,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertEqual(0, len(v2))
 
     def test_config_subscribe_noop_no_host(self):
-        self._set_store('test_config_subscribe_noop_no_host')
         # Subscription fails if no host is specified
         cfg_mgr = config.ConfigManager(self.ctx)
         # Clean current map state for testing
@@ -169,7 +161,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertEqual({}, cfg_mgr.subs_mgr.map_by_callback_id)
 
     def test_config_subscribe(self):
-        self._set_store('test_config_subscribe')
         # Get a manager with a host
         cfg_mgr = config.ConfigManager(self.ctx, 'h1')
         # Clean current map state for testing
@@ -230,7 +221,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertEqual({}, cfg_mgr.subs_mgr.map_by_callback_id)
 
     def test_config_multiple_hosts_same_item_fails(self):
-        self._set_store('test_config_multiple_hosts_same_item_fails')
         cfg_mgr = config.ConfigManager(self.ctx, 'h1')
         callback = mock.Mock()
         cfg_mgr.get_option_and_subscribe(callback, 'apic_hosts', 'apic')
@@ -240,7 +230,6 @@ class TestAimConfig(base.TestAimDBBase):
             host='h2')
 
     def test_poll_and_execute(self):
-        self._set_store('test_poll_and_execute')
         cfg_mgr = config.ConfigManager(self.ctx, 'h1')
         callback = mock.Mock()
 
@@ -266,7 +255,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertFalse(callback.called)
 
     def test_poll_and_execute_exception(self):
-        self._set_store('test_poll_and_execute_exception')
         cfg_mgr = config.ConfigManager(self.ctx, 'h1')
         callback = mock.Mock(side_effect=Exception('expected exception'))
 
@@ -277,7 +265,6 @@ class TestAimConfig(base.TestAimDBBase):
         cfg_mgr.subs_mgr._poll_and_execute()
 
     def test_polling_interval_changed(self):
-        self._set_store('test_polling_interval_changed')
         self._clean_subscriptions()
         cfg_mgr = config.ConfigManager(self.ctx, 'h1')
         # Call property before changing the config value
@@ -288,7 +275,6 @@ class TestAimConfig(base.TestAimDBBase):
         self.assertEqual(130, cfg_mgr.subs_mgr.polling_interval)
 
     def test_subscriber_singleton(self):
-        self._set_store('test_subscriber_singleton')
         cfg_mgr1 = config.ConfigManager(self.ctx, 'h1')
         cfg_mgr2 = config.ConfigManager(self.ctx, 'h2')
         self.assertTrue(cfg_mgr1 is not cfg_mgr2)
