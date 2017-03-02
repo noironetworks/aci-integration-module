@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import hashlib
-
 from contextlib import contextmanager
 from oslo_log import log as logging
 from sqlalchemy import event as sa_event
@@ -283,6 +281,8 @@ class K8sStore(AimStore):
         self.klient = api_v1.AciContainersV1(config_file=config_file)
         self.namespace = namespace or api_v1.K8S_DEFAULT_NAMESPACE
 
+    _features = ['k8s', 'streaming']
+
     @property
     def name(self):
         return 'Kubernetes'
@@ -297,12 +297,12 @@ class K8sStore(AimStore):
     def from_attr(self, db_obj, resource_klass, attribute_dict):
         name = utils.camel_to_snake(resource_klass.__name__)
         db_obj.setdefault('spec', {'type': name, name: {}})
-        db_obj.setdefault('metadata', {'labels': {'aim-type': name}})
+        db_obj.setdefault('metadata', {'labels': {'aim_type': name}})
         labels = db_obj['metadata']['labels']
         attrs = db_obj['spec'][name]
         for k, v in attribute_dict.iteritems():
             if k in resource_klass.identity_attributes:
-                labels[k] = self._sanitize_name(v)
+                labels[k] = utils.sanitize_name(v)
             attrs[k] = v
         if 'name' not in db_obj['metadata']:
             db_obj['metadata']['name'] = self._build_name(name, resource_klass,
@@ -391,17 +391,14 @@ class K8sStore(AimStore):
         return result
 
     def _build_label_selector(self, type, filters):
-        result = 'aim-type=%s' % type
+        result = 'aim_type=%s' % type
         return result
 
     def _build_name(self, type, resource_klass, db_obj):
-        resource_name = type
-        for attr in resource_klass.identity_attributes:
-            resource_name += '|%s' % db_obj['spec'][type][attr]
-        return self._sanitize_name(resource_name)
-
-    def _sanitize_name(self, name):
-        return hashlib.sha1(name).hexdigest()
+        components = []
+        for attr in sorted(resource_klass.identity_attributes):
+            components.append(db_obj['spec'][type][attr])
+        return utils.sanitize_name(type, *components)
 
     def _post_create(self, created):
         # Can be patched in UTs to simulate Hashtree postcommit

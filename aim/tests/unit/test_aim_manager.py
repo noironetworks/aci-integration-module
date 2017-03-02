@@ -211,8 +211,8 @@ class TestResourceOpsBase(object):
 
         # Test jsonschema
         klass_name = res.__class__.__name__
-        jsonschema.validate({'type': klass_name,
-                             utils.camel_to_snake(klass_name): res.__dict__},
+        snake_name = utils.camel_to_snake(klass_name)
+        jsonschema.validate({'type': snake_name, snake_name: res.__dict__},
                             self.schema_dict)
         attributes = copy.deepcopy(res.__dict__)
         attributes.pop(res.identity_attributes.keys()[0])
@@ -1058,7 +1058,32 @@ class TestSecurityGroupSubject(TestSecurityGroupSubjectMixin,
 
 class TestSecurityGroupRule(TestSecurityGroupRuleMixin,
                             TestAciResourceOpsBase, base.TestAimDBBase):
-    pass
+
+    @base.requires(['k8s'])
+    def test_k8s_repr(self):
+        sgr = resource.SecurityGroupRule(
+            name='0_0', tenant_name='kubernetes',
+            security_group_subject_name='NetworkPolicy',
+            security_group_name='default_test-network-policy')
+        db_obj = self.ctx.store.resource_to_db_type(
+            resource.SecurityGroupRule)()
+        self.ctx.store.from_attr(db_obj, resource.SecurityGroupRule,
+                                 sgr.__dict__)
+        self.assertEqual(
+            's5u2ian7mxyipkk3rx632jc3zptp3ivwut4xxutricexuqn5fbia',
+            db_obj['metadata']['labels']['tenant_name'])
+        self.assertEqual(
+            'igvrfnunwbqt35yheohgplxpzfilv7oyageq3qysiyiidx2rqknq',
+            db_obj['metadata']['labels']['security_group_subject_name'])
+        self.assertEqual(
+            'l2yj2yf7qdftxom2xzclfhmfnp7fh75xyxryq2ggbvh77v7mjcla',
+            db_obj['metadata']['labels']['security_group_name'])
+        self.assertEqual(
+            '3lmgcuqwadvc425mfmk7dt5keazplrjrt7ygaorbjhna6ttv4ndq',
+            db_obj['metadata']['labels']['name'])
+        self.assertEqual(
+            'uwb4yv2u6k6lvjrhoi36genjxnhgkevjg24rvhuns7gzmeibpjyq',
+            db_obj['metadata']['name'])
 
 
 class TestConfiguration(TestConfigurationMixin, TestResourceOpsBase,

@@ -53,11 +53,11 @@ def get_session(autocommit=True, expire_on_commit=False, use_slave=False):
 
 def get_store(autocommit=True, expire_on_commit=False, use_slave=False):
     store = cfg.CONF.aim.aim_store
-    if store is 'sql':
+    if store == 'sql':
         db_session = get_session(
             autocommit=autocommit, expire_on_commit=expire_on_commit,
             use_slave=use_slave)
         return aim_store.SqlAlchemyStore(db_session)
-    elif store is 'k8s':
+    elif store == 'k8s':
         return aim_store.K8sStore(cfg.CONF.aim_k8s.k8s_namespace,
                                   cfg.CONF.aim_k8s.k8s_config_path)

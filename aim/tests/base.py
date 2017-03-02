@@ -71,6 +71,8 @@ def requires(requirements):
             if diff:
                 self.skipTest("Store %s doesn't support required "
                               "features: %s" % (self.ctx.store.name, diff))
+            else:
+                func(self, *args, **kwargs)
         return inner
     return wrap
 

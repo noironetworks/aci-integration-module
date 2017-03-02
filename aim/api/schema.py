@@ -46,6 +46,6 @@ def generate_schema():
              ("title", title),
              ("properties", properties),
              ("required", required)])
-        type_enum.append(title)
+        type_enum.append(name)
         top_properties[name] = {"$ref": "#/definitions/%s" % name}
     return base
