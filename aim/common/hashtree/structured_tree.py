@@ -394,6 +394,10 @@ class StructuredHashTree(base.ComparableCollection):
     def __str__(self):
         return str(self.root or '{}')
 
+    def __repr__(self):
+        return '%s(%s)' % (super(StructuredHashTree, self).__repr__(),
+                           str(self))
+
     def __eq__(self, other):
         if not other or not isinstance(other, StructuredHashTree):
             return False

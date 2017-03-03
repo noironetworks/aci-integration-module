@@ -85,11 +85,21 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.event_handler.EventHandler._spawn_listener')
         self.events_thread.start()
 
+        self.watcher_threads = mock.patch(
+            'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.run')
+        self.watcher_threads.start()
+
+        self.stop_watcher_threads = mock.patch(
+            'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.stop_threads')
+        self.stop_watcher_threads.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
         self.addCleanup(self.thread_health.stop)
         self.addCleanup(self.events_thread.stop)
+        self.addCleanup(self.watcher_threads.stop)
+        self.addCleanup(self.stop_watcher_threads.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body_dict = self.old_post
@@ -204,14 +214,23 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertNotEqual([], result)
         self.assertNotEqual([], result2)
         self.assertNotEqual([], result3)
-        # Each tenant has 2 agents
-        self.assertEqual(
-            2, len([x for x in result + result2 + result3 if x == 'keyA']))
-        self.assertEqual(
-            2, len([x for x in result + result2 + result3 if x == 'keyA1']))
-        self.assertEqual(
-            2, len([x for x in result + result2 + result3 if x == 'keyA2']))
+        if not agent.single_aid:
+            # Each tenant has 2 agents
+            self.assertEqual(
+                2,
+                len([x for x in result + result2 + result3 if x == 'keyA']))
+            self.assertEqual(
+                2,
+                len([x for x in result + result2 + result3 if x == 'keyA1']))
+            self.assertEqual(
+                2,
+                len([x for x in result + result2 + result3 if x == 'keyA2']))
+        else:
+            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result))
+            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result2))
+            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result3))
 
+    @base.requires(['timestamp'])
     def test_down_time_suicide(self):
         with mock.patch.object(service.utils, 'perform_harakiri') as hara:
             agent = self._create_agent()
@@ -220,6 +239,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             agent._calculate_tenants(agent.context)
             hara.assert_called_once_with(service.LOG, mock.ANY)
 
+    @base.requires(['timestamp'])
     def test_tenant_association_fail(self):
         data = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},

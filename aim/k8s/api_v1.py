@@ -20,6 +20,7 @@ from six import iteritems
 from kubernetes import client
 from kubernetes.client import api_client as klient
 from kubernetes import config as konfig
+from kubernetes import watch
 
 from aim.common import utils
 
@@ -100,6 +101,18 @@ class AciContainersV1(object):
                 konfig.load_kube_config(config_file=config_file)
                 config.api_client = klient.ApiClient()
             self.api_client = config.api_client
+        self._watch = None
+
+    @property
+    def watch(self):
+        return self._watch
+
+    def get_new_watch(self):
+        self._watch = watch.Watch()
+        return self.watch
+
+    def stop_watch(self):
+        self.watch.stop()
 
     def _exec_rest_operation(self, verb, **kwargs):
         kwargs['_return_http_data_only'] = True
@@ -138,6 +151,8 @@ class AciContainersV1(object):
 
         # Authentication setting
         auth_settings = ['BearerToken']
+        if 'body' in params:
+            params['body']['kind'] = 'Aci'
 
         result = self.api_client.call_api(
             resource_path, verb, path_params, query_params, header_params,
@@ -147,7 +162,7 @@ class AciContainersV1(object):
             _return_http_data_only=params.get('_return_http_data_only'),
             _preload_content=params.get('_preload_content', True),
             _request_timeout=params.get('_request_timeout'))
-        if result:
+        if result and isinstance(result, str):
             try:
                 return json.loads(result.replace("u'", "'").replace("'", '"'))
             except ValueError:
@@ -195,20 +210,3 @@ class AciContainersV1(object):
         # Delete ACI objects
         return self._exec_rest_operation('DELETE', namespace=namespace,
                                          name=name, body=body, **kwargs)
-
-
-#   from kubernetes import config, watch
-#   config.load_kube_config()
-#
-#   v1 = AciContainersV1()
-#   v1.create_namespaced_aci(
-#       'default', {'spec': {'type': 'vrf',
-#                            'vrf': {'tenant_name': 'common',
-#                                    'name': 'test5'}},
-#                   'metadata': {'name': 'vrf-common-test5',
-#                                'labels': {'tenant_name': 'common',
-#                                           'type': 'vrf',
-#                                           'name': 'test5'}}})
-#   w = watch.Watch()
-#   for event in w.stream(v1.list_namespaced_aci, namespace='default'):
-#       print("Event: %s %s" % (event['type'], event['object']))

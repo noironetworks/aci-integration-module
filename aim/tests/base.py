@@ -16,6 +16,7 @@
 import logging  # noqa
 import os
 
+import mock
 from oslo_config import cfg
 from oslo_log import log as o_log
 from oslo_utils import uuidutils
@@ -23,6 +24,7 @@ from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
 from aim.agent.aid.universes.aci import aci_universe
+from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
 from aim import aim_store
 from aim.api import resource
@@ -32,7 +34,6 @@ from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim.db import model_base
-from aim.k8s import api_v1
 from aim.tools.cli import shell  # noqa
 
 CONF = cfg.CONF
@@ -113,26 +114,31 @@ class BaseTestCase(base.BaseTestCase):
 
 name_to_res = {utils.camel_to_snake(x.__name__): x for x in
                aim_manager.AimManager.aim_resources}
+k8s_watcher_instance = None
 
 
 def _k8s_post_create(self, created):
     if created:
-        res_klass = name_to_res.get(created['spec']['type'])
-        if res_klass:
-            db_obj = api_v1.AciContainersObject()
-            db_obj.update(created)
-            created = self.make_resource(res_klass, db_obj)
-            self._hashtree_db_listener.on_commit(None, [], [created], [])
+        w = k8s_watcher_instance
+        w.klient.get_new_watch()
+        event = {'type': 'ADDED', 'object': created}
+        w.klient.watch.stream = mock.Mock(return_value=[event])
+        w._reset_trees = mock.Mock()
+        w._observer_loop()
+        w.warmup_time = -1
+        w._builder_loop()
 
 
 def _k8s_post_delete(self, deleted):
     if deleted:
-        res_klass = name_to_res.get(deleted['spec']['type'])
-        if res_klass:
-            db_obj = api_v1.AciContainersObject()
-            db_obj.update(deleted)
-            deleted = self.make_resource(res_klass, db_obj)
-            self._hashtree_db_listener.on_commit(None, [], [], [deleted])
+        w = k8s_watcher_instance
+        w.klient.get_new_watch()
+        event = {'type': 'DELETED', 'object': deleted}
+        w.klient.watch.stream = mock.Mock(return_value=[event])
+        w._reset_trees = mock.Mock()
+        w._observer_loop()
+        w.warmup_time = -1
+        w._builder_loop()
 
 
 class TestAimDBBase(BaseTestCase):
@@ -167,6 +173,10 @@ class TestAimDBBase(BaseTestCase):
             CONF.set_override('k8s_namespace', self.test_id, 'aim_k8s')
             aim_store.K8sStore._post_delete = _k8s_post_delete
             aim_store.K8sStore._post_create = _k8s_post_create
+            global k8s_watcher_instance
+            k8s_watcher_instance = k8s_watcher.K8sWatcher()
+            k8s_watcher_instance.event_handler = mock.Mock()
+            k8s_watcher_instance._renew_klient_watch = mock.Mock()
             self.addCleanup(self._cleanup_namespace, self.test_id)
 
         self.store = api.get_store(expire_on_commit=True)
