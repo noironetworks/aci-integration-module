@@ -706,7 +706,7 @@ class AciToAimModelConverter(BaseConverter):
             except Exception as e:
                 LOG.warn("Could not convert object"
                          "%s with error %s" % (object, e.message))
-                LOG.warn(traceback.format_exc())
+                LOG.debug(traceback.format_exc())
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %
                   (aci_objects, squashed))
