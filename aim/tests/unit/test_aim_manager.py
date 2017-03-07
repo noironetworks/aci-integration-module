@@ -387,7 +387,7 @@ class TestResourceOpsBase(object):
             self.test_default_values,
             self.test_dn)
 
-    @base.requires('hooks')
+    @base.requires(['hooks'])
     def test_hooks(self):
         self._create_prerequisite_objects()
         self._test_commit_hook(

@@ -231,7 +231,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
     def test_sync_failed_monitored(self):
         self._test_sync_failed(monitored=True)
 
-    @base.requires('hooks')
+    @base.requires(['hooks'])
     def test_tree_hooks(self):
         with mock.patch('aim.agent.aid.event_services.'
                         'rpc.AIDEventRpcApi._cast') as cast:
@@ -262,7 +262,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             self.tt_mgr.delete_by_tenant_rn(self.ctx, 'test_tree_hooks_2')
             cast.assert_called_once_with(mock.ANY, 'serve', None)
 
-    @base.requires('hooks')
+    @base.requires(['hooks'])
     def test_tree_hooks_transactions(self):
         with mock.patch('aim.agent.aid.event_services.'
                         'rpc.AIDEventRpcApi._cast') as cast:

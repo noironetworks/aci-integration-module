@@ -555,7 +555,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_reset_consistency(tenant_name)
 
-    @base.requires('foreign_keys')
+    @base.requires(['foreign_keys'])
     def test_monitored_tree_fk_semantics(self):
         agent = self._create_agent()
 
@@ -1027,7 +1027,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
 
-    @base.requires('foreign_keys')
+    @base.requires(['foreign_keys'])
     def test_no_nat_strategy_lifecycle(self):
         """Test ownership changes made by no-NAT strategy."""
         agent = self._create_agent()
