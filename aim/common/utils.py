@@ -143,7 +143,7 @@ def retry_loop(max_wait, max_retries, name):
                 except (gevent.GreenletExit, ThreadExit) as e:
                     raise e
                 except Exception as e:
-                    LOG.debug(traceback.format_exc())
+                    LOG.error(traceback.format_exc())
                     recovery_retries = exponential_backoff(
                         max_wait, tentative=recovery_retries)
                     if recovery_retries.get() >= max_retries:
