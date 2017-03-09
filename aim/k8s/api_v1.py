@@ -153,6 +153,7 @@ class AciContainersV1(object):
         auth_settings = ['BearerToken']
         if 'body' in params:
             params['body']['kind'] = 'Aci'
+            params['body']['apiVersion'] = "acicontainers.cisco.com/v1"
 
         result = self.api_client.call_api(
             resource_path, verb, path_params, query_params, header_params,
