@@ -65,3 +65,20 @@ class TestUtils(base.TestAimDBBase):
             internal_utils.perform_harakiri(mock.Mock(), '')
             ex.assert_called_once_with(1)
         self.set_override('recovery_restart', original, 'aim')
+
+    def test_sanitize_name(self):
+        self.assertEqual(
+            'z23tosoitfutobxn4hrqzgjjwp6v3wjgcy4ddqx3rpkb43x3ceta',
+            internal_utils.sanitize_name('test'))
+        self.assertEqual(
+            'xz4j2rrayb4ebrjdzc4rmrudirw6sp7bggcpjrihdav4zrw3mtnq',
+            internal_utils.sanitize_name('test', 'a', 'b', 'c'))
+        self.assertEqual(
+            'esy7rw6xsfko2pbtocshyccpkcni7rrsngh7wehjskc66pgh2gha',
+            internal_utils.sanitize_name('test', '0', '1', '9'))
+        self.assertEqual(
+            'ksult6xm2m6vu47vcmwfvsly27x7ai4whduys5mruzcn5qogs6pq',
+            internal_utils.sanitize_name('test', 'AA', 'BB', 'ZZ'))
+        self.assertEqual(
+            'vvxojw5rwlmq6abg3trx6nchbffez4lxfhalgidxlyhtlh3r4jwq',
+            internal_utils.sanitize_name('test', 'a -', '-', '_'))

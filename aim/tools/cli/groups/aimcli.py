@@ -54,4 +54,4 @@ def aim(ctx, config_file, debug):
                 "search paths (~/.aim/, ~/, /etc/aim/, /etc/) and "
                 "the '--config-file' option %s!" % config_file)
         ctx.obj['conf'] = config.CONF
-    api._create_facade_lazily()
+    api.get_store()

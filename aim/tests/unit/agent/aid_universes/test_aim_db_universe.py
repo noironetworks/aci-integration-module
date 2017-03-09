@@ -23,17 +23,18 @@ from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
 from aim import config as aim_cfg
 from aim.db import agent_model  # noqa
-from aim.db import tree_model
 from aim.tests import base
+from aim import tree_manager
 
 
 class TestAimDbUniverseBase(object):
 
     def setUp(self, klass=aim_universe.AimDbUniverse):
         super(TestAimDbUniverseBase, self).setUp()
-        self.universe = klass().initialize(
-            self.session, aim_cfg.ConfigManager(self.ctx, ''))
-        self.tree_mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
+        self.klass = klass
+        self.universe = self.klass().initialize(
+            self.store, aim_cfg.ConfigManager(self.ctx, ''))
+        self.tree_mgr = tree_manager.TenantTreeManager(tree.StructuredHashTree)
         self.monitor_universe = False
 
     def test_serve(self):
@@ -42,7 +43,7 @@ class TestAimDbUniverseBase(object):
         self.universe.serve(tenants)
         self.assertEqual(set(tenants), set(self.universe._served_tenants))
 
-    def test_state(self, tree_type=tree_model.CONFIG_TREE):
+    def test_state(self, tree_type=tree_manager.CONFIG_TREE):
         # Create some trees in the AIM DB
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
@@ -72,7 +73,7 @@ class TestAimDbUniverseBase(object):
         state = self.universe.state
         self.assertEqual(data1, state['tnA'])
 
-    def test_get_optimized_state(self, tree_type=tree_model.CONFIG_TREE):
+    def test_get_optimized_state(self, tree_type=tree_manager.CONFIG_TREE):
         data1 = tree.StructuredHashTree().include(
             [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
              {'key': ('tnA', 'keyC', 'keyD')}])
@@ -108,8 +109,8 @@ class TestAimDbUniverseBase(object):
         self.assertEqual({'tnA3': data4, 'tnA': data1},
                          self.universe.get_optimized_state(other_state))
 
-    def test_get_aim_resources(self, tree_type=tree_model.CONFIG_TREE):
-        tree_mgr = tree_model.TenantHashTreeManager()
+    def test_get_aim_resources(self, tree_type=tree_manager.CONFIG_TREE):
+        tree_mgr = tree_manager.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
         t1 = resource.Tenant(name='t1')
         t2 = resource.Tenant(name='t2')
@@ -132,7 +133,7 @@ class TestAimDbUniverseBase(object):
         bd2 = resource.BridgeDomain(
             tenant_name='t2', name='bd1', display_name='somestuff',
             vrf_name='vrf2')
-        if tree_type == tree_model.MONITORED_TREE:
+        if tree_type == tree_manager.MONITORED_TREE:
             bd1.monitored = True
             bd2.monitored = True
             t1.monitored = True
@@ -165,15 +166,16 @@ class TestAimDbUniverseBase(object):
                                              diff_tn_2.get('add', []) +
                                              diff_tn_2.get('remove', []))
         self.assertEqual(4, len(result))
-        if tree_type in [tree_model.CONFIG_TREE, tree_model.MONITORED_TREE]:
+        if tree_type in [tree_manager.CONFIG_TREE,
+                         tree_manager.MONITORED_TREE]:
             self.assertTrue(bd1 in result)
             self.assertTrue(bd2 in result)
-        elif tree_type == tree_model.OPERATIONAL_TREE:
+        elif tree_type == tree_manager.OPERATIONAL_TREE:
             self.assertTrue(bd1_fault in result)
             self.assertTrue(bd1_fault2 in result)
 
-    def test_cleanup_state(self, tree_type=tree_model.CONFIG_TREE):
-        tree_mgr = tree_model.TenantHashTreeManager()
+    def test_cleanup_state(self, tree_type=tree_manager.CONFIG_TREE):
+        tree_mgr = tree_manager.TenantHashTreeManager()
         aim_mgr = aim_manager.AimManager()
         aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
         bd1 = resource.BridgeDomain(
@@ -258,21 +260,23 @@ class TestAimDbUniverseBase(object):
             aim_mgr.delete(self.ctx, managed_epg)
         else:
             self.assertIsNone(res)
-        res = aim_mgr.get(self.ctx, ap_aim)
-        self.assertIsNotNone(res)
-
-        # Second time around, AP deletion  with monitored child works
-        epg_aim = aim_mgr.get(self.ctx, epg_aim)
-        self.universe.push_resources({'create': [],
-                                      'delete': [ap_aim, epg_aim]})
-        res = aim_mgr.get(self.ctx, ap_aim)
-        if epg_aim.monitored:
-            self.assertIsNone(res)
-        else:
-            self.assertIsNotNone(res)
-            self.universe.push_resources({'create': [], 'delete': [ap_aim]})
+        if self.ctx.store.supports_foreign_keys:
             res = aim_mgr.get(self.ctx, ap_aim)
-            self.assertIsNone(res)
+            self.assertIsNotNone(res)
+
+            # Second time around, AP deletion  with monitored child works
+            epg_aim = aim_mgr.get(self.ctx, epg_aim)
+            self.universe.push_resources({'create': [],
+                                          'delete': [ap_aim, epg_aim]})
+            res = aim_mgr.get(self.ctx, ap_aim)
+            if epg_aim.monitored:
+                self.assertIsNone(res)
+            else:
+                self.assertIsNotNone(res)
+                self.universe.push_resources({'create': [],
+                                              'delete': [ap_aim]})
+                res = aim_mgr.get(self.ctx, ap_aim)
+                self.assertIsNone(res)
 
 
 class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
@@ -287,19 +291,19 @@ class TestAimDbOperationalUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
 
     def test_state(self):
         super(TestAimDbOperationalUniverse, self).test_state(
-            tree_type=tree_model.OPERATIONAL_TREE)
+            tree_type=tree_manager.OPERATIONAL_TREE)
 
     def test_get_optimized_state(self):
         super(TestAimDbOperationalUniverse, self).test_get_optimized_state(
-            tree_type=tree_model.OPERATIONAL_TREE)
+            tree_type=tree_manager.OPERATIONAL_TREE)
 
     def test_get_aim_resources(self):
         super(TestAimDbOperationalUniverse, self).test_get_aim_resources(
-            tree_type=tree_model.OPERATIONAL_TREE)
+            tree_type=tree_manager.OPERATIONAL_TREE)
 
     def test_cleanup_state(self):
         super(TestAimDbOperationalUniverse, self).test_cleanup_state(
-            tree_type=tree_model.OPERATIONAL_TREE)
+            tree_type=tree_manager.OPERATIONAL_TREE)
 
 
 class TestAimDbMonitoredUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
@@ -311,19 +315,19 @@ class TestAimDbMonitoredUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
 
     def test_state(self):
         super(TestAimDbMonitoredUniverse, self).test_state(
-            tree_type=tree_model.MONITORED_TREE)
+            tree_type=tree_manager.MONITORED_TREE)
 
     def test_get_optimized_state(self):
         super(TestAimDbMonitoredUniverse, self).test_get_optimized_state(
-            tree_type=tree_model.MONITORED_TREE)
+            tree_type=tree_manager.MONITORED_TREE)
 
     def test_get_aim_resources(self):
         super(TestAimDbMonitoredUniverse, self).test_get_aim_resources(
-            tree_type=tree_model.MONITORED_TREE)
+            tree_type=tree_manager.MONITORED_TREE)
 
     def test_cleanup_state(self):
         super(TestAimDbMonitoredUniverse, self).test_cleanup_state(
-            tree_type=tree_model.MONITORED_TREE)
+            tree_type=tree_manager.MONITORED_TREE)
 
     def test_push_resources_harakiri(self):
         aim_mgr = aim_manager.AimManager()

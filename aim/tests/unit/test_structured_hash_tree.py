@@ -19,8 +19,8 @@ from aim import aim_manager
 from aim.api import resource
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree as tree
-from aim.db import tree_model
 from aim.tests import base
+from aim import tree_manager
 
 
 class TestStructuredNode(base.BaseTestCase):
@@ -608,7 +608,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
     def setUp(self):
         super(TestHashTreeManager, self).setUp()
-        self.mgr = tree_model.TenantTreeManager(tree.StructuredHashTree)
+        self.mgr = tree_manager.TenantTreeManager(tree.StructuredHashTree)
 
     def test_update(self):
         data = tree.StructuredHashTree().include(
@@ -726,7 +726,7 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(tenants))
 
     def test_single_session_multi_objects(self):
-        with self.ctx.db_session.begin(subtransactions=True):
+        with self.ctx.store.begin(subtransactions=True):
             data = tree.StructuredHashTree().include(
                 [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
                  {'key': ('keyA', 'keyC', 'keyD')}])
@@ -744,7 +744,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
     def test_agents_to_trees_association(self):
         # N, M association
-        with self.ctx.db_session.begin(subtransactions=True):
+        with self.ctx.store.begin(subtransactions=True):
             data = tree.StructuredHashTree().include(
                 [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
                  {'key': ('keyA', 'keyC', 'keyD')}])
@@ -772,25 +772,27 @@ class TestHashTreeManager(base.TestAimDBBase):
         agent2 = aim_manager.AimManager().update(self.ctx, agent2,
                                                  hash_trees=[])
         # Delete a tree
-        self.ctx.db_session.expunge_all()
+        self.ctx.store.expunge_all()
         self.mgr.delete(self.ctx, data)
-        agent1 = aim_manager.AimManager().get(self.ctx, agent1)
-        self.assertEqual(set(['keyA1', 'keyA2']), set(agent1.hash_trees))
-        self.assertEqual(set(), set(agent2.hash_trees))
-        # Add rogue key
-        self.assertRaises(
-            exc.HashTreeNotFound, aim_manager.AimManager().update,
-            self.ctx, agent1, hash_trees=['notakey'])
-        # Verify agent1 was rolled back properly
-        agent1 = aim_manager.AimManager().get(self.get_new_context(), agent1)
-        self.assertEqual(set(['keyA1', 'keyA2']), set(agent1.hash_trees))
+        if self.ctx.store.supports_foreign_keys:
+            agent1 = aim_manager.AimManager().get(self.ctx, agent1)
+            self.assertEqual(set(['keyA1', 'keyA2']), set(agent1.hash_trees))
+            self.assertEqual(set(), set(agent2.hash_trees))
+            # Add rogue key
+            self.assertRaises(
+                exc.HashTreeNotFound, aim_manager.AimManager().update,
+                self.ctx, agent1, hash_trees=['notakey'])
+            # Verify agent1 was rolled back properly
+            agent1 = aim_manager.AimManager().get(self.get_new_context(),
+                                                  agent1)
+            self.assertEqual(set(['keyA1', 'keyA2']), set(agent1.hash_trees))
 
 
 class TestAimHashTreeMaker(base.TestAimDBBase):
 
     def setUp(self):
         super(TestAimHashTreeMaker, self).setUp()
-        self.maker = tree_model.AimHashTreeMaker()
+        self.maker = tree_manager.AimHashTreeMaker()
 
     def test_get_tenant_key(self):
         bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')

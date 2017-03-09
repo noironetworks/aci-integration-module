@@ -18,10 +18,11 @@ import copy
 from oslo_log import log as logging
 
 from aim.api import status as aim_status
+from aim.api import tree as aim_tree
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
-from aim import context
-from aim.db import tree_model
+from aim.common import utils
+from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class HashTreeBuilder(object):
 
     def __init__(self, aim_manager):
         self.aim_manager = aim_manager
-        self.tt_maker = tree_model.AimHashTreeMaker()
+        self.tt_maker = tree_manager.AimHashTreeMaker()
 
     def build(self, added, updated, deleted, tree_map, aim_ctx=None):
         """Build hash tree
@@ -49,9 +50,9 @@ class HashTreeBuilder(object):
         # Segregate updates by tenant
         updates_by_tenant = {}
         all_updates = [added, updated, deleted]
-        conf = tree_model.CONFIG_TREE
-        monitor = tree_model.MONITORED_TREE
-        oper = tree_model.OPERATIONAL_TREE
+        conf = aim_tree.ConfigTenantTree
+        monitor = aim_tree.MonitoredTenantTree
+        oper = aim_tree.OperationalTenantTree
         for idx in range(len(all_updates)):
             tree_index = 0 if idx < 2 else 1
             for res in all_updates[idx]:
@@ -146,29 +147,30 @@ class HashTreeBuilder(object):
 class HashTreeDbListener(object):
     """Updates persistent hash-tree in response to DB updates."""
 
-    def __init__(self, aim_manager):
+    def __init__(self, aim_manager, store):
         self.aim_manager = aim_manager
-        self.aim_manager.register_update_listener(self.on_commit)
-        self.tt_mgr = tree_model.TenantHashTreeManager()
-        self.tt_maker = tree_model.AimHashTreeMaker()
+        self.tt_mgr = tree_manager.TenantHashTreeManager()
+        self.tt_maker = tree_manager.AimHashTreeMaker()
         self.tt_builder = HashTreeBuilder(self.aim_manager)
+        self.store = store
 
     def on_commit(self, session, added, updated, deleted, curr_cfg=None,
                   curr_oper=None, curr_monitor=None):
         # Query hash-tree for each tenant and modify the tree based on DB
         # updates
-        ctx = context.AimContext(session)
+        # TODO(ivar): Use proper store context once dependency issue is fixed
+        ctx = utils.FakeContext(session, self.store)
         # Build tree map
 
-        conf = tree_model.CONFIG_TREE
-        monitor = tree_model.MONITORED_TREE
-        oper = tree_model.OPERATIONAL_TREE
+        conf = aim_tree.ConfigTenantTree
+        monitor = aim_tree.MonitoredTenantTree
+        oper = aim_tree.OperationalTenantTree
         tree_map = {}
         affected_tenants = set()
         for resources in added, updated, deleted:
             for res in resources:
                 if isinstance(res, aim_status.AciStatus):
-                    # TODO(ivar): this is a DB query not worth doing. Fing
+                    # TODO(ivar): this is a DB query not worth doing. Find
                     # a better way to retrieve tenant from a Status object
                     res = self.aim_manager.get_by_id(
                         ctx, res.parent_class, res.resource_id)

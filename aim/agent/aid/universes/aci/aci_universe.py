@@ -170,8 +170,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
     from the ACI REST API.
     """
 
-    def initialize(self, db_session, conf_mgr):
-        super(AciUniverse, self).initialize(db_session, conf_mgr)
+    def initialize(self, store, conf_mgr):
+        super(AciUniverse, self).initialize(store, conf_mgr)
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
         self.ws_context = get_websocket_context(self.conf_manager)
@@ -264,11 +264,13 @@ class AciUniverse(base.HashTreeStoredUniverse):
 
         for tenant, conf in by_tenant.iteritems():
             try:
-                serving_tenants[tenant].push_aim_resources(conf)
+                serving_tenants[tenant]
             except KeyError:
                 LOG.warn("Tenant %s is not being served anymore. "
                          "Currently served tenants: %s" % (
                              tenant, serving_tenants.keys()))
+            else:
+                serving_tenants[tenant].push_aim_resources(conf)
 
     def _split_key(self, key):
         return [k.split('|', 2) for k in key]

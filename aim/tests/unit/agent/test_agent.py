@@ -31,10 +31,10 @@ from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
 from aim import config
-from aim.db import tree_model
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
 from aim.tools.cli.debug import hashtree as treecli
+from aim import tree_manager
 
 
 def run_once_loop(agent):
@@ -56,7 +56,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.set_override('agent_polling_interval', 0, 'aim')
         self.set_override('aci_tenant_polling_yield', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
-        self.tree_manager = tree_model.TenantTreeManager(
+        self.tree_manager = tree_manager.TenantTreeManager(
             tree.StructuredHashTree)
         self.old_post = apic_client.ApicSession.post_body_dict
 
@@ -85,11 +85,21 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.event_handler.EventHandler._spawn_listener')
         self.events_thread.start()
 
+        self.watcher_threads = mock.patch(
+            'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.run')
+        self.watcher_threads.start()
+
+        self.stop_watcher_threads = mock.patch(
+            'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.stop_threads')
+        self.stop_watcher_threads.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
         self.addCleanup(self.thread_health.stop)
         self.addCleanup(self.events_thread.stop)
+        self.addCleanup(self.watcher_threads.stop)
+        self.addCleanup(self.stop_watcher_threads.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body_dict = self.old_post
@@ -153,6 +163,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(1, len(agents))
         self.assertEqual('aid-h1', agents[0].id)
 
+    @base.requires(['timestamp'])
     def test_send_heartbeat(self):
         agent = self._create_agent()
         current_tstamp = agent.agent.heartbeat_timestamp
@@ -203,14 +214,23 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertNotEqual([], result)
         self.assertNotEqual([], result2)
         self.assertNotEqual([], result3)
-        # Each tenant has 2 agents
-        self.assertEqual(
-            2, len([x for x in result + result2 + result3 if x == 'keyA']))
-        self.assertEqual(
-            2, len([x for x in result + result2 + result3 if x == 'keyA1']))
-        self.assertEqual(
-            2, len([x for x in result + result2 + result3 if x == 'keyA2']))
+        if not agent.single_aid:
+            # Each tenant has 2 agents
+            self.assertEqual(
+                2,
+                len([x for x in result + result2 + result3 if x == 'keyA']))
+            self.assertEqual(
+                2,
+                len([x for x in result + result2 + result3 if x == 'keyA1']))
+            self.assertEqual(
+                2,
+                len([x for x in result + result2 + result3 if x == 'keyA2']))
+        else:
+            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result))
+            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result2))
+            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result3))
 
+    @base.requires(['timestamp'])
     def test_down_time_suicide(self):
         with mock.patch.object(service.utils, 'perform_harakiri') as hara:
             agent = self._create_agent()
@@ -219,6 +239,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             agent._calculate_tenants(agent.context)
             hara.assert_called_once_with(service.LOG, mock.ANY)
 
+    @base.requires(['timestamp'])
     def test_tenant_association_fail(self):
         data = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
@@ -534,6 +555,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_universe_sync(desired_monitor, current_monitor)
         self._assert_reset_consistency(tenant_name)
 
+    @base.requires(['foreign_keys'])
     def test_monitored_tree_fk_semantics(self):
         agent = self._create_agent()
 
@@ -713,11 +735,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(current_config)
         agent._daemon_loop()
         # Verify sync status of BD
-        bd = self.aim_manager.get(self.ctx, bd)
-        bd_status = self.aim_manager.get_status(self.ctx, bd)
-        self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
-                         bd_status.sync_status)
-        self.assertNotEqual('', bd_status.sync_message)
+        if self.ctx.store.supports_foreign_keys:
+            bd = self.aim_manager.get(self.ctx, bd)
+            bd_status = self.aim_manager.get_status(self.ctx, bd)
+            self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
+                             bd_status.sync_status)
+            self.assertNotEqual('', bd_status.sync_message)
+        else:
+            self.assertIsNone(self.aim_manager.get(self.ctx, bd))
         # Same for subnet
         sub = self.aim_manager.get(self.ctx, sub)
         sub_status = self.aim_manager.get_status(self.ctx, sub)
@@ -1002,6 +1027,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
 
+    @base.requires(['foreign_keys'])
     def test_no_nat_strategy_lifecycle(self):
         """Test ownership changes made by no-NAT strategy."""
         agent = self._create_agent()
@@ -1300,9 +1326,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         result = {}
         for tenant in tenants:
             result[tenant.name] = {}
-            for type in tree_model.SUPPORTED_TREES:
+            for type in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][type] = (
-                    self.aim_manager._hashtree_db_listener.tt_mgr.get(
+                    self.ctx.store._hashtree_db_listener.tt_mgr.get(
                         self.ctx, tenant.name, tree=type))
         return result
 

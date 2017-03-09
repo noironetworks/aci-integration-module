@@ -69,8 +69,7 @@ def print_resources(res_list, attrs=None, plain=False):
 @click.pass_context
 # Debug utility for ACI web socket
 def manager(ctx):
-    session = api.get_session(expire_on_commit=True)
-    aim_ctx = context.AimContext(db_session=session)
+    aim_ctx = context.AimContext(store=api.get_store(expire_on_commit=True))
     manager = aim_manager.AimManager()
     ctx.obj['manager'] = manager
     ctx.obj['aim_ctx'] = aim_ctx
@@ -205,7 +204,7 @@ def load_domains(ctx, replace, enforce):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
 
-    with aim_ctx.db_session.begin(subtransactions=True):
+    with aim_ctx.store.begin(subtransactions=True):
         if replace:
             curr_vmms = manager.find(aim_ctx, resource.VMMDomain)
             curr_physds = manager.find(aim_ctx, resource.PhysicalDomain)
@@ -254,7 +253,7 @@ def sync_state_find(ctx, state, plain):
             state = states[0]
             break
 
-    with aim_ctx.db_session.begin(subtransactions=True):
+    with aim_ctx.store.begin(subtransactions=True):
         statuses = manager.find(aim_ctx, status_res.AciStatus,
                                 sync_status=state)
     # Could aggregate the queries to make it more efficient in future

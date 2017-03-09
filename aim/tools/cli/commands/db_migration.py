@@ -57,8 +57,7 @@ def upgrade(ctx, version):
     ctx.obj['manager'].upgrade(version)
 
     # create common tenant
-    session = api.get_session(expire_on_commit=True)
-    aim_ctx = context.AimContext(db_session=session)
+    aim_ctx = context.AimContext(store=api.get_store(expire_on_commit=True))
     aim_mgr = aim_manager.AimManager()
     common_tenant = resource.Tenant(name='common', monitored=True)
     if not aim_mgr.get(aim_ctx, common_tenant):

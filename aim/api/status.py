@@ -132,8 +132,7 @@ class AciFault(resource.ResourceBase, OperationalResource):
     def __init__(self, **kwargs):
         super(AciFault, self).__init__(
             {'severity': self.SEV_INFO, 'lifecycle_status': self.LC_UNKNOWN,
-             'cause': '', 'description': "",
-             'last_update_timestamp': None}, **kwargs)
+             'cause': '', 'description': ""}, **kwargs)
 
     def is_error(self):
         return self.severity in [self.SEV_MAJOR, self.SEV_CRITICAL]

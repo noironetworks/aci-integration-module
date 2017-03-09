@@ -98,6 +98,7 @@ class TestNatStrategyBase(object):
                                 physical_domain_names=['phys'])] +
                 ([nat_vrf] if nat_vrf_name is None else []))
 
+    @base.requires(['foreign_keys'])
     def test_l3outside(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -117,6 +118,7 @@ class TestNatStrategyBase(object):
         get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
         self.assertEqual([], get_objs)
 
+    @base.requires(['foreign_keys'])
     def test_l3outside_multiple(self):
         l3out1 = a_res.L3Outside(tenant_name='t1', name='o1',
                                  display_name='OUT')
@@ -137,6 +139,7 @@ class TestNatStrategyBase(object):
         self.ns.delete_l3outside(self.ctx, l3out2)
         self._verify(absent=[l3out1, l3out2] + other_objs1 + other_objs2)
 
+    @base.requires(['foreign_keys'])
     def test_l3outside_pre(self, ownership_change=False):
         self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
         vrf = a_res.VRF(tenant_name='t1', name='ctx1', monitored=True)
@@ -162,6 +165,7 @@ class TestNatStrategyBase(object):
         get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
         self.assertEqual([l3out, vrf], get_objs)
 
+    @base.requires(['foreign_keys'])
     def test_subnet(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -182,6 +186,7 @@ class TestNatStrategyBase(object):
         self.assertIsNone(self.ns.get_subnet(self.ctx, l3out,
                                              '200.10.20.1/28'))
 
+    @base.requires(['foreign_keys'])
     def test_external_network(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -200,6 +205,7 @@ class TestNatStrategyBase(object):
         self.ns.delete_external_network(self.ctx, ext_net)
         self._verify(absent=[ext_net])
 
+    @base.requires(['foreign_keys'])
     def test_external_network_pre(self):
         self.mgr.create(self.ctx, a_res.Tenant(name='t1'))
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
@@ -226,6 +232,7 @@ class TestNatStrategyBase(object):
         ext_net.consumed_contract_names = ['bar']
         self._verify(present=[ext_net])
 
+    @base.requires(['foreign_keys'])
     def test_connect_vrfs(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -277,6 +284,7 @@ class TestNatStrategyBase(object):
         self.ns.disconnect_vrf(self.ctx, ext_net, vrf2)
         self._check_connect_vrfs('stage4')
 
+    @base.requires(['foreign_keys'])
     def test_vrf_contract_update(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -308,6 +316,7 @@ class TestNatStrategyBase(object):
         self.ns.connect_vrf(self.ctx, ext_net, vrf1)
         self._check_vrf_contract_update('stage3')
 
+    @base.requires(['foreign_keys'])
     def test_external_subnet_update(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -338,6 +347,7 @@ class TestNatStrategyBase(object):
         self.ns.update_external_cidrs(self.ctx, ext_net, [])
         self._check_external_subnet_update("stage3")
 
+    @base.requires(['foreign_keys'])
     def test_connect_vrf_multiple(self):
         l3out1 = a_res.L3Outside(tenant_name='t1', name='o1',
                                  display_name='OUT')
@@ -380,6 +390,7 @@ class TestNatStrategyBase(object):
         self.ns.disconnect_vrf(self.ctx, ext_net2, vrf1)
         self._check_connect_vrf_multiple('stage3')
 
+    @base.requires(['foreign_keys'])
     def test_delete_ext_net_with_vrf(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -412,6 +423,7 @@ class TestNatStrategyBase(object):
         self.ns.delete_external_network(self.ctx, ext_net)
         self._check_delete_ext_net_with_vrf('stage2')
 
+    @base.requires(['foreign_keys'])
     def test_delete_l3outside_with_vrf(self):
         self.mgr.create(self.ctx, a_res.Tenant(name=self.vrf1_tenant_name))
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
@@ -629,6 +641,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
     vrf2_tenant_name = 't1'
     bd1_tenant_name = 't1'
 
+    @base.requires(['foreign_keys'])
     def test_l3outside_pre(self):
         super(TestNoNatStrategy, self).test_l3outside_pre(
             ownership_change=True)
@@ -798,6 +811,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
+    @base.requires(['foreign_keys'])
     def test_connect_vrf_wrong_tenant(self):
         vrf = a_res.VRF(tenant_name='dept1', name='vrf', display_name='VRF')
 
@@ -818,6 +832,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         self.assertRaises(nat_strategy.VrfNotVisibleFromExternalNetwork,
                           self.ns.connect_vrf, self.ctx, ext_net, vrf)
 
+    @base.requires(['foreign_keys'])
     def test_bd_l3out_vrf_in_common(self):
         self.mgr.create(self.ctx, a_res.Tenant(name='common'))
         self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
@@ -882,6 +897,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         self._verify(present=[bd1_dept1, bd2_dept1, bd1_dept2, bd1_dept3,
                               bd2_dept3])
 
+    @base.requires(['foreign_keys'])
     def test_bd_l3out_vrf_in_tenant(self):
         self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
         vrf = a_res.VRF(tenant_name='dept1', name='default')

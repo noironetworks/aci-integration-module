@@ -13,11 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import base64
 import functools
+import hashlib
 import os
 import random
 import re
 import time
+import traceback
 import uuid
 
 import gevent
@@ -108,3 +111,54 @@ def stob(s):
 def camel_to_snake(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+
+def snake_to_lower_camel(name):
+    split = name.split('_')
+    return split[0] + ''.join(word.capitalize() for word in split[1:])
+
+
+def sanitize_name(type, *args):
+    h = hashlib.sha256()
+    h.update(type)
+    h.update('\x00')
+    for component in args:
+        h.update(component)
+        h.update('\x00')
+    return base64.b32encode(h.digest()).rstrip('=').lower()
+
+
+class ThreadExit(Exception):
+    pass
+
+
+def retry_loop(max_wait, max_retries, name):
+    def wrap(func):
+        def inner(*args, **kwargs):
+            recovery_retries = None
+            while True:
+                try:
+                    func(*args, **kwargs)
+                    recovery_retries = None
+                except (gevent.GreenletExit, ThreadExit) as e:
+                    raise e
+                except Exception as e:
+                    LOG.error(traceback.format_exc())
+                    recovery_retries = exponential_backoff(
+                        max_wait, tentative=recovery_retries)
+                    if recovery_retries.get() >= max_retries:
+                        LOG.error("Exceeded max recovery retries for %s", name)
+                        raise e
+        return inner
+    return wrap
+
+
+class FakeContext(object):
+
+    def __init__(self, session=None, store=None):
+        if session:
+            self.db_session = session
+        if store:
+            self.store = store
+            if session:
+                self.store.db_session = session

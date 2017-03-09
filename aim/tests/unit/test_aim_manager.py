@@ -30,6 +30,7 @@ import mock
 from aim import aim_manager
 from aim.api import infra
 from aim.api import resource
+from aim.api import resource as aim_res
 from aim.api import schema
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
@@ -38,6 +39,7 @@ from aim import config  # noqa
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
 from aim.tests import base
+from aim import tree_manager
 
 
 def getattr_canonical(obj, attr):
@@ -197,7 +199,9 @@ class TestResourceOpsBase(object):
         # Test delete
         self.mgr.delete(self.ctx, res)
         self.assertIsNone(self.mgr.get(self.ctx, res))
-        self.assertEqual([], self.mgr.find(self.ctx, resource))
+        # TODO(ivar): Avoid config creation form AIM resources
+        if not isinstance(res, aim_res.Configuration):
+            self.assertEqual([], self.mgr.find(self.ctx, resource))
 
         # Test update nonexisting object
         r4 = self.mgr.update(self.ctx, res, **{})
@@ -207,8 +211,8 @@ class TestResourceOpsBase(object):
 
         # Test jsonschema
         klass_name = res.__class__.__name__
-        jsonschema.validate({'type': klass_name,
-                             utils.camel_to_snake(klass_name): res.__dict__},
+        snake_name = utils.camel_to_snake(klass_name)
+        jsonschema.validate({'type': snake_name, snake_name: res.__dict__},
                             self.schema_dict)
         attributes = copy.deepcopy(res.__dict__)
         attributes.pop(res.identity_attributes.keys()[0])
@@ -239,7 +243,7 @@ class TestResourceOpsBase(object):
         """
         listener = mock.Mock()
         listener.__name__ = 'mock-listener'
-        self.mgr.register_update_listener(listener)
+        self.ctx.store.register_update_listener(listener)
 
         creation_attributes = {}
         creation_attributes.update(test_required_attributes),
@@ -254,7 +258,7 @@ class TestResourceOpsBase(object):
             exp_calls = [
                 mock.call(mock.ANY, [res], [], []),
                 mock.call(mock.ANY, [initial_status], [], []),
-                mock.call(mock.ANY, [], [status], [])]
+                mock.call(mock.ANY, [], [status, res], [])]
             self._check_call_list(exp_calls, listener)
         else:
             listener.assert_called_with(mock.ANY, [res], [], [])
@@ -267,7 +271,7 @@ class TestResourceOpsBase(object):
             if status:
                 exp_calls = [
                     mock.call(mock.ANY, [], [res], []),
-                    mock.call(mock.ANY, [], [status], [])]
+                    mock.call(mock.ANY, [], [status, res], [])]
                 self._check_call_list(exp_calls, listener)
             else:
                 # TODO(ivar): Agent object gets 2 calls to the hook on an
@@ -278,7 +282,7 @@ class TestResourceOpsBase(object):
         self.mgr.delete(self.ctx, res)
         listener.assert_called_with(mock.ANY, [], [], [res])
 
-        self.mgr.unregister_update_listener(listener)
+        self.ctx.store.unregister_update_listener(listener)
 
         listener.reset_mock()
         self.mgr.create(self.ctx, res)
@@ -332,9 +336,14 @@ class TestResourceOpsBase(object):
         self.assertTrue(isinstance(res, status.parent_class))
         res_from_status = self.mgr.get_by_id(self.ctx, status.parent_class,
                                              status.resource_id)
+        # get by ID with non-existing ID will return None
+        self.assertIsNone(
+            self.mgr.get_by_id(self.ctx, status.parent_class,
+                               'nope'))
         self.assertEqual(res, res_from_status)
         new_timestamp = status.faults[0].last_update_timestamp
-        self.assertTrue(new_timestamp > timestamp)
+        if self.ctx.store.current_timestamp:
+            self.assertTrue(new_timestamp > timestamp)
         self.assertFalse(status.is_error())
 
         # Add fault with same code
@@ -353,7 +362,7 @@ class TestResourceOpsBase(object):
 
         # Delete resource and verify that status is deleted as well
         self.mgr.set_fault(self.ctx, res, fault_2)
-        db_res = self.mgr._query_db_obj(self.ctx.db_session, res)
+        db_res = self.mgr._query_db_obj(self.ctx.store, res)
         try:
             aim_id = db_res.aim_id
         except AttributeError:
@@ -362,7 +371,7 @@ class TestResourceOpsBase(object):
         else:
             self.mgr.delete(self.ctx, res)
             status_db = self.mgr._query_db_obj(
-                self.ctx.db_session,
+                self.ctx.store,
                 aim_status.AciStatus(resource_type=type(res).__name__,
                                      resource_id=aim_id))
             self.assertIsNone(status_db)
@@ -382,6 +391,7 @@ class TestResourceOpsBase(object):
             self.test_default_values,
             self.test_dn)
 
+    @base.requires(['hooks'])
     def test_hooks(self):
         self._create_prerequisite_objects()
         self._test_commit_hook(
@@ -870,6 +880,19 @@ class TestSecurityGroupRuleMixin(object):
     res_command = 'security-group-rule'
 
 
+class TestConfigurationMixin(object):
+    resource_class = resource.Configuration
+    test_identity_attributes = {'key': 'apic_hosts',
+                                'host': 'h1',
+                                'group': 'default'}
+    test_required_attributes = {'key': 'apic_hosts',
+                                'host': 'h1',
+                                'group': 'default'}
+    test_search_attributes = {'value': 'v1'}
+    test_update_attributes = {'value': 'v2'}
+    res_command = 'configuration'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -885,41 +908,42 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        self.tree_mgr = tree_model.TenantHashTreeManager()
+        self.tree_mgr = tree_manager.TenantHashTreeManager()
         self.tree_mgr.update_bulk(
             self.ctx, [structured_tree.StructuredHashTree(root_key=('t1',)),
                        structured_tree.StructuredHashTree(root_key=('t2',))])
 
-        self.addCleanup(self._clean_trees)
-
     def _clean_trees(self):
-        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't1')
-        tree_model.TenantHashTreeManager().delete_by_tenant_rn(self.ctx, 't2')
+        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
+                                                                 't1')
+        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
+                                                                 't2')
 
     def test_timestamp(self):
-        agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
-                               binary_file='binary_file', version='1.0')
+        if self.ctx.store.current_timestamp:
+            agent = resource.Agent(id='myuuid', agent_type='aid', host='host',
+                                   binary_file='binary_file', version='1.0')
 
-        # Verify successful creation
-        agent = self.mgr.create(self.ctx, agent, overwrite=True)
-        hbeat = agent.heartbeat_timestamp
+            # Verify successful creation
+            agent = self.mgr.create(self.ctx, agent, overwrite=True)
+            hbeat = agent.heartbeat_timestamp
 
-        # DB side timestamp has granularity in seconds
-        time.sleep(1)
-        # Update and verify that timestamp changed
-        agent = self.mgr.update(self.ctx, agent,
-                                beat_count=agent.beat_count + 1)
-        # Hbeat is updated
-        self.assertTrue(hbeat < agent.heartbeat_timestamp)
+            # DB side timestamp has granularity in seconds
+            time.sleep(1)
+            # Update and verify that timestamp changed
+            agent = self.mgr.update(self.ctx, agent,
+                                    beat_count=agent.beat_count + 1)
+            # Hbeat is updated
+            self.assertTrue(hbeat < agent.heartbeat_timestamp)
 
     def test_agent_down(self):
         agent = resource.Agent(agent_type='aid', host='host',
                                binary_file='binary_file', version='1.0')
-        self.assertRaises(AttributeError, agent.is_down, self.ctx)
         agent = self.mgr.create(self.ctx, agent)
         self.assertFalse(agent.is_down(self.ctx))
-        self.set_override('agent_down_time', 0, 'aim')
-        self.assertTrue(agent.is_down(self.ctx))
+        if self.ctx.store.current_timestamp:
+            self.set_override('agent_down_time', 0, 'aim')
+            self.assertTrue(agent.is_down(self.ctx))
 
     def test_status(self):
         pass
@@ -1038,4 +1062,34 @@ class TestSecurityGroupSubject(TestSecurityGroupSubjectMixin,
 
 class TestSecurityGroupRule(TestSecurityGroupRuleMixin,
                             TestAciResourceOpsBase, base.TestAimDBBase):
+
+    @base.requires(['k8s'])
+    def test_k8s_repr(self):
+        sgr = resource.SecurityGroupRule(
+            name='0_0', tenant_name='kubernetes',
+            security_group_subject_name='NetworkPolicy',
+            security_group_name='default_test-network-policy')
+        db_obj = self.ctx.store.resource_to_db_type(
+            resource.SecurityGroupRule)()
+        self.ctx.store.from_attr(db_obj, resource.SecurityGroupRule,
+                                 sgr.__dict__)
+        self.assertEqual(
+            's5u2ian7mxyipkk3rx632jc3zptp3ivwut4xxutricexuqn5fbia',
+            db_obj['metadata']['labels']['tenant_name'])
+        self.assertEqual(
+            'igvrfnunwbqt35yheohgplxpzfilv7oyageq3qysiyiidx2rqknq',
+            db_obj['metadata']['labels']['security_group_subject_name'])
+        self.assertEqual(
+            'l2yj2yf7qdftxom2xzclfhmfnp7fh75xyxryq2ggbvh77v7mjcla',
+            db_obj['metadata']['labels']['security_group_name'])
+        self.assertEqual(
+            '3lmgcuqwadvc425mfmk7dt5keazplrjrt7ygaorbjhna6ttv4ndq',
+            db_obj['metadata']['labels']['name'])
+        self.assertEqual(
+            'uwb4yv2u6k6lvjrhoi36genjxnhgkevjg24rvhuns7gzmeibpjyq',
+            db_obj['metadata']['name'])
+
+
+class TestConfiguration(TestConfigurationMixin, TestResourceOpsBase,
+                        base.TestAimDBBase):
     pass

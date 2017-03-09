@@ -16,13 +16,20 @@
 import logging  # noqa
 import os
 
+import mock
 from oslo_config import cfg
 from oslo_log import log as o_log
+from oslo_utils import uuidutils
 from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
+from aim.agent.aid.universes.aci import aci_universe
+from aim.agent.aid.universes.k8s import k8s_watcher
+from aim import aim_manager
+from aim import aim_store
 from aim.api import resource
 from aim.api import status as aim_status
+from aim.common import utils
 from aim import config as aim_cfg
 from aim import context
 from aim.db import api
@@ -33,6 +40,7 @@ CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
 o_log.register_options(aim_cfg.CONF)
+K8S_STORE_VENV = 'K8S_STORE'
 
 
 def etcdir(*p):
@@ -55,6 +63,19 @@ def resource_equal(self, other):
                 sort_if_list(getattr(other, attr, None))):
             return False
     return True
+
+
+def requires(requirements):
+    def wrap(func):
+        def inner(self, *args, **kwargs):
+            diff = set(requirements) - set(self.ctx.store.features)
+            if diff:
+                self.skipTest("Store %s doesn't support required "
+                              "features: %s" % (self.ctx.store.name, diff))
+            else:
+                func(self, *args, **kwargs)
+        return inner
+    return wrap
 
 
 class BaseTestCase(base.BaseTestCase):
@@ -91,34 +112,79 @@ class BaseTestCase(base.BaseTestCase):
                 msg='There are more calls than expected: %s' % str(observed))
 
 
+name_to_res = {utils.camel_to_snake(x.__name__): x for x in
+               aim_manager.AimManager.aim_resources}
+k8s_watcher_instance = None
+
+
+def _k8s_post_create(self, created):
+    if created:
+        w = k8s_watcher_instance
+        w.klient.get_new_watch()
+        event = {'type': 'ADDED', 'object': created}
+        w.klient.watch.stream = mock.Mock(return_value=[event])
+        w._reset_trees = mock.Mock()
+        w._observer_loop()
+        w.warmup_time = -1
+        w._builder_loop()
+
+
+def _k8s_post_delete(self, deleted):
+    if deleted:
+        w = k8s_watcher_instance
+        w.klient.get_new_watch()
+        event = {'type': 'DELETED', 'object': deleted}
+        w.klient.watch.stream = mock.Mock(return_value=[event])
+        w._reset_trees = mock.Mock()
+        w._observer_loop()
+        w.warmup_time = -1
+        w._builder_loop()
+
+
 class TestAimDBBase(BaseTestCase):
 
     _TABLES_ESTABLISHED = False
 
     def setUp(self):
         super(TestAimDBBase, self).setUp()
-        self.engine = api.get_engine()
-        if not TestAimDBBase._TABLES_ESTABLISHED:
-            model_base.Base.metadata.create_all(self.engine)
-            TestAimDBBase._TABLES_ESTABLISHED = True
-        self.session = api.get_session(expire_on_commit=True)
-        self.ctx = context.AimContext(db_session=self.session)
+        self.test_id = uuidutils.generate_uuid()
+        aim_cfg.OPTION_SUBSCRIBER_MANAGER = None
+        aci_universe.ws_context = None
+        if not os.environ.get(K8S_STORE_VENV):
+            CONF.set_override('aim_store', 'sql', 'aim')
+            self.engine = api.get_engine()
+            if not TestAimDBBase._TABLES_ESTABLISHED:
+                model_base.Base.metadata.create_all(self.engine)
+                TestAimDBBase._TABLES_ESTABLISHED = True
+
+            # Uncomment the line below to log SQL statements. Additionally, to
+            # log results of queries, change INFO to DEBUG
+            #
+            # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
+
+            def clear_tables():
+                with self.engine.begin() as conn:
+                    for table in reversed(
+                            model_base.Base.metadata.sorted_tables):
+                        conn.execute(table.delete())
+            self.addCleanup(clear_tables)
+        else:
+            CONF.set_override('aim_store', 'k8s', 'aim')
+            CONF.set_override('k8s_namespace', self.test_id, 'aim_k8s')
+            aim_store.K8sStore._post_delete = _k8s_post_delete
+            aim_store.K8sStore._post_create = _k8s_post_create
+            global k8s_watcher_instance
+            k8s_watcher_instance = k8s_watcher.K8sWatcher()
+            k8s_watcher_instance.event_handler = mock.Mock()
+            k8s_watcher_instance._renew_klient_watch = mock.Mock()
+            self.addCleanup(self._cleanup_namespace, self.test_id)
+
+        self.store = api.get_store(expire_on_commit=True)
+        self.ctx = context.AimContext(store=self.store)
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
         resource.ResourceBase.__eq__ = resource_equal
         self.cfg_manager.replace_all(CONF)
-
-        # Uncomment the line below to log SQL statements. Additionally, to
-        # log results of queries, change INFO to DEBUG
-        #
-        # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
         self.sys_id = self.cfg_manager.get_option('aim_system_id', 'aim')
-
-        def clear_tables():
-            with self.engine.begin() as conn:
-                for table in reversed(
-                        model_base.Base.metadata.sorted_tables):
-                    conn.execute(table.delete())
-        self.addCleanup(clear_tables)
 
     def get_new_context(self):
         return context.AimContext(
@@ -130,9 +196,13 @@ class TestAimDBBase(BaseTestCase):
             CONF.set_override(item, value, group)
         else:
             CONF.set_override(item, value)
-        self.cfg_manager.to_db(CONF, host=host)
+        self.cfg_manager.override(item, value, group=group or 'default',
+                                  host=host, context=self.ctx)
         if poll:
             self.cfg_manager.subs_mgr._poll_and_execute()
+
+    def _cleanup_namespace(self, namespace):
+        self.ctx.store.klient.delete_collection_namespaced_aci(namespace)
 
     @classmethod
     def _get_example_aim_bd(cls, **kwargs):

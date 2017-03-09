@@ -26,7 +26,7 @@ class TestAimConfig(base.TestAimDBBase):
     def setUp(self):
         super(TestAimConfig, self).setUp()
         self._clean_subscriptions()
-        self.cfg_mgr = config.ConfigManager(self.ctx, '')
+        self.cfg_mgr = self.cfg_manager
         # Clean current map state for testing
         self.db_mgr = config_model.ConfigurationDBManager()
         self.addCleanup(self._clean_subscriptions)

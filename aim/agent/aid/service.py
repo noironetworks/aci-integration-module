@@ -25,6 +25,7 @@ import semantic_version
 from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes import aim_universe
+from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
 from aim.api import resource
 from aim.common import hashring
@@ -32,7 +33,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim import context
 from aim.db import api
-from aim.db import tree_model
+from aim import tree_manager
 
 LOG = logging.getLogger(__name__)
 AGENT_TYPE = 'Aci Synchronization Module'
@@ -42,6 +43,7 @@ AGENT_DESCRIPTION = ('This Agent synchronizes the AIM state with ACI for a '
                      'certain amount of Tenants.')
 DESIRED = 'desired'
 CURRENT = 'current'
+AID_EXIT_CHECK_INTERVAL = 5
 
 logging.register_options(aim_cfg.CONF)
 
@@ -51,27 +53,27 @@ class AID(object):
     def __init__(self, conf):
         self.run_daemon_loop = True
         self.host = conf.aim.aim_service_identifier
-        self.session = api.get_session()
-        self.context = context.AimContext(self.session)
+        self.store = api.get_store()
+        self.context = context.AimContext(store=self.store)
         self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)
 
         # Define multiverse pairs, First position is desired state
         self.multiverse = [
             # Configuration Universe (AIM to ACI)
             {DESIRED: aim_universe.AimDbUniverse().initialize(
-                api.get_session(), self.conf_manager),
+                api.get_store(), self.conf_manager),
              CURRENT: aci_universe.AciUniverse().initialize(
-                 api.get_session(), self.conf_manager)},
+                 api.get_store(), self.conf_manager)},
             # Operational Universe (ACI to AIM)
             {DESIRED: aci_universe.AciOperationalUniverse().initialize(
-                api.get_session(), self.conf_manager),
+                api.get_store(), self.conf_manager),
              CURRENT: aim_universe.AimDbOperationalUniverse().initialize(
-                 api.get_session(), self.conf_manager)},
+                 api.get_store(), self.conf_manager)},
             # Monitored Universe (ACI to AIM)
             {DESIRED: aci_universe.AciMonitoredUniverse().initialize(
-                api.get_session(), self.conf_manager),
+                api.get_store(), self.conf_manager),
              CURRENT: aim_universe.AimDbMonitoredUniverse().initialize(
-                 api.get_session(), self.conf_manager)},
+                 api.get_store(), self.conf_manager)},
         ]
         # delete_candidates contains tenants that are candidate for deletion.
         # when the consensus is reach by all the universe, the state will
@@ -81,7 +83,7 @@ class AID(object):
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
         self.manager = aim_manager.AimManager()
-        self.tree_manager = tree_model.TenantHashTreeManager()
+        self.tree_manager = tree_manager.TenantHashTreeManager()
         self.agent_id = 'aid-%s' % self.host
         self.agent = resource.Agent(id=self.agent_id, agent_type=AGENT_TYPE,
                                     host=self.host, binary_file=AGENT_BINARY,
@@ -101,6 +103,12 @@ class AID(object):
         self.events = event_handler.EventHandler().initialize(
             self.conf_manager)
         self.max_down_time = 4 * self.report_interval
+        self.k8s_watcher = None
+        self.single_aid = False
+        if conf.aim.aim_store == 'k8s':
+            self.single_aid = True
+            self.k8s_watcher = k8s_watcher.K8sWatcher()
+            self.k8s_watcher.run()
 
     def daemon_loop(self):
         # Serve tenants the very first time regardless of the events received
@@ -110,9 +118,15 @@ class AID(object):
                 serve = False
                 # wait first event
                 first_event_time = None
-                squash_time = float('inf')
+                squash_time = AID_EXIT_CHECK_INTERVAL
                 while squash_time > 0:
                     event = self.events.get_event(squash_time)
+                    if not event and first_event_time is None:
+                        # This is a lone timeout, just check if we need to exit
+                        if not self.run_daemon_loop:
+                            LOG.info("Stopping AID main loop.")
+                            return
+                        continue
                     if not first_event_time:
                         first_event_time = time.time()
                     if event in event_handler.EVENTS + [None]:
@@ -127,14 +141,13 @@ class AID(object):
                 utils.wait_for_next_cycle(start_time, self.polling_interval,
                                           LOG, readable_caller='AID',
                                           notify_exceeding_timeout=False)
-                if not self.run_daemon_loop:
-                    break
             except Exception:
                 LOG.error('A error occurred in agent')
                 LOG.error(traceback.format_exc())
 
     def _daemon_loop(self, serve=True):
         if serve:
+            LOG.info("Start serving cycle.")
             tenants = self._calculate_tenants(self.context)
             # Filter delete candidates with currently served tenants
             self.delete_candidates = {k: v for k, v in
@@ -144,7 +157,10 @@ class AID(object):
             for pair in self.multiverse:
                 pair[DESIRED].serve(tenants)
                 pair[CURRENT].serve(tenants)
+            LOG.info("AID %s is currently serving: "
+                     "%s" % (self.agent.id, tenants))
 
+        LOG.info("Start reconciliation cycle.")
         # REVISIT(ivar) Might be wise to wait here upon tenant serving to allow
         # time for events to happen
 
@@ -159,7 +175,7 @@ class AID(object):
             changes |= pair[CURRENT].reconcile(pair[DESIRED],
                                                self.delete_candidates)
         if not changes:
-            LOG.debug("Congratulations! your multiverse is nice and synced :)")
+            LOG.info("Congratulations! your multiverse is nice and synced :)")
 
         # Delete tenants if there's consensus
         for tenant, votes in self.delete_candidates.iteritems():
@@ -185,29 +201,32 @@ class AID(object):
 
     def _calculate_tenants(self, context):
         # REVISIT(ivar): should we lock the Agent table?
-        with context.db_session.begin(subtransactions=True):
+        with context.store.begin(subtransactions=True):
             # Refresh this agent
             self.agent = self.manager.get(context, self.agent)
-            down_time = self.agent.down_time(context)
-            if max(0, down_time or 0) > self.max_down_time:
-                utils.perform_harakiri(LOG, "Agent has been down for %s "
-                                            "seconds." % down_time)
-            # Get peers
-            agents = [
-                x for x in self.manager.find(context, resource.Agent,
-                                             admin_state_up=True)
-                if not x.is_down(context)]
-            # Validate agent version
-            if not agents:
-                return []
-            max_version = max(agents, key=lambda x: x.version).version
-            if self._major_vercompare(self.agent.version, max_version) < 0:
-                LOG.error("Agent version is outdated: Current %s Required %s"
-                          % (self.agent.version, max_version))
-                return []
-            # Purge outdated agents
-            agents = [x for x in agents if
-                      self._major_vercompare(x.version, max_version) == 0]
+            if not self.single_aid:
+                down_time = self.agent.down_time(context)
+                if max(0, down_time or 0) > self.max_down_time:
+                    utils.perform_harakiri(LOG, "Agent has been down for %s "
+                                                "seconds." % down_time)
+                # Get peers
+                agents = [
+                    x for x in self.manager.find(context, resource.Agent,
+                                                 admin_state_up=True)
+                    if not x.is_down(context)]
+                # Validate agent version
+                if not agents:
+                    return []
+                max_version = max(agents, key=lambda x: x.version).version
+                if self._major_vercompare(self.agent.version, max_version) < 0:
+                    LOG.error("Agent version is outdated: Current %s Required "
+                              "%s" % (self.agent.version, max_version))
+                    return []
+                # Purge outdated agents
+                agents = [x for x in agents if
+                          self._major_vercompare(x.version, max_version) == 0]
+            else:
+                agents = [self.agent]
             result = self._tenant_assignation_algorithm(context, agents)
             # Store result in DB
             self.agent.hash_trees = result
@@ -240,8 +259,10 @@ class AID(object):
                 semantic_version.Version(y).major)
 
     def _handle_sigterm(self, signum, frame):
-        LOG.debug("Agent caught SIGTERM, quitting daemon loop.")
+        LOG.warn("Agent caught SIGTERM, quitting daemon loop.")
         self.run_daemon_loop = False
+        if self.k8s_watcher:
+            self.k8s_watcher.stop_threads()
 
     def _change_polling_interval(self, new_conf):
         # TODO(ivar): interrupt current sleep and restart with new value

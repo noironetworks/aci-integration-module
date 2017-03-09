@@ -5,15 +5,17 @@
 # Requirements should be kept alphabetically ordered
 
 alembic
--e git+https://github.com/datacenter/acitoolkit.git@v0.3.2#egg=acitoolkit
+git+https://github.com/datacenter/acitoolkit.git@v0.3.2#egg=acitoolkit
+git+https://github.com/noironetworks/apicapi.git@master#egg=apicapi
 Click
 gevent>=1.1.0
 jsonschema  # MIT
+kubernetes
 oslo.concurrency
 oslo.config
 oslo.db
 oslo.messaging
 oslo.log
 oslo.utils
-pbr>=1.6
+pbr>=1.6,<2.0
 semantic_version

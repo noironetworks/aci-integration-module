@@ -36,7 +36,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self._do_aci_mocks()
         self.universe = (universe_klass or
                          aci_universe.AciUniverse)().initialize(
-            self.ctx.db_session, aim_cfg.ConfigManager(self.ctx, 'h1'))
+            self.store, aim_cfg.ConfigManager(self.ctx, 'h1'))
         # Mock ACI tenant manager
         self.mock_start = mock.patch(
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.start')

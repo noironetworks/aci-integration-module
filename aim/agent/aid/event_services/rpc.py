@@ -46,8 +46,8 @@ class AIDEventRpcApi(object):
         except (oslo_messaging.DriverLoadFailure,
                 oslo_messaging.InvalidTransportURL) as ex:
             LOG.debug(traceback.format_exc())
-            LOG.warn("Couldn't initialize RPC transport, this API will be a "
-                     "noop: %s" % ex.message)
+            LOG.debug("Couldn't initialize RPC transport, this API will be a "
+                      "noop: %s" % ex.message)
             self.client = None
 
     @utils.log

@@ -24,8 +24,7 @@ from aim.tools.cli.groups import aimcli
 @aimcli.aim.group(name='config')
 @click.pass_context
 def config(ctx):
-    session = api.get_session(expire_on_commit=True)
-    aim_ctx = context.AimContext(db_session=session)
+    aim_ctx = context.AimContext(store=api.get_store(expire_on_commit=True))
     ctx.obj['manager'] = aim_cfg.ConfigManager(aim_ctx, '')
 
 

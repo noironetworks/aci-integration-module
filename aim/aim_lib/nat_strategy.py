@@ -279,7 +279,7 @@ class NatStrategyMixin(NatStrategy):
     def _create_l3out(self, ctx, l3out):
         """Create NAT EPG etc. in addition to creating L3Out."""
 
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             tenant = resource.Tenant(name=l3out.tenant_name)
             if not self.mgr.get(ctx, tenant):
                 self.mgr.create(ctx, tenant)
@@ -297,7 +297,7 @@ class NatStrategyMixin(NatStrategy):
     def _delete_l3out(self, ctx, l3out, delete_epg=True):
         """Delete NAT EPG etc. in addition to deleting L3Out."""
 
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             l3out_db = self.mgr.get(ctx, l3out)
             if l3out_db:
                 for en in self.mgr.find(ctx, resource.ExternalNetwork,
@@ -312,7 +312,7 @@ class NatStrategyMixin(NatStrategy):
                     self.mgr.delete(ctx, self._get_nat_vrf(ctx, l3out_db))
 
     def _create_ext_net(self, ctx, ext_net):
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if not ext_net_db:
                 ext_net_db = self.mgr.create(ctx, ext_net)
@@ -324,7 +324,7 @@ class NatStrategyMixin(NatStrategy):
             return ext_net_db
 
     def _delete_ext_net(self, ctx, ext_net):
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if ext_net_db:
                 self._manage_external_subnets(ctx, ext_net_db, [])
@@ -344,7 +344,7 @@ class NatStrategyMixin(NatStrategy):
                             external_network_name=ext_net.name)
         old_ext_subs = self.mgr.find(ctx, resource.ExternalSubnet,
                                      **ext_sub_attr)
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             for sub in old_ext_subs:
                 if sub.cidr in new_cidrs:
                     new_cidrs.remove(sub.cidr)
@@ -435,13 +435,13 @@ class NatStrategyMixin(NatStrategy):
 
     def _create_nat_epg(self, ctx, l3out):
         objs = self._get_nat_objects(ctx, l3out)
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             for r in objs:
                 if not self.mgr.get(ctx, r):
                     self.mgr.create(ctx, r)
 
     def _delete_nat_epg(self, ctx, l3out):
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             nat_bd = self._get_nat_bd(ctx, l3out)
             for sub in self.mgr.find(ctx, resource.Subnet,
                                      tenant_name=nat_bd.tenant_name,
@@ -503,7 +503,7 @@ class NoNatStrategy(NatStrategyMixin):
 
         Taking ownership allows us to modify the vrf_name of the L3Out.
         """
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             l3out_db = self._create_l3out(ctx, l3outside)
             if l3out_db and l3out_db.monitored:
                 self.saved_l3out.push(ctx, l3out_db, 'monitored', True)
@@ -512,7 +512,7 @@ class NoNatStrategy(NatStrategyMixin):
 
     def delete_l3outside(self, ctx, l3outside):
         """Delete L3Out as normal, and relinquish ownership of the object."""
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             old_monitored = self.saved_l3out.pop(ctx, l3outside, 'monitored')
             if old_monitored is not None:
                 self.mgr.update(ctx, l3outside, monitored=old_monitored)
@@ -521,7 +521,7 @@ class NoNatStrategy(NatStrategyMixin):
     def delete_external_network(self, ctx, external_network):
         """Clean-up any connected VRFs before deleting the external network."""
 
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             ext_net = self.mgr.get(ctx, external_network)
             if not ext_net:
                 return
@@ -541,7 +541,7 @@ class NoNatStrategy(NatStrategyMixin):
         Locate BDs referring to the VRF, and include L3Outside
         in their l3out_names.
         """
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             if not self._is_visible(vrf.tenant_name,
                                     external_network.tenant_name):
                 raise VrfNotVisibleFromExternalNetwork(
@@ -577,7 +577,7 @@ class NoNatStrategy(NatStrategyMixin):
         Locate BDs referring to the VRF, and exclude L3Outside
         from their l3out_names.
         """
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             ext_net = self.mgr.get(ctx, external_network)
             if not ext_net:
                 return
@@ -665,7 +665,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         """Delete external-network from main and cloned L3Outs.
 
         """
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             # Delete specified external-network from all cloned L3Outs.
             # Delete external-network from main L3Out.
             l3out = self.mgr.get(ctx,
@@ -688,7 +688,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         ext_net_db = self.mgr.get(ctx, external_network)
         if l3out and ext_net_db:
             clone_l3outs = self._find_l3out_clones(ctx, l3out)
-            with ctx.db_session.begin(subtransactions=True):
+            with ctx.store.begin(subtransactions=True):
                 for clone in clone_l3outs:
                     clone_ext_net = resource.ExternalNetwork(
                         tenant_name=clone.tenant_name,
@@ -709,7 +709,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         Set vrf_name of shadow L3Outside to VRF.
 
         """
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             return self._create_shadow(ctx, external_network, vrf)
 
     def disconnect_vrf(self, ctx, external_network, vrf):
@@ -720,7 +720,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         there are no more ExternalNetworks in the shadow
         L3Outside.
         """
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             self._delete_shadow(ctx, external_network, vrf)
 
     def _generate_l3out_name(self, l3outside, vrf):
@@ -762,7 +762,7 @@ class DistributedNatStrategy(NatStrategyMixin):
             _, nat_epg = self._get_nat_ap_epg(ctx, l3out)
             clone_ext_net.nat_epg_dn = nat_epg.dn
 
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             self.mgr.create(ctx, clone_l3out, overwrite=True)
             self.mgr.create(ctx, clone_ext_net, overwrite=True)
             cidrs = self.mgr.find(ctx, resource.ExternalSubnet,
@@ -787,7 +787,7 @@ class DistributedNatStrategy(NatStrategyMixin):
             l3out_name=clone_l3out.name,
             name=ext_net.name)
 
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             self._delete_ext_net(ctx, clone_ext_net)
             self._delete_unused_l3out(ctx, clone_l3out)
 
@@ -822,7 +822,7 @@ class EdgeNatStrategy(DistributedNatStrategy):
         Set vrf_name of shadow L3Outside to VRF.
 
         """
-        with ctx.db_session.begin(subtransactions=True):
+        with ctx.store.begin(subtransactions=True):
             return self._create_shadow(ctx, external_network, vrf,
                                        with_nat_epg=False)
 

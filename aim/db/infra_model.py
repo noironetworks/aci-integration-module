@@ -57,36 +57,48 @@ class HostLinkManager(object):
     # things like "count" to exist in the result.
 
     def get_hostlink(self, host, ifname):
-        return self.aim_context.db_session.query(HostLink).filter_by(
-            host_name=host, interface_name=ifname).first()
+        db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
+        res = self.aim_context.store.query(db_type, infra.HostLink,
+                                           host_name=host,
+                                           interface_name=ifname)
+        return res[0] if res else None
 
     def get_hostlinks_for_host_switchport(self, host, swid, module, port):
-        return self.aim_context.db_session.query(HostLink).filter_by(
-            host_name=host, switch_id=swid, module=module, port=port).all()
+        db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
+        return self.aim_context.store.query(db_type, infra.HostLink,
+                                            host_name=host, switch_id=swid,
+                                            module=module, port=port)
 
     def get_hostlinks_for_switchport(self, swid, module, port):
-        return self.aim_context.db_session.query(HostLink).filter_by(
-            switch_id=swid, module=module, port=port).all()
+        db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
+        return self.aim_context.store.query(
+            db_type, infra.HostLink, switch_id=swid, module=module, port=port)
 
     def get_hostlinks(self):
-        return self.aim_context.db_session.query(HostLink).all()
+        db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
+        return self.aim_context.store.query(db_type, infra.HostLink)
 
     def get_hostlinks_for_host(self, host):
-        return self.aim_context.db_session.query(HostLink).filter_by(
-            host_name=host).all()
+        db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
+        return self.aim_context.store.query(db_type, infra.HostLink,
+                                            host_name=host)
 
     def get_switches(self):
-        return self.aim_context.db_session.query(HostLink.switch_id).distinct()
+        res = self.get_hostlinks()
+        return list(set([x.switch_id for x in res]))
 
     def get_modules_for_switch(self, swid):
-        return self.aim_context.db_session.query(
-            HostLink.module).filter_by(switch_id=swid).distinct()
+        db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
+        res = self.aim_context.store.query(db_type, infra.HostLink,
+                                           switch_id=swid)
+        return list(set([x.module for x in res]))
 
     def get_ports_for_switch_module(self, swid, module):
-        return self.aim_context.db_session.query(
-            HostLink.port).filter_by(switch_id=swid, module=module).distinct()
+        db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
+        res = self.aim_context.store.query(db_type, infra.HostLink,
+                                           switch_id=swid, module=module)
+        return list(set([x.port for x in res]))
 
     def get_switch_and_port_for_host(self, host):
-        return self.aim_context.db_session.query(
-            HostLink.switch_id, HostLink.module, HostLink.port).filter_by(
-                host_name=host).distinct()
+        res = self.get_hostlinks_for_host(host)
+        return list(set([(x.switch_id, x.module, x.port) for x in res]))

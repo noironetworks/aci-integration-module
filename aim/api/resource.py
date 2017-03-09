@@ -17,7 +17,6 @@ import datetime
 
 from oslo_config import cfg
 from oslo_log import log as logging
-from sqlalchemy.sql.expression import func
 
 from aim.api import types as t
 from aim.common import utils
@@ -198,7 +197,11 @@ class Agent(ResourceBase):
         return self.id == other.id
 
     def is_down(self, context):
-        current = context.db_session.query(func.now()).scalar()
+        current = context.store.current_timestamp
+        # When the store doesn't support timestamps the agent can never
+        # be considered down.
+        if current is None:
+            return False
         result = current - self.heartbeat_timestamp >= datetime.timedelta(
             seconds=cfg.CONF.aim.agent_down_time)
         if result:
@@ -211,7 +214,7 @@ class Agent(ResourceBase):
 
     def down_time(self, context):
         if self.is_down(context):
-            current = context.db_session.query(func.now()).scalar()
+            current = context.store.current_timestamp
             return (current - self.heartbeat_timestamp).seconds
 
 
@@ -316,7 +319,7 @@ class EndpointGroup(AciResourceBase):
     other_attributes = t.other(
         ('display_name', t.name),
         ('bd_name', t.name),
-        ('policy_enforcement_pref', t.enum("", "enforced", "unenforced")),
+        ('policy_enforcement_pref', t.enum("", "enfFAorced", "unenforced")),
         ('provided_contract_names', t.list_of_names),
         ('consumed_contract_names', t.list_of_names),
         ('openstack_vmm_domain_names', t.list_of_names),
@@ -703,3 +706,17 @@ class SecurityGroupRule(AciResourceBase):
              'from_port': self.UNSPECIFIED,
              'to_port': self.UNSPECIFIED,
              'monitored': False}, **kwargs)
+
+
+class Configuration(ResourceBase):
+
+    identity_attributes = t.identity(
+        ('key', t.string(52)),
+        ('host', t.string(52)),
+        ('group', t.string(52))
+    )
+    other_attributes = t.other(('value', t.string(512)))
+    db_attributes = t.db(('version', t.string(36)))
+
+    def __init__(self, **kwargs):
+        super(Configuration, self).__init__({}, **kwargs)
