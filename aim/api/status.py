@@ -13,10 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from apicapi import apic_client
 from oslo_utils import importutils
 
 from aim.api import resource
 from aim.api import types as t
+from aim.common import utils
 
 resource_paths = ('aim.api.resource', 'aim.api.service_graph',
                   'aim.api.infra')
@@ -47,7 +49,8 @@ class AciStatus(resource.ResourceBase, OperationalResource):
 
     identity_attributes = t.identity(
         ('resource_type', t.string()),
-        ('resource_id', t.id))
+        ('resource_id', t.id),
+        ('resource_root', t.name))
     other_attributes = t.other(
         ('sync_status', t.enum(SYNCED, SYNC_PENDING, SYNC_FAILED)),
         ('sync_message', t.string()),
@@ -90,6 +93,10 @@ class AciStatus(resource.ResourceBase, OperationalResource):
                 except ImportError:
                     continue
         return self._parent_class
+
+    @property
+    def root(self):
+        return self.resource_root
 
     def is_build(self):
         return self.sync_status == self.SYNC_PENDING
@@ -141,3 +148,9 @@ class AciFault(resource.ResourceBase, OperationalResource):
     @property
     def dn(self):
         return self.external_identifier
+
+    @property
+    def root(self):
+        mos_and_types = utils.decompose_dn(self._aci_mo_name, self.dn)
+        mo = apic_client.ManagedObjectClass(mos_and_types[0][0])
+        return mo.rn(mos_and_types[0][1])

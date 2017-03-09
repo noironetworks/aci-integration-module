@@ -22,7 +22,6 @@ from oslo_log import log as logging
 
 from aim.agent.aid import event_handler
 from aim import aim_manager
-from aim.api import status
 from aim.api import tree as aim_tree
 from aim.common.hashtree import structured_tree
 from aim.common import utils
@@ -234,7 +233,7 @@ class K8sWatcher(object):
             changes['added'].append(aim_res)
         elif action.lower() in [ACTION_DELETED]:
             changes['deleted'].append(aim_res)
-        key = self._get_aim_resource_tenant(aim_res)
+        key = self.tt_maker.get_root_key(aim_res)
 
         # Initialize tree if needed
         if key and self.trees is not None:
@@ -252,20 +251,6 @@ class K8sWatcher(object):
                                    self.tt_builder.OPER: {key: oper}},
                                   aim_ctx=self.ctx)
         return affected_tenants
-
-    def _get_aim_resource_tenant(self, aim_resource):
-        # TODO(ivar): This can potentially cause a context switch, which may
-        # bring to a concurrency conflict on the shared tree map resource. We
-        # should find a way to retrieve the tenant RN from status objects
-        # without retrieving the parent
-        if isinstance(aim_resource, status.AciStatus):
-            aim_resource = self.mgr.get_by_id(self.ctx,
-                                              aim_resource.parent_class,
-                                              aim_resource.resource_id)
-            # TODO(ivar): this leaks status objects
-            if not aim_resource:
-                return None
-        return self.tt_maker.get_root_key(aim_resource)
 
     def _save_trees(self, affected_tenants):
         cfg_trees = []

@@ -16,7 +16,6 @@
 from oslo_log import log as logging
 
 from aim.api import resource
-from aim.api import status as aim_status
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
 from aim.common import utils
@@ -51,11 +50,6 @@ class HashTreeDbListener(object):
         with ctx.store.begin(subtransactions=True):
             for resources in added, updated, deleted:
                 for res in resources:
-                    if isinstance(res, aim_status.AciStatus):
-                        # TODO(ivar): this is a DB query not worth doing. Find
-                        # a better way to retrieve tenant from a Status object
-                        res = self.aim_manager.get_by_id(
-                            ctx, res.parent_class, res.resource_id)
                     key = self.tt_maker.get_root_key(res)
                     if key:
                         affected_tenants.add(key)

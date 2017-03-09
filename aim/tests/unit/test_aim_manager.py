@@ -373,7 +373,8 @@ class TestResourceOpsBase(object):
             status_db = self.mgr._query_db_obj(
                 self.ctx.store,
                 aim_status.AciStatus(resource_type=type(res).__name__,
-                                     resource_id=aim_id))
+                                     resource_id=aim_id,
+                                     resource_root=res.root))
             self.assertIsNone(status_db)
 
     def _create_prerequisite_objects(self):

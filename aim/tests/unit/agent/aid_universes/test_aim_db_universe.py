@@ -250,7 +250,7 @@ class TestAimDbUniverseBase(object):
             tenant_name='t1', name='bd1', display_name='somestuff',
             vrf_name='vrf')
         bd1_fault = aim_status.AciFault(
-            fault_code='901', external_identifier='uni/tn-t1/bd-bd1/fault-901',
+            fault_code='901', external_identifier='uni/tn-t1/BD-bd1/fault-901',
             description='failure901')
 
         aim_mgr.create(self.ctx, bd1)

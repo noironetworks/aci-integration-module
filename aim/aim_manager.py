@@ -280,12 +280,14 @@ class AimManager(object):
                 res_type, res_id = self._get_status_params(context, resource)
                 if res_type and res_id is not None:
                     status = self.get(context, api_status.AciStatus(
-                        resource_type=res_type, resource_id=res_id))
+                        resource_type=res_type, resource_id=res_id,
+                        resource_root=resource.root))
                     if not status:
                         # Create one with default values
                         return self.update_status(
                             context, resource, api_status.AciStatus(
-                                resource_type=res_type, resource_id=res_id))
+                                resource_type=res_type, resource_id=res_id,
+                                resource_root=resource.root))
                     status.faults = self.find(context, api_status.AciFault,
                                               status_id=status.id)
                     return status
