@@ -358,9 +358,15 @@ class K8sStore(AimStore):
               **filters):
         name = utils.camel_to_snake(resource_klass.__name__)
         if 'aim_id' in filters:
-            item = self.klient.read_namespaced_aci(filters.pop('aim_id'),
-                                                   self.namespace)
-            items = [item]
+            try:
+                item = self.klient.read_namespaced_aci(filters.pop('aim_id'),
+                                                       self.namespace)
+                items = [item]
+            except api_v1.klient.ApiException as e:
+                if str(e.status) == '404':
+                    items = []
+                else:
+                    raise e
         else:
             label_selector = self._build_label_selector(name, filters)
             items = self.klient.list_namespaced_aci(

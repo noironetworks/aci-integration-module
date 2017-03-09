@@ -336,6 +336,10 @@ class TestResourceOpsBase(object):
         self.assertTrue(isinstance(res, status.parent_class))
         res_from_status = self.mgr.get_by_id(self.ctx, status.parent_class,
                                              status.resource_id)
+        # get by ID with non-existing ID will return None
+        self.assertIsNone(
+            self.mgr.get_by_id(self.ctx, status.parent_class,
+                               'nope'))
         self.assertEqual(res, res_from_status)
         new_timestamp = status.faults[0].last_update_timestamp
         if self.ctx.store.current_timestamp:

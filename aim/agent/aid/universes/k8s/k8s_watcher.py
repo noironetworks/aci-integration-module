@@ -229,6 +229,9 @@ class K8sWatcher(object):
             aim_resource = self.mgr.get_by_id(self.ctx,
                                               aim_resource.parent_class,
                                               aim_resource.resource_id)
+            # TODO(ivar): this leaks status objects
+            if not aim_resource:
+                return None
         return self.tt_maker.get_tenant_key(aim_resource)
 
     def _save_trees(self, affected_tenants):
