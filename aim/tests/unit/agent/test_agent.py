@@ -31,6 +31,7 @@ from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
 from aim import config
+from aim import context
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
 from aim.tools.cli.debug import hashtree as treecli
@@ -1281,6 +1282,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self.assertEqual(
                 aim_status.AciStatus.SYNC_FAILED,
                 self.aim_manager.get_status(self.ctx, tn).sync_status)
+
+    @base.requires(['hooks'])
+    def test_multi_context_session(self):
+        tenant_name = 'test_transaction'
+        tenant_name2 = 'test_transaction2'
+        self.aim_manager.create(self.ctx, resource.Tenant(name=tenant_name))
+        ctx1 = context.AimContext(self.ctx.db_session)
+        self.aim_manager.create(ctx1, resource.Tenant(name=tenant_name2))
 
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():

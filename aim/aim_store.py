@@ -14,6 +14,7 @@
 #    under the License.
 
 from contextlib import contextmanager
+import copy
 from oslo_log import log as logging
 from sqlalchemy import event as sa_event
 from sqlalchemy.sql.expression import func
@@ -46,11 +47,10 @@ class AimStore(object):
     """Interface to backend persistence for AIM resources."""
 
     _features = []
+    _update_listeners = {}
 
     def __init__(self):
-        self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
-            aim_manager.AimManager(), self)
-        self._update_listeners = []
+        pass
 
     def __getattr__(self, item):
         if item.startswith('supports_'):
@@ -110,7 +110,7 @@ class AimStore(object):
                     if k in cls.attributes()}
         return cls(**attr_val)
 
-    def register_update_listener(self, func):
+    def register_update_listener(self, name, func):
         """Register callback for update to AIM objects.
 
         Parameter 'func' should be a function that accepts 4 parameters.
@@ -129,11 +129,12 @@ class AimStore(object):
         a_mgr.register_update_listener(my_listener)
 
         """
-        self._update_listeners.append(func)
+        if name not in self._update_listeners:
+            self._update_listeners[name] = func
 
-    def unregister_update_listener(self, func):
+    def unregister_update_listener(self, name):
         """Remove callback for update to AIM objects."""
-        self._update_listeners.remove(func)
+        self._update_listeners.pop(name, None)
 
     def extract_attributes(self, resource, attr_type=None):
         val = {}
@@ -193,15 +194,19 @@ class SqlAlchemyStore(AimStore):
                         tree_model.MonitoredTenantTree),
                     api_tree.OperationalTenantTree: (
                         tree_model.OperationalTenantTree)}
+    resource_map = {}
+    for k, v in db_model_map.iteritems():
+        resource_map[v] = k
 
-    def __init__(self, db_session):
+    def __init__(self, db_session, initialize_hooks=True):
         super(SqlAlchemyStore, self).__init__()
         self.db_session = db_session
-        self.resource_map = {}
-        self._update_listeners = []
-        for k, v in self.db_model_map.iteritems():
-            self.resource_map[v] = k
-        self.register_update_listener(self._hashtree_db_listener.on_commit)
+        if initialize_hooks:
+            self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
+                aim_manager.AimManager(), self)
+            self.register_update_listener(
+                'hashtree_db_listener_on_commit',
+                self._hashtree_db_listener.on_commit)
 
     @property
     def name(self):
@@ -246,7 +251,7 @@ class SqlAlchemyStore(AimStore):
         if not sa_event.contains(self.db_session, 'before_flush',
                                  self._before_session_commit):
             sa_event.listen(self.db_session, 'before_flush',
-                            self._before_session_commit)
+                            self._before_session_commit, self)
 
     def from_attr(self, db_obj, resource_klass, attribute_dict):
         db_obj.from_attr(self.db_session, attribute_dict)
@@ -254,7 +259,9 @@ class SqlAlchemyStore(AimStore):
     def to_attr(self, resource_klass, db_obj):
         return db_obj.to_attr(self.db_session)
 
-    def _before_session_commit(self, session, flush_context, instances):
+    @staticmethod
+    def _before_session_commit(session, flush_context, instances):
+        instance = SqlAlchemyStore(session, initialize_hooks=False)
         added = []
         updated = []
         deleted = []
@@ -263,11 +270,11 @@ class SqlAlchemyStore(AimStore):
                     (session.deleted, deleted)]
         for mod_set, res_list in modified:
             for db_obj in mod_set:
-                res_cls = self.resource_map.get(type(db_obj))
+                res_cls = instance.resource_map.get(type(db_obj))
                 if res_cls:
-                    res = self.make_resource(res_cls, db_obj)
+                    res = instance.make_resource(res_cls, db_obj)
                     res_list.append(res)
-        for f in self._update_listeners[:]:
+        for f in copy.copy(SqlAlchemyStore._update_listeners).values():
             LOG.debug("Invoking pre-commit hook %s with %d add(s), "
                       "%d update(s), %d delete(s)",
                       f.__name__, len(added), len(updated), len(deleted))
