@@ -243,7 +243,7 @@ class TestResourceOpsBase(object):
         """
         listener = mock.Mock()
         listener.__name__ = 'mock-listener'
-        self.ctx.store.register_update_listener(listener)
+        self.ctx.store.register_update_listener('mock-listener', listener)
 
         creation_attributes = {}
         creation_attributes.update(test_required_attributes),
@@ -282,7 +282,7 @@ class TestResourceOpsBase(object):
         self.mgr.delete(self.ctx, res)
         listener.assert_called_with(mock.ANY, [], [], [res])
 
-        self.ctx.store.unregister_update_listener(listener)
+        self.ctx.store.unregister_update_listener('mock-listener')
 
         listener.reset_mock()
         self.mgr.create(self.ctx, res)
