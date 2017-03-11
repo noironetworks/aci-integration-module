@@ -22,6 +22,7 @@ from aim.api import resource as aim_res
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.db import agent_model      # noqa
+from aim.db import hashtree_db_listener as ht_db_l
 from aim.tests import base
 from aim import tree_manager
 
@@ -32,7 +33,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         super(TestHashTreeDbListener, self).setUp()
         self.tt_mgr = tree_manager.TenantHashTreeManager()
         self.mgr = aim_manager.AimManager()
-        self.db_l = self.ctx.store._hashtree_db_listener
+        self.db_l = ht_db_l.HashTreeDbListener(aim_manager.AimManager(),
+                                               self.ctx.store)
 
     def _test_resource_ops(self, resource, tenant, tree_objects,
                            tree_objects_update,

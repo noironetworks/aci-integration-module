@@ -31,8 +31,8 @@ from aim.agent.aid.universes.aci import error
 from aim.agent.aid.universes import base_universe
 from aim.common.hashtree import structured_tree
 from aim.common import utils
-from aim.db import hashtree_db_listener
 from aim import exceptions
+from aim import tree_manager
 
 LOG = logging.getLogger(__name__)
 TENANT_KEY = 'fvTenant'
@@ -155,7 +155,7 @@ class AciTenantManager(gevent.Greenlet):
         self.to_aim_converter = converter.AciToAimModelConverter()
         self.to_aci_converter = converter.AimToAciModelConverter()
         self.object_backlog = Queue.Queue()
-        self.tree_builder = hashtree_db_listener.HashTreeBuilder(None)
+        self.tree_builder = tree_manager.HashTreeBuilder(None)
         self.tag_name = aim_system_id or self.apic_config.get_option(
             'aim_system_id', 'aim')
         self.tag_set = set()

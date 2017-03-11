@@ -29,6 +29,8 @@ from aim.common import utils
 from aim import context
 from aim.db import api
 from aim.k8s import api_v1
+from aim import tree_manager
+
 
 LOG = logging.getLogger(__name__)
 serving_tenants = {}
@@ -61,9 +63,9 @@ class K8sWatcher(object):
             # TODO(ivar) raise something meaningful
             raise
         self.mgr = aim_manager.AimManager()
-        self.tt_mgr = self.ctx.store._hashtree_db_listener.tt_mgr
-        self.tt_maker = self.ctx.store._hashtree_db_listener.tt_maker
-        self.tt_builder = self.ctx.store._hashtree_db_listener.tt_builder
+        self.tt_mgr = tree_manager.TenantHashTreeManager()
+        self.tt_maker = tree_manager.AimHashTreeMaker()
+        self.tt_builder = tree_manager.HashTreeBuilder(self.mgr)
         self.klient = self.ctx.store.klient
         self.namespace = self.ctx.store.namespace
         self.trees = {}
@@ -72,14 +74,16 @@ class K8sWatcher(object):
         self.event_handler = event_handler.EventHandler
         self._stop = False
         self._http_resp = None
+        # Tenants whose trees need to be saved in AIM
+        self.affected_tenants = set()
 
     def run(self):
         self.observer = threading.Thread(target=self.observer_thread)
         self.observer.daemon = True
         self.observer.start()
-        self.builder = threading.Thread(target=self.builder_thread)
-        self.builder.daemon = True
-        self.builder.start()
+        self.persister = threading.Thread(target=self.persistence_thread)
+        self.persister.daemon = True
+        self.persister.start()
 
     def stop_threads(self):
         self._stop = True
@@ -125,8 +129,8 @@ class K8sWatcher(object):
     def observer_thread(self):
         self._thread(self.observer_loop, "K8S Observer")
 
-    def builder_thread(self):
-        self._thread(self.builder_loop, "K8S Tree Builder")
+    def persistence_thread(self):
+        self._thread(self.persistence_loop, "K8S Tree Builder")
 
     @utils.retry_loop(OBSERVER_LOOP_MAX_WAIT, OBSERVER_LOOP_MAX_RETRIES,
                       'K8S observer thread')
@@ -151,10 +155,13 @@ class K8sWatcher(object):
                                               namespace=self.namespace):
             LOG.debug("Kubernetes event received: %s", event)
             event = self._parse_event(event)
-            self.q.put(event)
+            if event:
+                self.affected_tenants |= set(self._process_event(event))
+            self.q.put(object())
 
     def _reset_trees(self):
         self.trees = None
+        self.affected_tenants = set()
         try:
             while self.q.get_nowait():
                 pass
@@ -165,15 +172,14 @@ class K8sWatcher(object):
 
     @utils.retry_loop(BUILDER_LOOP_MAX_WAIT, BUILDER_LOOP_MAX_RETRIES,
                       'K8S observer thread')
-    def builder_loop(self):
-        self._builder_loop()
+    def persistence_loop(self):
+        self._persistence_loop()
 
-    def _builder_loop(self):
+    def _persistence_loop(self):
         if self._stop:
             LOG.info("Quitting k8s builder loop")
             raise utils.ThreadExit()
         first_event_time = None
-        affected_tenants = set()
         warmup_wait = COLD_BUILD_TIME
         while warmup_wait > 0:
             event = self._get_event(warmup_wait)
@@ -182,14 +188,20 @@ class K8sWatcher(object):
             warmup_wait = (first_event_time + self.warmup_time -
                            time.time())
             if event:
-                LOG.debug('Got event from queue: %s: %s' %
-                          (event['event_type'], event['resource']))
-                affected_tenants |= set(self._process_event(event))
+                LOG.debug('Got save event from queue')
 
         if self.trees:
-            self._save_trees(affected_tenants)
-            # Builder is warm
-            self.warmup_time = WARM_BUILD_TIME
+            affected_tenants = self.affected_tenants
+            self.affected_tenants = set()
+            try:
+                # Save procedure can be context switched at this point
+                self._save_trees(affected_tenants)
+                self.warmup_time = WARM_BUILD_TIME
+            except Exception:
+                LOG.error(traceback.format_exc())
+                # Put the affected tenants back to the list since we couldn't
+                # persist their trees.
+                self.affected_tenants |= affected_tenants
 
     def _process_event(self, event):
         # push event into tree

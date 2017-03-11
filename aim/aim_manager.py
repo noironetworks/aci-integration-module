@@ -190,6 +190,11 @@ class AimManager(object):
                             raise exc.InvalidMonitoredObjectDelete(
                                 object=resource)
                     # Recursively delete monitored children
+                    # REVISIT(ivar): In a FK-free world, this would
+                    # not be necessary. The Monitored universe would take care
+                    # of deleting these parentless objects eventually. Have we
+                    # actually undermined the purpose of AIM by adding FK
+                    # constraints to the SQLAlchemy backend?
                     for child_res in self._iter_children(context, resource,
                                                          monitored=True):
                         self.delete(context, child_res)
@@ -307,7 +312,7 @@ class AimManager(object):
                     context, resource, api_status.AciStatus.SYNC_PENDING,
                     exclude=[api_status.AciStatus.SYNCED,
                              api_status.AciStatus.SYNC_PENDING]
-                    if not top else []):
+                    if not top else [api_status.AciStatus.SYNC_PENDING]):
                 # Change parent first
                 parent_klass = resource._tree_parent
                 if parent_klass:

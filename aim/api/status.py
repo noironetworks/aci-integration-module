@@ -48,7 +48,7 @@ class AciStatus(resource.ResourceBase, OperationalResource):
         ('resource_type', t.string()),
         ('resource_id', t.id))
     other_attributes = t.other(
-        ('sync_status', t.enum(SYNCED, SYNC_PENDING, SYNC_FAILED, None)),
+        ('sync_status', t.enum(SYNCED, SYNC_PENDING, SYNC_FAILED)),
         ('sync_message', t.string()),
         ('health_score', t.number),
         ('faults', t.list_of_strings))
@@ -62,7 +62,7 @@ class AciStatus(resource.ResourceBase, OperationalResource):
     def __init__(self, **kwargs):
         super(AciStatus, self).__init__({'resource_type': None,
                                          'resource_id': None,
-                                         'sync_status': None,
+                                         'sync_status': self.SYNC_PENDING,
                                          'sync_message': '',
                                          'health_score': 100,
                                          'faults': []}, **kwargs)
