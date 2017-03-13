@@ -1337,8 +1337,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             result[tenant.name] = {}
             for type in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][type] = (
-                    self.ctx.store._hashtree_db_listener.tt_mgr.get(
-                        self.ctx, tenant.name, tree=type))
+                    self.tt_mgr.get(self.ctx, tenant.name, tree=type))
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples):

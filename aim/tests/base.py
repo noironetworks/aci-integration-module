@@ -35,6 +35,7 @@ from aim import context
 from aim.db import api
 from aim.db import model_base
 from aim.tools.cli import shell  # noqa
+from aim import tree_manager
 
 CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
@@ -126,7 +127,7 @@ def _k8s_post_create(self, created):
         w._reset_trees = mock.Mock()
         w._observer_loop()
         w.warmup_time = -1
-        w._builder_loop()
+        w._persistence_loop()
 
 
 def _k8s_post_delete(self, deleted):
@@ -138,7 +139,7 @@ def _k8s_post_delete(self, deleted):
         w._reset_trees = mock.Mock()
         w._observer_loop()
         w.warmup_time = -1
-        w._builder_loop()
+        w._persistence_loop()
 
 
 class TestAimDBBase(BaseTestCase):
@@ -182,6 +183,7 @@ class TestAimDBBase(BaseTestCase):
         self.store = api.get_store(expire_on_commit=True)
         self.ctx = context.AimContext(store=self.store)
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
+        self.tt_mgr = tree_manager.TenantHashTreeManager()
         resource.ResourceBase.__eq__ = resource_equal
         self.cfg_manager.replace_all(CONF)
         self.sys_id = self.cfg_manager.get_option('aim_system_id', 'aim')

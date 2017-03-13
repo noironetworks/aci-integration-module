@@ -254,11 +254,10 @@ class TestResourceOpsBase(object):
         status = self.mgr.get_status(self.ctx, res)
         if status:
             initial_status = copy.deepcopy(status)
-            initial_status.sync_status = None
+            initial_status.id = None
             exp_calls = [
                 mock.call(mock.ANY, [res], [], []),
-                mock.call(mock.ANY, [initial_status], [], []),
-                mock.call(mock.ANY, [], [status, res], [])]
+                mock.call(mock.ANY, [initial_status], [res], [])]
             self._check_call_list(exp_calls, listener)
         else:
             listener.assert_called_with(mock.ANY, [res], [], [])
@@ -270,8 +269,7 @@ class TestResourceOpsBase(object):
             status = self.mgr.get_status(self.ctx, res)
             if status:
                 exp_calls = [
-                    mock.call(mock.ANY, [], [res], []),
-                    mock.call(mock.ANY, [], [status, res], [])]
+                    mock.call(mock.ANY, [], [res], [])]
                 self._check_call_list(exp_calls, listener)
             else:
                 # TODO(ivar): Agent object gets 2 calls to the hook on an
