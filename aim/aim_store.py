@@ -375,7 +375,8 @@ class K8sStore(AimStore):
                 else:
                     raise e
         else:
-            label_selector = self._build_label_selector(name, filters)
+            label_selector = self._build_label_selector(resource_klass,
+                                                        filters)
             items = self.klient.list_namespaced_aci(
                 self.namespace, label_selector=label_selector)
             items = items['items']
@@ -403,8 +404,12 @@ class K8sStore(AimStore):
                 result.append(db_obj)
         return result
 
-    def _build_label_selector(self, type, filters):
-        result = 'aim_type=%s' % type
+    def _build_label_selector(self, resource_klass, filters):
+        result = 'aim_type=%s' % utils.camel_to_snake(resource_klass.__name__)
+        for filter in filters:
+            if filter in resource_klass.identity_attributes:
+                result += ',%s=%s' % (
+                    filter, utils.sanitize_name(filters[filter]))
         return result
 
     def _build_name(self, type, resource_klass, db_obj):
