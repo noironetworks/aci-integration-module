@@ -798,6 +798,18 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
              'delete': aim_converter.convert([bd])},
             self.manager.object_backlog.queue[2])
 
+    def test_squash_operations_no_key(self):
+        aim_converter = converter.AimToAciModelConverter()
+        tn = a_res.Tenant(name='tn1', display_name='foo')
+        bd = a_res.BridgeDomain(tenant_name='tn1', name='bd1',
+                                display_name='bar')
+        vrf = a_res.VRF(tenant_name='tn1', name='vrf1', display_name='pippo')
+        self.manager.push_aim_resources(
+            {'create': [tn, bd]})
+        self.manager.push_aim_resources(
+            {'delete': aim_converter.convert([vrf])})
+        self.assertEqual(2, len(self.manager.object_backlog.queue))
+
     def test_aci_types_not_convertible_if_monitored(self):
         self.assertEqual({'fvRsProv': ['l3extInstP'],
                           'fvRsCons': ['l3extInstP']},

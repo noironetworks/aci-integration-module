@@ -321,8 +321,8 @@ class AciTenantManager(gevent.Greenlet):
             requests = self.object_backlog.get()
             # check if there's an event to squash
             for op in ['create', 'delete']:
-                for i, req in enumerate(requests[op]):
-                    for j, new in enumerate(resources[op]):
+                for i, req in enumerate(requests.get(op, [])):
+                    for j, new in enumerate(resources.get(op, [])):
                         if op is 'create':
                             req_dn = req.dn
                             new_dn = new.dn

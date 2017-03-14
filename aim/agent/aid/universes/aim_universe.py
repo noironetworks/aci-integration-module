@@ -136,7 +136,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     else:
                         LOG.debug("Resource %s not found in AIM, here is a "
                                   "list of similar resources: %s" %
-                                  (str(res_db),
+                                  (str(res),
                                    [str(x) for x in self.manager.find(
                                        self.context, type(res))]))
                 except aim_exc.UnknownResourceType:
