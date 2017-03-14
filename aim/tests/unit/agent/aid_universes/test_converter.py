@@ -81,7 +81,8 @@ class TestAciToAimConverterBase(object):
         for item in expected:
             item._status = 'deleted'
         result = self.converter.convert(example)
-        self.assertEqual(len(expected), len(result))
+        self.assertEqual(len(expected), len(result),
+                         '\nexpected: %s\ncurrent: %s' % (expected, result))
         for item in expected:
             self.assertTrue(
                 item in result,
@@ -723,6 +724,48 @@ class TestAciToAimConverterExternalSubnet(TestAciToAimConverterBase,
                                 cidr='30.0.0.0/16', display_name='alias')]
 
 
+def get_example_aci_security_group_rule(**kwargs):
+    attr = {'name': 'rule1',
+            'dn': 'uni/tn-t1/pol-sg1/subj-sgs1/rule-rule1'}
+    attr.update(**kwargs)
+    return _aci_obj('hostprotRule', **attr)
+
+
+class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
+                                             base.TestAimDBBase):
+    resource_type = resource.SecurityGroupRule
+    reverse_map_output = [
+        {'exceptions': {
+            'ip_protocol': {'other': 'protocol',
+                            'converter': converter.ip_protocol},
+            'from_port': {'other': 'fromPort',
+                          'converter': converter.port},
+            'to_port': {'other': 'toPort',
+                        'converter': converter.port},
+            'ethertype': {'other': 'ethertype',
+                          'converter': converter.ethertype}},
+         'skip': ['remoteIps'],
+         'resource': 'hostprotRule'},
+        {'exceptions': {},
+         'converter': converter.hostprotRemoteIp_converter,
+         'resource': 'hostprotRemoteIp'}]
+    sample_input = [get_example_aci_security_group_rule(),
+                    get_example_aci_security_group_rule(
+                        dn='uni/tn-t1/pol-sg1/subj-sgs2/rule-rule1',
+                        connTrack='normal')]
+
+    sample_output = [
+        resource.SecurityGroupRule(
+            tenant_name='t1', security_group_name='sg1',
+            security_group_subject_name='sgs1', name='rule1',
+            conn_track='reflexive'),
+        resource.SecurityGroupRule(
+            tenant_name='t1', security_group_name='sg1',
+            security_group_subject_name='sgs2', name='rule1',
+            conn_track='normal')
+    ]
+
+
 class TestAimToAciConverterBase(object):
     sample_input = []
     sample_output = []
@@ -1339,17 +1382,19 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                         security_group_name='sg2', ip_protocol=115,
                         from_port='80', to_port='443',
                         remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
-                        direction='egress', ethertype='1')]
+                        direction='egress', ethertype='1',
+                        conn_track='normal')]
 
     sample_output = [
         [_aci_obj('hostprotRule',
                   dn='uni/tn-t1/pol-sg1/subj-sgs1/rule-rule1',
                   direction='ingress', protocol='unspecified',
                   fromPort='unspecified', toPort='unspecified',
-                  ethertype='undefined', nameAlias='')],
+                  ethertype='undefined', nameAlias='', connTrack='reflexive')],
         [_aci_obj('hostprotRule', dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1',
                   protocol='l2tp', fromPort='http', toPort='https',
-                  direction='egress', ethertype='ipv4', nameAlias=''),
+                  direction='egress', ethertype='ipv4', nameAlias='',
+                  connTrack='normal'),
          _aci_obj(
              'hostprotRemoteIp',
              dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/ip-[10.0.1.0/24]',

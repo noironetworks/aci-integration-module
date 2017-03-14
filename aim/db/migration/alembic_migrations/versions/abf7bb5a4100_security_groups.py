@@ -79,6 +79,7 @@ def upgrade():
         sa.Column('ip_protocol', sa.String(16)),
         sa.Column('from_port', sa.String(16)),
         sa.Column('to_port', sa.String(16)),
+        sa.Column('conn_track', sa.String(25)),
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'security_group_name',

@@ -613,6 +613,7 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
     ip_protocol = sa.Column(sa.String(16))
     from_port = sa.Column(sa.String(16))
     to_port = sa.Column(sa.String(16))
+    conn_track = sa.Column(sa.String(25))
 
     def from_attr(self, session, res_attr):
         if 'remote_ips' in res_attr:
