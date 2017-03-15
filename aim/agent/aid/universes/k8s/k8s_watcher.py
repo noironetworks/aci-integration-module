@@ -167,6 +167,7 @@ class K8sWatcher(object):
                 pass
         except queue.Empty:
             pass
+        self.tt_mgr.delete_all(self.ctx)
         self.warmup_time = COLD_BUILD_TIME
         self.trees = {}
 

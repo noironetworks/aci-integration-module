@@ -174,6 +174,8 @@ class ConfigManager(object):
                     value = ','.join(value) if value else None
                 elif isinstance(v, cfg.BoolOpt):
                     value = str(value)
+                elif isinstance(v, cfg.FloatOpt):
+                    value = str(value)
                 result[group, k, host] = value
         return result
 

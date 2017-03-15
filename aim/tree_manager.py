@@ -99,6 +99,15 @@ class TenantTreeManager(object):
                     context.store.delete(db_obj)
 
     @utils.log
+    def delete_all(self, context):
+        self._add_commit_hook(context)
+        with context.store.begin(subtransactions=True):
+            for type in SUPPORTED_TREES + [TENANT_TREE]:
+                db_objs = self._find_query(context, type)
+                for db_obj in db_objs:
+                    context.store.delete(db_obj)
+
+    @utils.log
     def update(self, context, hash_tree):
         return self.update_bulk(context, [hash_tree])
 

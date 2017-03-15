@@ -392,6 +392,14 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.assertIsNone(pr_1)
         self.assertIsNone(rev_pr_1)
 
+    def test_delete_all_trees(self):
+        self.mgr.create(self.ctx, aim_res.Tenant(name='common'))
+        self.mgr.create(self.ctx, aim_res.Tenant(name='tn1'))
+        self.mgr.create(self.ctx, aim_res.Tenant(name='tn2'))
+        self.assertTrue(len(self.tt_mgr.find(self.ctx)) > 0)
+        self.tt_mgr.delete_all(self.ctx)
+        self.assertEqual(0, len(self.tt_mgr.find(self.ctx)))
+
     # REVISIT(ivar): for some reason, FK cascade is not honored by our UTs
     # therefore the following test doesn't pass. Need to find the root cause.
     # def test_aim_status_deleted(self):
