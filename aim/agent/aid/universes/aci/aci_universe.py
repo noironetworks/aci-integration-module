@@ -174,6 +174,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
         super(AciUniverse, self).initialize(store, conf_mgr)
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
+        # Initialize children MOS here so that it globally fails if there's
+        # any bug or network partition.
+        aci_tenant.get_children_mos(self.aci_session)
         self.ws_context = get_websocket_context(self.conf_manager)
         self.aim_system_id = self.conf_manager.get_option('aim_system_id',
                                                           'aim')

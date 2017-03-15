@@ -42,6 +42,29 @@ STATUS_FIELD = 'status'
 SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
 CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
+CHILDREN_MOS = None
+
+
+def get_children_mos(apic_session):
+    global CHILDREN_MOS
+    if CHILDREN_MOS is None:
+        CHILDREN_MOS = set()
+        for mo in CHILDREN_LIST:
+            if mo in apic_client.ManagedObjectClass.supported_mos:
+                mo_name = apic_client.ManagedObjectClass(mo).klass_name
+            else:
+                mo_name = mo
+            try:
+                # Verify class support
+                apic_session.GET('/api/mo/uni/tn-common.json?'
+                                 'target-subtree-class=%s' % mo_name)
+            except apic_exc.ApicResponseNotOk as e:
+                if int(e.err_code) == 400 and int(e.err_code) == 12:
+                    continue
+                raise e
+            CHILDREN_MOS.add(mo_name)
+    return CHILDREN_MOS
+
 OPERATIONAL_LIST = [FAULT_KEY]
 TENANT_FAILURE_MAX_WAIT = 60
 ACI_TYPES_NOT_CONVERT_IF_MONITOR = {}
@@ -139,12 +162,7 @@ class AciTenantManager(gevent.Greenlet):
         self.aci_session = apic_session
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
-        children_mos = set()
-        for mo in CHILDREN_LIST:
-            if mo in apic_client.ManagedObjectClass.supported_mos:
-                children_mos.add(apic_client.ManagedObjectClass(mo).klass_name)
-            else:
-                children_mos.add(mo)
+        children_mos = get_children_mos(self.aci_session)
         self.tenant = Tenant(self.tenant_name, filtered_children=children_mos)
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
