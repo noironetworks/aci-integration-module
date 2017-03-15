@@ -17,10 +17,13 @@ import ast
 import json
 from six import iteritems
 
-from kubernetes import client
-from kubernetes.client import api_client as klient
-from kubernetes import config as konfig
-from kubernetes import watch
+try:
+    from kubernetes import client
+    from kubernetes.client import api_client as klient
+    from kubernetes import config as konfig
+    from kubernetes import watch
+except ImportError:
+    pass
 
 from aim.common import utils
 
