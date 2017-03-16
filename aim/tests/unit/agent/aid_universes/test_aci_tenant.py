@@ -367,6 +367,10 @@ class TestAciClientMixin(object):
             'apicapi.apic_client.ApicSession.DELETE')
         self.delete.start()
 
+        self.get = mock.patch(
+            'apicapi.apic_client.ApicSession.GET')
+        self.get.start()
+
         self.apic_login = mock.patch(
             'apicapi.apic_client.ApicSession.login')
         self.apic_login.start()
@@ -381,6 +385,7 @@ class TestAciClientMixin(object):
         self.addCleanup(self.process_q.stop)
         self.addCleanup(self.post_body.stop)
         self.addCleanup(self.delete.stop)
+        self.addCleanup(self.get.stop)
         self.addCleanup(self.monitors.stop)
 
 
