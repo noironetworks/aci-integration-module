@@ -59,7 +59,7 @@ def get_children_mos(apic_session):
                 apic_session.GET('/api/mo/uni/tn-common.json?'
                                  'target-subtree-class=%s' % mo_name)
             except apic_exc.ApicResponseNotOk as e:
-                if int(e.err_code) == 400 and int(e.err_code) == 12:
+                if int(e.err_status) == 400 and int(e.err_code) == 12:
                     continue
                 raise e
             CHILDREN_MOS.add(mo_name)
