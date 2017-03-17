@@ -18,20 +18,20 @@ from aim.api import resource as api_res
 from aim.api import types as t
 
 
-class TenantTree(api_res.ResourceBase):
+class Tree(api_res.ResourceBase):
     identity_attributes = t.identity(
-        ('tenant_rn', t.string(64))
+        ('root_rn', t.string(64))
     )
     other_attributes = t.other()
     db_attributes = t.db()
 
     def __init__(self, **kwargs):
-        super(TenantTree, self).__init__({}, **kwargs)
+        super(Tree, self).__init__({}, **kwargs)
 
 
 class TypeTreeBase(object):
     identity_attributes = t.identity(
-        ('tenant_rn', t.string(64))
+        ('root_rn', t.string(64))
     )
     other_attributes = t.other(
         ('root_full_hash', t.string(256)),
@@ -43,13 +43,13 @@ class TypeTreeBase(object):
         super(TypeTreeBase, self).__init__({}, **kwargs)
 
 
-class ConfigTenantTree(TypeTreeBase, api_res.ResourceBase):
+class ConfigTree(TypeTreeBase, api_res.ResourceBase):
     pass
 
 
-class OperationalTenantTree(TypeTreeBase, api_res.ResourceBase):
+class OperationalTree(TypeTreeBase, api_res.ResourceBase):
     pass
 
 
-class MonitoredTenantTree(TypeTreeBase, api_res.ResourceBase):
+class MonitoredTree(TypeTreeBase, api_res.ResourceBase):
     pass

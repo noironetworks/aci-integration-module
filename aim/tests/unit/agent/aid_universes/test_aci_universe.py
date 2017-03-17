@@ -167,20 +167,22 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         bd2_tn2 = self._get_example_aim_bd(tenant_name='tn2',
                                            name='bd2')
 
-        self.universe.serve(['tn1', 'tn2'])
+        self.universe.serve(['tn-tn1', 'tn-tn2'])
         self.universe.push_resources(
             {'create': [bd1_tn1, bd2_tn1, bd2_tn2],
              'delete': [bd1_tn2]})
         # Verify that the requests are filled properly
-        tn1 = self.universe.serving_tenants['tn1'].object_backlog.get()
-        tn2 = self.universe.serving_tenants['tn2'].object_backlog.get()
+        tn1 = self.universe.serving_tenants[
+            'tn-tn1'].object_backlog.get_nowait()
+        tn2 = self.universe.serving_tenants[
+            'tn-tn2'].object_backlog.get_nowait()
         self.assertEqual({'create': [bd1_tn1, bd2_tn1]}, tn1)
         self.assertEqual({'create': [bd2_tn2], 'delete': [bd1_tn2]}, tn2)
 
         self.assertTrue(
-            self.universe.serving_tenants['tn1'].object_backlog.empty())
+            self.universe.serving_tenants['tn-tn1'].object_backlog.empty())
         self.assertTrue(
-            self.universe.serving_tenants['tn2'].object_backlog.empty())
+            self.universe.serving_tenants['tn-tn2'].object_backlog.empty())
 
     def test_get_resource_fault(self):
         fault = self._get_example_aci_fault()

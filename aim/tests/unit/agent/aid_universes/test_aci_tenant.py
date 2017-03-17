@@ -395,13 +395,13 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         super(TestAciTenant, self).setUp()
         self._do_aci_mocks()
         self.manager = aci_tenant.AciTenantManager(
-            'tenant-1', self.cfg_manager,
+            'tn-tenant-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
             aci_universe.get_websocket_context(self.cfg_manager))
 
     def test_event_loop(self):
         old_name = self.manager.tenant_name
-        self.manager.tenant_name = 'test-tenant'
+        self.manager.tenant_name = 'tn-test-tenant'
         self.manager._subscribe_tenant()
         # Runs with no events
         self.manager._event_loop()

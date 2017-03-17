@@ -40,4 +40,4 @@ class MultipleRootTreeError(StructuredHashTreeException):
 
 
 class HashTreeNotFound(StructuredHashTreeException):
-    message = "Hash Tree not found for tenants %(tenant_rn)s"
+    message = "Hash Tree not found for roots %(root_rn)s"

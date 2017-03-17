@@ -522,11 +522,11 @@ class TestAgentMixin(object):
                                 'host': 'h1',
                                 'binary_file': 'aid.py',
                                 'version': '1.0',
-                                'hash_trees': ['t1']}
+                                'hash_trees': ['tn-t1']}
     test_search_attributes = {'host': 'h1'}
     test_update_attributes = {'host': 'h2',
                               'version': '2.0',
-                              'hash_trees': ['t2']}
+                              'hash_trees': ['tn-t2']}
     test_default_values = {}
     res_command = 'agent'
 
@@ -1215,16 +1215,15 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        self.tree_mgr = tree_manager.TenantHashTreeManager()
+        self.tree_mgr = tree_manager.HashTreeManager()
         self.tree_mgr.update_bulk(
-            self.ctx, [structured_tree.StructuredHashTree(root_key=('t1',)),
-                       structured_tree.StructuredHashTree(root_key=('t2',))])
+            self.ctx,
+            [structured_tree.StructuredHashTree(root_key=('fvTenant|t1',)),
+             structured_tree.StructuredHashTree(root_key=('fvTenant|t2',))])
 
     def _clean_trees(self):
-        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
-                                                                 't1')
-        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
-                                                                 't2')
+        tree_manager.HashTreeManager().delete_by_root_rn(self.ctx, 'tn-t1')
+        tree_manager.HashTreeManager().delete_by_root_rn(self.ctx, 'tn-t2')
 
     def test_timestamp(self):
         if self.ctx.store.current_timestamp:

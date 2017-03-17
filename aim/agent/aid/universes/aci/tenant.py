@@ -74,17 +74,19 @@ for typ in converter.resource_map:
                     typ, []).append(resource['resource']._aci_mo_name)
 
 
-class Tenant(acitoolkit.Tenant):
+class Root(acitoolkit.BaseACIObject):
 
     def __init__(self, *args, **kwargs):
         self.filtered_children = kwargs.pop('filtered_children', [])
-        super(Tenant, self).__init__(*args, **kwargs)
+        rn = kwargs.pop('rn')
+        super(Root, self).__init__(*args, **kwargs)
+        self.dn = apic_client.DN_BASE + rn
         self.urls = self._get_instance_subscription_urls()
 
     def _get_instance_subscription_urls(self):
-        url = ('/api/mo/uni/tn-{}.json?query-target=subtree&'
+        url = ('/api/mo/%s.json?query-target=subtree&'
                'rsp-prop-include=config-only&rsp-subtree-include=faults&'
-               'subscription=yes'.format(self.name))
+               'subscription=yes'.format(self.dn))
         # TODO(amitbose) temporary workaround for ACI bug,
         # remove when ACI is fixed
         url = url.replace('&rsp-prop-include=config-only', '')
@@ -107,7 +109,8 @@ class AciTenantManager(gevent.Greenlet):
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
         children_mos = get_children_mos(self.aci_session)
-        self.tenant = Tenant(self.tenant_name, filtered_children=children_mos)
+        self.tenant = Root(self.tenant_name, filtered_children=children_mos,
+                           rn=self.tenant_name)
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
         self._monitored_state = structured_tree.StructuredHashTree()

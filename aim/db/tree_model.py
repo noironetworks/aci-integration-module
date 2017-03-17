@@ -29,18 +29,18 @@ class AgentToHashTreeAssociation(model_base.Base):
     agent_id = sa.Column(
         sa.String(255), sa.ForeignKey('aim_agents.id', ondelete='CASCADE'),
         primary_key=True,)
-    tree_tenant_rn = sa.Column(
+    tree_root_rn = sa.Column(
         sa.String(64), sa.ForeignKey('aim_tenant_trees.tenant_rn',
                                      ondelete='CASCADE'),
-        primary_key=True)
+        primary_key=True, name='tree_tenant_rn')
 
 
-class TenantTree(model_base.Base, model_base.AttributeMixin):
-    """DB model for TenantTree."""
+class Tree(model_base.Base, model_base.AttributeMixin):
+    """DB model for Tree."""
 
     __tablename__ = 'aim_tenant_trees'
 
-    tenant_rn = sa.Column(sa.String(64), primary_key=True)
+    root_rn = sa.Column(sa.String(64), primary_key=True, name='tenant_rn')
     agents = orm.relationship(AgentToHashTreeAssociation,
                               backref='hash_trees',
                               cascade='all, delete-orphan',
@@ -48,23 +48,19 @@ class TenantTree(model_base.Base, model_base.AttributeMixin):
 
 
 class TypeTreeBase(object):
-    # TODO(ivar): Make tenant_rn a FK with cascade delete.
-    #
-    tenant_rn = sa.Column(sa.String(64), primary_key=True)
+    root_rn = sa.Column(sa.String(64), primary_key=True, name='tenant_rn')
     root_full_hash = sa.Column(sa.String(256), nullable=True)
     tree = sa.Column(sa.LargeBinary(length=2 ** 24), nullable=True)
 
 
-class ConfigTenantTree(model_base.Base, TypeTreeBase,
-                       model_base.AttributeMixin):
+class ConfigTree(model_base.Base, TypeTreeBase, model_base.AttributeMixin):
     __tablename__ = 'aim_config_tenant_trees'
 
 
-class OperationalTenantTree(model_base.Base, TypeTreeBase,
-                            model_base.AttributeMixin):
+class OperationalTree(model_base.Base, TypeTreeBase,
+                      model_base.AttributeMixin):
     __tablename__ = 'aim_operational_tenant_trees'
 
 
-class MonitoredTenantTree(model_base.Base, TypeTreeBase,
-                          model_base.AttributeMixin):
+class MonitoredTree(model_base.Base, TypeTreeBase, model_base.AttributeMixin):
     __tablename__ = 'aim_monitored_tenant_trees'

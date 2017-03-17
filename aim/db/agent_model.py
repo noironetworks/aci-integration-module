@@ -59,28 +59,28 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
         keep = []
         trees = set(trees)
         for curr in self.hash_trees:
-            if curr.tree_tenant_rn in trees:
+            if curr.tree_root_rn in trees:
                 keep.append(curr)
-                trees.remove(curr.tree_tenant_rn)
+                trees.remove(curr.tree_root_rn)
         self.hash_trees = keep
         if trees:
             LOG.debug("Adding trees for agent %s: %s" % (self.id, trees))
         with session.begin(subtransactions=True):
             for tree in trees:
-                self.tenant_tree_exists(session, tree)
+                self.tree_exists(session, tree)
                 # Check whether the current object already has an ID, use
                 # the one passed in the getter otherwise.
                 db_obj = tree_model.AgentToHashTreeAssociation(
-                    agent_id=self.id or kwargs.get('id'), tree_tenant_rn=tree)
+                    agent_id=self.id or kwargs.get('id'), tree_root_rn=tree)
                 self.hash_trees.append(db_obj)
 
     def get_hash_trees(self, session):
         # Only return the trees' identifier
-        return [getattr(x, 'tree_tenant_rn') for x in self.hash_trees or []]
+        return [getattr(x, 'tree_root_rn') for x in self.hash_trees or []]
 
-    def tenant_tree_exists(self, session, tenant_rn):
+    def tree_exists(self, session, root_rn):
         try:
-            session.query(tree_model.ConfigTenantTree).filter(
-                tree_model.ConfigTenantTree.tenant_rn == tenant_rn).one()
+            session.query(tree_model.ConfigTree).filter(
+                tree_model.ConfigTree.root_rn == root_rn).one()
         except sql_exc.NoResultFound:
-            raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
+            raise exc.HashTreeNotFound(root_rn=root_rn)

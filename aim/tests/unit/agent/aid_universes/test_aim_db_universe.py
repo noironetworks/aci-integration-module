@@ -35,7 +35,7 @@ class TestAimDbUniverseBase(object):
         self.klass = klass
         self.universe = self.klass().initialize(
             self.store, aim_cfg.ConfigManager(self.ctx, ''))
-        self.tree_mgr = tree_manager.TenantTreeManager(tree.StructuredHashTree)
+        self.tree_mgr = tree_manager.HashTreeManager()
         self.monitor_universe = False
 
     def test_serve(self):
@@ -47,71 +47,78 @@ class TestAimDbUniverseBase(object):
     def test_state(self, tree_type=tree_manager.CONFIG_TREE):
         # Create some trees in the AIM DB
         data1 = tree.StructuredHashTree().include(
-            [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
-             {'key': ('tnA', 'keyC', 'keyD')}])
+            [{'key': ('fvTenant|tnA', 'keyB')},
+             {'key': ('fvTenant|tnA', 'keyC')},
+             {'key': ('fvTenant|tnA', 'keyC', 'keyD')}])
         data2 = tree.StructuredHashTree().include(
-            [{'key': ('tnA1', 'keyB')}, {'key': ('tnA1', 'keyC')},
-             {'key': ('tnA1', 'keyC', 'keyD')}])
+            [{'key': ('fvTenant|tnA1', 'keyB')},
+             {'key': ('fvTenant|tnA1', 'keyC')},
+             {'key': ('fvTenant|tnA1', 'keyC', 'keyD')}])
         data3 = tree.StructuredHashTree().include(
-            [{'key': ('tnA2', 'keyB')}, {'key': ('tnA2', 'keyC')},
-             {'key': ('tnA2', 'keyC', 'keyD')}])
+            [{'key': ('fvTenant|tnA2', 'keyB')},
+             {'key': ('fvTenant|tnA2', 'keyC')},
+             {'key': ('fvTenant|tnA2', 'keyC', 'keyD')}])
         self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
                                   tree=tree_type)
         # Serve tnA, tnA2 and tnExtra
-        self.universe.serve(['tnA', 'tnA2', 'tnExtra'])
+        self.universe.serve(['tn-tnA', 'tn-tnA2', 'tn-tnExtra'])
         # Now observe
         state = self.universe.state
         # tnA and tnA2 have updated values, tnExtra is still empty
-        self.assertEqual(data1, state['tnA'])
-        self.assertEqual(data3, state['tnA2'])
-        self.assertIsNone(state.get('tnExtra'))
+        self.assertEqual(data1, state['tn-tnA'])
+        self.assertEqual(data3, state['tn-tnA2'])
+        self.assertIsNone(state.get('tn-tnExtra'))
 
         # Change tree in the DB
-        data1.add(('tnA', 'keyB'), attribute='something')
+        data1.add(('fvTenant|tnA', 'keyB'), attribute='something')
         self.tree_mgr.update_bulk(self.ctx, [data1], tree=tree_type)
         # Observe and verify that trees are back in sync
-        self.assertNotEqual(data1, state['tnA'])
+        self.assertNotEqual(data1, state['tn-tnA'])
         state = self.universe.state
-        self.assertEqual(data1, state['tnA'])
+        self.assertEqual(data1, state['tn-tnA'])
 
     def test_get_optimized_state(self, tree_type=tree_manager.CONFIG_TREE):
         data1 = tree.StructuredHashTree().include(
-            [{'key': ('tnA', 'keyB')}, {'key': ('tnA', 'keyC')},
-             {'key': ('tnA', 'keyC', 'keyD')}])
+            [{'key': ('fvTenant|tnA', 'keyB')},
+             {'key': ('fvTenant|tnA', 'keyC')},
+             {'key': ('fvTenant|tnA', 'keyC', 'keyD')}])
         data2 = tree.StructuredHashTree().include(
-            [{'key': ('tnA1', 'keyB')}, {'key': ('tnA1', 'keyC')},
-             {'key': ('tnA1', 'keyC', 'keyD')}])
+            [{'key': ('fvTenant|tnA1', 'keyB')},
+             {'key': ('fvTenant|tnA1', 'keyC')},
+             {'key': ('fvTenant|tnA1', 'keyC', 'keyD')}])
         data3 = tree.StructuredHashTree().include(
-            [{'key': ('tnA2', 'keyB')}, {'key': ('tnA2', 'keyC')},
-             {'key': ('tnA2', 'keyC', 'keyD')}])
+            [{'key': ('fvTenant|tnA2', 'keyB')},
+             {'key': ('fvTenant|tnA2', 'keyC')},
+             {'key': ('fvTenant|tnA2', 'keyC', 'keyD')}])
         self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
                                   tree=tree_type)
 
-        self.universe.serve(['tnA', 'tnA1', 'tnA2', 'tnA3'])
+        self.universe.serve(['tn-tnA', 'tn-tnA1', 'tn-tnA2', 'tn-tnA3'])
         # Other state is in sync
         other_state = {
-            'tnA': tree.StructuredHashTree().from_string(str(data1)),
-            'tnA1': tree.StructuredHashTree().from_string(str(data2)),
-            'tnA2': tree.StructuredHashTree().from_string(str(data3))}
+            'tn-tnA': tree.StructuredHashTree().from_string(str(data1)),
+            'tn-tnA1': tree.StructuredHashTree().from_string(str(data2)),
+            'tn-tnA2': tree.StructuredHashTree().from_string(str(data3))}
         # Optimized state is empty
         self.assertEqual({}, self.universe.get_optimized_state(other_state))
 
         # Add a new tenant
         data4 = tree.StructuredHashTree().include(
-            [{'key': ('tnA3', 'keyB')}, {'key': ('tnA3', 'keyC')},
-             {'key': ('tnA3', 'keyC', 'keyD')}])
+            [{'key': ('fvTenant|tnA3', 'keyB')},
+             {'key': ('fvTenant|tnA3', 'keyC')},
+             {'key': ('fvTenant|tnA3', 'keyC', 'keyD')}])
         self.tree_mgr.update_bulk(self.ctx, [data4], tree=tree_type)
-        self.assertEqual({'tnA3': data4},
+        self.assertEqual({'tn-tnA3': data4},
                          self.universe.get_optimized_state(other_state))
         # Modify data1
-        data1.add(('tnA', 'keyZ'), attribute='something')
+        data1.add(('fvTenant|tnA', 'keyZ'), attribute='something')
         self.tree_mgr.update_bulk(self.ctx, [data1], tree=tree_type)
         # Now Data1 is included too
-        self.assertEqual({'tnA3': data4, 'tnA': data1},
+        self.assertEqual({'tn-tnA3': data4, 'tn-tnA': data1},
                          self.universe.get_optimized_state(other_state))
 
     def test_get_aim_resources(self, tree_type=tree_manager.CONFIG_TREE):
-        tree_mgr = tree_manager.TenantHashTreeManager()
+        tree_mgr = tree_manager.HashTreeManager()
         aim_mgr = aim_manager.AimManager()
         t1 = resource.Tenant(name='t1')
         t2 = resource.Tenant(name='t2')
@@ -236,7 +243,7 @@ class TestAimDbUniverseBase(object):
             self.assertTrue(dc_ctx1_fault in result)
 
     def test_cleanup_state(self, tree_type=tree_manager.CONFIG_TREE):
-        tree_mgr = tree_manager.TenantHashTreeManager()
+        tree_mgr = tree_manager.HashTreeManager()
         aim_mgr = aim_manager.AimManager()
         aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
         bd1 = resource.BridgeDomain(
@@ -248,7 +255,7 @@ class TestAimDbUniverseBase(object):
 
         aim_mgr.create(self.ctx, bd1)
         aim_mgr.set_fault(self.ctx, bd1, bd1_fault)
-        self.universe.cleanup_state('t1')
+        self.universe.cleanup_state('tn-t1')
 
         trees = tree_mgr.find(self.ctx, tree=tree_type)
         self.assertEqual(0, len(trees))

@@ -57,8 +57,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.set_override('agent_polling_interval', 0, 'aim')
         self.set_override('aci_tenant_polling_yield', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
-        self.tree_manager = tree_manager.TenantTreeManager(
-            tree.StructuredHashTree)
+        self.tree_manager = tree_manager.TreeManager(tree.StructuredHashTree)
         self.old_post = apic_client.ApicSession.post_body_dict
 
         self.addCleanup(self._reset_apic_client)
@@ -342,10 +341,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # The ACI universe will not push the configuration unless explicitly
         # called
         self.assertFalse(
-            agent.current_universe.serving_tenants[tenant_name1].
+            agent.current_universe.serving_tenants[tn1.rn].
             object_backlog.empty())
         self.assertFalse(
-            agent.current_universe.serving_tenants[tenant_name2].
+            agent.current_universe.serving_tenants[tn2.rn].
             object_backlog.empty())
 
         # Meanwhile, Operational state has been cleaned from AIM
@@ -376,10 +375,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                          bd1_tn2_status.sync_status)
 
         self.assertTrue(
-            agent.current_universe.serving_tenants[tenant_name1].
+            agent.current_universe.serving_tenants[tn1.rn].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe.serving_tenants[tenant_name2].
+            agent.current_universe.serving_tenants[tn2.rn].
             object_backlog.empty())
 
         # Delete object and create a new one on tn1
@@ -392,16 +391,16 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             k: v for k, v in
             agent.current_universe.serving_tenants.iteritems()}
         agent._daemon_loop()
-        self.assertIs(agent.current_universe.serving_tenants[tenant_name1],
-                      currentserving_tenants[tenant_name1])
-        self.assertIs(agent.current_universe.serving_tenants[tenant_name2],
-                      currentserving_tenants[tenant_name2])
+        self.assertIs(agent.current_universe.serving_tenants[tn1.rn],
+                      currentserving_tenants[tn1.rn])
+        self.assertIs(agent.current_universe.serving_tenants[tn2.rn],
+                      currentserving_tenants[tn2.rn])
         # There are changes on tn1 only
         self.assertFalse(
-            agent.current_universe.serving_tenants[tenant_name1].
+            agent.current_universe.serving_tenants[tn1.rn].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe.serving_tenants[tenant_name2].
+            agent.current_universe.serving_tenants[tn2.rn].
             object_backlog.empty())
         # Get events
         for tenant in agent.current_universe.serving_tenants.values():
@@ -411,8 +410,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Everything is in sync again
         self._assert_universe_sync(agent.desired_universe,
                                    agent.current_universe)
-        self._assert_reset_consistency(tenant_name1)
-        self._assert_reset_consistency(tenant_name2)
+        self._assert_reset_consistency(tn1.rn)
+        self._assert_reset_consistency(tn2.rn)
 
         # Delete a tenant
         self.aim_manager.delete(self.ctx, bd2_tn1)
@@ -421,36 +420,36 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         # There are changes on tn1 only
         self.assertFalse(
-            agent.current_universe.serving_tenants[tenant_name1].
+            agent.current_universe.serving_tenants[tn1.rn].
             object_backlog.empty())
         self.assertTrue(
-            agent.current_universe.serving_tenants[tenant_name2].
+            agent.current_universe.serving_tenants[tn2.rn].
             object_backlog.empty())
-        self.assertIs(agent.current_universe.serving_tenants[tenant_name1],
-                      currentserving_tenants[tenant_name1])
-        self.assertIs(agent.current_universe.serving_tenants[tenant_name2],
-                      currentserving_tenants[tenant_name2])
+        self.assertIs(agent.current_universe.serving_tenants[tn1.rn],
+                      currentserving_tenants[tn1.rn])
+        self.assertIs(agent.current_universe.serving_tenants[tn2.rn],
+                      currentserving_tenants[tn2.rn])
         # Get events
         for tenant in agent.current_universe.serving_tenants.values():
             self._current_manager = tenant
             tenant._event_loop()
         # Depending on the order of operation, we might need another
         # iteration to cleanup the tree completely
-        if agent.current_universe.serving_tenants[tenant_name1]._state.root:
+        if agent.current_universe.serving_tenants[tn1.rn]._state.root:
             agent._daemon_loop()
             for tenant in agent.current_universe.serving_tenants.values():
                 self._current_manager = tenant
                 tenant._event_loop()
         # Tenant still exist on AIM because observe didn't run yet
         self.assertIsNone(
-            agent.current_universe.serving_tenants[tenant_name1]._state.root)
-        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=[tenant_name1])
-        self.assertEqual(1, len(tn1))
+            agent.current_universe.serving_tenants[tn1.rn]._state.root)
+        tree1 = agent.tree_manager.find(self.ctx, root_rn=[tn1.rn])
+        self.assertEqual(1, len(tree1))
         # Now tenant will be deleted (still served)
         agent._daemon_loop()
-        self.assertIsNone(agent.current_universe.state[tenant_name1].root)
-        tn1 = agent.tree_manager.find(self.ctx, tenant_rn=[tenant_name1])
-        self.assertEqual(0, len(tn1))
+        self.assertIsNone(agent.current_universe.state[tn1.rn].root)
+        tree1 = agent.tree_manager.find(self.ctx, root_rn=[tn1.rn])
+        self.assertEqual(0, len(tree1))
 
         # Agent not served anymore
         agent._daemon_loop()
@@ -494,7 +493,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Run loop for serving tenant
         agent._daemon_loop()
         self._set_events(
-            [aci_tn], manager=desired_monitor.serving_tenants[tenant_name],
+            [aci_tn], manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         self._observe_aci_events(current_config)
         # Simulate an external actor creating a BD
@@ -505,7 +504,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             dn='uni/tn-%s/BD-default/rsctx' % tenant_name)
         self._set_events(
             [aci_bd, aci_rsctx],
-            manager=desired_monitor.serving_tenants[tenant_name],
+            manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
@@ -544,7 +543,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'status': 'deleted'}}}
         self._set_events(
             [ac_bd_tag, aci_rsctx, aci_bd],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn1.rn], tag=False)
         # Observe ACI events
         self._observe_aci_events(current_config)
         # Run the loop for reconciliation
@@ -554,7 +553,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tenant_name=tenant_name, name='default'))
         self.assertIsNone(aim_bd)
         self._assert_universe_sync(desired_monitor, current_monitor)
-        self._assert_reset_consistency(tenant_name)
+        self._assert_reset_consistency(tn1.rn)
 
     @base.requires(['foreign_keys'])
     def test_monitored_tree_fk_semantics(self):
@@ -576,7 +575,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         # we need this tenant to exist in ACI
         self._set_events(
-            [aci_tn], manager=desired_monitor.serving_tenants[tenant_name],
+            [aci_tn], manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         # Observe ACI events
         self._observe_aci_events(current_config)
@@ -590,7 +589,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         aci_sub = self._get_example_aci_subnet(
             dn='uni/tn-%s/BD-bd1/subnet-[10.10.10.1/28]' % tenant_name)
         self._set_events(
-            [aci_sub], manager=desired_monitor.serving_tenants[tenant_name],
+            [aci_sub], manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         # Observe the event
         self._observe_aci_events(current_config)
@@ -641,7 +640,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # we need this tenant to exist in ACI
         self._set_events(
             [aci_tn, aci_bd],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn1.rn], tag=False)
         self._observe_aci_events(current_config)
         agent._daemon_loop()
         bd1 = resource.BridgeDomain(name='bd1', tenant_name=tenant_name)
@@ -669,7 +668,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         # Agent will not serve such tenant anymore
         agent._daemon_loop()
-        self.assertTrue(tenant_name not in desired_monitor.serving_tenants)
+        self.assertTrue(tn1.rn not in desired_monitor.serving_tenants)
 
     def test_monitored_tree_relationship(self):
         # Set retry to 1 to cause immediate creation surrender
@@ -699,7 +698,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             dn='uni/tn-%s/BD-mybd' % tenant_name,
             limitIpLearnToSubnets='yes')
         self._set_events(
-            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
+            [aci_bd], manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         self._observe_aci_events(current_config)
         # Reconcile
@@ -726,7 +725,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Delete the ACI BD manually
         aci_bd['fvBD']['attributes']['status'] = 'deleted'
         self._set_events(
-            [aci_bd], manager=desired_monitor.serving_tenants[tenant_name],
+            [aci_bd], manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         # Observe
         self._observe_aci_events(current_config)
@@ -788,7 +787,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                'rsprov-default' % tenant_name)
         self._set_events(
             [aci_l3o, aci_ext_net, aci_ext_net_rs_prov],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn1.rn], tag=False)
         self._observe_aci_events(current_config)
         # Reconcile
         agent._daemon_loop()
@@ -817,18 +816,18 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(['c1'], ext_net.provided_contract_names)
         # Verify contract is provided in ACI
         prov = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1' % tenant_name)
         self.assertIsNotNone(prov[0])
         # Also its tag exists
         prov_tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1/'
             'tag-openstack_aid' % tenant_name)
         self.assertIsNotNone(prov_tag[0])
         # Old contract still exists
         prov_def = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-default' %
             tenant_name)
         self.assertIsNotNone(prov_def[0])
@@ -870,8 +869,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         # start by managing a single tenant (non-monitored)
-        self.aim_manager.create(
-            self.ctx, resource.Tenant(name=tenant_name))
+        tn = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn)
         # Create a APP profile in such tenant
         self.aim_manager.create(
             self.ctx, resource.ApplicationProfile(
@@ -922,7 +921,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         }
         self._set_events(
             [aci_contract_rs],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn.rn], tag=False)
         self._observe_aci_events(current_config)
         # Observe, Reconcile, Verify
         agent._daemon_loop()
@@ -935,7 +934,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # C2 RS is not to be found
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + aci_contract_rs['fvRsProv']['attributes']['dn'])
 
     def test_monitored_state_change(self):
@@ -969,7 +968,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         self._set_events(
             [aci_tn, aci_ap, aci_epg, aci_contract, aci_prov_contract],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn.rn], tag=False)
 
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
@@ -997,11 +996,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                (desired_monitor, current_monitor)])
         # Tag exists in ACI
         tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + epg.dn + '/tag-openstack_aid')
         self.assertIsNotNone(tag)
         tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
         self.assertIsNotNone(tag)
         # Run an empty change on the EPG, bringing it to sync pending
@@ -1018,11 +1017,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Tag doesn't exist anymore
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + epg.dn + '/tag-openstack_aid')
         # Object is in monitored universe and in good shape
         epg = self.aim_manager.get(self.ctx, epg)
@@ -1072,7 +1071,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                        'name': 'inet'}}}
         self._set_events(
             [aci_tn, aci_vrf, aci_l3out, aci_ctxRs, aci_instP],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn.rn], tag=False)
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
@@ -1095,11 +1094,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
         tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/tag-openstack_aid')
         self.assertIsNotNone(tag)
         tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
         self.assertIsNotNone(tag)
 
@@ -1111,11 +1110,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
         tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
         self.assertIsNotNone(tag)
         ctxRs = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx')
         self.assertEqual('foo',
                          ctxRs[0].values()[0]['attributes']['tnFvCtxName'])
@@ -1126,11 +1125,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
         tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
         self.assertIsNotNone(tag)
         ctxRs = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx')
         self.assertEqual('shared',
                          ctxRs[0].values()[0]['attributes']['tnFvCtxName'])
@@ -1156,11 +1155,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertIsNotNone(ctxRs)
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/tag-openstack_aid')
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
 
     def test_monitored_l3out_vrf_rs(self):
@@ -1190,7 +1189,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         self._set_events(
             [aci_tn, aci_l3o, aci_l3o_vrf_rs],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn.rn], tag=False)
 
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
@@ -1414,7 +1413,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             result[tenant.name] = {}
             for type in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][type] = (
-                    self.tt_mgr.get(self.ctx, tenant.name, tree=type))
+                    self.tt_mgr.get(self.ctx, tenant.rn, tree=type))
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples):

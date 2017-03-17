@@ -17,7 +17,6 @@ from oslo_log import log as logging
 
 from aim.api import resource
 from aim.api import status as aim_status
-from aim.api import tree as aim_tree
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
 from aim.common import utils
@@ -32,7 +31,7 @@ class HashTreeDbListener(object):
 
     def __init__(self, aim_manager):
         self.aim_manager = aim_manager
-        self.tt_mgr = tree_manager.TenantHashTreeManager()
+        self.tt_mgr = tree_manager.HashTreeManager()
         self.tt_maker = tree_manager.AimHashTreeMaker()
         self.tt_builder = tree_manager.HashTreeBuilder(self.aim_manager)
 
@@ -44,9 +43,9 @@ class HashTreeDbListener(object):
         ctx = utils.FakeContext(store=store)
         # Build tree map
 
-        conf = aim_tree.ConfigTenantTree
-        monitor = aim_tree.MonitoredTenantTree
-        oper = aim_tree.OperationalTenantTree
+        conf = tree_manager.CONFIG_TREE
+        monitor = tree_manager.MONITORED_TREE
+        oper = tree_manager.OPERATIONAL_TREE
         tree_map = {}
         affected_tenants = set()
         with ctx.store.begin(subtransactions=True):
@@ -55,9 +54,9 @@ class HashTreeDbListener(object):
                     if isinstance(res, aim_status.AciStatus):
                         # TODO(ivar): this is a DB query not worth doing. Find
                         # a better way to retrieve tenant from a Status object
-                        res = self.aim_manager.get_by_id(ctx, res.parent_class,
-                                                         res.resource_id)
-                    key = self.tt_maker.get_tenant_key(res)
+                        res = self.aim_manager.get_by_id(
+                            ctx, res.parent_class, res.resource_id)
+                    key = self.tt_maker.get_root_key(res)
                     if key:
                         affected_tenants.add(key)
 
@@ -104,7 +103,7 @@ class HashTreeDbListener(object):
             tenants = self.aim_manager.find(aim_ctx, resource.Tenant,
                                             **filters)
             for t in tenants:
-                self.tt_mgr.delete_by_tenant_rn(aim_ctx, t.name)
+                self.tt_mgr.delete_by_root_rn(aim_ctx, t.name)
             # Retrieve objects
             for klass in self.aim_manager.aim_resources:
                 if issubclass(klass, resource.AciResourceBase):

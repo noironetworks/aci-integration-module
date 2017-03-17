@@ -83,7 +83,7 @@ class AID(object):
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
         self.manager = aim_manager.AimManager()
-        self.tree_manager = tree_manager.TenantHashTreeManager()
+        self.tree_manager = tree_manager.HashTreeManager()
         self.agent_id = 'aid-%s' % self.host
         self.agent = resource.Agent(id=self.agent_id, agent_type=AGENT_TYPE,
                                     host=self.host, binary_file=AGENT_BINARY,
@@ -248,7 +248,7 @@ class AID(object):
         ring = hashring.ConsistentHashRing(dict([(x.id, None)
                                                  for x in agents]))
         # retrieve tenants
-        for tenant in self.tree_manager.get_tenants(self.context):
+        for tenant in self.tree_manager.get_roots(self.context):
             allocations = ring.assign_key(tenant)
             if self.agent_id in allocations:
                 result.append(tenant)

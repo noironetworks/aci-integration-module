@@ -190,13 +190,10 @@ class SqlAlchemyStore(AimStore):
                     api_res.SecurityGroupSubject: models.SecurityGroupSubject,
                     api_res.SecurityGroupRule: models.SecurityGroupRule,
                     api_res.Configuration: config_model.Configuration,
-                    api_tree.TenantTree: tree_model.TenantTree,
-                    api_tree.ConfigTenantTree: (
-                        tree_model.ConfigTenantTree),
-                    api_tree.MonitoredTenantTree: (
-                        tree_model.MonitoredTenantTree),
-                    api_tree.OperationalTenantTree: (
-                        tree_model.OperationalTenantTree),
+                    api_tree.Tree: tree_model.Tree,
+                    api_tree.ConfigTree: tree_model.ConfigTree,
+                    api_tree.MonitoredTree: tree_model.MonitoredTree,
+                    api_tree.OperationalTree: tree_model.OperationalTree,
                     api_service_graph.DeviceCluster: (
                         service_graph_model.DeviceCluster),
                     api_service_graph.DeviceClusterInterface: (
@@ -218,6 +215,7 @@ class SqlAlchemyStore(AimStore):
                     api_service_graph.DeviceClusterInterfaceContext: (
                         service_graph_model.DeviceClusterInterfaceContext),
                     api_infra.OpflexDevice: infra_model.OpflexDevice}
+
     resource_map = {}
     for k, v in db_model_map.iteritems():
         resource_map[v] = k

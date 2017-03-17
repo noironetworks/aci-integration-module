@@ -608,7 +608,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
     def setUp(self):
         super(TestHashTreeManager, self).setUp()
-        self.mgr = tree_manager.TenantTreeManager(tree.StructuredHashTree)
+        self.mgr = tree_manager.TreeManager(tree.StructuredHashTree)
 
     def test_update(self):
         data = tree.StructuredHashTree().include(
@@ -616,13 +616,13 @@ class TestHashTreeManager(base.TestAimDBBase):
              {'key': ('keyA', 'keyC', 'keyD')}])
         self.mgr.update(self.ctx, data)
 
-        data2 = self.mgr.find(self.ctx, tenant_rn=['keyA'])[0]
+        data2 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
         self.assertEqual(data, data2)
 
         # Change an existing tree
         data.add(('keyA', 'keyF'), test='test')
         self.mgr.update(self.ctx, data)
-        data3 = self.mgr.find(self.ctx, tenant_rn=['keyA'])[0]
+        data3 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
         self.assertEqual(data, data3)
         self.assertNotEqual(data, data2)
 
@@ -630,7 +630,7 @@ class TestHashTreeManager(base.TestAimDBBase):
         data3.remove(('keyA',))
         self.assertEqual(('keyA',), data3.root_key)
         self.mgr.update(self.ctx, data3)
-        data4 = self.mgr.find(self.ctx, tenant_rn=['keyA'])[0]
+        data4 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
         # Verify this is an empty tree
         self.assertIsNone(data4.root)
         self.assertEqual(data3.root_key, data4.root_key)
@@ -645,7 +645,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
         self.mgr.update_bulk(self.ctx, [data1, data2])
         found = {'keyA': None, 'keyA1': None}
-        result = self.mgr.find(self.ctx, tenant_rn=['keyA', 'keyA1'])
+        result = self.mgr.find(self.ctx, root_rn=['keyA', 'keyA1'])
         found[result[0].root.key[0]] = result[0]
         found[result[1].root.key[0]] = result[1]
         self.assertEqual(data1, found['keyA'])
@@ -655,7 +655,7 @@ class TestHashTreeManager(base.TestAimDBBase):
         data1.add(('keyA', 'keyF'), test='test')
         self.mgr.update_bulk(self.ctx, [data1, data2])
         found2 = {'keyA': None, 'keyA1': None}
-        result = self.mgr.find(self.ctx, tenant_rn=['keyA', 'keyA1'])
+        result = self.mgr.find(self.ctx, root_rn=['keyA', 'keyA1'])
         found2[result[0].root.key[0]] = result[0]
         found2[result[1].root.key[0]] = result[1]
 
@@ -670,7 +670,7 @@ class TestHashTreeManager(base.TestAimDBBase):
              {'key': ('keyA', 'keyC', 'keyD')}])
         self.mgr.update(self.ctx, data)
         self.mgr.delete(self.ctx, data)
-        self.assertEqual([], self.mgr.find(self.ctx, tenant_rn=['keyA']))
+        self.assertEqual([], self.mgr.find(self.ctx, root_rn=['keyA']))
 
     def test_deleted_bulk(self):
         data1 = tree.StructuredHashTree().include(
@@ -686,9 +686,9 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.mgr.update_bulk(self.ctx, [data1, data2, data3])
         self.mgr.delete_bulk(self.ctx, [data1, data2])
         self.assertEqual([], self.mgr.find(self.ctx,
-                                           tenant_rn=['keyA', 'keyA1']))
+                                           root_rn=['keyA', 'keyA1']))
         # data3 still persists
-        self.assertEqual([data3], self.mgr.find(self.ctx, tenant_rn=['keyA2']))
+        self.assertEqual([data3], self.mgr.find(self.ctx, root_rn=['keyA2']))
 
     def test_find_changed(self):
         data1 = tree.StructuredHashTree().include(
@@ -722,7 +722,7 @@ class TestHashTreeManager(base.TestAimDBBase):
              {'key': ('keyA2', 'keyC', 'keyD')}])
 
         self.mgr.update_bulk(self.ctx, [data1, data2, data3])
-        tenants = self.mgr.get_tenants(self.ctx)
+        tenants = self.mgr.get_roots(self.ctx)
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(tenants))
 
     def test_single_session_multi_objects(self):
@@ -738,7 +738,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
         # Creation worked
         self.assertEqual('test', agent.id)
-        data2 = self.mgr.find(self.ctx, tenant_rn=['keyA'])[0]
+        data2 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
         self.assertEqual(['keyA'], agent.hash_trees)
         self.assertEqual(data, data2)
 
@@ -794,12 +794,12 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         super(TestAimHashTreeMaker, self).setUp()
         self.maker = tree_manager.AimHashTreeMaker()
 
-    def test_get_tenant_key(self):
+    def test_get_root_key(self):
         bd = self._get_example_aim_bd(tenant_name='t1', name='bd1')
-        self.assertEqual('t1', self.maker.get_tenant_key(bd))
+        self.assertEqual('tn-t1', self.maker.get_root_key(bd))
 
         bd.tenant_name = 't2'
-        self.assertEqual('t2', self.maker.get_tenant_key(bd))
+        self.assertEqual('tn-t2', self.maker.get_root_key(bd))
 
         class InvalidResource(resource.AciResourceBase):
             _aci_mo_name = 'fvFoo'
@@ -810,7 +810,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
             def __init__(self):
                 super(InvalidResource, self).__init__({})
 
-        self.assertIsNone(self.maker.get_tenant_key(InvalidResource()))
+        self.assertIsNone(self.maker.get_root_key(InvalidResource()))
 
     def test_update(self):
         htree = tree.StructuredHashTree()

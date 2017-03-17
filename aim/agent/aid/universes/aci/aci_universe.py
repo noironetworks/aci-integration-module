@@ -318,7 +318,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         by_tenant = {}
         for method, objects in resources.iteritems():
             for data in objects:
-                tenant_name = self._retrieve_tenant_name(data)
+                tenant_name = self._retrieve_tenant_rn(data)
                 if tenant_name:
                     by_tenant.setdefault(tenant_name, {}).setdefault(
                         method, []).append(data)
@@ -356,7 +356,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
             result, self._aim_converter, self.aci_session, get_all=True,
             include_tags=False)
 
-    def _retrieve_tenant_name(self, data):
+    def _retrieve_tenant_rn(self, data):
         if isinstance(data, dict):
             if data.keys()[0] == 'tagInst':
                 # Retrieve tag parent
@@ -369,12 +369,14 @@ class AciUniverse(base.HashTreeStoredUniverse):
                         'attributes': {
                             'dn': apic_client.DNManager().build(
                                 decomposed[1][:-1])}}}
+
             data = self._aim_converter.convert([data])
             data = data[0] if data else None
-        if isinstance(data, resource.Tenant):
-            return data.name
-        elif isinstance(data, resource.ResourceBase):
-            return data.tenant_name
+            if isinstance(data, resource.AciResourceBase):
+                type_and_dn = apic_client.DNManager().aci_decompose_with_type(
+                    data.dn, data._aci_mo_name)
+                return apic_client.DNManager().build(
+                    [type_and_dn[0]])[len(apic_client.DN_BASE):]
 
     def get_resources_for_delete(self, resource_keys):
         if resource_keys:
@@ -415,8 +417,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
 
     @staticmethod
     def establish_aci_session(apic_config):
-        # TODO(IVAR): unnecessary things will be removed once apicapi gets its
-        # own refactor.
         return apic_client.RestClient(
             logging, '',
             apic_config.get_option('apic_hosts', group='apic'),

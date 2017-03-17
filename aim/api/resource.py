@@ -104,6 +104,11 @@ class AciResourceBase(ResourceBase):
         return apic_client.ManagedObjectClass(self._aci_mo_name).dn(
             *self.identity)
 
+    @property
+    def rn(self):
+        return apic_client.ManagedObjectClass(self._aci_mo_name).rn(
+            *self.identity)
+
     @classmethod
     def from_dn(cls, dn):
         dn_mgr = apic_client.DNManager()

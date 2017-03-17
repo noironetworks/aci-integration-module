@@ -41,7 +41,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
 
     def initialize(self, store, conf_mgr):
         super(AimDbUniverse, self).initialize(store, conf_mgr)
-        self.tree_manager = tree_manager.TenantHashTreeManager()
+        self.tree_manager = tree_manager.HashTreeManager()
         self.context = context.AimContext(store=store)
         self._converter = converter.AciToAimModelConverter()
         self._converter_aim_to_aci = converter.AimToAciModelConverter()
@@ -76,7 +76,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return self.tree_manager.find_changed(self.context, request, tree=tree)
 
     def cleanup_state(self, key):
-        self.tree_manager.delete_by_tenant_rn(self.context, key)
+        self.tree_manager.delete_by_root_rn(self.context, key)
 
     def _get_state(self, tree=tree_manager.CONFIG_TREE):
         return self.tree_manager.find_changed(

@@ -63,7 +63,7 @@ class K8sWatcher(object):
             # TODO(ivar) raise something meaningful
             raise
         self.mgr = aim_manager.AimManager()
-        self.tt_mgr = tree_manager.TenantHashTreeManager()
+        self.tt_mgr = tree_manager.HashTreeManager()
         self.tt_maker = tree_manager.AimHashTreeMaker()
         self.tt_builder = tree_manager.HashTreeBuilder(self.mgr)
         self.klient = self.ctx.store.klient
@@ -266,10 +266,10 @@ class K8sWatcher(object):
             self.tt_mgr.update_bulk(self.ctx, cfg_trees)
         if oper_trees:
             self.tt_mgr.update_bulk(self.ctx, oper_trees,
-                                    tree=aim_tree.OperationalTenantTree)
+                                    tree=aim_tree.OperationalTree)
         if mon_trees:
             self.tt_mgr.update_bulk(self.ctx, mon_trees,
-                                    tree=aim_tree.MonitoredTenantTree)
+                                    tree=aim_tree.MonitoredTree)
 
         if cfg_trees or oper_trees or mon_trees:
             self.event_handler.serve()
