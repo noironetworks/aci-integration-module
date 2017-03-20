@@ -643,7 +643,6 @@ class AciTenantManager(gevent.Greenlet):
                 events.extend(valid_children)
 
     def _filter_ownership(self, events):
-        LOG.debug('Filter ownership for events: %s' % events)
         managed = []
         for event in events:
             if event.keys()[0] == TAG_KEY:

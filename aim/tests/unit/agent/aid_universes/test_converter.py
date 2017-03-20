@@ -534,9 +534,11 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
          'converter': converter.vzOutTerm_vzRsFiltAtt_converter},
         {'resource': 'vzInTerm',
          'exceptions': {},
+         'skip': ['displayName'],
          'to_resource': converter.to_resource_filter_container},
         {'resource': 'vzOutTerm',
          'exceptions': {},
+         'skip': ['displayName'],
          'to_resource': converter.to_resource_filter_container}]
     sample_input = [[get_example_aci_subject(nameAlias='alias'),
                      _aci_obj('vzRsSubjFiltAtt',
@@ -561,18 +563,56 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
                      _aci_obj('vzRsFiltAtt',
                               dn='uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-o2',
                               tnVzFilterName='o2')],
-                    [get_example_aci_subject(dn='uni/tn-t1/brc-c/subj-s2'),
-                     _aci_obj('vzRsFiltAtt',
-                              dn='uni/tn-t1/brc-c/subj-s2/intmnl/rsfiltAtt-i1',
-                              tnVzFilterName='i1')]]
+                    [{'vzSubj': {
+                        'attributes': {
+                            'dn': 'uni/tn-common/brc-prs1/subj-prs1',
+                            'revFltPorts': 'yes', 'nameAlias': 'prs1',
+                            'name': 'prs1', 'prio': 'unspecified',
+                            'targetDscp': 'unspecified', 'descr': '',
+                            'consMatchT': 'AtleastOne',
+                            'provMatchT': 'AtleastOne'}}},
+                     {'vzRsFiltAtt': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/intmnl'
+                                   '/rsfiltAtt-reverse-pr1', 'directives': '',
+                             'tnVzFilterName': 'reverse-pr1'}}},
+                     {'vzRsFiltAtt': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/intmnl'
+                                   '/rsfiltAtt-pr1',
+                             'directives': '', 'tnVzFilterName': 'pr1'}}},
+                     {'vzRsFiltAtt': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/outtmnl'
+                                   '/rsfiltAtt-pr1', 'directives': '',
+                             'tnVzFilterName': 'pr1'}}},
+                     {'vzRsFiltAtt': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/outtmnl'
+                                   '/rsfiltAtt-reverse-pr1', 'directives': '',
+                             'tnVzFilterName': 'reverse-pr1'}}},
+                     {'vzInTerm': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/intmnl',
+                             'nameAlias': '', 'name': '', 'descr': '',
+                             'targetDscp': 'unspecified',
+                             'prio': 'unspecified'}}},
+                     {'vzOutTerm': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/outtmnl',
+                             'nameAlias': '', 'name': '', 'descr': '',
+                             'targetDscp': 'unspecified',
+                             'prio': 'unspecified'}}}]]
     sample_output = [
         resource.ContractSubject(tenant_name='t1', contract_name='c', name='s',
                                  in_filters=['i1', 'i2'],
                                  out_filters=['o1', 'o2'],
                                  bi_filters=['f1', 'f2'],
                                  display_name='alias'),
-        resource.ContractSubject(tenant_name='t1', contract_name='c',
-                                 name='s2', in_filters=['i1'])]
+        resource.ContractSubject(tenant_name='common', contract_name='prs1',
+                                 name='prs1', display_name='prs1',
+                                 in_filters=['pr1', 'reverse-pr1'],
+                                 out_filters=['pr1', 'reverse-pr1'])]
 
 
 class TestAciToAimConverterFault(TestAciToAimConverterBase,

@@ -76,14 +76,15 @@ def default_attribute_converter(object_dict, attribute,
 def default_to_resource(converted, helper, to_aim=True):
     klass = helper['resource']
     default_skip = ['preExisting', 'monitored']
+    skip = helper.get('skip', [])
     if to_aim:
         # APIC to AIM
         return klass(
             _set_default=False,
             **dict([(k, v) for k, v in converted.iteritems() if k in
-                    klass.attributes()]))
+                    klass.attributes() and k not in skip]))
     else:
-        for s in default_skip + helper.get('skip', []):
+        for s in default_skip + skip:
             converted.pop(s, None)
         result = {klass: {'attributes': converted}}
         return result
@@ -488,10 +489,12 @@ resource_map = {
     'vzInTerm': [{
         'resource': resource.ContractSubject,
         'to_resource': to_resource_filter_container,
+        'skip': ['display_name']
     }],
     'vzOutTerm': [{
         'resource': resource.ContractSubject,
         'to_resource': to_resource_filter_container,
+        'skip': ['display_name']
     }],
     'l3extOut': [{
         'resource': resource.L3Outside,
@@ -700,7 +703,7 @@ class AciToAimModelConverter(BaseConverter):
                             x.__dict__['_status'] = 'deleted'
                     result.extend(converted)
                 # Change displayName back to original
-                if 'nameAlias' in resource:
+                if 'displayName' in resource:
                     resource['nameAlias'] = resource['displayName']
                     del resource['displayName']
             except Exception as e:
