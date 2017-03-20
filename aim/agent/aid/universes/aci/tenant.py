@@ -85,6 +85,10 @@ class Tenant(acitoolkit.Tenant):
         url = ('/api/mo/uni/tn-{}.json?query-target=subtree&'
                'rsp-prop-include=config-only&rsp-subtree-include=faults&'
                'subscription=yes'.format(self.name))
+        # TODO(amitbose) temporary workaround for ACI bug,
+        # remove when ACI is fixed
+        url = url.replace('&rsp-prop-include=config-only', '')
+        # End work-around
         if self.filtered_children:
             url += '&target-subtree-class=' + ','.join(self.filtered_children)
         return [url]
@@ -338,8 +342,8 @@ class AciTenantManager(gevent.Greenlet):
                               (method, to_push + tags))
                     # Multiple objects could result from a conversion, push
                     # them in a single transaction
-                    MO = apic_client.ManagedObjectClass
-                    decompose = apic_client.DNManager().aci_decompose_dn_guess
+                    dn_mgr = apic_client.DNManager()
+                    decompose = dn_mgr.aci_decompose_dn_guess
                     try:
                         if method == base_universe.CREATE:
                             with self.aci_session.transaction(
@@ -348,10 +352,7 @@ class AciTenantManager(gevent.Greenlet):
                                     attr = obj.values()[0]['attributes']
                                     mo, parents_rns = decompose(attr.pop('dn'),
                                                                 obj.keys()[0])
-                                    # exclude RNs that are fixed
-                                    rns = [mr[1] for mr in parents_rns
-                                           if (mr[0] not in MO.supported_mos or
-                                               MO(mr[0]).rn_param_count)]
+                                    rns = dn_mgr.filter_rns(parents_rns)
                                     getattr(getattr(self.aci_session, mo),
                                             method)(
                                                 *rns, transaction=trs, **attr)
@@ -527,6 +528,9 @@ class AciTenantManager(gevent.Greenlet):
                         # Operational state need full configuration
                         if event.keys()[0] in OPERATIONAL_LIST:
                             kargs.pop('rsp_prop_include')
+                        # TODO(amitbose) temporary workaround for ACI bug,
+                        # remove when ACI is fixed
+                        kargs.pop('rsp_prop_include', None)
                         # TODO(ivar): 'mo/' suffix should be added by APICAPI
                         data = aci_session.get_data('mo/' + dn, **kargs)
                         if not data:

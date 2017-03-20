@@ -64,6 +64,12 @@ def string(length=None):
     return s
 
 
+def list_of_dicts(*dict_keys_and_types):
+    return {"type": "array",
+            "items": {"type": "object",
+                      "properties": dict(dict_keys_and_types)}}
+
+
 bool = {"type": "boolean"}
 name = {"type": "string", "pattern": "^[a-zA-Z0-9_.:-]{0,63}$"}
 list_of_names = {"type": "array", "items": name}

@@ -106,14 +106,15 @@ class AciResourceBase(ResourceBase):
 
     @classmethod
     def from_dn(cls, dn):
-        DNMgr = apic_client.DNManager
+        dn_mgr = apic_client.DNManager()
         try:
-            rns = DNMgr().aci_decompose(dn, cls._aci_mo_name)
+            mos_and_rns = dn_mgr.aci_decompose_with_type(dn, cls._aci_mo_name)
+            rns = dn_mgr.filter_rns(mos_and_rns)
             if len(rns) < len(cls.identity_attributes):
                 raise exc.InvalidDNForAciResource(dn=dn, cls=cls)
             attr = {p[0]: p[1] for p in zip(cls.identity_attributes, rns)}
             return cls(**attr)
-        except DNMgr.InvalidNameFormat:
+        except apic_client.DNManager.InvalidNameFormat:
             raise exc.InvalidDNForAciResource(dn=dn, cls=cls)
 
 
@@ -477,6 +478,7 @@ class ContractSubject(AciResourceBase):
         ('in_filters', t.list_of_names),
         ('out_filters', t.list_of_names),
         ('bi_filters', t.list_of_names),
+        ('service_graph_name', t.name),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vzSubj'
@@ -485,6 +487,7 @@ class ContractSubject(AciResourceBase):
     def __init__(self, **kwargs):
         super(ContractSubject, self).__init__(
             {'in_filters': [], 'out_filters': [], 'bi_filters': [],
+             'service_graph_name': '',
              'monitored': False}, **kwargs)
 
 

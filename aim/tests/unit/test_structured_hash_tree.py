@@ -396,7 +396,7 @@ class TestStructuredHashTree(base.BaseTestCase):
 
     def test_clear(self):
         data = tree.StructuredHashTree().include(
-            [{'key': ('keyA', )}, {'key': ('keyA', 'keyB')},
+            [{'key': ('keyA',)}, {'key': ('keyA', 'keyB')},
              {'key': ('keyA', 'keyB', 'keyC')}])
         data_copy = tree.StructuredHashTree().from_string(str(data))
         data.clear(('keyA', 'keyB', 'keyNO'))
@@ -895,6 +895,10 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzRsSubjFiltAtt|f1'),
             tnVzFilterName='f1')
+        exp_tree = exp_tree.add(
+            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
+             'vzRsSubjGraphAtt|rsSubjGraphAtt'),
+            tnVnsAbsGraphName='')
         self.assertEqual(exp_tree, htree)
 
     def test_delete(self):

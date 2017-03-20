@@ -82,11 +82,18 @@ def filter_kwargs(klass, kwargs):
     for k, v in kwargs.iteritems():
         if v is not ATTR_UNSPECIFIED:
             try:
-                if k in DICT_LIST_ATTRS:
+                attr_type = klass.other_attributes.get(k)
+                is_list_of_dicts = (
+                    attr_type and
+                    attr_type.get("type") == "array" and
+                    attr_type.get("items", {}).get("type") == "object")
+                is_boolean = (attr_type and
+                              attr_type.get("type") == "boolean")
+                if k in DICT_LIST_ATTRS or is_list_of_dicts:
                     res[k] = [{z.split('=')[0]: z.split('=')[1] for z in y}
                               for y in [x.split(',')
                               for x in v.split(' ')]] if v else []
-                elif k in BOOL_ATTRS:
+                elif k in BOOL_ATTRS or is_boolean:
                     b = utils.stob(v)
                     if b is None:
                         raise click.BadParameter(

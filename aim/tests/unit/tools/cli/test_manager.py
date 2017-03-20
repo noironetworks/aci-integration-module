@@ -17,6 +17,7 @@ import ast
 
 from aim import aim_manager
 from aim.api import resource
+from aim.common import utils
 from aim.tests.unit import test_aim_manager
 from aim.tests.unit.tools.cli import test_shell as base
 from aim.tools.cli.commands import manager as climanager
@@ -151,7 +152,12 @@ class TestManagerResourceOpsBase(object):
         klass = klass or self.resource_class
 
         def transform_list(k, li):
-            if k == 'static_paths':
+            attr_type = klass.other_attributes.get(k)
+            is_list_of_dicts = (
+                attr_type and
+                attr_type.get("type") == "array" and
+                attr_type.get("items", {}).get("type") == "object")
+            if k == 'static_paths' or is_list_of_dicts:
                 return "'%s'" % ' '.join(
                     [','.join(x) for x in
                      [['%s=%s' % (key, v) for key, v in y.iteritems()]
@@ -182,6 +188,9 @@ class TestManagerResourceOpsBase(object):
         klass_attributes = klass.attributes
         for item in res:
             if len(item) == 2 and item[0] in klass_attributes():
+                attr_type = klass.other_attributes.get(item[0])
+                is_boolean = (attr_type and
+                              attr_type.get("type") == "boolean")
                 try:
                     # Try to load lists
                     loaded = ast.literal_eval(item[1])
@@ -190,7 +199,10 @@ class TestManagerResourceOpsBase(object):
                         continue
                 except (SyntaxError, ValueError):
                     pass
-                res_dict[item[0]] = item[1]
+                if is_boolean:
+                    res_dict[item[0]] = utils.stob(item[1])
+                else:
+                    res_dict[item[0]] = item[1]
         return klass(**res_dict)
 
     def create(self, res_command, attributes, klass=None):
@@ -393,3 +405,58 @@ class TestSecurityGroupSubject(test_aim_manager.TestSecurityGroupSubjectMixin,
 class TestSecurityGroupRule(test_aim_manager.TestSecurityGroupRuleMixin,
                             TestManagerResourceOpsBase, base.TestShell):
     pass
+
+
+class TestDeviceCluster(test_aim_manager.TestDeviceClusterMixin,
+                        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestDeviceClusterInterface(
+    test_aim_manager.TestDeviceClusterInterfaceMixin,
+    TestManagerResourceOpsBase, base.TestShell):
+        pass
+
+
+class TestConcreteDevice(test_aim_manager.TestConcreteDeviceMixin,
+                         TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestConcreteDeviceInterface(
+    test_aim_manager.TestConcreteDeviceInterfaceMixin,
+    TestManagerResourceOpsBase, base.TestShell):
+        pass
+
+
+class TestServiceGraph(test_aim_manager.TestServiceGraphMixin,
+                       TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestServiceGraphNode(test_aim_manager.TestServiceGraphNodeMixin,
+                           TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestServiceGraphConnection(
+    test_aim_manager.TestServiceGraphConnectionMixin,
+    TestManagerResourceOpsBase, base.TestShell):
+        pass
+
+
+class TestServiceRedirectPolicy(
+        test_aim_manager.TestServiceRedirectPolicyMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestDeviceClusterContext(test_aim_manager.TestDeviceClusterContextMixin,
+                               TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestDeviceClusterInterfaceContext(
+    test_aim_manager.TestDeviceClusterInterfaceContextMixin,
+    TestManagerResourceOpsBase, base.TestShell):
+        pass

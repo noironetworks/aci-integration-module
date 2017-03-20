@@ -32,6 +32,7 @@ from aim.api import infra
 from aim.api import resource
 from aim.api import resource as aim_res
 from aim.api import schema
+from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
 from aim.common import utils
@@ -97,13 +98,13 @@ class TestAimManager(base.TestAimDBBase):
 
 
 class TestResourceOpsBase(object):
-    test_default_values = {}
     test_dn = None
     prereq_objects = None
 
     def setUp(self):
         super(TestResourceOpsBase, self).setUp()
         attr = self.resource_class.attributes()
+        self.test_default_values = {}
         if 'monitored' in attr:
             self.test_default_values.setdefault('monitored', False)
         if 'display_name' in attr:
@@ -311,7 +312,7 @@ class TestResourceOpsBase(object):
 
         # Add a fault
         fault = aim_status.AciFault(
-            fault_code='412', external_identifier='dn',
+            fault_code='412', external_identifier=res.dn,
             severity=aim_status.AciFault.SEV_CRITICAL)
         self.mgr.set_fault(self.ctx, res, fault)
         status = self.mgr.get_status(self.ctx, res)
@@ -347,7 +348,7 @@ class TestResourceOpsBase(object):
 
         # Add fault with same code
         fault_2 = aim_status.AciFault(
-            fault_code='412', external_identifier='dn-2',
+            fault_code='412', external_identifier=res.dn + '/foo',
             severity=aim_status.AciFault.SEV_MAJOR)
         self.mgr.set_fault(self.ctx, res, fault_2)
         status = self.mgr.get_status(self.ctx, res)
@@ -708,7 +709,8 @@ class TestContractSubjectMixin(object):
                                 'name': 'subject1',
                                 'in_filters': ['f1', 'f2'],
                                 'out_filters': ['f2', 'f3'],
-                                'bi_filters': ['f1', 'f3', 'f4']}
+                                'bi_filters': ['f1', 'f3', 'f4'],
+                                'service_graph_name': 'g1'}
     test_search_attributes = {'name': 'subject1'}
     test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
                               'out_filters': []}
@@ -913,6 +915,259 @@ class TestConfigurationMixin(object):
     res_command = 'configuration'
 
 
+class TestDeviceClusterMixin(object):
+    resource_class = aim_service_graph.DeviceCluster
+    prereq_objects = [resource.Tenant(name='tenant1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'cl1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'cl1',
+                                'device_type': 'VIRTUAL',
+                                'service_type': 'ADC',
+                                'managed': False,
+                                'physical_domain_name': 'physdom',
+                                'encap': 'vlan-44',
+                                'devices': [{'name': '1', 'path': 'a'},
+                                            {'name': '2', 'path': 'b'}]}
+    test_search_attributes = {'device_type': 'VIRTUAL'}
+    test_update_attributes = {'devices': [],
+                              'physical_domain_name': 'virt',
+                              'encap': 'vlan-200'}
+    test_default_values = {'device_type': 'PHYSICAL',
+                           'service_type': 'OTHERS',
+                           'context_aware': 'single-Context',
+                           'managed': True,
+                           'physical_domain_name': '',
+                           'encap': '',
+                           'devices': []}
+    test_dn = 'uni/tn-tenant1/lDevVip-cl1'
+    res_command = 'device-cluster'
+
+
+class TestDeviceClusterInterfaceMixin(object):
+    resource_class = aim_service_graph.DeviceClusterInterface
+    prereq_objects = [resource.Tenant(name='tenant1'),
+                      aim_service_graph.DeviceCluster(tenant_name='tenant1',
+                                                      name='cl1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'device_cluster_name': 'cl1',
+                                'name': 'if1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'device_cluster_name': 'cl1',
+                                'name': 'if1',
+                                'encap': 'vlan-44',
+                                'concrete_interfaces': ['a', 'b', 'c']}
+    test_search_attributes = {'encap': 'vlan-44'}
+    test_update_attributes = {'concrete_interfaces': ['d'],
+                              'encap': 'vlan-200'}
+    test_default_values = {'encap': '',
+                           'concrete_interfaces': []}
+    test_dn = 'uni/tn-tenant1/lDevVip-cl1/lIf-if1'
+    res_command = 'device-cluster-interface'
+
+
+class TestConcreteDeviceMixin(object):
+    resource_class = aim_service_graph.ConcreteDevice
+    prereq_objects = [resource.Tenant(name='tenant1'),
+                      aim_service_graph.DeviceCluster(tenant_name='tenant1',
+                                                      name='cl1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'device_cluster_name': 'cl1',
+                                'name': 'cdev1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'device_cluster_name': 'cl1',
+                                'name': 'cdev1'}
+    test_search_attributes = {'name': 'cdev1'}
+    test_update_attributes = {'display_name': 'DEVICE'}
+    test_dn = 'uni/tn-tenant1/lDevVip-cl1/cDev-cdev1'
+    res_command = 'concrete-device'
+
+
+class TestConcreteDeviceInterfaceMixin(object):
+    resource_class = aim_service_graph.ConcreteDeviceInterface
+    prereq_objects = [resource.Tenant(name='tenant1'),
+                      aim_service_graph.DeviceCluster(tenant_name='tenant1',
+                                                      name='cl1'),
+                      aim_service_graph.ConcreteDevice(
+                          tenant_name='tenant1', device_cluster_name='cl1',
+                          name='cdev1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'device_cluster_name': 'cl1',
+                                'device_name': 'cdev1',
+                                'name': 'if1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'device_cluster_name': 'cl1',
+                                'device_name': 'cdev1',
+                                'name': 'if1',
+                                'path': 'abc'}
+    test_search_attributes = {'device_name': 'cdev1'}
+    test_update_attributes = {'path': 'pqr'}
+    test_default_values = {'path': ''}
+    test_dn = 'uni/tn-tenant1/lDevVip-cl1/cDev-cdev1/cIf-[if1]'
+    res_command = 'concrete-device-interface'
+
+
+class TestServiceGraphMixin(object):
+    resource_class = aim_service_graph.ServiceGraph
+    prereq_objects = [resource.Tenant(name='tenant1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'gr1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'gr1',
+                                'linear_chain_nodes': [
+                                    {'name': '1'},
+                                    {'name': '2',
+                                     'device_cluster_name': 'a',
+                                     'device_cluster_tenant_name': 'b'}]}
+    test_search_attributes = {'name': 'gr1'}
+    test_update_attributes = {'linear_chain_nodes': [],
+                              'display_name': 'virt'}
+    test_default_values = {'linear_chain_nodes': []}
+    test_dn = 'uni/tn-tenant1/AbsGraph-gr1'
+    res_command = 'service-graph'
+
+
+class TestServiceGraphNodeMixin(object):
+    resource_class = aim_service_graph.ServiceGraphNode
+    prereq_objects = [resource.Tenant(name='tenant1'),
+                      aim_service_graph.ServiceGraph(tenant_name='tenant1',
+                                                     name='gr1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'service_graph_name': 'gr1',
+                                'name': 'node1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'service_graph_name': 'gr1',
+                                'name': 'node1',
+                                'function_type': 'GoThrough',
+                                'managed': False,
+                                'routing_mode': 'Redirect',
+                                'connectors': ['a', 'b'],
+                                'device_cluster_name': 'cl1',
+                                'device_cluster_tenant_name': 'common'}
+    test_search_attributes = {'function_type': 'GoThrough'}
+    test_update_attributes = {'connectors': ['p', 'q'],
+                              'routing_mode': 'unspecified'}
+    test_default_values = {'function_type': 'GoTo',
+                           'managed': True,
+                           'routing_mode': 'unspecified',
+                           'connectors': [],
+                           'device_cluster_name': '',
+                           'device_cluster_tenant_name': ''}
+    test_dn = 'uni/tn-tenant1/AbsGraph-gr1/AbsNode-node1'
+    res_command = 'service-graph-node'
+
+
+class TestServiceGraphConnectionMixin(object):
+    resource_class = aim_service_graph.ServiceGraphConnection
+    prereq_objects = [resource.Tenant(name='tenant1'),
+                      aim_service_graph.ServiceGraph(tenant_name='tenant1',
+                                                     name='gr1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'service_graph_name': 'gr1',
+                                'name': 'conn1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'service_graph_name': 'gr1',
+                                'name': 'conn1',
+                                'adjacency_type': 'L3',
+                                'connector_direction': 'consumer',
+                                'connector_type': 'internal',
+                                'direct_connect': True,
+                                'unicast_route': True,
+                                'connector_dns': ['bar', 'foo']}
+    test_search_attributes = {'adjacency_type': 'L3'}
+    test_update_attributes = {'connector_type': 'external',
+                              'connector_dns': ['bar', 'bar1']}
+    test_default_values = {'adjacency_type': 'L2',
+                           'connector_direction': 'provider',
+                           'connector_type': 'external',
+                           'direct_connect': False,
+                           'unicast_route': False,
+                           'connector_dns': []}
+    test_dn = 'uni/tn-tenant1/AbsGraph-gr1/AbsConnection-conn1'
+    res_command = 'service-graph-connection'
+
+
+class TestServiceRedirectPolicyMixin(object):
+    resource_class = aim_service_graph.ServiceRedirectPolicy
+    prereq_objects = [resource.Tenant(name='tenant1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'srp1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'srp1',
+                                'destinations': [{'ip': '1'},
+                                                 {'ip': '2',
+                                                  'mac': 'aa:bb:bb:cc:dd:ee'}]}
+    test_search_attributes = {'name': 'srp1'}
+    test_update_attributes = {'destinations': [],
+                              'display_name': 'REDIR'}
+    test_default_values = {'destinations': []}
+    test_dn = 'uni/tn-tenant1/svcCont/svcRedirectPol-srp1'
+    res_command = 'service-redirect-policy'
+
+
+class TestDeviceClusterContextMixin(object):
+    resource_class = aim_service_graph.DeviceClusterContext
+    prereq_objects = [resource.Tenant(name='tenant1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'c1',
+                                'service_graph_name': 'g0',
+                                'node_name': 'N0'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'c1',
+                                'service_graph_name': 'g0',
+                                'node_name': 'N0',
+                                'device_cluster_name': 'ldc1',
+                                'device_cluster_tenant_name': 'common',
+                                'bridge_domain_name': 'bd1',
+                                'bridge_domain_tenant_name': 'bd_t1',
+                                'service_redirect_policy_name': 'srp1',
+                                'service_redirect_policy_tenant_name':
+                                'srp_t1'}
+    test_search_attributes = {'node_name': 'N0'}
+    test_update_attributes = {'device_cluster_name': 'cluster1',
+                              'bridge_domain_tenant_name': 'common',
+                              'display_name': 'CTX'}
+    test_default_values = {'device_cluster_name': '',
+                           'device_cluster_tenant_name': '',
+                           'service_redirect_policy_name': '',
+                           'service_redirect_policy_tenant_name': '',
+                           'bridge_domain_name': '',
+                           'bridge_domain_tenant_name': ''}
+    test_dn = 'uni/tn-tenant1/ldevCtx-c-c1-g-g0-n-N0'
+    res_command = 'device-cluster-context'
+
+
+class TestDeviceClusterInterfaceContextMixin(object):
+    resource_class = aim_service_graph.DeviceClusterInterfaceContext
+    prereq_objects = [resource.Tenant(name='tenant1'),
+                      aim_service_graph.DeviceClusterContext(
+                          tenant_name='tenant1',
+                          contract_name='c1',
+                          service_graph_name='g0',
+                          node_name='N0')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'c1',
+                                'service_graph_name': 'g0',
+                                'node_name': 'N0',
+                                'connector_name': 'cons'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'c1',
+                                'service_graph_name': 'g0',
+                                'node_name': 'N0',
+                                'connector_name': 'cons',
+                                'device_cluster_interface_dn': 'a',
+                                'service_redirect_policy_dn': 'b',
+                                'bridge_domain_dn': 'c'}
+    test_search_attributes = {'device_cluster_interface_dn': 'a'}
+    test_update_attributes = {'bridge_domain_dn': 'bd',
+                              'display_name': 'CONN'}
+    test_default_values = {'device_cluster_interface_dn': '',
+                           'service_redirect_policy_dn': '',
+                           'bridge_domain_dn': ''}
+    test_dn = 'uni/tn-tenant1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-cons'
+    res_command = 'device-cluster-interface-context'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1112,4 +1367,55 @@ class TestSecurityGroupRule(TestSecurityGroupRuleMixin,
 
 class TestConfiguration(TestConfigurationMixin, TestResourceOpsBase,
                         base.TestAimDBBase):
+    pass
+
+
+class TestDeviceCluster(TestDeviceClusterMixin,
+                        TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestDeviceClusterInterface(TestDeviceClusterInterfaceMixin,
+                                 TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestConcreteDevice(TestConcreteDeviceMixin,
+                         TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestConcreteDeviceInterface(TestConcreteDeviceInterfaceMixin,
+                                  TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestServiceGraphNode(TestServiceGraphNodeMixin,
+                           TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestServiceGraphConnection(TestServiceGraphConnectionMixin,
+                                 TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestServiceGraph(TestServiceGraphMixin,
+                       TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestServiceRedirectPolicy(TestServiceRedirectPolicyMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestDeviceClusterContext(TestDeviceClusterContextMixin,
+                               TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestDeviceClusterInterfaceContext(TestDeviceClusterInterfaceContextMixin,
+                                        TestAciResourceOpsBase,
+                                        base.TestAimDBBase):
     pass

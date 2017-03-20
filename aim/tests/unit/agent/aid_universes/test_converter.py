@@ -13,8 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import pprint
+
 from aim.agent.aid.universes.aci import converter
+from aim.agent.aid.universes.aci.converters import (
+    service_graph as conv_service_graph)
+from aim.agent.aid.universes.aci.converters import utils as conv_utils
 from aim.api import resource
+from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
 from aim.tests import base
 
@@ -91,10 +97,15 @@ class TestAciToAimConverterBase(object):
 
     def _test_reverse_map(self, resource_type, expected):
         reverse = converter.reverse_resource_map[resource_type]
-        self.assertEqual(len(expected), len(reverse))
+        self.assertEqual(len(expected), len(reverse),
+                         '\nExpected:\n%s\nFound:\n%s' %
+                            (pprint.pformat(expected),
+                             pprint.pformat(reverse)))
         for idx in xrange(len(expected)):
             self.assertTrue(expected[idx] in reverse,
-                            'Expected %s not in %s' % (expected[idx], reverse))
+                            '\nExpected:\n%s\nnot in\n%s' %
+                            (pprint.pformat(expected[idx]),
+                             pprint.pformat(reverse)))
 
     def _to_list(self, obj):
         return obj if isinstance(obj, list) else [obj]
@@ -522,10 +533,14 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
     reverse_map_output = [
         {'resource': 'vzSubj',
          'exceptions': {},
-         'skip': ['inFilters', 'outFilters', 'biFilters']},
+         'skip': ['inFilters', 'outFilters', 'biFilters',
+                  'serviceGraphName']},
         {'resource': 'vzRsSubjFiltAtt',
          'exceptions': {},
          'converter': converter.vzRsSubjFiltAtt_converter},
+        {'resource': 'vzRsSubjGraphAtt',
+         'exceptions': {'service_graph_name': {'other': 'tnVnsAbsGraphName'}},
+         'to_resource': converter.default_to_resource_strict},
         {'resource': 'vzRsFiltAtt',
          'exceptions': {},
          'converter': converter.vzInTerm_vzRsFiltAtt_converter},
@@ -547,6 +562,9 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
                      _aci_obj('vzRsSubjFiltAtt',
                               dn='uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f2',
                               tnVzFilterName='f2'),
+                     _aci_obj('vzRsSubjGraphAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/rsSubjGraphAtt',
+                              tnVnsAbsGraphName='g1'),
                      _aci_obj('vzInTerm',
                               dn='uni/tn-t1/brc-c/subj-s/intmnl'),
                      _aci_obj('vzOutTerm',
@@ -608,6 +626,7 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
                                  in_filters=['i1', 'i2'],
                                  out_filters=['o1', 'o2'],
                                  bi_filters=['f1', 'f2'],
+                                 service_graph_name='g1',
                                  display_name='alias'),
         resource.ContractSubject(tenant_name='common', contract_name='prs1',
                                  name='prs1', display_name='prs1',
@@ -806,6 +825,358 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
     ]
 
 
+class TestAciToAimConverterDeviceCluster(TestAciToAimConverterBase,
+                                         base.TestAimDBBase):
+    resource_type = aim_service_graph.DeviceCluster
+    reverse_map_output = [
+        {'resource': 'vnsLDevVip',
+         'exceptions': {'managed': {'converter': converter.boolean,
+                                    'other': 'managed'},
+                        'device_type': {'other': 'devtype'},
+                        'service_type': {'other': 'svcType'}},
+         'skip': ['physicalDomainName', 'encap', 'devices'],
+         'converter': conv_service_graph.device_cluster_converter},
+        {'resource': 'vnsRsALDevToPhysDomP',
+         'exceptions':
+         {'physical_domain_name':
+          {'other': 'tDn',
+           'converter': conv_service_graph.vnsRsALDevToPhysDomP_converter}},
+         'to_resource': conv_utils.default_to_resource_strict}]
+    sample_input = [[_aci_obj('vnsLDevVip',
+                              dn='uni/tn-t1/lDevVip-cl1',
+                              nameAlias='alias'),
+                     _aci_obj('vnsRsALDevToPhysDomP',
+                              dn='uni/tn-t1/lDevVip-cl1/rsALDevToPhysDomP',
+                              tDn='uni/phys-PHYS')],
+                    [_aci_obj('vnsLDevVip',
+                              dn='uni/tn-t1/lDevVip-cl2',
+                              managed='no',
+                              devtype='VIRTUAL', svcType='ADC',
+                              contextAware='multi-Context')]]
+    sample_output = [
+        aim_service_graph.DeviceCluster(
+            tenant_name='t1', name='cl1', physical_domain_name='PHYS',
+            display_name='alias'),
+        aim_service_graph.DeviceCluster(
+            tenant_name='t1', name='cl2', managed=False,
+            service_type='ADC', device_type='VIRTUAL',
+            context_aware='multi-Context', physical_domain_dn='')]
+
+
+class TestAciToAimConverterDeviceClusterInterface(TestAciToAimConverterBase,
+                                                  base.TestAimDBBase):
+    resource_type = aim_service_graph.DeviceClusterInterface
+    reverse_map_output = [
+        {'resource': 'vnsLIf',
+         'exceptions': {},
+         'skip': ['concreteInterfaces']},
+        {'resource': 'vnsRsCIfAtt',
+         'exceptions': {},
+         'converter': conv_service_graph.vnsRsCIfAtt_converter}]
+    sample_input = [[_aci_obj('vnsLIf',
+                              dn='uni/tn-t1/lDevVip-cl1/lIf-if1',
+                              encap='vlan-55',
+                              nameAlias='alias'),
+                     _aci_obj('vnsRsCIfAtt',
+                              dn=('uni/tn-t1/lDevVip-cl1/lIf-if1/'
+                                  'rscIfAtt-[abc]'),
+                              tDn='abc'),
+                     _aci_obj('vnsRsCIfAtt',
+                              dn=('uni/tn-t1/lDevVip-cl1/lIf-if1/'
+                                  'rscIfAtt-[xyz]'),
+                              tDn='xyz')],
+                    [_aci_obj('vnsLIf',
+                              dn='uni/tn-t1/lDevVip-cl1/lIf-if2',
+                              encap='')]]
+    sample_output = [
+        aim_service_graph.DeviceClusterInterface(
+            tenant_name='t1', device_cluster_name='cl1', name='if1',
+            encap='vlan-55', concrete_interfaces=['abc', 'xyz'],
+            display_name='alias'),
+        aim_service_graph.DeviceClusterInterface(
+            tenant_name='t1', device_cluster_name='cl1', name='if2',
+            encap='', concrete_interfaces=[])]
+
+
+class TestAciToAimConverterConcreteDevice(TestAciToAimConverterBase,
+                                          base.TestAimDBBase):
+    resource_type = aim_service_graph.ConcreteDevice
+    reverse_map_output = [
+        {'resource': 'vnsCDev',
+         'exceptions': {}}]
+    sample_input = [_aci_obj('vnsCDev',
+                             dn='uni/tn-t1/lDevVip-cl1/cDev-n1',
+                             nameAlias='alias'),
+                    _aci_obj('vnsCDev',
+                             dn='uni/tn-t1/lDevVip-cl1/cDev-n2')]
+    sample_output = [
+        aim_service_graph.ConcreteDevice(
+            tenant_name='t1', device_cluster_name='cl1', name='n1',
+            display_name='alias'),
+        aim_service_graph.ConcreteDevice(
+            tenant_name='t1', device_cluster_name='cl1', name='n2')]
+
+
+class TestAciToAimConverterConcreteDeviceInterface(
+    TestAciToAimConverterBase, base.TestAimDBBase):
+    resource_type = aim_service_graph.ConcreteDeviceInterface
+    reverse_map_output = [
+        {'resource': 'vnsCIf',
+         'skip': ['path'],
+         'exceptions': {}},
+        {'resource': 'vnsRsCIfPathAtt',
+         'exceptions': {'path': {'other': 'tDn'}},
+         'to_resource': converter.default_to_resource_strict}]
+    sample_input = [[_aci_obj('vnsCIf',
+                              dn='uni/tn-t1/lDevVip-cl1/cDev-n1/cIf-[if1]',
+                              nameAlias='alias'),
+                     _aci_obj('vnsRsCIfPathAtt',
+                              dn=('uni/tn-t1/lDevVip-cl1/cDev-n1/cIf-[if1]/'
+                                  'rsCIfPathAtt'),
+                              tDn='xyz')],
+                    [_aci_obj('vnsCIf',
+                              dn='uni/tn-t1/lDevVip-cl1/cDev-n1/cIf-[if2]')]]
+    sample_output = [
+        aim_service_graph.ConcreteDeviceInterface(
+            tenant_name='t1', device_cluster_name='cl1', device_name='n1',
+            name='if1', display_name='alias', path='xyz'),
+        aim_service_graph.ConcreteDeviceInterface(
+            tenant_name='t1', device_cluster_name='cl1', device_name='n1',
+            name='if2', path='')]
+
+
+class TestAciToAimConverterServiceGraph(TestAciToAimConverterBase,
+                                        base.TestAimDBBase):
+    resource_type = aim_service_graph.ServiceGraph
+    reverse_map_output = [
+        {'resource': 'vnsAbsGraph',
+         'skip': ['linearChainNodes'],
+         'exceptions': {},
+         'converter': conv_service_graph.service_graph_converter}]
+    sample_input = [_aci_obj('vnsAbsGraph',
+                             dn='uni/tn-t1/AbsGraph-gr1',
+                             nameAlias='alias'),
+                    _aci_obj('vnsAbsGraph',
+                             dn='uni/tn-t1/AbsGraph-gr2')]
+    sample_output = [
+        aim_service_graph.ServiceGraph(
+            tenant_name='t1', name='gr1', display_name='alias'),
+        aim_service_graph.ServiceGraph(tenant_name='t1', name='gr2')]
+
+
+class TestAciToAimConverterServiceGraphNode(TestAciToAimConverterBase,
+                                            base.TestAimDBBase):
+    resource_type = aim_service_graph.ServiceGraphNode
+    reverse_map_output = [
+        {'resource': 'vnsAbsNode',
+         'skip': ['connectors', 'deviceClusterName',
+                  'deviceClusterTenantName'],
+         'exceptions': {'function_type': {'other': 'funcType'},
+                        'managed': {'other': 'managed',
+                                    'converter': conv_utils.boolean}, }},
+        {'resource': 'vnsRsNodeToLDev',
+         'exceptions': {'device_cluster_name':
+                        {'other': 'tDn',
+                         'converter':
+                         conv_service_graph.vnsLDevVip_dn_decomposer}, },
+         'to_resource': conv_utils.default_to_resource_strict, },
+        {'resource': 'vnsAbsFuncConn',
+         'converter': conv_service_graph.vnsAbsFuncConn_converter,
+         'exceptions': {}}]
+    sample_input = [[_aci_obj('vnsAbsNode',
+                              dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N1',
+                              nameAlias='alias', managed='no',
+                              funcType='GoThrough', routingMode='Redirect'),
+                     _aci_obj('vnsAbsFuncConn',
+                              dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/'
+                                  'AbsFConn-c'),
+                              name='c'),
+                     _aci_obj('vnsRsNodeToLDev',
+                              dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/'
+                                  'rsNodeToLDev'),
+                              tDn='uni/tn-common/lDevVip-cl1')],
+                    _aci_obj('vnsAbsNode',
+                             dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2')]
+    sample_output = [
+        aim_service_graph.ServiceGraphNode(
+            tenant_name='t1', service_graph_name='gr1', name='N1',
+            display_name='alias', managed=False, function_type='GoThrough',
+            routing_mode='Redirect', connectors=['c'],
+            device_cluster_tenant_name='common',
+            device_cluster_name='cl1'),
+        aim_service_graph.ServiceGraphNode(
+            tenant_name='t1', service_graph_name='gr2', name='N2')]
+
+
+class TestAciToAimConverterServiceGraphConnection(TestAciToAimConverterBase,
+                                                  base.TestAimDBBase):
+    resource_type = aim_service_graph.ServiceGraphConnection
+    reverse_map_output = [
+        {'resource': 'vnsAbsConnection',
+         'exceptions':
+         {'adjacency_type': {'other': 'adjType'},
+          'connector_direction': {'other': 'connDir'},
+          'connector_type': {'other': 'connType'},
+          'direct_connect': {'other': 'directConnect',
+                             'converter': conv_utils.boolean},
+          'unicast_route': {'other': 'unicastRoute',
+                            'converter': conv_utils.boolean}},
+         'skip': ['connectorDns'], },
+        {'resource': 'vnsRsAbsConnectionConns',
+         'converter': conv_service_graph.vnsRsAbsConnectionConns_converter,
+         'exceptions': {}}]
+    sample_input = [[_aci_obj('vnsAbsConnection',
+                              dn='uni/tn-t1/AbsGraph-gr1/AbsConnection-c1',
+                              nameAlias='alias', adjType='L3',
+                              connDir='consumer', connType='internal',
+                              directConnect='yes', unicastRoute='yes'),
+                     _aci_obj('vnsRsAbsConnectionConns',
+                              dn=('uni/tn-t1/AbsGraph-gr1/AbsConnection-c1/'
+                                  'rsabsConnectionConns-[foo-bar]'),
+                              tDn='foo-bar'),
+                     _aci_obj('vnsRsAbsConnectionConns',
+                              dn=('uni/tn-t1/AbsGraph-gr1/AbsConnection-c1/'
+                                  'rsabsConnectionConns-[bar-bar]'),
+                              tDn='bar-bar')],
+                    _aci_obj('vnsAbsConnection',
+                             dn='uni/tn-t1/AbsGraph-gr1/AbsConnection-c2')]
+    sample_output = [
+        aim_service_graph.ServiceGraphConnection(
+            tenant_name='t1', service_graph_name='gr1', name='c1',
+            display_name='alias', adjacency_type='L3',
+            connector_direction='consumer', connector_type='internal',
+            direct_connect=True, unicast_route=True,
+            connector_dns=['foo-bar', 'bar-bar']),
+        aim_service_graph.ServiceGraphConnection(
+            tenant_name='t1', service_graph_name='gr1', name='c2')]
+
+
+class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
+                                                 base.TestAimDBBase):
+    resource_type = aim_service_graph.ServiceRedirectPolicy
+    reverse_map_output = [
+        {'resource': 'vnsSvcRedirectPol',
+         'exceptions': {},
+         'skip': ['destinations']},
+        {'resource': 'vnsRedirectDest',
+         'converter': conv_service_graph.vnsRedirectDest_converter,
+         'exceptions': {}}]
+    sample_input = [[_aci_obj('vnsSvcRedirectPol',
+                              dn='uni/tn-t1/svcCont/svcRedirectPol-r1',
+                              nameAlias='alias'),
+                     _aci_obj('vnsRedirectDest',
+                              dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                                  'RedirectDest_ip-[10.6.1.1]'),
+                              ip='10.6.1.1',
+                              mac='90:E2:Ba:b1:36:6c'),
+                     _aci_obj('vnsRedirectDest',
+                              dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                                  'RedirectDest_ip-[10.6.1.2]'),
+                              ip='10.6.1.2')],
+                    _aci_obj('vnsSvcRedirectPol',
+                             dn='uni/tn-t1/svcCont/svcRedirectPol-r2')]
+    sample_output = [
+        aim_service_graph.ServiceRedirectPolicy(
+            tenant_name='t1', name='r1',
+            display_name='alias',
+            destinations=[{'ip': '10.6.1.1', 'mac': '90:E2:BA:B1:36:6C'},
+                          {'ip': '10.6.1.2'}]),
+        aim_service_graph.ServiceRedirectPolicy(tenant_name='t1', name='r2')
+    ]
+
+
+class TestAciToAimConverterDeviceClusterInterfaceContext(
+        TestAciToAimConverterBase, base.TestAimDBBase):
+    resource_type = aim_service_graph.DeviceClusterInterfaceContext
+    reverse_map_output = [
+        {'resource': 'vnsLIfCtx',
+         'exceptions': {},
+         'skip': ['deviceClusterInterfaceDn',
+                  'serviceRedirectPolicyDn',
+                  'bridgeDomainDn'], },
+        {'resource': 'vnsRsLIfCtxToSvcRedirectPol',
+         'exceptions': {'service_redirect_policy_dn': {'other': 'tDn'}},
+         'to_resource': conv_utils.default_to_resource_strict, },
+        {'resource': 'vnsRsLIfCtxToBD',
+         'exceptions': {'bridge_domain_dn': {'other': 'tDn'}},
+         'to_resource': conv_utils.default_to_resource_strict, },
+        {'resource': 'vnsRsLIfCtxToLIf',
+         'exceptions': {'device_cluster_interface_dn': {'other': 'tDn'}},
+         'to_resource': conv_utils.default_to_resource_strict, }
+    ]
+    sample_input = [[_aci_obj('vnsLIfCtx',
+                              dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/'
+                                  'lIfCtx-c-prov'),
+                              nameAlias=''),
+                     _aci_obj('vnsRsLIfCtxToSvcRedirectPol',
+                              dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/'
+                                  'lIfCtx-c-prov/rsLIfCtxToSvcRedirectPol'),
+                              tDn='srp'),
+                     _aci_obj('vnsRsLIfCtxToBD',
+                              dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/'
+                                  'lIfCtx-c-prov/rsLIfCtxToBD'),
+                              tDn='bd'),
+                     _aci_obj('vnsRsLIfCtxToLIf',
+                              dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/'
+                                  'lIfCtx-c-prov/rsLIfCtxToLIf'),
+                              tDn='dci')],
+                    _aci_obj('vnsLIfCtx',
+                             dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/'
+                                 'lIfCtx-c-cons'),
+                             nameAlias='CONS')]
+    sample_output = [
+        aim_service_graph.DeviceClusterInterfaceContext(
+            tenant_name='t1', contract_name='c1',
+            service_graph_name='g0', node_name='N0',
+            connector_name='prov', device_cluster_interface_dn='dci',
+            service_redirect_policy_dn='srp', bridge_domain_dn='bd'),
+        aim_service_graph.DeviceClusterInterfaceContext(
+            tenant_name='t1', contract_name='c1',
+            service_graph_name='g0', node_name='N0',
+            connector_name='cons', display_name='CONS')
+    ]
+
+
+class TestAciToAimConverterDeviceClusterContext(TestAciToAimConverterBase,
+                                                base.TestAimDBBase):
+    resource_type = aim_service_graph.DeviceClusterContext
+    reverse_map_output = [
+        {'resource': 'vnsLDevCtx',
+         'exceptions': {},
+         'skip': ['deviceClusterName', 'deviceClusterTenantName',
+                  'serviceRedirectPolicyName',
+                  'serviceRedirectPolicyTenantName',
+                  'bridgeDomainName', 'bridgeDomainTenantName'],
+         'converter': conv_service_graph.device_cluster_context_converter, },
+        {'resource': 'vnsRsLDevCtxToLDev',
+         'exceptions':
+         {'device_cluster_name':
+          {'other': 'tDn',
+           'converter': conv_service_graph.vnsLDevVip_dn_decomposer}, },
+         'to_resource': conv_utils.default_to_resource_strict,
+         'converter': conv_service_graph.device_cluster_context_converter, }
+    ]
+    sample_input = [[_aci_obj('vnsLDevCtx',
+                              dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/')),
+                     _aci_obj('vnsRsLDevCtxToLDev',
+                              dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/'
+                                  'rsLDevCtxToLDev'),
+                              tDn='uni/tn-common/lDevVip-ldc1')],
+                    _aci_obj('vnsLDevCtx',
+                             dn='uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1',
+                             nameAlias='alias')]
+    sample_output = [
+        aim_service_graph.DeviceClusterContext(
+            tenant_name='t1', contract_name='c1',
+            service_graph_name='g0', node_name='N0',
+            device_cluster_name='ldc1',
+            device_cluster_tenant_name='common'),
+        aim_service_graph.DeviceClusterContext(
+            tenant_name='t1', contract_name='c1',
+            service_graph_name='g1', node_name='N1', display_name='alias')
+    ]
+
+
 class TestAimToAciConverterBase(object):
     sample_input = []
     sample_output = []
@@ -824,19 +1195,31 @@ class TestAimToAciConverterBase(object):
 
         result = self.converter.convert([example1])
 
-        self.assertEqual(len(expected1), len(result))
+        self.assertEqual(len(expected1), len(result),
+                         '\nExpected:\n%s\nResult:\n%s' % (
+                         pprint.pformat(expected1),
+                         pprint.pformat(result)))
         for item in expected1:
             self.assertTrue(item in result,
-                            'Expected %s not in result %s' % (item, result))
+                            '\nExpected:\n%s\nin Result:\n%s' % (
+                                pprint.pformat(item),
+                                pprint.pformat(result)))
         # Convert another BD
         result = self.converter.convert([example1, example2])
-        self.assertEqual(len(expected1) + len(expected2), len(result))
+        self.assertEqual(len(expected1) + len(expected2), len(result),
+                         '\nExpected:\n%s\nResult:\n%s' % (
+                         pprint.pformat(expected1 + expected2),
+                         pprint.pformat(result)))
         for item in expected1:
             self.assertTrue(item in result,
-                            'Expected %s not in result %s' % (item, result))
+                            '\nExpected:\n%s\nResult:\n%s' % (
+                                pprint.pformat(item),
+                                pprint.pformat(result)))
         for item in expected2:
             self.assertTrue(item in result,
-                            'Expected %s not in result %s' % (item, result))
+                            '\nExpected:\n%s\nResult:\n%s' % (
+                                pprint.pformat(item),
+                                pprint.pformat(result)))
 
     def _test_consistent_conversion(self, example_resource):
         to_aim_converter = converter.AciToAimModelConverter()
@@ -1198,11 +1581,13 @@ def get_example_aim_contract_subject(**kwargs):
 
 class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
                                            base.TestAimDBBase):
-    sample_input = [get_example_aim_contract_subject(in_filters=['i1', 'i2'],
-                                                     out_filters=['o1', 'o2'],
-                                                     bi_filters=['f1', 'f2'],
-                                                     display_name='alias'),
-                    get_example_aim_contract_subject(name='s2')]
+    sample_input = [
+        get_example_aim_contract_subject(in_filters=['i1', 'i2'],
+                                         out_filters=['o1', 'o2'],
+                                         bi_filters=['f1', 'f2'],
+                                         service_graph_name='g1',
+                                         display_name='alias'),
+        get_example_aim_contract_subject(name='s2')]
     sample_output = [
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s1',
                   nameAlias='alias'),
@@ -1212,6 +1597,9 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
          _aci_obj('vzRsSubjFiltAtt',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/rssubjFiltAtt-f2',
                   tnVzFilterName='f2'),
+         _aci_obj('vzRsSubjGraphAtt',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/rsSubjGraphAtt',
+                  tnVnsAbsGraphName='g1'),
          _aci_obj('vzRsFiltAtt__In',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl/rsfiltAtt-i1',
                   tnVzFilterName='i1'),
@@ -1229,7 +1617,10 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
          _aci_obj('vzOutTerm',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl'), ],
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s2',
-                  nameAlias="")]]
+                  nameAlias=""),
+         _aci_obj('vzRsSubjGraphAtt',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s2/rsSubjGraphAtt',
+                  tnVnsAbsGraphName='')]]
 
 
 def get_example_aim_l3outside(**kwargs):
@@ -1446,3 +1837,576 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
              'hostprotRemoteIp',
              dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/ip-[192.168.0.0/24]',
              addr='192.168.0.0/24')]]
+
+
+def get_example_aim_device_cluster(**kwargs):
+    example = aim_service_graph.DeviceCluster(
+        tenant_name='t1', name='cl1',)
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterDeviceCluster(TestAimToAciConverterBase,
+                                         base.TestAimDBBase):
+    sample_input = [get_example_aim_device_cluster(
+                    device_type='VIRTUAL',
+                    service_type='ADC',
+                    context_aware='multi-Context'),
+                    get_example_aim_device_cluster(
+                        name='cl2',
+                        managed=False,
+                        physical_domain_name='abc',
+                        encap='vlan-44',
+                        devices=[{'name': 'n1'},
+                                 {'name': 'n2', 'path': 'foo'},
+                                 {'foo': 'bar'}])]
+
+    sample_output = [
+        [_aci_obj('vnsLDevVip',
+                  dn='uni/tn-t1/lDevVip-cl1',
+                  devtype='VIRTUAL',
+                  svcType='ADC',
+                  contextAware='multi-Context',
+                  managed='yes',
+                  nameAlias=''),
+         _aci_obj('vnsRsALDevToPhysDomP',
+                  dn='uni/tn-t1/lDevVip-cl1/rsALDevToPhysDomP',
+                  tDn='')],
+        [_aci_obj('vnsLDevVip',
+                  dn='uni/tn-t1/lDevVip-cl2',
+                  devtype='PHYSICAL',
+                  svcType='OTHERS',
+                  contextAware='single-Context',
+                  managed='no',
+                  nameAlias=''),
+         _aci_obj('vnsRsALDevToPhysDomP',
+                  dn='uni/tn-t1/lDevVip-cl2/rsALDevToPhysDomP',
+                  tDn='uni/phys-abc'),
+         _aci_obj('vnsLIf',
+                  dn='uni/tn-t1/lDevVip-cl2/lIf-interface',
+                  encap='vlan-44',
+                  nameAlias=''),
+         _aci_obj('vnsRsCIfAtt',
+                  dn='uni/tn-t1/lDevVip-cl2/lIf-interface/rscIfAtt-['
+                     'uni/tn-t1/lDevVip-cl2/cDev-n1/cIf-[interface]]',
+                  tDn='uni/tn-t1/lDevVip-cl2/cDev-n1/cIf-[interface]'),
+         _aci_obj('vnsRsCIfAtt',
+                  dn='uni/tn-t1/lDevVip-cl2/lIf-interface/rscIfAtt-['
+                     'uni/tn-t1/lDevVip-cl2/cDev-n2/cIf-[interface]]',
+                  tDn='uni/tn-t1/lDevVip-cl2/cDev-n2/cIf-[interface]'),
+         _aci_obj('vnsCDev',
+                  dn='uni/tn-t1/lDevVip-cl2/cDev-n1',
+                  nameAlias=''),
+         _aci_obj('vnsCDev',
+                  dn='uni/tn-t1/lDevVip-cl2/cDev-n2',
+                  nameAlias=''),
+         _aci_obj('vnsCIf',
+                  dn='uni/tn-t1/lDevVip-cl2/cDev-n1/cIf-[interface]',
+                  nameAlias=''),
+         _aci_obj('vnsCIf',
+                  dn='uni/tn-t1/lDevVip-cl2/cDev-n2/cIf-[interface]',
+                  nameAlias=''),
+         _aci_obj('vnsRsCIfPathAtt',
+                  dn='uni/tn-t1/lDevVip-cl2/cDev-n1/cIf-[interface]/'
+                     'rsCIfPathAtt',
+                  tDn=''),
+         _aci_obj('vnsRsCIfPathAtt',
+                  dn='uni/tn-t1/lDevVip-cl2/cDev-n2/cIf-[interface]/'
+                     'rsCIfPathAtt',
+                  tDn='foo'), ]
+    ]
+
+
+def get_example_aim_device_cluster_if(**kwargs):
+    example = aim_service_graph.DeviceClusterInterface(
+        tenant_name='t1', device_cluster_name='cl1', name='if1',
+        encap='vlan-55')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterDeviceClusterInterface(TestAimToAciConverterBase,
+                                                  base.TestAimDBBase):
+    sample_input = [get_example_aim_device_cluster_if(),
+                    get_example_aim_device_cluster_if(
+                        name='if2',
+                        concrete_interfaces=['abc', 'xyz'])]
+
+    sample_output = [
+        [_aci_obj('vnsLIf',
+                  dn='uni/tn-t1/lDevVip-cl1/lIf-if1',
+                  encap='vlan-55',
+                  nameAlias='')],
+        [_aci_obj('vnsLIf',
+                  dn='uni/tn-t1/lDevVip-cl1/lIf-if2',
+                  encap='vlan-55',
+                  nameAlias=''),
+         _aci_obj('vnsRsCIfAtt',
+                  dn='uni/tn-t1/lDevVip-cl1/lIf-if2/rscIfAtt-[abc]',
+                  tDn='abc'),
+         _aci_obj('vnsRsCIfAtt',
+                  dn='uni/tn-t1/lDevVip-cl1/lIf-if2/rscIfAtt-[xyz]',
+                  tDn='xyz')]
+    ]
+
+
+def get_example_aim_dev_cluster_device(**kwargs):
+    example = aim_service_graph.ConcreteDevice(
+        tenant_name='t1', device_cluster_name='cl1', name='node1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterConcreteDevice(TestAimToAciConverterBase,
+                                          base.TestAimDBBase):
+    sample_input = [get_example_aim_dev_cluster_device(),
+                    get_example_aim_dev_cluster_device(name='node2')]
+
+    sample_output = [
+        [_aci_obj('vnsCDev',
+                  dn='uni/tn-t1/lDevVip-cl1/cDev-node1',
+                  nameAlias='')],
+        [_aci_obj('vnsCDev',
+                  dn='uni/tn-t1/lDevVip-cl1/cDev-node2',
+                  nameAlias='')]
+    ]
+
+
+def get_example_aim_dev_cluster_device_if(**kwargs):
+    example = aim_service_graph.ConcreteDeviceInterface(
+        tenant_name='t1', device_cluster_name='cl1', device_name='node1',
+        name='if1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterConcreteDeviceInterface(
+        TestAimToAciConverterBase,
+        base.TestAimDBBase):
+    sample_input = [get_example_aim_dev_cluster_device_if(),
+                    get_example_aim_dev_cluster_device_if(
+                        name='if2',
+                        path='foo/bar')]
+
+    sample_output = [
+        [_aci_obj('vnsCIf',
+                  dn='uni/tn-t1/lDevVip-cl1/cDev-node1/cIf-[if1]',
+                  nameAlias=''),
+         _aci_obj('vnsRsCIfPathAtt',
+                  dn='uni/tn-t1/lDevVip-cl1/cDev-node1/cIf-[if1]/'
+                     'rsCIfPathAtt',
+                  tDn='')],
+        [_aci_obj('vnsCIf',
+                  dn='uni/tn-t1/lDevVip-cl1/cDev-node1/cIf-[if2]',
+                  nameAlias=''),
+         _aci_obj('vnsRsCIfPathAtt',
+                  dn='uni/tn-t1/lDevVip-cl1/cDev-node1/cIf-[if2]/'
+                     'rsCIfPathAtt',
+                  tDn='foo/bar')]
+    ]
+
+
+def get_example_aim_service_graph_node(**kwargs):
+    example = aim_service_graph.ServiceGraphNode(
+        tenant_name='t1', service_graph_name='gr1', name='N0')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterServiceGraphNode(TestAimToAciConverterBase,
+                                            base.TestAimDBBase):
+    sample_input = [get_example_aim_service_graph_node(display_name='N'),
+                    get_example_aim_service_graph_node(
+                        name='N1',
+                        function_type='GoThrough', managed=False,
+                        routing_mode='Redirect', connectors=['c1'],
+                        device_cluster_name='cl1',
+                        device_cluster_tenant_name='common')]
+
+    sample_output = [
+        [_aci_obj('vnsAbsNode',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N0',
+                  funcType='GoTo', managed='yes', nameAlias='N',
+                  routingMode='unspecified'),
+         _aci_obj('vnsRsNodeToLDev',
+                  dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N0/rsNodeToLDev'),
+                  tDn='')],
+        [_aci_obj('vnsAbsNode',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N1',
+                  funcType='GoThrough', managed='no', nameAlias='',
+                  routingMode='Redirect'),
+         _aci_obj('vnsAbsFuncConn',
+                  dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/'
+                      'AbsFConn-c1'),
+                  name='c1'),
+         _aci_obj('vnsRsNodeToLDev',
+                  dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/rsNodeToLDev'),
+                  tDn='uni/tn-common/lDevVip-cl1')]]
+
+
+def get_example_aim_service_graph_connection(**kwargs):
+    example = aim_service_graph.ServiceGraphConnection(
+        tenant_name='t1', service_graph_name='gr1', name='C0')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterServiceGraphConnection(TestAimToAciConverterBase,
+                                                  base.TestAimDBBase):
+    sample_input = [get_example_aim_service_graph_connection(display_name='C'),
+                    get_example_aim_service_graph_connection(
+                        name='C2',
+                        adjacency_type='L3',
+                        connector_type='internal',
+                        connector_direction='consumer',
+                        unicast_route=True,
+                        direct_connect=True,
+                        connector_dns=['foo', 'bar'])]
+    sample_output = [
+        [_aci_obj('vnsAbsConnection',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsConnection-C0',
+                  nameAlias='C',
+                  adjType='L2', connDir='provider', connType='external',
+                  directConnect='no', unicastRoute='no')],
+        [_aci_obj('vnsAbsConnection',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsConnection-C2',
+                  nameAlias='',
+                  adjType='L3', connDir='consumer', connType='internal',
+                  directConnect='yes', unicastRoute='yes'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsConnection-C2/'
+                     'rsabsConnectionConns-[foo]',
+                  tDn='foo'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsConnection-C2/'
+                     'rsabsConnectionConns-[bar]',
+                  tDn='bar')]
+    ]
+
+
+def get_example_aim_service_graph(**kwargs):
+    example = aim_service_graph.ServiceGraph(tenant_name='t1', name='gr1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
+                                        base.TestAimDBBase):
+    sample_input = [get_example_aim_service_graph(display_name='G'),
+                    get_example_aim_service_graph(
+                        name='gr2',
+                        linear_chain_nodes=[
+                            {'name': 'N0'},
+                            {'name': 'N1',
+                             'device_cluster_name': 'cl1'},
+                            {'name': 'N2',
+                             'device_cluster_name': 'cl2',
+                             'device_cluster_tenant_name': 'common'},
+                            {'device_cluster_name': 'cl4'}])]
+
+    sample_output = [
+        [_aci_obj('vnsAbsGraph',
+                  dn='uni/tn-t1/AbsGraph-gr1',
+                  nameAlias='G'),
+         _aci_obj('vnsAbsTermNodeCon',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeCon-T1'),
+         _aci_obj('vnsAbsTermConn__Con',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeCon-T1/AbsTConn'),
+         _aci_obj('vnsInTerm__Con',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeCon-T1/intmnl'),
+         _aci_obj('vnsOutTerm__Con',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeCon-T1/outtmnl'),
+         _aci_obj('vnsAbsTermNodeProv',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeProv-T2'),
+         _aci_obj('vnsAbsTermConn__Prov',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeProv-T2/AbsTConn'),
+         _aci_obj('vnsInTerm__Prov',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeProv-T2/intmnl'),
+         _aci_obj('vnsOutTerm__Prov',
+                  dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeProv-T2/outtmnl')],
+        [_aci_obj('vnsAbsGraph',
+                  dn='uni/tn-t1/AbsGraph-gr2',
+                  nameAlias=''),
+         _aci_obj('vnsAbsTermNodeCon',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeCon-T1'),
+         _aci_obj('vnsAbsTermConn__Con',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeCon-T1/AbsTConn'),
+         _aci_obj('vnsInTerm__Con',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeCon-T1/intmnl'),
+         _aci_obj('vnsOutTerm__Con',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeCon-T1/outtmnl'),
+         _aci_obj('vnsAbsTermNodeProv',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeProv-T2'),
+         _aci_obj('vnsAbsTermConn__Prov',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeProv-T2/AbsTConn'),
+         _aci_obj('vnsInTerm__Prov',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeProv-T2/intmnl'),
+         _aci_obj('vnsOutTerm__Prov',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeProv-T2/outtmnl'),
+         _aci_obj('vnsAbsNode',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N0',
+                  nameAlias='',
+                  managed='no', funcType='GoTo', routingMode='Redirect'),
+         _aci_obj('vnsAbsFuncConn',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N0/'
+                      'AbsFConn-consumer'),
+                  name='consumer'),
+         _aci_obj('vnsAbsFuncConn',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N0/'
+                      'AbsFConn-provider'),
+                  name='provider'),
+         _aci_obj('vnsRsNodeToLDev',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N0/rsNodeToLDev'),
+                  tDn=''),
+         _aci_obj('vnsAbsNode',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N1',
+                  nameAlias='',
+                  managed='no', funcType='GoTo', routingMode='Redirect'),
+         _aci_obj('vnsAbsFuncConn',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N1/'
+                      'AbsFConn-consumer'),
+                  name='consumer'),
+         _aci_obj('vnsAbsFuncConn',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N1/'
+                      'AbsFConn-provider'),
+                  name='provider'),
+         _aci_obj('vnsRsNodeToLDev',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N1/'
+                      'rsNodeToLDev'),
+                  tDn='uni/tn-t1/lDevVip-cl1'),
+         _aci_obj('vnsAbsNode',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2',
+                  nameAlias='',
+                  managed='no', funcType='GoTo', routingMode='Redirect'),
+         _aci_obj('vnsAbsFuncConn',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N2/'
+                      'AbsFConn-consumer'),
+                  name='consumer'),
+         _aci_obj('vnsAbsFuncConn',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N2/'
+                      'AbsFConn-provider'),
+                  name='provider'),
+         _aci_obj('vnsRsNodeToLDev',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N2/'
+                      'rsNodeToLDev'),
+                  tDn='uni/tn-common/lDevVip-cl2'),
+         _aci_obj('vnsAbsConnection',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsConnection-C1',
+                  nameAlias='',
+                  adjType='L2', connDir='provider', connType='external',
+                  directConnect='no', unicastRoute='yes'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C1/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsTermNodeCon-T1/AbsTConn]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/'
+                      'AbsTermNodeCon-T1/AbsTConn'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C1/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N0/AbsFConn-consumer]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/AbsNode-N0/AbsFConn-consumer'),
+         _aci_obj('vnsAbsConnection',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsConnection-C2',
+                  nameAlias='',
+                  adjType='L2', connDir='provider', connType='external',
+                  directConnect='no', unicastRoute='yes'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C2/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N0/AbsFConn-provider]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N0/AbsFConn-provider'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C2/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N1/AbsFConn-consumer]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/AbsNode-N1/AbsFConn-consumer'),
+         _aci_obj('vnsAbsConnection',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsConnection-C3',
+                  nameAlias='',
+                  adjType='L2', connDir='provider', connType='external',
+                  directConnect='no', unicastRoute='yes'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C3/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N1/AbsFConn-provider]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N1/AbsFConn-provider'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C3/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N2/AbsFConn-consumer]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2/AbsFConn-consumer'),
+         _aci_obj('vnsAbsConnection',
+                  dn='uni/tn-t1/AbsGraph-gr2/AbsConnection-C4',
+                  nameAlias='',
+                  adjType='L2', connDir='provider', connType='external',
+                  directConnect='no', unicastRoute='yes'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C4/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N2/AbsFConn-provider]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/'
+                      'AbsNode-N2/AbsFConn-provider'),
+         _aci_obj('vnsRsAbsConnectionConns',
+                  dn=('uni/tn-t1/AbsGraph-gr2/AbsConnection-C4/'
+                      'rsabsConnectionConns-[uni/tn-t1/AbsGraph-gr2/'
+                      'AbsTermNodeProv-T2/AbsTConn]'),
+                  tDn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeProv-T2/AbsTConn')
+         ]
+    ]
+
+
+def get_example_aim_service_redirect_policy(**kwargs):
+    example = aim_service_graph.ServiceRedirectPolicy(tenant_name='t1',
+                                                      name='r1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
+                                                 base.TestAimDBBase):
+    sample_input = [get_example_aim_service_redirect_policy(display_name='R'),
+                    get_example_aim_service_redirect_policy(
+                        name='r2',
+                        destinations=[{'ip': '10.6.1.1',
+                                       'mac': '90:e2:ba:B1:36:6C'},
+                                      {'ip': '10.6.1.2'},
+                                      {'foo': 'bar'}])]
+
+    sample_output = [
+        [_aci_obj('vnsSvcRedirectPol',
+                  dn='uni/tn-t1/svcCont/svcRedirectPol-r1',
+                  nameAlias='R')],
+        [_aci_obj('vnsSvcRedirectPol',
+                  dn='uni/tn-t1/svcCont/svcRedirectPol-r2',
+                  nameAlias=''),
+         _aci_obj('vnsRedirectDest',
+                  dn=('uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                      'RedirectDest_ip-[10.6.1.1]'),
+                  ip='10.6.1.1',
+                  mac='90:E2:BA:B1:36:6C'),
+         _aci_obj('vnsRedirectDest',
+                  dn=('uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                      'RedirectDest_ip-[10.6.1.2]'),
+                  ip='10.6.1.2')]]
+
+
+def get_example_aim_device_cluster_interface_context(**kwargs):
+    example = aim_service_graph.DeviceClusterInterfaceContext(
+        tenant_name='t1', contract_name='c1',
+        service_graph_name='g0', node_name='N0',
+        connector_name='cons')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterDeviceClusterInterfaceContext(
+        TestAimToAciConverterBase,
+        base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_device_cluster_interface_context(display_name='LIC'),
+        get_example_aim_device_cluster_interface_context(
+            connector_name='prov',
+            bridge_domain_dn='bd',
+            service_redirect_policy_dn='srp',
+            device_cluster_interface_dn='dci')]
+
+    sample_output = [
+        [_aci_obj('vnsLIfCtx',
+                  dn='uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-cons',
+                  nameAlias='LIC'),
+         _aci_obj('vnsRsLIfCtxToSvcRedirectPol',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-cons/'
+                      'rsLIfCtxToSvcRedirectPol'),
+                  tDn=''),
+         _aci_obj('vnsRsLIfCtxToBD',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-cons/'
+                      'rsLIfCtxToBD'),
+                  tDn=''),
+         _aci_obj('vnsRsLIfCtxToLIf',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-cons/'
+                      'rsLIfCtxToLIf'),
+                  tDn='')],
+        [_aci_obj('vnsLIfCtx',
+                  dn='uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-prov',
+                  nameAlias=''),
+         _aci_obj('vnsRsLIfCtxToSvcRedirectPol',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-prov/'
+                      'rsLIfCtxToSvcRedirectPol'),
+                  tDn='srp'),
+         _aci_obj('vnsRsLIfCtxToBD',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-prov/'
+                      'rsLIfCtxToBD'),
+                  tDn='bd'),
+         _aci_obj('vnsRsLIfCtxToLIf',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/lIfCtx-c-prov/'
+                      'rsLIfCtxToLIf'),
+                  tDn='dci')]
+    ]
+
+
+def get_example_aim_device_cluster_context(**kwargs):
+    example = aim_service_graph.DeviceClusterContext(
+        tenant_name='t1', contract_name='c1',
+        service_graph_name='g0', node_name='N0')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterDeviceClusterContext(TestAimToAciConverterBase,
+                                                base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_device_cluster_context(display_name='LDC'),
+        get_example_aim_device_cluster_context(
+            service_graph_name='g1', node_name='N1',
+            device_cluster_name='ldc1',
+            bridge_domain_tenant_name='common',
+            bridge_domain_name='bd',
+            service_redirect_policy_name='srp')]
+
+    sample_output = [
+        [_aci_obj('vnsLDevCtx',
+                  dn='uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0',
+                  nameAlias='LDC'),
+         _aci_obj('vnsRsLDevCtxToLDev',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g0-n-N0/rsLDevCtxToLDev'),
+                  tDn='')],
+        [_aci_obj('vnsLDevCtx',
+                  dn='uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1',
+                  nameAlias=''),
+         _aci_obj('vnsRsLDevCtxToLDev',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/rsLDevCtxToLDev'),
+                  tDn='uni/tn-t1/lDevVip-ldc1'),
+         _aci_obj('vnsLIfCtx',
+                  dn='uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-consumer',
+                  nameAlias=''),
+         _aci_obj('vnsRsLIfCtxToSvcRedirectPol',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-consumer/'
+                      'rsLIfCtxToSvcRedirectPol'),
+                  tDn='uni/tn-t1/svcCont/svcRedirectPol-srp'),
+         _aci_obj('vnsRsLIfCtxToBD',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-consumer/'
+                      'rsLIfCtxToBD'),
+                  tDn='uni/tn-common/BD-bd'),
+         _aci_obj('vnsRsLIfCtxToLIf',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-consumer/'
+                      'rsLIfCtxToLIf'),
+                  tDn='uni/tn-t1/lDevVip-ldc1/lIf-interface'),
+         _aci_obj('vnsLIfCtx',
+                  dn='uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-provider',
+                  nameAlias=''),
+         _aci_obj('vnsRsLIfCtxToSvcRedirectPol',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-provider/'
+                      'rsLIfCtxToSvcRedirectPol'),
+                  tDn='uni/tn-t1/svcCont/svcRedirectPol-srp'),
+         _aci_obj('vnsRsLIfCtxToBD',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-provider/'
+                      'rsLIfCtxToBD'),
+                  tDn='uni/tn-common/BD-bd'),
+         _aci_obj('vnsRsLIfCtxToLIf',
+                  dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-provider/'
+                      'rsLIfCtxToLIf'),
+                  tDn='uni/tn-t1/lDevVip-ldc1/lIf-interface')]
+    ]
