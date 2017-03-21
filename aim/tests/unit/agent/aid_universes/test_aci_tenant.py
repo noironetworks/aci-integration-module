@@ -785,6 +785,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         # Now replace something
         bd2 = a_res.BridgeDomain(tenant_name='tn1', name='bd2',
                                  display_name='bar')
+        bd = copy.deepcopy(bd)
         bd.display_name = 'foobar'
         self.manager.push_aim_resources({'create': [bd2, bd], 'delete': []})
         self.assertEqual(2, len(self.manager.object_backlog.queue))

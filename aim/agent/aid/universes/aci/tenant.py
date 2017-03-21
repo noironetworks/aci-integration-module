@@ -350,7 +350,7 @@ class AciTenantManager(gevent.Greenlet):
                             new_dn = new.values()[0]['attributes']['dn']
                         if req_dn == new_dn:
                             # Replace old with new
-                            requests[i] = new
+                            requests[op][i] = new
                             break
                     else:
                         # No colliding item found
