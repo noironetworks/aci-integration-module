@@ -245,7 +245,7 @@ class K8sWatcher(object):
             # TODO(ivar): this leaks status objects
             if not aim_resource:
                 return None
-        return self.tt_maker.get_tenant_key(aim_resource)
+        return self.tt_maker.get_root_key(aim_resource)
 
     def _save_trees(self, affected_tenants):
         cfg_trees = []

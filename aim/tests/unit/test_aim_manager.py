@@ -466,7 +466,7 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
             result[tenant.name] = {}
             for typ in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][typ] = (
-                    self.tt_mgr.get(self.ctx, tenant.name, tree=typ))
+                    self.tt_mgr.get(self.ctx, tenant.rn, tree=typ))
 
     def test_tree_reset(self):
         self._create_prerequisite_objects()
