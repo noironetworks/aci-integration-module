@@ -35,7 +35,7 @@ class TestNatStrategyBase(object):
         self.mgr = aim_manager.AimManager()
         self.ns = self.strategy(self.mgr)
         self.ns.app_profile_name = 'myapp'
-
+        self.mgr.create(self.ctx, a_res.VMMPolicy(type='OpenStack'))
         self.mgr.create(self.ctx, a_res.VMMDomain(type='OpenStack',
                                                   name='ostack'))
         self.mgr.create(self.ctx, a_res.PhysicalDomain(name='phys'))

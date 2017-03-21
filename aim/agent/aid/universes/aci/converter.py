@@ -439,6 +439,15 @@ resource_map = {
         'exceptions': {'domName': {'other': 'domain_name'},
                        'ctrlrName': {'other': 'controller_name'}, }
     }],
+    'vmmDomP': [{
+        'resource': resource.VMMDomain,
+    }],
+    'vmmProvP': [{
+        'resource': resource.VMMPolicy,
+    }],
+    'physDomP': [{
+        'resource': resource.PhysicalDomain,
+    }]
 }
 
 resource_map.update(service_graph.resource_map)

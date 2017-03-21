@@ -84,7 +84,9 @@ class AimManager(object):
                      api_service_graph.ServiceRedirectPolicy,
                      api_service_graph.DeviceClusterContext,
                      api_service_graph.DeviceClusterInterfaceContext,
-                     api_infra.OpflexDevice}
+                     api_infra.OpflexDevice,
+                     api_res.VMMPolicy}
+
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}
 

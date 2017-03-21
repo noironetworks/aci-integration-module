@@ -1367,6 +1367,31 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         ctx1 = context.AimContext(self.ctx.db_session)
         self.aim_manager.create(ctx1, resource.Tenant(name=tenant_name2))
 
+    def test_non_tenant_roots(self):
+        agent = self._create_agent()
+        vmm = resource.VMMDomain(type='OpenStack', name='ostack')
+        vmmp = resource.VMMPolicy(type='OpenStack')
+        phys = resource.PhysicalDomain(name='physdomain')
+        self.aim_manager.create(self.ctx, vmmp)
+        self.aim_manager.create(self.ctx, vmm)
+        self.aim_manager.create(self.ctx, phys)
+
+        current_config = agent.multiverse[0]['current']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+
+        vmm = test_aci_tenant.mock_get_data(
+            current_config.serving_tenants['vmmp-OpenStack'].aci_session,
+            'mo/' + vmm.dn)
+        self.assertIsNotNone(vmm)
+        phys = test_aci_tenant.mock_get_data(
+            current_config.serving_tenants[phys.rn].aci_session,
+            'mo/' + phys.dn)
+        self.assertIsNotNone(phys)
+
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
             self._current_manager = tenant

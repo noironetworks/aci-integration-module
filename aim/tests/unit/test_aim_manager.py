@@ -588,6 +588,7 @@ class TestEndpointGroupMixin(object):
     prereq_objects = [
         resource.Tenant(name='tenant1'),
         resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
+        resource.VMMPolicy(type='OpenStack'),
         resource.VMMDomain(type='OpenStack', name='openstack'),
         resource.PhysicalDomain(name='phys')]
     test_identity_attributes = {'tenant_name': 'tenant1',
@@ -747,12 +748,14 @@ class TestEndpointMixin(object):
 
 class TestVMMDomainMixin(object):
     resource_class = resource.VMMDomain
+    prereq_objects = [resource.VMMPolicy(type='OpenStack')]
     test_identity_attributes = {'type': 'OpenStack', 'name': 'openstack'}
     test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
     test_search_attributes = {'name': 'openstack'}
     test_update_attributes = {}
     test_default_values = {}
     res_command = 'vmm-domain'
+    test_dn = 'uni/vmmp-OpenStack/dom-openstack'
 
 
 class TestPhysicalDomainMixin(object):
@@ -763,6 +766,7 @@ class TestPhysicalDomainMixin(object):
     test_update_attributes = {}
     test_default_values = {}
     res_command = 'physical-domain'
+    test_dn = 'uni/phys-phys'
 
 
 class TestL3OutsideMixin(object):

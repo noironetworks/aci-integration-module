@@ -517,7 +517,22 @@ class Endpoint(ResourceBase):
                                        **kwargs)
 
 
-class VMMDomain(ResourceBase):
+class VMMPolicy(AciResourceBase):
+
+    identity_attributes = t.identity(
+        ('type', t.enum("VMWare", "OpenStack")))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name))
+
+    _aci_mo_name = 'vmmProvP'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(VMMPolicy, self).__init__({'monitored': False}, **kwargs)
+
+
+class VMMDomain(AciResourceBase):
     """Resource representing a VMM domain.
 
     Identity attributes: VMM type (eg. Openstack) and name
@@ -526,37 +541,34 @@ class VMMDomain(ResourceBase):
     identity_attributes = t.identity(
         ('type', t.enum("VMWare", "OpenStack")),
         ('name', t.name))
-    # REVISIT(ivar): A VMM has a plethora of attributes, references and child
-    # objects that needs to be created. For now, this will however be just
-    # the stub connecting what is explicitly created through the Infra and
-    # what is managed by AIM, therefore we keep the stored information to
-    # the very minimum
-    other_attributes = t.other()
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name))
+
     _aci_mo_name = 'vmmDomP'
-    _tree_parent = None
+    _tree_parent = VMMPolicy
 
     def __init__(self, **kwargs):
-        super(VMMDomain, self).__init__({}, **kwargs)
+        super(VMMDomain, self).__init__({'monitored': False}, **kwargs)
 
 
-class PhysicalDomain(ResourceBase):
+class PhysicalDomain(AciResourceBase):
     """Resource representing a Physical domain.
 
     Identity attributes: name
     """
 
-    identity_attributes = t.identity(('name', t.name))
-    # REVISIT(ivar): A Physical Domain has a plethora of attributes, references
-    # and child objects that needs to be created. For now, this will however be
-    # just the stub connecting what is explicitly created through the Infra and
-    # what is managed by AIM, therefore we keep the stored information to
-    # the very minimum
-    other_attributes = t.other()
+    identity_attributes = t.identity(
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name))
+
     _aci_mo_name = 'physDomP'
     _tree_parent = None
 
     def __init__(self, **kwargs):
-        super(PhysicalDomain, self).__init__({}, **kwargs)
+        super(PhysicalDomain, self).__init__({'monitored': False}, **kwargs)
 
 
 class L3Outside(AciResourceBase):
