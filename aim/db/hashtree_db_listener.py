@@ -15,6 +15,7 @@
 
 from oslo_log import log as logging
 
+from aim.api import resource
 from aim.api import status as aim_status
 from aim.api import tree as aim_tree
 from aim.common.hashtree import exceptions as hexc
@@ -86,3 +87,34 @@ class HashTreeDbListener(object):
             self.tt_mgr.update_bulk(ctx, udp_op_trees, tree=oper)
         if udp_mon_trees:
             self.tt_mgr.update_bulk(ctx, udp_mon_trees, tree=monitor)
+
+    def reset(self, tenant=None):
+        aim_ctx = utils.FakeContext(store=self.store)
+        with aim_ctx.store.begin(subtransactions=True):
+            created = []
+            # Delete existing trees
+            filters = {}
+            if tenant:
+                filters['name'] = tenant
+            tenants = self.aim_manager.find(aim_ctx, resource.Tenant,
+                                            **filters)
+            for t in tenants:
+                self.tt_mgr.delete_by_tenant_rn(aim_ctx, t.name)
+            # Retrieve objects
+            for klass in self.aim_manager.aim_resources:
+                if issubclass(klass, resource.AciResourceBase):
+                    filters = {}
+                    if tenant:
+                        filters[klass.tenant_ref_attribute] = tenant
+                    # Get all objects of that type
+                    for obj in self.aim_manager.find(aim_ctx, klass,
+                                                     **filters):
+                        # Need all the faults and statuses as well
+                        stat = self.aim_manager.get_status(aim_ctx, obj)
+                        if stat:
+                            created.append(stat)
+                            created.extend(stat.faults)
+                            del stat.faults
+                        created.append(obj)
+            # Reset the trees
+            self.on_commit(self.store.db_session, created, [], [])

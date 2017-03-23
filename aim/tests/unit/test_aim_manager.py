@@ -36,6 +36,7 @@ from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import config  # noqa
+from aim.db import hashtree_db_listener
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
 from aim.tests import base
@@ -456,6 +457,28 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
         self.assertRaises(exc.InvalidDNForAciResource,
                           self.resource_class.from_dn,
                           res.dn + '/foo')
+
+    def _get_hash_trees(self):
+        tenants = self.mgr.find(self.ctx, resource.Tenant)
+        result = {}
+        for tenant in tenants:
+            result[tenant.name] = {}
+            for typ in tree_manager.SUPPORTED_TREES:
+                result[tenant.name][typ] = (
+                    self.tt_mgr.get(self.ctx, tenant.name, tree=typ))
+
+    def test_tree_reset(self):
+        self._create_prerequisite_objects()
+
+        res = self.resource_class(**self.test_required_attributes)
+        self.mgr.create(self.ctx, res)
+
+        old = self._get_hash_trees()
+        listener = hashtree_db_listener.HashTreeDbListener(self.mgr,
+                                                           self.ctx.store)
+        listener.reset()
+        new = self._get_hash_trees()
+        self.assertEqual(old, new)
 
 
 class TestTenantMixin(object):
