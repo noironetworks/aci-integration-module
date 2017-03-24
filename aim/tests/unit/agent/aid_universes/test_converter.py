@@ -1055,17 +1055,20 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
                           'rsdomAtt-[uni/phys-phys]',
-                    'tDn': 'uni/phys-phys'}}}, {
+                    'tDn': 'uni/phys-phys',
+                    'classPref': 'useg'}}}, {
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
                           'rsdomAtt-[uni/vmmp-OpenStack/dom-op]',
-                    'tDn': 'uni/vmmp-OpenStack/dom-op'}}}, {
+                    'tDn': 'uni/vmmp-OpenStack/dom-op',
+                    'classPref': 'useg'}}}, {
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
                           'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]',
-                    'tDn': 'uni/vmmp-OpenStack/dom-op2'}}},
+                    'tDn': 'uni/vmmp-OpenStack/dom-op2',
+                    'classPref': 'useg'}}},
             _aci_obj('fvRsPathAtt',
                      dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
                         '[topology/pod-1/paths-202/pathep-[eth1/7]]',

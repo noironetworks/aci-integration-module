@@ -22,6 +22,7 @@ from aim import aim_manager
 from aim.api import resource
 from aim import context
 from aim.db import api
+from aim.db import hashtree_db_listener
 from aim.db import migration
 from aim.db.migration import alembic_migrations
 from aim.tools.cli.groups import aimcli
@@ -62,6 +63,11 @@ def upgrade(ctx, version):
     common_tenant = resource.Tenant(name='common', monitored=True)
     if not aim_mgr.get(aim_ctx, common_tenant):
         aim_mgr.create(aim_ctx, common_tenant)
+
+    click.echo('Rebuilding hash-trees')
+    # reset hash-trees to account for schema/converter changes
+    listener = hashtree_db_listener.HashTreeDbListener(aim_mgr, aim_ctx.store)
+    listener.reset()
 
 
 @db_migration.command(name='stamp')

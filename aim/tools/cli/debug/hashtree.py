@@ -17,7 +17,6 @@ import click
 import json
 
 from aim import aim_manager
-from aim.api import resource
 from aim.common.hashtree import exceptions as h_exc
 from aim import context
 from aim.db import api
@@ -77,29 +76,4 @@ def _reset(ctx, tenant):
     mgr = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
     listener = hashtree_db_listener.HashTreeDbListener(mgr, aim_ctx.store)
-    with aim_ctx.store.begin(subtransactions=True):
-        created = []
-        # Delete existing trees
-        filters = {}
-        if tenant:
-            filters['name'] = tenant
-        tenants = mgr.find(aim_ctx, resource.Tenant, **filters)
-        for t in tenants:
-            listener.tt_mgr.delete_by_tenant_rn(aim_ctx, t.name)
-        # Retrieve objects
-        for klass in aim_manager.AimManager.aim_resources:
-            if issubclass(klass, resource.AciResourceBase):
-                filters = {}
-                if tenant:
-                    filters[klass.tenant_ref_attribute] = tenant
-                # Get all objects of that type
-                for obj in mgr.find(aim_ctx, klass, **filters):
-                    # Need all the faults and statuses as well
-                    stat = mgr.get_status(aim_ctx, obj)
-                    if stat:
-                        created.append(stat)
-                        created.extend(stat.faults)
-                        del stat.faults
-                    created.append(obj)
-        # Reset the trees
-        listener.on_commit(aim_ctx.db_session, created, [], [])
+    listener.reset(tenant)
