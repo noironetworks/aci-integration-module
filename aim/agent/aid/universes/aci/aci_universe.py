@@ -14,6 +14,7 @@
 #    under the License.
 
 import collections
+import json
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
@@ -44,6 +45,11 @@ ws_context = None
 
 class WebSocketSessionLoginFailed(exceptions.AimException):
     message = ("Web socket session failed to login "
+               "with error %(code)s: %(text)s")
+
+
+class WebSocketSubscriptionFailed(exceptions.AimException):
+    message = ("Web socket session failed to subscribe for url %(urls)s "
                "with error %(code)s: %(text)s")
 
 
@@ -116,6 +122,56 @@ class WebSocketContext(object):
         self._reload_websocket_config()
         self.ws_urls.rotate()
         self.establish_ws_session()
+
+    def _subscribe(self, urls, extension=''):
+        """Subscribe to the urls if not subscribed yet."""
+        resp = None
+        for url in urls:
+            if not self.session.is_subscribed(url + extension):
+                resp = self.session.subscribe(url + extension)
+                LOG.debug('Subscribed to %s %s %s ', url + extension, resp,
+                          resp.text)
+                if not resp.ok:
+                    return resp
+        return resp
+
+    def subscribe(self, urls):
+        resp = self._subscribe(urls)
+        if resp is not None:
+            if resp.ok:
+                return json.loads(resp.text)['imdata']
+            else:
+                if resp.status_code == 405:
+                    self.reconnect_ws_session()
+                raise WebSocketSubscriptionFailed(urls=urls,
+                                                  code=resp.status_code,
+                                                  text=resp.text)
+
+    def unsubscribe(self, urls):
+        LOG.debug("Subscription urls: %s", urls)
+        for url in urls:
+            self.session.unsubscribe(url)
+
+    def get_event_data(self, urls):
+        for url in urls:
+            # Aggregate similar events
+            result = []
+            while self.session.has_events(url):
+                event = self.session.get_event(url)['imdata'][0]
+                event_klass = event.keys()[0]
+                event_dn = event[event_klass]['attributes']['dn']
+                for partial in result:
+                    if (event_klass == partial.keys()[0] and
+                            event_dn == partial[event_klass][
+                                'attributes']['dn']):
+                        partial.update(event)
+                        break
+                else:
+                    result.append(event)
+            return result
+
+    def has_event(self, urls):
+        return any(self.session.has_events(url) for url in urls)
 
     def _thread_monitor(self, thread, name):
         # REVISIT(ivar): I could have used thread.join instead of this, but

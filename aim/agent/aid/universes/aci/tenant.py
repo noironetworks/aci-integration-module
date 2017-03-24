@@ -14,7 +14,6 @@
 #    under the License.
 
 import copy
-import json
 import Queue
 import time
 import traceback
@@ -31,7 +30,6 @@ from aim.agent.aid.universes.aci import error
 from aim.agent.aid.universes import base_universe
 from aim.common.hashtree import structured_tree
 from aim.common import utils
-from aim import exceptions
 from aim import tree_manager
 
 LOG = logging.getLogger(__name__)
@@ -76,16 +74,12 @@ for typ in converter.resource_map:
                     typ, []).append(resource['resource']._aci_mo_name)
 
 
-class WebSocketSubscriptionFailed(exceptions.AimException):
-    message = ("Web socket session failed to subscribe for tenant %(tn_name)s "
-               "with error %(code)s: %(text)s")
-
-
 class Tenant(acitoolkit.Tenant):
 
     def __init__(self, *args, **kwargs):
         self.filtered_children = kwargs.pop('filtered_children', [])
         super(Tenant, self).__init__(*args, **kwargs)
+        self.urls = self._get_instance_subscription_urls()
 
     def _get_instance_subscription_urls(self):
         url = ('/api/mo/uni/tn-{}.json?query-target=subtree&'
@@ -94,60 +88,6 @@ class Tenant(acitoolkit.Tenant):
         if self.filtered_children:
             url += '&target-subtree-class=' + ','.join(self.filtered_children)
         return [url]
-
-    def _instance_subscribe(self, session, extension=''):
-        """Subscribe to this tenant if not subscribed yet."""
-        urls = self._get_instance_subscription_urls()
-        resp = None
-        for url in urls:
-            if not session.is_subscribed(url + extension):
-                resp = session.subscribe(url + extension)
-                LOG.debug('Subscribed to %s %s %s ', url + extension, resp,
-                          resp.text)
-                if not resp.ok:
-                    return resp
-        return resp
-
-    def instance_subscribe(self, session):
-        # Have it publicly available
-        resp = self._instance_subscribe(session)
-        if resp is not None:
-            if resp.ok:
-                return json.loads(resp.text)['imdata']
-            else:
-                raise WebSocketSubscriptionFailed(tn_name=self.name,
-                                                  code=resp.status_code,
-                                                  text=resp.text)
-
-    def instance_unsubscribe(self, session):
-        urls = self._get_instance_subscription_urls()
-        LOG.debug("Subscription urls: %s", urls)
-        for url in urls:
-            session.unsubscribe(url)
-
-    def instance_get_event_data(self, session):
-        # Replace _instance_get_event to avoid object creation, we just need
-        # the sheer data
-        urls = self._get_instance_subscription_urls()
-        for url in urls:
-            # Aggregate similar events
-            result = []
-            while session.has_events(url):
-                event = session.get_event(url)['imdata'][0]
-                event_klass = event.keys()[0]
-                event_dn = event[event_klass]['attributes']['dn']
-                for partial in result:
-                    if (event_klass == partial.keys()[0] and
-                            event_dn == partial[event_klass][
-                                'attributes']['dn']):
-                        partial.update(event)
-                        break
-                else:
-                    result.append(event)
-            return result
-
-    def instance_has_event(self, session):
-        return self._instance_has_events(session)
 
 
 class AciTenantManager(gevent.Greenlet):
@@ -228,7 +168,9 @@ class AciTenantManager(gevent.Greenlet):
         try:
             while True:
                 self._main_loop()
-        except gevent.GreenletExit:
+        except (gevent.GreenletExit, Exception) as e:
+            LOG.error("Exiting thread for tenant %s: %s" %
+                      (self.tenant_name, e.message))
             try:
                 self._unsubscribe_tenant()
             except Exception as e:
@@ -243,13 +185,13 @@ class AciTenantManager(gevent.Greenlet):
     def _main_loop(self):
         try:
             # tenant subscription is redone upon exception
+            self._subscribe_tenant()
             LOG.debug("Starting event loop for tenant %s" % self.tenant_name)
             count = 3
             last_time = 0
             epsilon = 0.5
             while True:
                 start = time.time()
-                self._subscribe_tenant()
                 self._event_loop()
                 if count == 0:
                     LOG.debug("Setting tenant %s to warm state" %
@@ -283,19 +225,19 @@ class AciTenantManager(gevent.Greenlet):
                 LOG.error("Exceeded max recovery retries for tenant %s. "
                           "Destroying the manager." %
                           self.tenant_name)
-                raise gevent.GreenletExit
+                raise gevent.GreenletExit()
 
     def _event_loop(self):
         start_time = time.time()
-        # Push the backlog at the very start of the event loop, so that
-        # all the events we generate here are likely caught in this iteration.
+        # Push the backlog at right before the event loop, so that
+        # all the events we generate here are likely caught in this
+        # iteration.
         self._push_aim_resources()
-        if self.tenant.instance_has_event(self.ws_context.session):
+        if self.ws_context.has_event(self.tenant.urls):
             LOG.debug("Event for tenant %s in warm state %s" %
                       (self.tenant_name, self._warm))
             # Continuously check for events
-            events = self.tenant.instance_get_event_data(
-                self.ws_context.session)
+            events = self.ws_context.get_event_data(self.tenant.urls)
             for event in events:
                 if (event.keys()[0] == TENANT_KEY and not
                         event[TENANT_KEY]['attributes'].get(STATUS_FIELD)):
@@ -436,10 +378,10 @@ class AciTenantManager(gevent.Greenlet):
 
     def _unsubscribe_tenant(self):
         LOG.debug("Unsubscribing tenant websocket %s" % self.tenant_name)
-        self.tenant.instance_unsubscribe(self.ws_context.session)
+        self.ws_context.unsubscribe(self.tenant.urls)
 
     def _subscribe_tenant(self):
-        self.tenant.instance_subscribe(self.ws_context.session)
+        self.ws_context.subscribe(self.tenant.urls)
         self.health_state = True
 
     def _event_to_tree(self, events):
