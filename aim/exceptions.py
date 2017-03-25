@@ -81,3 +81,8 @@ class InvalidMonitoredStateUpdate(AimException):
 class InvalidMonitoredObjectDelete(AimException):
     message = ("Monitored object %(object)s cannot be deleted while in "
                "pending state")
+
+
+class UpdateVersionMismatch(AimException):
+    message = ("Object %(object)s cannot be updated as its version "
+               "doesn't match with the current.")

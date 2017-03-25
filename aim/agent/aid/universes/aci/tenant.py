@@ -150,9 +150,9 @@ class AciTenantManager(utils.AIMThread):
         children_mos = get_children_mos(self.aci_session, self.tenant_name)
         self.tenant = Root(self.tenant_name, filtered_children=children_mos,
                            rn=self.tenant_name)
-        self._state = structured_tree.StructuredHashTree()
-        self._operational_state = structured_tree.StructuredHashTree()
-        self._monitored_state = structured_tree.StructuredHashTree()
+        self._state = structured_tree.StructuredHashTree(version=0)
+        self._operational_state = structured_tree.StructuredHashTree(version=0)
+        self._monitored_state = structured_tree.StructuredHashTree(version=0)
         self._health_state = False
         self.polling_yield = self.apic_config.get_option(
             'aci_tenant_polling_yield', 'aim')
@@ -197,17 +197,31 @@ class AciTenantManager(utils.AIMThread):
     # cause I/O operation, therefore they can't be context switched.
     def get_state_copy(self):
         return structured_tree.StructuredHashTree.from_string(
-            str(self._state), root_key=self._state.root_key)
+            str(self._state), root_key=self._state.root_key,
+            version=self._state.version)
 
     def get_operational_state_copy(self):
         return structured_tree.StructuredHashTree.from_string(
             str(self._operational_state),
-            root_key=self._operational_state.root_key)
+            root_key=self._operational_state.root_key,
+            version=self._state.version)
 
     def get_monitored_state_copy(self):
         return structured_tree.StructuredHashTree.from_string(
             str(self._monitored_state),
-            root_key=self._monitored_state.root_key)
+            root_key=self._monitored_state.root_key,
+            version=self._state.version)
+
+    def _reset_state(self):
+        LOG.info("Resetting Tree %s" % self.tenant_name)
+        # This is a full resync, trees need to be reset
+        self._state = structured_tree.StructuredHashTree(
+            version=self._state.version + 1)
+        self._operational_state = structured_tree.StructuredHashTree(
+            version=self._operational_state.version + 1)
+        self._monitored_state = structured_tree.StructuredHashTree(
+            version=self._monitored_state.version + 1)
+        self.tag_set = set()
 
     def run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
@@ -287,14 +301,7 @@ class AciTenantManager(utils.AIMThread):
             for event in events:
                 if (event.keys()[0] == TENANT_KEY and not
                         event[TENANT_KEY]['attributes'].get(STATUS_FIELD)):
-                    LOG.info("Resetting Tree %s" % self.tenant_name)
-                    # This is a full resync, trees need to be reset
-                    self._state = structured_tree.StructuredHashTree()
-                    self._operational_state = (
-                        structured_tree.StructuredHashTree())
-                    self._monitored_state = (
-                        structured_tree.StructuredHashTree())
-                    self.tag_set = set()
+                    self._reset_state()
                     break
             LOG.debug("received events: %s", events)
             # Make events list flat
@@ -479,6 +486,10 @@ class AciTenantManager(utils.AIMThread):
                 (upd_mon_trees, self._monitored_state, "monitored")]:
             if upd:
                 modified = True
+                # The whole _event_to_tree method will be executed without
+                # context switching as it doesn't make any I/O. It's safe to
+                # update the tree version at this stage.
+                tree.version += 1
                 LOG.debug("New %s tree for tenant %s" %
                           (readable, self.tenant_name))
         if modified:
@@ -501,7 +512,7 @@ class AciTenantManager(utils.AIMThread):
         """
         start = time.time()
         result = self.retrieve_aci_objects(events, self.to_aim_converter,
-                                           self.aci_session)
+                                           self.aci_session)[0]
         LOG.debug('Filling procedure took %s for tenant %s' %
                   (time.time() - start, self.tenant.name))
         return result
@@ -511,6 +522,7 @@ class AciTenantManager(utils.AIMThread):
                              get_all=False, include_tags=True):
         visited = set()
         result = []
+        not_found = []
 
         for event in events:
             resource = event.values()[0]
@@ -536,19 +548,20 @@ class AciTenantManager(utils.AIMThread):
             if status == converter.DELETED_STATUS and (
                     not AciTenantManager.is_child_object(res_type) or
                     res_type == TAG_KEY):
-                if raw_dn not in visited:
+                if event not in result:
                     result.append(event)
                     visited.add(raw_dn)
             elif get_all or status or res_type in OPERATIONAL_LIST:
-                try:
-                    # Use the parent type and DN for related objects (like RS)
-                    # Event is an ACI resource
-                    LOG.debug("Retrieving ACI resource: %s", event)
-                    aim_resources = to_aim_converter.convert([event])
-                    for aim_res in aim_resources:
+                # Use the parent type and DN for related objects (like RS)
+                # Event is an ACI resource
+                LOG.debug("Retrieving ACI resource: %s", event)
+                aim_resources = to_aim_converter.convert([event])
+                for aim_res in aim_resources:
+                    try:
                         dn = aim_res.dn
                         res_type = aim_res._aci_mo_name
                         if dn in visited:
+                            visited.add(raw_dn)
                             continue
                         query_targets = set([res_type])
                         if include_tags:
@@ -573,6 +586,9 @@ class AciTenantManager(utils.AIMThread):
                         data = aci_session.get_data('mo/' + dn, **kargs)
                         if not data:
                             LOG.warn("Resource %s not found", dn)
+                            not_found.append(aim_res)
+                            visited.add(raw_dn)
+                            visited.add(dn)
                             # The object doesn't exist anymore, a delete event
                             # is expected.
                             continue
@@ -583,18 +599,21 @@ class AciTenantManager(utils.AIMThread):
                                 visited.add(
                                     item.values()[0]['attributes']['dn'])
                         visited.add(dn)
-                except apic_exc.ApicResponseNotOk as e:
-                    # The object doesn't exist anymore, a delete event
-                    # is expected.
-                    if str(e.err_code) == '404':
-                        LOG.warn("Resource %s not found", dn)
-                    else:
-                        LOG.error(e.message)
-                        raise
+                    except apic_exc.ApicResponseNotOk as e:
+                        # The object doesn't exist anymore, a delete event
+                        # is expected.
+                        if str(e.err_code) == '404':
+                            LOG.warn("Resource %s not found", dn)
+                            not_found.append(aim_res)
+                            visited.add(raw_dn)
+                            visited.add(dn)
+                        else:
+                            LOG.error(e.message)
+                            raise
             if not status:
                 if raw_dn not in visited:
                     result.append(event)
-        return result
+        return result, not_found
 
     @staticmethod
     def flat_events(events):

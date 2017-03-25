@@ -22,7 +22,6 @@ from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
-from aim.common import utils
 from aim import context
 from aim import exceptions as aim_exc
 from aim import tree_manager
@@ -46,8 +45,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._converter = converter.AciToAimModelConverter()
         self._converter_aim_to_aci = converter.AimToAciModelConverter()
         self._served_tenants = set()
-        self._monitored_state_update_failures = 0
-        self._max_monitored_state_update_failures = 5
         return self
 
     @property
@@ -97,6 +94,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             LOG.debug("Requesting resource keys in AIM Universe: %s",
                       resource_keys)
         result = []
+        not_found = []
         id_set = set()
 
         for key in resource_keys:
@@ -140,11 +138,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         result.append(res_db)
                         id_set.add(id_tuple)
                     else:
-                        LOG.debug("Resource %s not found in AIM, here is a "
-                                  "list of similar resources: %s" %
-                                  (str(res),
-                                   [str(x) for x in self.manager.find(
-                                       self.context, type(res))]))
+                        LOG.debug("Resource %s not found in AIM", str(res))
+                        not_found.append(res)
                 except aim_exc.UnknownResourceType:
                     LOG.warn("Resource %s is not defined in AIM", dissected)
                     result.append(res)
@@ -152,11 +147,11 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         if resource_keys:
             LOG.debug("Result for keys %s\n in AIM Universe:\n %s" %
                       (resource_keys, result))
-        return list(result)
+        return result, not_found
 
     def get_resources_for_delete(self, resource_keys):
-        # TODO(ivar): optimize by returning the AIM resource only
-        return self.get_resources(resource_keys)
+        return self._converter.convert(
+            self._keys_to_bare_aci_objects(resource_keys))
 
     def push_resources(self, resources):
         return self._push_resources(resources, monitored=False)
@@ -226,10 +221,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     msg = ("Failed to %s object %s in AIM: %s." %
                            (method, resource, e.message))
                     LOG.error(msg)
-                    self._monitored_state_update_failures += 1
-                    if (self._monitored_state_update_failures >
-                            self._max_monitored_state_update_failures):
-                        utils.perform_harakiri(LOG, msg)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, e.message))
@@ -271,10 +262,10 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         if raw_diff[base.DELETE]:
             mon_state = self._get_state(tree=tree_manager.MONITORED_TREE)
             for key in raw_diff[base.DELETE]:
-                root = tree_manager.AimHashTreeMaker._extract_root_rn(key)
+                root = tree_manager.AimHashTreeMaker.extract_root(key)
                 if root in mon_state and mon_state[root].find(key):
                     transitioning_keys.append(key)
-        aim_transition = [x for x in self.get_resources(transitioning_keys)
+        aim_transition = [x for x in self.get_resources(transitioning_keys)[0]
                           if getattr(x, 'monitored', False)]
         # Set AIM differences to sync_pending
         for obj in aim_add + aim_transition:
@@ -304,6 +295,30 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                      other_universe)
         self._set_synced_state(my_state, raw_diff)
 
+    def detect_hashtree_divergence(self, differences, not_found, state,
+                                   other_state, other_universe):
+        """AIM Config Universe divergence detection
+
+        AIM Config Universe is the desired state
+        """
+        self._desired_state_leaked_node_detection(differences, not_found,
+                                                  state)
+        self._desired_state_missing_node_detection(differences, not_found,
+                                                   state)
+
+    def replace_state(self, root, tree):
+        try:
+            self.tree_manager.update_version(self.context, tree)
+        except aim_exc.UpdateVersionMismatch as e:
+            LOG.debug(e.message)
+
+    def _action_items_to_aim_resources(self, actions, action):
+        if action == base.CREATE:
+            # it's in ACI format
+            return self._converter.convert(actions[action])
+        else:
+            return actions[action]
+
 
 class AimDbOperationalUniverse(AimDbUniverse):
 
@@ -328,6 +343,22 @@ class AimDbOperationalUniverse(AimDbUniverse):
     def update_status_objects(self, my_state, other_state, other_universe,
                               raw_diff, transformed_diff):
         pass
+
+    def detect_hashtree_divergence(self, differences, not_found, state,
+                                   other_state, other_universe):
+        """AIM Operational Universe divergence detection
+
+        AIM Operational Universe is the current state
+        """
+        self._current_state_leaked_node_detection(differences, not_found,
+                                                  state)
+        self._current_state_missing_node_detection(differences, not_found,
+                                                   state, other_state,
+                                                   other_universe)
+
+    def replace_state(self, root, tree):
+        self.tree_manager.update_version(
+            self.context, tree, tree=tree_manager.OPERATIONAL_TREE)
 
 
 class AimDbMonitoredUniverse(AimDbUniverse):
@@ -356,3 +387,19 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                               raw_diff, transformed_diff):
         # AIM Monitored Universe is current state
         self._set_synced_state(my_state, raw_diff)
+
+    def detect_hashtree_divergence(self, differences, not_found, state,
+                                   other_state, other_universe):
+        """AIM Monitored Universe divergence detection
+
+        AIM Monitored Universe is the current state
+        """
+        self._current_state_leaked_node_detection(differences, not_found,
+                                                  state)
+        self._current_state_missing_node_detection(differences, not_found,
+                                                   state, other_state,
+                                                   other_universe)
+
+    def replace_state(self, root, tree):
+        self.tree_manager.update_version(self.context, tree,
+                                         tree=tree_manager.MONITORED_TREE)

@@ -303,6 +303,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
             serving_tenants = serving_tenant_copy
             raise e
 
+    def deletion_failed(self, aim_object, reason='unknown', error=None):
+        LOG.error('Object %s has failed deletion in '
+                  'ACI: %s' % (aim_object, reason))
+
     def observe(self):
         # Copy state accumulated so far
         global serving_tenants
@@ -332,25 +336,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
             else:
                 serving_tenants[tenant].push_aim_resources(conf)
 
-    def _split_key(self, key):
-        return [k.split('|', 2) for k in key]
-
     def get_resources(self, resource_keys):
-        result = []
-        for key in resource_keys:
-            fault_code = None
-            key_parts = self._split_key(key)
-            mo_type = key_parts[-1][0]
-            aci_object = {mo_type: {'attributes': {}}}
-            if mo_type == 'faultInst':
-                fault_code = key_parts[-1][1]
-                key_parts = key_parts[:-1]
-            dn = apic_client.DNManager().build(key_parts)
-            if fault_code:
-                dn += '/fault-%s' % fault_code
-                aci_object[mo_type]['attributes']['code'] = fault_code
-            aci_object[mo_type]['attributes']['dn'] = dn
-            result.append(aci_object)
+        result = self._keys_to_bare_aci_objects(resource_keys)
         return aci_tenant.AciTenantManager.retrieve_aci_objects(
             result, self._aim_converter, self.aci_session, get_all=True,
             include_tags=False)
@@ -436,6 +423,35 @@ class AciUniverse(base.HashTreeStoredUniverse):
                               raw_diff, transformed_diff):
         pass
 
+    def detect_hashtree_divergence(self, differences, resources, state,
+                                   other_state, other_universe):
+        """Aci Config Universe divergence detection
+
+        Aci config Universe is the current state
+        """
+        self._current_state_leaked_node_detection(differences, resources,
+                                                  state)
+        if self._current_state_missing_node_detection(differences, resources,
+                                                      state, other_state,
+                                                      other_universe):
+            # We can't proceed with the reconciliation, as trying to push the
+            # the broken object will set it back to synced state.
+            raise base.ResetReconciliation(name=self.name)
+
+    def replace_state(self, root, tree):
+        global serving_tenants
+        if tree.version == self._get_state_copy(root).version:
+            LOG.debug("Replace tree for root %s in universe %s: %s" %
+                      (root, self.name, str(tree)))
+            serving_tenants[root]._state = tree
+
+    def _action_items_to_aim_resources(self, actions, action):
+        if action == base.CREATE:
+            return actions[action]
+        else:
+            # it's in ACI format
+            return self._aim_converter.convert(actions[action])
+
 
 class AciOperationalUniverse(AciUniverse):
     """ACI Universe for operational state."""
@@ -448,6 +464,24 @@ class AciOperationalUniverse(AciUniverse):
         global serving_tenants
         return serving_tenants[tenant].get_operational_state_copy()
 
+    def detect_hashtree_divergence(self, differences, resources, state,
+                                   other_state, other_universe):
+        """Aci Operational Universe divergence detection
+
+        Aci Operational Universe is the desired state
+        """
+        self._desired_state_leaked_node_detection(differences, resources,
+                                                  state)
+        self._desired_state_missing_node_detection(differences, resources,
+                                                   state)
+
+    def replace_state(self, root, tree):
+        global serving_tenants
+        if tree.version == self._get_state_copy(root).version:
+            LOG.debug("Replace tree for root %s in universe %s: %s" %
+                      (root, self.name, str(tree)))
+            serving_tenants[root]._operational_state = tree
+
 
 class AciMonitoredUniverse(AciUniverse):
     """ACI Universe for monitored state."""
@@ -459,3 +493,21 @@ class AciMonitoredUniverse(AciUniverse):
     def _get_state_copy(self, tenant):
         global serving_tenants
         return serving_tenants[tenant].get_monitored_state_copy()
+
+    def detect_hashtree_divergence(self, differences, resources, state,
+                                   other_state, other_universe):
+        """Aci Monitored Universe divergence detection
+
+        Aci Monitored Universe is the desired state
+        """
+        self._desired_state_leaked_node_detection(differences, resources,
+                                                  state)
+        self._desired_state_missing_node_detection(differences, resources,
+                                                   state)
+
+    def replace_state(self, root, tree):
+        global serving_tenants
+        if tree.version == self._get_state_copy(root).version:
+            LOG.debug("Replace tree for root %s in universe %s: %s" %
+                      (root, self.name, str(tree)))
+            serving_tenants[root]._monitored_state = tree

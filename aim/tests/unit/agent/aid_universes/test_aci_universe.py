@@ -214,7 +214,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                  'vzInTerm|intmnl', 'vzRsFiltAtt|g'),
                 ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
                  'vzOutTerm|outtmnl', 'vzRsFiltAtt|h'), ]
-        result = self.universe.get_resources(keys)
+        result = self.universe.get_resources(keys)[0]
         self.assertEqual(sorted(objs), sorted(result))
 
     def test_get_resources_for_delete(self):

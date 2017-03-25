@@ -126,7 +126,7 @@ def mock_get_data(inst, dn, **kwargs):
             return [curr]
     except KeyError:
         # Simulate 404
-        if 'fault' in dn:
+        if 'fault-' in dn:
             # non existing faults return empty data
             return []
         raise apic_client.cexc.ApicResponseNotOk(
@@ -339,6 +339,11 @@ class TestAciClientMixin(object):
                                       create_parents=create_parents)
             else:
                 self._remove_server_data([event], manager=manager)
+
+    def _reset_events(self, manager=None):
+        manager = manager if manager is not None else self.manager
+        manager.ws_context.session.subscription_thread._events[
+            manager.tenant._get_instance_subscription_urls()[0]] = []
 
     def _do_aci_mocks(self):
         self.monitors = mock.patch(

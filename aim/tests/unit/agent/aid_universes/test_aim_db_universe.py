@@ -13,15 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import mock
-
 from aim.agent.aid.universes import aim_universe
 from aim import aim_manager
 from aim.api import resource
 from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
-from aim.common import utils
 from aim import config as aim_cfg
 from aim.db import agent_model  # noqa
 from aim.tests import base
@@ -224,7 +221,7 @@ class TestAimDbUniverseBase(object):
         result = self.universe.get_resources(diff_tn_1.get('add', []) +
                                              diff_tn_1.get('remove', []) +
                                              diff_tn_2.get('add', []) +
-                                             diff_tn_2.get('remove', []))
+                                             diff_tn_2.get('remove', []))[0]
         self.assertEqual(8, len(result))
         if tree_type in [tree_manager.CONFIG_TREE,
                          tree_manager.MONITORED_TREE]:
@@ -486,19 +483,3 @@ class TestAimDbMonitoredUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
     def test_cleanup_state(self):
         super(TestAimDbMonitoredUniverse, self).test_cleanup_state(
             tree_type=tree_manager.MONITORED_TREE)
-
-    def test_push_resources_harakiri(self):
-        aim_mgr = aim_manager.AimManager()
-        aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
-        tn = self._get_example_aci_tenant(dn='uni/tn-t1',
-                                          nameAlias='CommonTenant')
-        self.universe.push_resources({'create': [tn], 'delete': []})
-        self.assertEqual(1, self.universe._monitored_state_update_failures)
-        with mock.patch.object(utils, 'perform_harakiri') as harakiri:
-            for x in range(self.universe._max_monitored_state_update_failures):
-                self.universe.push_resources({'create': [tn], 'delete': []})
-            harakiri.assert_called_once_with(mock.ANY, mock.ANY)
-        self.assertEqual(6, self.universe._monitored_state_update_failures)
-        ap = self._get_example_aci_app_profile(dn='uni/tn-t1/ap-a1')
-        self.universe.push_resources({'create': [ap], 'delete': []})
-        self.assertEqual(0, self.universe._monitored_state_update_failures)

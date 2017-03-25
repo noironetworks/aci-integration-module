@@ -125,16 +125,13 @@ class TreeManager(object):
     @utils.log
     def find(self, context, tree=CONFIG_TREE, **kwargs):
         result = self._find_query(context, tree, in_=kwargs)
-        return [self.tree_klass.from_string(
-            str(x.tree), self.root_key_funct(x.root_rn)) for x in result]
+        return [self._convert_result(x) for x in result]
 
     @utils.log
     def get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
         try:
-            return self.tree_klass.from_string(str(
-                self._find_query(context, tree, lock_update=lock_update,
-                                 root_rn=root_rn)[0].tree),
-                self.root_key_funct(root_rn))
+            return self._convert_result(
+                self._find_query(context, tree, root_rn=root_rn)[0])
         except IndexError:
             raise exc.HashTreeNotFound(root_rn=root_rn)
 
@@ -143,8 +140,7 @@ class TreeManager(object):
         if not root_map:
             return {}
         return dict((x.root_rn,
-                     self.tree_klass.from_string(
-                         str(x.tree), self.root_key_funct(x.root_rn)))
+                     self._convert_result(x))
                     for x in self._find_query(
                         context, tree, in_={'root_rn': root_map.keys()},
                         notin_={'root_full_hash': root_map.values()}))
@@ -152,6 +148,19 @@ class TreeManager(object):
     @utils.log
     def get_roots(self, context):
         return [x.root_rn for x in self._find_query(context, ROOT_TREE)]
+
+    @utils.log
+    def update_version(self, context, hash_tree, tree=CONFIG_TREE):
+        root_rn = self.root_rn_funct(hash_tree)
+        resource = tree(
+            root_rn=root_rn, root_full_hash=hash_tree.root_full_hash,
+            tree=str(hash_tree), resource_version=hash_tree.version)
+        context.store.replace(resource)
+
+    def _convert_result(self, result):
+        return self.tree_klass.from_string(
+            str(result.tree), self.root_key_funct(result.root_rn),
+            version=result.resource_version)
 
     def register_update_listener(self, func):
         """Register callback for update to AIM tree objects.
@@ -316,9 +325,14 @@ class AimHashTreeMaker(object):
                       for x in type_and_dn]) if type_and_dn else None
 
     @staticmethod
-    def _extract_root_rn(root_key):
+    def extract_root(root_key):
         root_split = root_key[0].split('|')
         return apic_client.DNManager().build([root_split]).split('/')[-1]
+
+    @staticmethod
+    def resource_to_root(resource):
+        return AimHashTreeMaker.extract_root(
+            AimHashTreeMaker._build_hash_tree_key(resource))
 
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
@@ -410,7 +424,7 @@ class AimHashTreeMaker(object):
         :param tree:
         :return:
         """
-        return AimHashTreeMaker._extract_root_rn(tree.root_key)
+        return AimHashTreeMaker.extract_root(tree.root_key)
 
     @staticmethod
     def root_key_funct(key):
