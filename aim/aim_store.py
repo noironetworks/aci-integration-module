@@ -287,6 +287,7 @@ class K8sStore(AimStore):
         super(K8sStore, self).__init__()
         self.klient = api_v1.AciContainersV1(config_file=config_file)
         self.namespace = namespace or api_v1.K8S_DEFAULT_NAMESPACE
+        self.db_session = None
 
     _features = ['k8s', 'streaming']
 
