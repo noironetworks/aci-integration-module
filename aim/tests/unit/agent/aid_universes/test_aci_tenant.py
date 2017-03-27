@@ -351,8 +351,8 @@ class TestAciClientMixin(object):
         self.ws_login.start()
 
         self.tn_subscribe = mock.patch(
-            'aim.agent.aid.universes.aci.tenant.Tenant._instance_subscribe',
-            return_value=FakeResponse())
+            'aim.agent.aid.universes.aci.aci_universe.WebSocketContext.'
+            '_subscribe', return_value=FakeResponse())
         self.tn_subscribe.start()
 
         self.process_q = mock.patch(
@@ -427,11 +427,11 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             'tenant-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
             aci_universe.get_websocket_context(self.cfg_manager))
-        manager.tenant.instance_has_event = mock.Mock(side_effect=KeyError)
+        manager.ws_context.has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
         # Failure by GreenletExit
-        manager.tenant.instance_has_event = mock.Mock(
+        manager.ws_context.has_event = mock.Mock(
             side_effect=gevent.GreenletExit)
         self.assertRaises(gevent.GreenletExit, manager._main_loop)
         # Upon GreenExit, even _run stops the loop
@@ -452,8 +452,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             ]
         self.manager._subscribe_tenant()
         self._set_events(double_events, create_parents=True)
-        res = self.manager.tenant.instance_get_event_data(
-            self.manager.ws_context.session)
+        res = self.manager.ws_context.get_event_data(self.manager.tenant.urls)
         self.assertEqual(1, len(res))
         self.assertEqual(double_events[1], res[0])
 

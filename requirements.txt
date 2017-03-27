@@ -5,7 +5,7 @@
 # Requirements should be kept alphabetically ordered
 
 alembic
--e git+https://github.com/datacenter/acitoolkit.git@v0.3.2#egg=acitoolkit
+-e git+https://github.com/noironetworks/acitoolkit.git@noiro-lite#egg=acitoolkit
 -e git+https://github.com/noironetworks/apicapi.git@master#egg=apicapi
 Click
 gevent>=1.1.0
