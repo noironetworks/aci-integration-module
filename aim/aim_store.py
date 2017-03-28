@@ -114,19 +114,20 @@ class AimStore(object):
         """Register callback for update to AIM objects.
 
         Parameter 'func' should be a function that accepts 4 parameters.
-        The first parameter is SQLAlchemy ORM session in which AIM objects
+        The first parameter is AimStore using which AIM objects
         are being updated. Rest of the parameters are lists of AIM resources
         that were added, updated and deleted respectively.
-        The callback will be invoked before the database transaction
-        that updated the AIM object commits.
+        If the store supports transaction, the callback will be invoked
+        before the transaction that updated the AIM object commits.
 
         Example:
 
-        def my_listener(session, added, updated, deleted):
-            "Iterate over 'added', 'updated', 'deleted'
+        def my_listener(store, added, updated, deleted):
+            # Iterate over 'added', 'updated', 'deleted'
+            ...
 
-        a_mgr = AimManager()
-        a_mgr.register_update_listener(my_listener)
+        a_store = AimStore(...)    # Typically a sub-class of AimStore
+        a_store.register_update_listener(my_listener)
 
         """
         if name not in self._update_listeners:
@@ -203,7 +204,7 @@ class SqlAlchemyStore(AimStore):
         self.db_session = db_session
         if initialize_hooks:
             self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
-                aim_manager.AimManager(), self)
+                aim_manager.AimManager())
             self.register_update_listener(
                 'hashtree_db_listener_on_commit',
                 self._hashtree_db_listener.on_commit)
@@ -261,7 +262,7 @@ class SqlAlchemyStore(AimStore):
 
     @staticmethod
     def _before_session_commit(session, flush_context, instances):
-        instance = SqlAlchemyStore(session, initialize_hooks=False)
+        store = SqlAlchemyStore(session, initialize_hooks=False)
         added = []
         updated = []
         deleted = []
@@ -270,15 +271,15 @@ class SqlAlchemyStore(AimStore):
                     (session.deleted, deleted)]
         for mod_set, res_list in modified:
             for db_obj in mod_set:
-                res_cls = instance.resource_map.get(type(db_obj))
+                res_cls = store.resource_map.get(type(db_obj))
                 if res_cls:
-                    res = instance.make_resource(res_cls, db_obj)
+                    res = store.make_resource(res_cls, db_obj)
                     res_list.append(res)
         for f in copy.copy(SqlAlchemyStore._update_listeners).values():
             LOG.debug("Invoking pre-commit hook %s with %d add(s), "
                       "%d update(s), %d delete(s)",
                       f.__name__, len(added), len(updated), len(deleted))
-            f(session, added, updated, deleted)
+            f(store, added, updated, deleted)
 
 
 class K8sStore(AimStore):
