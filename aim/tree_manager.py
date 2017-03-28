@@ -207,7 +207,7 @@ class TenantTreeManager(object):
         # TODO(ivar): this is sqlAlchemy specific. find a cleaner way to manage
         # tree manager's hooks.
         if context.store.supports_hooks:
-            session = context.db_session
+            session = context.store.db_session
             if not sa_event.contains(session, 'after_flush',
                                      self._after_session_flush):
                 sa_event.listen(session, 'after_flush',

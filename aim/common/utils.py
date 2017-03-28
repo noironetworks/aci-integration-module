@@ -155,10 +155,6 @@ def retry_loop(max_wait, max_retries, name):
 
 class FakeContext(object):
 
-    def __init__(self, session=None, store=None):
-        if session:
-            self.db_session = session
+    def __init__(self, store=None):
         if store:
             self.store = store
-            if session:
-                self.store.db_session = session

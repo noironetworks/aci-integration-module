@@ -30,19 +30,18 @@ LOG = logging.getLogger(__name__)
 class HashTreeDbListener(object):
     """Updates persistent hash-tree in response to DB updates."""
 
-    def __init__(self, aim_manager, store):
+    def __init__(self, aim_manager):
         self.aim_manager = aim_manager
         self.tt_mgr = tree_manager.TenantHashTreeManager()
         self.tt_maker = tree_manager.AimHashTreeMaker()
         self.tt_builder = tree_manager.HashTreeBuilder(self.aim_manager)
-        self.store = store
 
-    def on_commit(self, session, added, updated, deleted, curr_cfg=None,
+    def on_commit(self, store, added, updated, deleted, curr_cfg=None,
                   curr_oper=None, curr_monitor=None):
         # Query hash-tree for each tenant and modify the tree based on DB
         # updates
         # TODO(ivar): Use proper store context once dependency issue is fixed
-        ctx = utils.FakeContext(session, self.store)
+        ctx = utils.FakeContext(store=store)
         # Build tree map
 
         conf = aim_tree.ConfigTenantTree
@@ -88,8 +87,8 @@ class HashTreeDbListener(object):
         if udp_mon_trees:
             self.tt_mgr.update_bulk(ctx, udp_mon_trees, tree=monitor)
 
-    def reset(self, tenant=None):
-        aim_ctx = utils.FakeContext(store=self.store)
+    def reset(self, store, tenant=None):
+        aim_ctx = utils.FakeContext(store=store)
         with aim_ctx.store.begin(subtransactions=True):
             created = []
             # Delete existing trees
@@ -117,4 +116,4 @@ class HashTreeDbListener(object):
                             del stat.faults
                         created.append(obj)
             # Reset the trees
-            self.on_commit(self.store.db_session, created, [], [])
+            self.on_commit(store, created, [], [])

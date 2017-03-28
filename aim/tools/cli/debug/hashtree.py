@@ -75,5 +75,5 @@ def reset(ctx, tenant):
 def _reset(ctx, tenant):
     mgr = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
-    listener = hashtree_db_listener.HashTreeDbListener(mgr, aim_ctx.store)
-    listener.reset(tenant)
+    listener = hashtree_db_listener.HashTreeDbListener(mgr)
+    listener.reset(aim_ctx.store, tenant)

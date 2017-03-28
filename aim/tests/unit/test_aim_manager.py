@@ -474,9 +474,8 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
         self.mgr.create(self.ctx, res)
 
         old = self._get_hash_trees()
-        listener = hashtree_db_listener.HashTreeDbListener(self.mgr,
-                                                           self.ctx.store)
-        listener.reset()
+        listener = hashtree_db_listener.HashTreeDbListener(self.mgr)
+        listener.reset(self.ctx.store)
         new = self._get_hash_trees()
         self.assertEqual(old, new)
 

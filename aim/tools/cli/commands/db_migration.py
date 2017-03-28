@@ -66,8 +66,8 @@ def upgrade(ctx, version):
 
     click.echo('Rebuilding hash-trees')
     # reset hash-trees to account for schema/converter changes
-    listener = hashtree_db_listener.HashTreeDbListener(aim_mgr, aim_ctx.store)
-    listener.reset()
+    listener = hashtree_db_listener.HashTreeDbListener(aim_mgr)
+    listener.reset(aim_ctx.store)
 
 
 @db_migration.command(name='stamp')

@@ -21,7 +21,7 @@ from aim import aim_manager
 from aim.api import resource as aim_res
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
-from aim.db import agent_model      # noqa
+from aim.db import agent_model  # noqa
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.tests import base
 from aim import tree_manager
@@ -33,14 +33,13 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         super(TestHashTreeDbListener, self).setUp()
         self.tt_mgr = tree_manager.TenantHashTreeManager()
         self.mgr = aim_manager.AimManager()
-        self.db_l = ht_db_l.HashTreeDbListener(aim_manager.AimManager(),
-                                               self.ctx.store)
+        self.db_l = ht_db_l.HashTreeDbListener(aim_manager.AimManager())
 
     def _test_resource_ops(self, resource, tenant, tree_objects,
                            tree_objects_update,
                            tree_type=tree_manager.CONFIG_TREE, **updates):
         # add
-        self.db_l.on_commit(self.ctx.db_session, [resource], [], [])
+        self.db_l.on_commit(self.ctx.store, [resource], [], [])
 
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects)
@@ -48,14 +47,14 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
         # update
         resource.__dict__.update(**updates)
-        self.db_l.on_commit(self.ctx.db_session, [], [resource], [])
+        self.db_l.on_commit(self.ctx.store, [], [resource], [])
 
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects_update)
         self.assertEqual(exp_tree, db_tree)
 
         # delete
-        self.db_l.on_commit(self.ctx.db_session, [], [], [resource])
+        self.db_l.on_commit(self.ctx.store, [], [], [resource])
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree()
         self.assertEqual(exp_tree, db_tree)
