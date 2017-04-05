@@ -93,7 +93,7 @@ class TenantTreeManager(object):
         with context.store.begin(subtransactions=True):
             tenant_rns = [self.tenant_rn_funct(x) for x in hash_trees]
             for type in SUPPORTED_TREES + [TENANT_TREE]:
-                db_objs = self._find_query(context, type,
+                db_objs = self._find_query(context, type, lock_update=True,
                                            in_={'tenant_rn': tenant_rns})
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
@@ -103,7 +103,7 @@ class TenantTreeManager(object):
         self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
             for type in SUPPORTED_TREES + [TENANT_TREE]:
-                db_objs = self._find_query(context, type)
+                db_objs = self._find_query(context, type, lock_update=True)
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
 
