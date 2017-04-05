@@ -90,7 +90,7 @@ class AimStore(object):
         pass
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
-              **filters):
+              lock_update=False, **filters):
         # Return list of objects that match specified criteria
         pass
 
@@ -237,7 +237,7 @@ class SqlAlchemyStore(AimStore):
         self.db_session.delete(db_obj)
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
-              **filters):
+              lock_update=False, **filters):
         query = self.db_session.query(db_obj_type)
         for k, v in (in_ or {}).iteritems():
             query = query.filter(getattr(db_obj_type, k).in_(v))
@@ -246,6 +246,8 @@ class SqlAlchemyStore(AimStore):
                 [(x or '') for x in v]))
         if filters:
             query = query.filter_by(**filters)
+        if lock_update:
+            query = query.with_lockmode('update')
         return query.all()
 
     def add_commit_hook(self):
@@ -364,7 +366,7 @@ class K8sStore(AimStore):
         self._post_delete(deleted)
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
-              **filters):
+              lock_update=False, **filters):
         name = utils.camel_to_snake(resource_klass.__name__)
         if 'aim_id' in filters:
             try:

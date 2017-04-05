@@ -49,43 +49,49 @@ class HashTreeDbListener(object):
         oper = aim_tree.OperationalTenantTree
         tree_map = {}
         affected_tenants = set()
-        for resources in added, updated, deleted:
-            for res in resources:
-                if isinstance(res, aim_status.AciStatus):
-                    # TODO(ivar): this is a DB query not worth doing. Find
-                    # a better way to retrieve tenant from a Status object
-                    res = self.aim_manager.get_by_id(
-                        ctx, res.parent_class, res.resource_id)
-                key = self.tt_maker.get_tenant_key(res)
-                if key:
-                    affected_tenants.add(key)
+        with ctx.store.begin(subtransactions=True):
+            for resources in added, updated, deleted:
+                for res in resources:
+                    if isinstance(res, aim_status.AciStatus):
+                        # TODO(ivar): this is a DB query not worth doing. Find
+                        # a better way to retrieve tenant from a Status object
+                        res = self.aim_manager.get_by_id(ctx, res.parent_class,
+                                                         res.resource_id)
+                    key = self.tt_maker.get_tenant_key(res)
+                    if key:
+                        affected_tenants.add(key)
 
-        for tenant in affected_tenants:
-            try:
-                ttree = self.tt_mgr.get(ctx, tenant, tree=conf)
-                ttree_operational = self.tt_mgr.get(ctx, tenant, tree=oper)
-                ttree_monitor = self.tt_mgr.get(ctx, tenant, tree=monitor)
-            except hexc.HashTreeNotFound:
-                ttree = htree.StructuredHashTree()
-                ttree_operational = htree.StructuredHashTree()
-                ttree_monitor = htree.StructuredHashTree()
-            tree_map.setdefault(
-                self.tt_builder.CONFIG, {})[tenant] = ttree
-            tree_map.setdefault(
-                self.tt_builder.OPER, {})[tenant] = ttree_operational
-            tree_map.setdefault(
-                self.tt_builder.MONITOR, {})[tenant] = ttree_monitor
+            for tenant in affected_tenants:
+                try:
+                    ttree = self.tt_mgr.get(ctx, tenant, lock_update=True,
+                                            tree=conf)
+                    ttree_operational = self.tt_mgr.get(ctx, tenant,
+                                                        lock_update=True,
+                                                        tree=oper)
+                    ttree_monitor = self.tt_mgr.get(ctx, tenant,
+                                                    lock_update=True,
+                                                    tree=monitor)
+                except hexc.HashTreeNotFound:
+                    ttree = htree.StructuredHashTree()
+                    ttree_operational = htree.StructuredHashTree()
+                    ttree_monitor = htree.StructuredHashTree()
+                tree_map.setdefault(
+                    self.tt_builder.CONFIG, {})[tenant] = ttree
+                tree_map.setdefault(
+                    self.tt_builder.OPER, {})[tenant] = ttree_operational
+                tree_map.setdefault(
+                    self.tt_builder.MONITOR, {})[tenant] = ttree_monitor
 
-        upd_trees, udp_op_trees, udp_mon_trees = self.tt_builder.build(
-            added, updated, deleted, tree_map, aim_ctx=ctx)
+            upd_trees, udp_op_trees, udp_mon_trees = self.tt_builder.build(
+                added, updated, deleted, tree_map, aim_ctx=ctx)
 
-        # Finally save the modified trees
-        if upd_trees:
-            self.tt_mgr.update_bulk(ctx, upd_trees)
-        if udp_op_trees:
-            self.tt_mgr.update_bulk(ctx, udp_op_trees, tree=oper)
-        if udp_mon_trees:
-            self.tt_mgr.update_bulk(ctx, udp_mon_trees, tree=monitor)
+            # Finally save the modified trees
+            if upd_trees:
+                self.tt_mgr.update_bulk(ctx, upd_trees)
+            if udp_op_trees:
+                self.tt_mgr.update_bulk(ctx, udp_op_trees, tree=oper)
+            if udp_mon_trees:
+                self.tt_mgr.update_bulk(ctx, udp_mon_trees, tree=monitor)
 
     def reset(self, store, tenant=None):
         aim_ctx = utils.FakeContext(store=store)

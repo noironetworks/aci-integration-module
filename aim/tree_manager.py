@@ -59,7 +59,7 @@ class TenantTreeManager(object):
         trees = {self.tenant_rn_funct(x): x for x in hash_trees}
         self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
-            db_objs = self._find_query(context, tree,
+            db_objs = self._find_query(context, tree, lock_update=True,
                                        in_={'tenant_rn': trees.keys()})
             for obj in db_objs:
                 hash_tree = trees.pop(obj.tenant_rn)
@@ -129,10 +129,10 @@ class TenantTreeManager(object):
             str(x.tree), self.tenant_key_funct(x.tenant_rn)) for x in result]
 
     @utils.log
-    def get(self, context, tenant_rn, tree=CONFIG_TREE):
+    def get(self, context, tenant_rn, lock_update=False, tree=CONFIG_TREE):
         try:
             return self.tree_klass.from_string(str(
-                self._find_query(context, tree,
+                self._find_query(context, tree, lock_update=lock_update,
                                  tenant_rn=tenant_rn)[0].tree),
                 self.tenant_key_funct(tenant_rn))
         except IndexError:
@@ -192,10 +192,11 @@ class TenantTreeManager(object):
                 db_obj = context.store.make_db_obj(resource)
                 context.store.add(db_obj)
 
-    def _find_query(self, context, tree_type, in_=None, notin_=None, **kwargs):
+    def _find_query(self, context, tree_type, in_=None, notin_=None,
+                    lock_update=False, **kwargs):
         db_type = context.store.resource_to_db_type(tree_type)
         return context.store.query(db_type, tree_type, in_=in_, notin_=notin_,
-                                   **kwargs)
+                                   lock_update=lock_update, **kwargs)
 
     def _default_tenant_rn_funct(self, tree):
         return tree.root_key[0]
