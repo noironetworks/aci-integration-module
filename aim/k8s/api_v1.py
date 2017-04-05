@@ -101,7 +101,10 @@ class AciContainersV1(object):
             self.api_client = api_client
         else:
             if not config.api_client:
-                konfig.load_kube_config(config_file=config_file)
+                if config_file is not None and config_file != "":
+                    konfig.load_kube_config(config_file=config_file)
+                else:
+                    konfig.load_incluster_config()
                 config.api_client = klient.ApiClient()
             self.api_client = config.api_client
         self._watch = None
