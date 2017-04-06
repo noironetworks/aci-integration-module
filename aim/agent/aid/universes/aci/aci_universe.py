@@ -374,6 +374,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
             return data.tenant_name
 
     def get_resources_for_delete(self, resource_keys):
+        if resource_keys:
+            LOG.debug("Requesting resource keys in ACI Universe for "
+                      "delete: %s", resource_keys)
         result = []
         for key in resource_keys:
             key_parts = self._split_key(key)
@@ -395,6 +398,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     aci_type = 'tagInst'
                     dn = dn + '/tag-' + self.aim_system_id
             result.append({aci_type: {'attributes': {'dn': dn}}})
+        if resource_keys:
+            LOG.debug("Result for keys %s\n in ACI Universe for delete:\n %s" %
+                      (resource_keys, result))
         return result
 
     def _get_state_copy(self, tenant):
