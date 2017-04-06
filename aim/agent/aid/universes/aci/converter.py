@@ -22,6 +22,7 @@ from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci.converters import service_graph
 from aim.agent.aid.universes.aci.converters import utils
+from aim.api import infra as aim_infra
 from aim.api import resource
 from aim.api import status as aim_status
 from aim.api import types as t
@@ -432,6 +433,11 @@ resource_map = {
     'hostprotRemoteIp': [{
         'resource': resource.SecurityGroupRule,
         'converter': hostprotRemoteIp_converter,
+    }],
+    'opflexODev': [{
+        'resource': aim_infra.OpflexDevice,
+        'exceptions': {'domName': {'other': 'domain_name'},
+                       'ctrlrName': {'other': 'controller_name'}, }
     }],
 }
 

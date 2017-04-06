@@ -19,6 +19,7 @@ from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci.converters import (
     service_graph as conv_service_graph)
 from aim.agent.aid.universes.aci.converters import utils as conv_utils
+from aim.api import infra as aim_infra
 from aim.api import resource
 from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
@@ -1174,6 +1175,40 @@ class TestAciToAimConverterDeviceClusterContext(TestAciToAimConverterBase,
         aim_service_graph.DeviceClusterContext(
             tenant_name='t1', contract_name='c1',
             service_graph_name='g1', node_name='N1', display_name='alias')
+    ]
+
+
+class TestAciToAimConverterOpflexDevice(TestAciToAimConverterBase,
+                                        base.TestAimDBBase):
+    resource_type = aim_infra.OpflexDevice
+    reverse_map_output = [
+        {'resource': 'opflexODev',
+         'exceptions': {'domain_name': {'other': 'domName'},
+                        'controller_name': {'other': 'ctrlrName'}}}]
+    sample_input = [_aci_obj('opflexODev',
+                             dn=('topology/pod-1/node-301/sys/br-[eth1/33]/'
+                                 'odev-167776320')),
+                    _aci_obj('opflexODev',
+                             dn=('topology/pod-1/node-201/sys/br-[eth1/34]/'
+                                 'odev-167776321'),
+                             hostName='f1-compute-1',
+                             ip='10.0.16.64',
+                             domName='k8s',
+                             ctrlrName='cluster1',
+                             fabricPathDn=('topology/pod-1/protpaths-201-202'
+                                           '/pathep-[bundle-201-1-33-and-'
+                                           '202-1-33]'))]
+
+    sample_output = [
+        aim_infra.OpflexDevice(
+            pod_id='1', node_id='301', bridge_interface='eth1/33',
+            dev_id='167776320'),
+        aim_infra.OpflexDevice(
+            pod_id='1', node_id='201', bridge_interface='eth1/34',
+            dev_id='167776321', host_name='f1-compute-1', ip='10.0.16.64',
+            domain_name='k8s', controller_name='cluster1',
+            fabric_path_dn=('topology/pod-1/protpaths-201-202/'
+                            'pathep-[bundle-201-1-33-and-202-1-33]'))
     ]
 
 
@@ -2409,4 +2444,41 @@ class TestAimToAciConverterDeviceClusterContext(TestAimToAciConverterBase,
                   dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-provider/'
                       'rsLIfCtxToLIf'),
                   tDn='uni/tn-t1/lDevVip-ldc1/lIf-interface')]
+    ]
+
+
+def get_example_aim_opflex_device(**kwargs):
+    example = aim_infra.OpflexDevice(
+        pod_id='1', node_id='301', bridge_interface='eth1/33',
+        dev_id='167776320')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterOpflexDevice(TestAimToAciConverterBase,
+                                        base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_opflex_device(),
+        get_example_aim_opflex_device(
+            node_id='201', bridge_interface='eth1/34', dev_id='167776321',
+            host_name='f1-compute-1', ip='10.0.16.64',
+            domain_name='k8s', controller_name='cluster1',
+            fabric_path_dn=('topology/pod-1/protpaths-201-202/'
+                            'pathep-[bundle-201-1-33-and-202-1-33]'))]
+
+    sample_output = [
+        [_aci_obj('opflexODev',
+                  dn=('topology/pod-1/node-301/sys/br-[eth1/33]/'
+                      'odev-167776320'),
+                  hostName='', ip='', domName='', ctrlrName='',
+                  fabricPathDn='')],
+        [_aci_obj('opflexODev',
+                  dn=('topology/pod-1/node-201/sys/br-[eth1/34]/'
+                      'odev-167776321'),
+                  hostName='f1-compute-1',
+                  ip='10.0.16.64',
+                  domName='k8s',
+                  ctrlrName='cluster1',
+                  fabricPathDn=('topology/pod-1/protpaths-201-202/'
+                                'pathep-[bundle-201-1-33-and-202-1-33]'))]
     ]

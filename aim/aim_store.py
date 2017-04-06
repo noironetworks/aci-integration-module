@@ -216,7 +216,8 @@ class SqlAlchemyStore(AimStore):
                     api_service_graph.DeviceClusterContext: (
                         service_graph_model.DeviceClusterContext),
                     api_service_graph.DeviceClusterInterfaceContext: (
-                        service_graph_model.DeviceClusterInterfaceContext), }
+                        service_graph_model.DeviceClusterInterfaceContext),
+                    api_infra.OpflexDevice: infra_model.OpflexDevice}
     resource_map = {}
     for k, v in db_model_map.iteritems():
         resource_map[v] = k

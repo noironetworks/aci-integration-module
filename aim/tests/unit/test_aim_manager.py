@@ -1168,6 +1168,38 @@ class TestDeviceClusterInterfaceContextMixin(object):
     res_command = 'device-cluster-interface-context'
 
 
+class TestOpflexDeviceMixin(object):
+    resource_class = infra.OpflexDevice
+    test_identity_attributes = {'pod_id': '1',
+                                'node_id': '301',
+                                'bridge_interface': 'eth1/33',
+                                'dev_id': '167776320'}
+    test_required_attributes = {'pod_id': '1',
+                                'node_id': '301',
+                                'bridge_interface': 'eth1/33',
+                                'dev_id': '167776320',
+                                'host_name': 'f1-compute-1',
+                                'ip': '10.0.16.64',
+                                'domain_name': 'k8s',
+                                'controller_name': 'cluster1',
+                                'fabric_path_dn': ('topology/pod-1/'
+                                                   'protpaths-201-202/'
+                                                   'pathep-[bundle-201-'
+                                                   '1-33-and-202-1-33]')}
+    test_search_attributes = {'host_name': 'f1-compute-1'}
+    test_update_attributes = {'host_name': 'f1-compute-2',
+                              'domain_name': 'ostack',
+                              'fabric_path_dn': ('topology/pod-1/paths-101/'
+                                                 'pathep-[eth1/33]')}
+    test_default_values = {'host_name': '',
+                           'ip': '',
+                           'fabric_path_dn': '',
+                           'domain_name': '',
+                           'controller_name': ''}
+    test_dn = 'topology/pod-1/node-301/sys/br-[eth1/33]/odev-167776320'
+    res_command = 'opflex-device'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1418,4 +1450,9 @@ class TestDeviceClusterContext(TestDeviceClusterContextMixin,
 class TestDeviceClusterInterfaceContext(TestDeviceClusterInterfaceContextMixin,
                                         TestAciResourceOpsBase,
                                         base.TestAimDBBase):
+    pass
+
+
+class TestOpflexDevice(TestOpflexDeviceMixin, TestResourceOpsBase,
+                       base.TestAimDBBase):
     pass

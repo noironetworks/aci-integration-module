@@ -102,3 +102,18 @@ class HostLinkManager(object):
     def get_switch_and_port_for_host(self, host):
         res = self.get_hostlinks_for_host(host)
         return list(set([(x.switch_id, x.module, x.port) for x in res]))
+
+
+class OpflexDevice(model_base.Base, model_base.AttributeMixin):
+    __tablename__ = 'aim_opflex_devices'
+
+    pod_id = sa.Column(sa.String(36), primary_key=True)
+    node_id = sa.Column(sa.String(36), primary_key=True)
+    bridge_interface = sa.Column(sa.String(36), primary_key=True)
+    dev_id = sa.Column(sa.String(36), primary_key=True)
+
+    host_name = sa.Column(sa.String(128))
+    ip = sa.Column(sa.String(64))
+    fabric_path_dn = sa.Column(sa.String(512))
+    domain_name = sa.Column(sa.String(64))
+    controller_name = sa.Column(sa.String(64))
