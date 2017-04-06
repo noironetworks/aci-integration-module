@@ -1004,7 +1004,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             desired_monitor.serving_tenants[tenant_name].aci_session,
             'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
         self.assertIsNotNone(tag)
-
+        # Run an empty change on the EPG, bringing it to sync pending
+        self.aim_manager.update(self.ctx, epg)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)])
         # Put back EPG into monitored state
         epg = self.aim_manager.update(self.ctx, epg, monitored=True)
         self.assertTrue(epg.monitored)

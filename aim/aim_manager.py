@@ -129,7 +129,9 @@ class AimManager(object):
                 # should not go in pending.
                 if self._should_set_pending(old_db_obj, old_monitored,
                                             new_monitored):
-                    self.set_resource_sync_pending(context, resource)
+                    self.set_resource_sync_pending(
+                        context, resource,
+                        force=getattr(db_obj, 'monitored', False))
             return self.get(context, resource)
 
     @utils.log
@@ -162,7 +164,9 @@ class AimManager(object):
                     # status should not go in pending.
                     if self._should_set_pending(db_obj, old_monitored,
                                                 new_monitored):
-                        self.set_resource_sync_pending(context, resource)
+                        self.set_resource_sync_pending(
+                            context, resource,
+                            force=getattr(db_obj, 'monitored', False))
                 return self.get(context, resource)
 
     def _should_set_pending(self, old_obj, old_monitored, new_monitored):
@@ -302,7 +306,8 @@ class AimManager(object):
     def set_resource_sync_synced(self, context, resource):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
-    def set_resource_sync_pending(self, context, resource, top=True):
+    def set_resource_sync_pending(self, context, resource, top=True,
+                                  force=False):
         # When a resource goes in pending state, propagate to both parent
         # and subtree
         with context.store.begin(subtransactions=True):
@@ -312,7 +317,8 @@ class AimManager(object):
                     context, resource, api_status.AciStatus.SYNC_PENDING,
                     exclude=[api_status.AciStatus.SYNCED,
                              api_status.AciStatus.SYNC_PENDING]
-                    if not top else [api_status.AciStatus.SYNC_PENDING]):
+                    if not top else [api_status.AciStatus.SYNC_PENDING] if not
+                    force else []):
                 # Change parent first
                 parent_klass = resource._tree_parent
                 if parent_klass:
