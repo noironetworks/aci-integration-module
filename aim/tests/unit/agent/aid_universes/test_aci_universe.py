@@ -246,6 +246,25 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.assertEqual('uni/tn-tn1/BD-monitoredBD/tag-openstack_aid',
                          result.values()[0]['attributes']['dn'])
 
+        # Delete an RS-node of a monitored object
+        self.universe.manager.create(self.ctx, resource.L3Outside(
+            tenant_name='tn1', name='out', monitored=True))
+        ext_net = self.universe.manager.create(
+            self.ctx,
+            resource.ExternalNetwork(tenant_name='tn1', l3out_name='out',
+                                     name='inet',
+                                     provided_contract_names=['p1'],
+                                     monitored=True))
+        self.universe.manager.set_resource_sync_synced(self.ctx, ext_net)
+        result = self.universe.get_resources_for_delete(
+            [('fvTenant|tn1', 'l3extOut|out', 'l3extInstP|inet',
+              'fvRsProv|p1')])
+        self.assertEqual(1, len(result))
+        result = result[0]
+        self.assertEqual('fvRsProv', result.keys()[0])
+        self.assertEqual('uni/tn-tn1/out-out/instP-inet/rsprov-p1',
+                         result.values()[0]['attributes']['dn'])
+
     def test_ws_config_changed(self):
         # Refresh subscriptions
         self.universe.ws_context = aci_universe.WebSocketContext(

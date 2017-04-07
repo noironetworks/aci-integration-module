@@ -1150,6 +1150,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
+        ctxRs = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + l3out.dn + '/rsectx')
+        self.assertIsNotNone(ctxRs)
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
             desired_monitor.serving_tenants[tenant_name].aci_session,
@@ -1196,6 +1200,75 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertIsNotNone(l3o)
         self.assertTrue(l3o.monitored)
         self.assertEqual('foo', l3o.vrf_name)
+
+    def test_monitored_ext_net_contract_rs(self):
+        agent = self._create_agent()
+        tenant_name = 'test_monitored_ext_net_contract_rs'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name, monitored=True)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn)
+        # Run loop for serving tenant
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Create some manual stuff
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        aci_l3o = self._get_example_aci_l3_out(
+            dn='uni/tn-%s/out-out' % tenant_name, name='out')
+        aci_ext_net = {'l3extInstP':
+                       {'attributes':
+                        {'dn': 'uni/tn-%s/out-out/instP-inet' % tenant_name,
+                         'name': 'inet'}}}
+
+        self._set_events(
+            [aci_tn, aci_l3o, aci_ext_net],
+            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        ext_net = self.aim_manager.get(self.ctx, resource.ExternalNetwork(
+            tenant_name=tenant_name, l3out_name='out', name='inet'))
+        self.assertIsNotNone(ext_net)
+        self.assertTrue(ext_net.monitored)
+        self.assertEqual([], ext_net.provided_contract_names)
+
+        self.aim_manager.update(self.ctx, ext_net,
+                                provided_contract_names=['p1'])
+        ext_net = self.aim_manager.get(self.ctx, ext_net)
+        self.assertEqual(['p1'], ext_net.provided_contract_names)
+
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        tag = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + ext_net.dn + '/rsprov-p1/tag-openstack_aid')
+        self.assertIsNotNone(tag)
+
+        self.aim_manager.update(self.ctx, ext_net,
+                                provided_contract_names=[])
+        ext_net = self.aim_manager.get(self.ctx, ext_net)
+        self.assertEqual([], ext_net.provided_contract_names)
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk,
+            test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + ext_net.dn + '/rsprov-p1')
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk,
+            test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tenant_name].aci_session,
+            'mo/' + ext_net.dn + '/rsprov-p1/tag-openstack_aid')
 
     def test_aci_errors(self):
         self.set_override('max_operation_retry', 2, 'aim')

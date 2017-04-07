@@ -25,6 +25,7 @@ from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource
+from aim.api import status
 from aim.common import utils
 from aim import exceptions
 
@@ -394,9 +395,12 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 res = self.manager.get(
                     self.context, aim_klass.from_dn(res_dn))
                 if getattr(res, 'monitored', None):
-                    # Delete the TAG instead
-                    aci_type = 'tagInst'
-                    dn = dn + '/tag-' + self.aim_system_id
+                    stat = self.manager.get_status(self.context, res)
+                    if (stat and
+                            stat.sync_status == status.AciStatus.SYNC_PENDING):
+                        # Monitored state transition -> Delete the TAG instead
+                        aci_type = 'tagInst'
+                        dn = dn + '/tag-' + self.aim_system_id
             result.append({aci_type: {'attributes': {'dn': dn}}})
         if resource_keys:
             LOG.debug("Result for keys %s\n in ACI Universe for delete:\n %s" %
