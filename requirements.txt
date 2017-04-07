@@ -19,3 +19,4 @@ oslo.log
 oslo.utils
 pbr>=1.6,<2.0
 semantic_version
+tabulate
