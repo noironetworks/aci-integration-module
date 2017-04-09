@@ -1150,7 +1150,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)])
         ctxRs = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx')
         self.assertIsNotNone(ctxRs)
         self.assertRaises(
@@ -1229,7 +1229,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         self._set_events(
             [aci_tn, aci_l3o, aci_ext_net],
-            manager=desired_monitor.serving_tenants[tenant_name], tag=False)
+            manager=desired_monitor.serving_tenants[tn.rn], tag=False)
 
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
@@ -1248,7 +1248,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop()
         self._observe_aci_events(current_config)
         tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + ext_net.dn + '/rsprov-p1/tag-openstack_aid')
         self.assertIsNotNone(tag)
 
@@ -1261,12 +1261,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
             test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + ext_net.dn + '/rsprov-p1')
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
             test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tenant_name].aci_session,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + ext_net.dn + '/rsprov-p1/tag-openstack_aid')
 
     def test_aci_errors(self):
@@ -1372,9 +1372,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         vmm = resource.VMMDomain(type='OpenStack', name='ostack')
         vmmp = resource.VMMPolicy(type='OpenStack')
         phys = resource.PhysicalDomain(name='physdomain')
+        pod = resource.Pod(name='1')
         self.aim_manager.create(self.ctx, vmmp)
         self.aim_manager.create(self.ctx, vmm)
         self.aim_manager.create(self.ctx, phys)
+        self.aim_manager.create(self.ctx, pod)
 
         current_config = agent.multiverse[0]['current']
         apic_client.ApicSession.post_body_dict = (
@@ -1391,6 +1393,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             current_config.serving_tenants[phys.rn].aci_session,
             'mo/' + phys.dn)
         self.assertIsNotNone(phys)
+        self.assertEqual('topology/pod-1', pod.dn)
+        pod = test_aci_tenant.mock_get_data(
+            current_config.serving_tenants[pod.rn].aci_session,
+            'mo/' + pod.dn)
+        self.assertIsNotNone(pod)
 
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():

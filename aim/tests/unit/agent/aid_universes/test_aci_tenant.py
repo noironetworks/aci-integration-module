@@ -88,6 +88,8 @@ def mock_get_data(inst, dn, **kwargs):
     dn_mgr = apic_client.DNManager()
     # Decompose the DN, remove the mo/ in front
     decomposed = decompose_aci_dn(dn[3:])
+    if decomposed[0][0] == 'fabricTopology':
+        decomposed = decomposed[1:]
     try:
         # Find the proper root node
         curr = copy.deepcopy(inst._data_stash[decomposed[0][1]])[0]
@@ -160,6 +162,8 @@ class TestAciClientMixin(object):
                 continue
             decomposed = dn_mgr.aci_decompose_dn_guess(
                 resource.values()[0]['attributes']['dn'], data_type)[1]
+            if decomposed[0][0] == 'fabricTopology':
+                decomposed = decomposed[1:]
             if add:
                 curr = manager.aci_session._data_stash.setdefault(
                     decomposed[0][1], [])

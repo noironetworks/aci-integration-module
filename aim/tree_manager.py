@@ -314,6 +314,13 @@ class AimHashTreeMaker(object):
         try:
             type_and_dn = apic_client.DNManager().aci_decompose_with_type(
                 dn, mo_type)
+            if type_and_dn:
+                try:
+                    if apic_client.DNManager().get_rn_base(
+                            type_and_dn[0][1]) == type_and_dn[0][1]:
+                        type_and_dn = type_and_dn[1:]
+                except KeyError:
+                    pass
             return tuple(['|'.join(x) for x in type_and_dn])
         except (apic_client.DNManager.InvalidNameFormat,
                 apic_client.cexc.ApicManagedObjectNotSupported):
@@ -322,8 +329,8 @@ class AimHashTreeMaker(object):
 
     @staticmethod
     def _extract_root_rn(root_key):
-        return apic_client.DNManager().build([root_key[0].split('|')])[
-            len(apic_client.DN_BASE):]
+        root_split = root_key[0].split('|')
+        return apic_client.ManagedObjectClass(root_split[0]).rn(root_split[1])
 
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
@@ -421,7 +428,7 @@ class AimHashTreeMaker(object):
         :return:
         """
         return AimHashTreeMaker._build_hash_tree_key_from_dn(
-            apic_client.DN_BASE + key,
+            apic_client.DNManager().get_rn_base(key) + '/' + key,
             apic_client.ManagedObjectClass.prefix_to_mos[key.split('-')[0]])
 
 

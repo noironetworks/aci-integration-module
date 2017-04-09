@@ -646,3 +646,11 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
         res_attr = super(SecurityGroupRule, self).to_attr(session)
         res_attr['remote_ips'] = [x.cidr for x in res_attr['remote_ips']]
         return res_attr
+
+
+class Pod(model_base.Base, model_base.HasAimId, model_base.AttributeMixin,
+          model_base.IsMonitored, model_base.HasName):
+    """DB model for VMM Domain."""
+    __tablename__ = 'aim_pods'
+    __table_args__ = (uniq_column(__tablename__, 'name') +
+                      to_tuple(model_base.Base.__table_args__))

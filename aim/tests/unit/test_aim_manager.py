@@ -1204,6 +1204,17 @@ class TestOpflexDeviceMixin(object):
     res_command = 'opflex-device'
 
 
+class TestPodMixin(object):
+    resource_class = resource.Pod
+    test_identity_attributes = {'name': '1'}
+    test_required_attributes = {'name': '1'}
+    test_search_attributes = {}
+    test_update_attributes = {}
+    test_default_values = {}
+    res_command = 'pod'
+    test_dn = 'topology/pod-1'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1458,4 +1469,8 @@ class TestDeviceClusterInterfaceContext(TestDeviceClusterInterfaceContextMixin,
 
 class TestOpflexDevice(TestOpflexDeviceMixin, TestResourceOpsBase,
                        base.TestAimDBBase):
+    pass
+
+
+class TestPod(TestPodMixin, TestResourceOpsBase, base.TestAimDBBase):
     pass

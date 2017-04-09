@@ -28,6 +28,7 @@ from aim.api import resource
 from aim.api import status
 from aim.common import utils
 from aim import exceptions
+from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
@@ -369,14 +370,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
                         'attributes': {
                             'dn': apic_client.DNManager().build(
                                 decomposed[1][:-1])}}}
-
             data = self._aim_converter.convert([data])
             data = data[0] if data else None
-            if isinstance(data, resource.AciResourceBase):
-                type_and_dn = apic_client.DNManager().aci_decompose_with_type(
-                    data.dn, data._aci_mo_name)
-                return apic_client.DNManager().build(
-                    [type_and_dn[0]])[len(apic_client.DN_BASE):]
+        if isinstance(data, resource.AciResourceBase):
+            return tree_manager.AimHashTreeMaker().get_root_key(data)
 
     def get_resources_for_delete(self, resource_keys):
         if resource_keys:

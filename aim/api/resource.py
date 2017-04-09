@@ -106,8 +106,8 @@ class AciResourceBase(ResourceBase):
 
     @property
     def rn(self):
-        return apic_client.ManagedObjectClass(self._aci_mo_name).rn(
-            *self.identity)
+        mo = apic_client.ManagedObjectClass(self._aci_mo_name)
+        return mo.rn(*self.identity[-mo.rn_param_count:])
 
     @classmethod
     def from_dn(cls, dn):
@@ -742,3 +742,17 @@ class Configuration(ResourceBase):
 
     def __init__(self, **kwargs):
         super(Configuration, self).__init__({}, **kwargs)
+
+
+class Pod(AciResourceBase):
+
+    identity_attributes = t.identity(
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'fabricPod'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(Pod, self).__init__({'monitored': False}, **kwargs)

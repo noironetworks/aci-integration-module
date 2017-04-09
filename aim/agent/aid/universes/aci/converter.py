@@ -447,6 +447,9 @@ resource_map = {
     }],
     'physDomP': [{
         'resource': resource.PhysicalDomain,
+    }],
+    'fabricPod': [{
+        'resource': resource.Pod,
     }]
 }
 
