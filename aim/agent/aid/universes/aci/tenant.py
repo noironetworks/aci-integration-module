@@ -80,7 +80,10 @@ class Root(acitoolkit.BaseACIObject):
         self.filtered_children = kwargs.pop('filtered_children', [])
         rn = kwargs.pop('rn')
         super(Root, self).__init__(*args, **kwargs)
-        self.dn = apic_client.DN_BASE + rn
+        try:
+            self.dn = apic_client.DNManager().get_rn_base(rn) + '/' + rn
+        except KeyError:
+            self.dn = apic_client.DN_BASE + 'rn'
         self.urls = self._get_instance_subscription_urls()
 
     def _get_instance_subscription_urls(self):

@@ -749,7 +749,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 'code': 'F0952'}}}
         ]
         complete = [
-            {'fvBD': {'attributes': {'dn': u'uni/tn-ivar-wstest/BD-test'}}},
+            {'fvBD': {'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test'}}},
             {'fvRsCtx': {
                 'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
                                'tnFvCtxName': 'asasa'}}},
@@ -819,3 +819,20 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.assertEqual({'fvRsProv': ['l3extInstP'],
                           'fvRsCons': ['l3extInstP']},
                          aci_tenant.ACI_TYPES_NOT_CONVERT_IF_MONITOR)
+
+    def test_tenant_dn_root(self):
+        manager = aci_tenant.AciTenantManager(
+            'tn-test', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
+        self.assertEqual('uni/tn-test', manager.tenant.dn)
+        manager = aci_tenant.AciTenantManager(
+            'phys-test', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
+        self.assertEqual('uni/phys-test', manager.tenant.dn)
+        manager = aci_tenant.AciTenantManager(
+            'pod-test', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
+        self.assertEqual('topology/pod-test', manager.tenant.dn)
