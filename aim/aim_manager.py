@@ -17,6 +17,7 @@ from oslo_log import log as logging
 
 from aim.api import infra as api_infra
 from aim.api import resource as api_res
+from aim.api import service_graph as api_service_graph
 from aim.api import status as api_status
 from aim.common import utils
 from aim import exceptions as exc
@@ -72,7 +73,18 @@ class AimManager(object):
                      api_res.SecurityGroup,
                      api_res.SecurityGroupSubject,
                      api_res.SecurityGroupRule,
-                     api_res.Configuration}
+                     api_res.Configuration,
+                     api_service_graph.DeviceCluster,
+                     api_service_graph.DeviceClusterInterface,
+                     api_service_graph.ConcreteDevice,
+                     api_service_graph.ConcreteDeviceInterface,
+                     api_service_graph.ServiceGraph,
+                     api_service_graph.ServiceGraphConnection,
+                     api_service_graph.ServiceGraphNode,
+                     api_service_graph.ServiceRedirectPolicy,
+                     api_service_graph.DeviceClusterContext,
+                     api_service_graph.DeviceClusterInterfaceContext,
+                     api_infra.OpflexDevice}
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}
 
@@ -372,7 +384,8 @@ class AimManager(object):
 
     def _query_db(self, store, resource_class, **kwargs):
         db_cls = store.resource_to_db_type(resource_class)
-        return store.query(db_cls, resource_class, **kwargs)
+        return (store.query(db_cls, resource_class, **kwargs) if db_cls
+                else None)
 
     def _query_db_obj(self, store, resource):
         id_attr = store.extract_attributes(resource, "id")

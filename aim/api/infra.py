@@ -36,3 +36,32 @@ class HostLink(resource.ResourceBase):
                                         'module': '',
                                         'port': '',
                                         'path': ''}, **kwargs)
+
+
+class OpflexDevice(resource.AciResourceBase):
+    """Information about Opflex device reported by ACI. Read-only."""
+
+    identity_attributes = t.identity(
+        ('pod_id', t.id),
+        ('node_id', t.id),
+        ('bridge_interface', t.id),
+        ('dev_id', t.id))
+    other_attributes = t.other(
+        ('host_name', t.string(128)),
+        ('ip', t.string(64)),
+        ('fabric_path_dn', t.string()),
+        ('domain_name', t.string(64)),
+        ('controller_name', t.string(64)))
+
+    _aci_mo_name = 'opflexODev'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(OpflexDevice, self).__init__({'host_name': '',
+                                            'ip': '',
+                                            'fabric_path_dn': '',
+                                            'domain_name': '',
+                                            'controller_name': ''},
+                                           **kwargs)
+        # force read-only object to be in monitored tree
+        self.monitored = True

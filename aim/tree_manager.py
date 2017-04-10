@@ -471,7 +471,7 @@ class HashTreeBuilder(object):
                             # state, potentially switching from Owned to
                             # Monitored, and therefore should be removed from
                             # all the trees
-                            if parent.monitored:
+                            if getattr(parent, 'monitored', False):
                                 all_updates[-1].append(parent)
                             else:
                                 all_updates[1].append(parent)

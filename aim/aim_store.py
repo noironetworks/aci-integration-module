@@ -22,6 +22,7 @@ from sqlalchemy.sql.expression import func
 from aim import aim_manager
 from aim.api import infra as api_infra
 from aim.api import resource as api_res
+from aim.api import service_graph as api_service_graph
 from aim.api import status as api_status
 from aim.api import tree as api_tree
 from aim.common import utils
@@ -30,6 +31,7 @@ from aim.db import config_model
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import infra_model
 from aim.db import models
+from aim.db import service_graph_model
 from aim.db import status_model
 from aim.db import tree_model
 from aim.k8s import api_v1
@@ -194,7 +196,28 @@ class SqlAlchemyStore(AimStore):
                     api_tree.MonitoredTenantTree: (
                         tree_model.MonitoredTenantTree),
                     api_tree.OperationalTenantTree: (
-                        tree_model.OperationalTenantTree)}
+                        tree_model.OperationalTenantTree),
+                    api_service_graph.DeviceCluster: (
+                        service_graph_model.DeviceCluster),
+                    api_service_graph.DeviceClusterInterface: (
+                        service_graph_model.DeviceClusterInterface),
+                    api_service_graph.ConcreteDevice: (
+                        service_graph_model.ConcreteDevice),
+                    api_service_graph.ConcreteDeviceInterface: (
+                        service_graph_model.ConcreteDeviceInterface),
+                    api_service_graph.ServiceGraph: (
+                        service_graph_model.ServiceGraph),
+                    api_service_graph.ServiceGraphConnection: (
+                        service_graph_model.ServiceGraphConnection),
+                    api_service_graph.ServiceGraphNode: (
+                        service_graph_model.ServiceGraphNode),
+                    api_service_graph.ServiceRedirectPolicy: (
+                        service_graph_model.ServiceRedirectPolicy),
+                    api_service_graph.DeviceClusterContext: (
+                        service_graph_model.DeviceClusterContext),
+                    api_service_graph.DeviceClusterInterfaceContext: (
+                        service_graph_model.DeviceClusterInterfaceContext),
+                    api_infra.OpflexDevice: infra_model.OpflexDevice}
     resource_map = {}
     for k, v in db_model_map.iteritems():
         resource_map[v] = k

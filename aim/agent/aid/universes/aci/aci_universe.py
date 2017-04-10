@@ -319,8 +319,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
         for method, objects in resources.iteritems():
             for data in objects:
                 tenant_name = self._retrieve_tenant_name(data)
-                by_tenant.setdefault(tenant_name, {}).setdefault(
-                    method, []).append(data)
+                if tenant_name:
+                    by_tenant.setdefault(tenant_name, {}).setdefault(
+                        method, []).append(data)
 
         for tenant, conf in by_tenant.iteritems():
             try:
@@ -368,7 +369,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
                         'attributes': {
                             'dn': apic_client.DNManager().build(
                                 decomposed[1][:-1])}}}
-            data = self._aim_converter.convert([data])[0]
+            data = self._aim_converter.convert([data])
+            data = data[0] if data else None
         if isinstance(data, resource.Tenant):
             return data.name
         elif isinstance(data, resource.ResourceBase):

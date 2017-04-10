@@ -98,6 +98,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                       resource_keys)
         result = []
         id_set = set()
+
         for key in resource_keys:
             fault_code = None
             dissected = self._dissect_key(key)
@@ -107,17 +108,22 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 key = key[:-1]
             aci_dn = apic_client.DNManager().build(
                 [tuple(x.split('|')) for x in key])
-            aci_klass = apic_client.DNManager().aci_decompose_dn_guess(
-                aci_dn, dissected[0])[0]
-            klass = converter.resource_map[aci_klass][0]['resource']
+            dn_mgr = apic_client.DNManager()
+            aci_klass, mos_rns = dn_mgr.aci_decompose_dn_guess(aci_dn,
+                                                               dissected[0])
+            rns = dn_mgr.filter_rns(mos_rns)
+            # TODO(amitbose) We should be using 'alt_resource' only if we don't
+            # find an AIM object by using 'resource'
+            conv_info = converter.resource_map[aci_klass][0]
+            klass = conv_info.get('alt_resource') or conv_info['resource']
             res = klass(
-                **dict([(y, dissected[1][x])
+                **dict([(y, rns[x])
                         for x, y in enumerate(klass.identity_attributes)]))
             id_tuple = tuple([(x, getattr(res, x)) for x in
                               res.identity_attributes])
             if fault_code:
                 id_tuple += ('fault', fault_code)
-            id_tuple = (klass, ) + id_tuple
+            id_tuple = (klass,) + id_tuple
             if id_tuple not in id_set:
                 try:
                     if fault_code:
@@ -170,17 +176,19 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 try:
                     if isinstance(resource, aim_status.AciFault):
                         # Retrieve fault's parent and set/unset the fault
-                        parent = self._retrieve_fault_parent(resource)
-                        LOG.debug(
-                            "%s for object %s: %s" %
-                            (fault_method[method].__name__,
-                             parent.__dict__, resource.__dict__))
-                        fault_method[method](self.context,
-                                             resource=parent,
-                                             fault=resource)
+                        parents = self._retrieve_fault_parent(resource)
+                        for parent in parents:
+                            if self.manager.get_status(self.context, parent):
+                                LOG.debug("%s for object %s: %s",
+                                          fault_method[method].__name__,
+                                          parent, resource)
+                                fault_method[method](self.context,
+                                                     resource=parent,
+                                                     fault=resource)
+                                break
                     else:
                         LOG.debug("%s object in AIM %s" %
-                                  (method, resource.__dict__))
+                                  (method, resource))
                         if method == 'create':
                             if monitored:
                                 # We need two more conversions to screen out
@@ -240,12 +248,20 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         external = fault.external_identifier
         # external is the DN of the ACI resource
         dn_mgr = apic_client.DNManager()
-        # this will be enough in order to get the parent
-        decomposed = dn_mgr.aci_decompose_with_type(external, ACI_FAULT)[:-1]
-        aci_parent = {
-            decomposed[-1][0]: {
-                'attributes': {'dn': dn_mgr.build(decomposed)}}}
-        return self._converter.convert([aci_parent])[0]
+        mos_rns = dn_mgr.aci_decompose_with_type(external, ACI_FAULT)[:-1]
+        aci_klass = mos_rns[-1][0]
+        rns = dn_mgr.filter_rns(mos_rns)
+
+        conv_info = converter.resource_map[aci_klass][0]
+        klasses = [conv_info['resource']]
+        if conv_info.get('alt_resource'):
+            klasses.append(conv_info['alt_resource'])
+        parents = []
+        for klass in klasses:
+            a_obj = klass(**{y: rns[x]
+                             for x, y in enumerate(klass.identity_attributes)})
+            parents.append(a_obj)
+        return parents
 
 
 class AimDbOperationalUniverse(AimDbUniverse):

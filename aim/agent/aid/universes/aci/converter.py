@@ -14,15 +14,19 @@
 #    under the License.
 
 import collections
+import copy
 import traceback
 
 from apicapi import apic_client
 from oslo_log import log as logging
 
+from aim.agent.aid.universes.aci.converters import service_graph
+from aim.agent.aid.universes.aci.converters import utils
+from aim.api import infra as aim_infra
 from aim.api import resource
 from aim.api import status as aim_status
 from aim.api import types as t
-from aim.common import utils
+from aim.common import utils as aim_utils
 
 LOG = logging.getLogger(__name__)
 DELETED_STATUS = "deleted"
@@ -30,34 +34,16 @@ CLEARED_SEVERITY = "cleared"
 MODIFIED_STATUS = "modified"
 
 
-def default_identity_converter(object_dict, otype, helper,
-                               extra_attributes=None, aci_mo_type=None,
-                               to_aim=True):
-    """Default identity converter
-
-    This converter uses the DN and splits it in its fundamental parts to
-    retrieve the identity names.
-
-    :param object_dict: dictionarty of the resource to be converted
-    :param otype: Type of the object. Can be an AIM resource class or a
-                  APIC class name.
-    :param extra_attributes: Ordered list of additional attribute values needed
-                             to create the identity attribute
-    :param aci_mo_type: ACI ManagedObjectType to use when creating ACI identity
-                        attribute
-    :param to_aim: Boolean indicating whether we are converting
-                   ACI/AIM (True) or AIM/ACI (False)
-    :return: list with exactly all the attributes that need to be assigned
-    to the resource class 'identity_attributes'
-    """
-    if to_aim:
-        return apic_client.DNManager().aci_decompose(object_dict['dn'], otype)
-    else:
-        attr = [object_dict[x] for x in otype.identity_attributes]
-        if extra_attributes:
-            attr.extend(extra_attributes)
-        mo_type = aci_mo_type or helper['resource']
-        return [apic_client.ManagedObjectClass(mo_type).dn(*attr)]
+# TODO(amitbose) Instead of aliasing, replace local references with the
+# ones from utils
+default_identity_converter = utils.default_identity_converter
+default_attribute_converter = utils.default_attribute_converter
+convert_attribute = utils.convert_attribute
+default_to_resource = utils.default_to_resource
+default_to_resource_strict = utils.default_to_resource_strict
+boolean = utils.boolean
+mapped_attribute = utils.mapped_attribute
+child_list = utils.child_list
 
 
 def fault_identity_converter(object_dict, otype, helper,
@@ -66,43 +52,6 @@ def fault_identity_converter(object_dict, otype, helper,
         return object_dict['code'], object_dict['dn']
     else:
         return [object_dict['external_identifier']]
-
-
-def default_attribute_converter(object_dict, attribute,
-                                to_aim=True):
-    return object_dict[attribute]
-
-
-def default_to_resource(converted, helper, to_aim=True):
-    klass = helper['resource']
-    default_skip = ['preExisting', 'monitored']
-    skip = helper.get('skip', [])
-    if to_aim:
-        # APIC to AIM
-        return klass(
-            _set_default=False,
-            **dict([(k, v) for k, v in converted.iteritems() if k in
-                    klass.attributes() and k not in skip]))
-    else:
-        for s in default_skip + skip:
-            converted.pop(s, None)
-        result = {klass: {'attributes': converted}}
-        return result
-
-
-def default_to_resource_strict(converted, helper, to_aim=True):
-    if to_aim:
-        return default_to_resource(converted, helper, to_aim=to_aim)
-    else:
-        # Only include explicitly mentioned attributes
-        values = {}
-        for k, v in helper.get('exceptions', {}).iteritems():
-            attr = v.get('other') or k
-            if converted.get(attr) is not None:
-                values[attr] = converted[attr]
-        if values:
-            values['dn'] = converted['dn']
-            return {helper['resource']: {'attributes': values}}
 
 
 def to_resource_filter_container(converted, helper, to_aim=True):
@@ -114,52 +63,6 @@ def to_resource_filter_container(converted, helper, to_aim=True):
         if in_ or out:
             return {
                 helper['resource']: {'attributes': {'dn': converted['dn']}}}
-
-
-def convert_attribute(aim_attribute, to_aim=True):
-    """Convert attribute name from AIM to ACI format
-
-    converts from this_format to thisFormat
-    :param aim_attribute:
-    :return:
-    """
-    if to_aim:
-        # Camel to _ (APIC to AIM)
-        result = []
-        for x in aim_attribute:
-            if x.isupper():
-                result.append('_')
-            result.append(x.lower())
-        return ''.join(result)
-    else:
-        # _ to Camel (AIM to APIC)
-        parts = aim_attribute.split('_')
-        result = parts[0]
-        for part in parts[1:]:
-            result += part[0].upper() + part[1:]
-        return result
-
-
-def boolean(resource, attribute, to_aim=True):
-    if to_aim:
-        # APIC to AIM
-        aci_value = resource[attribute]
-        return bool(aci_value is True or aci_value.lower() == 'yes')
-    else:
-        # AIM to APIC
-        return 'yes' if resource[attribute] is True else 'no'
-
-
-def mapped_attribute(value_map):
-    def mapped(object_dict, attribute, to_aim=True):
-        curr = default_attribute_converter(object_dict, attribute,
-                                           to_aim=to_aim)
-        if to_aim:
-            return curr
-        else:
-            # ACI only accepts certain parameters
-            return value_map.get(str(curr), str(curr))
-    return mapped
 
 
 tcp_flags = mapped_attribute(t.tcp_flags)
@@ -186,36 +89,6 @@ def fault_inst_to_resource(converted, helper, to_aim=True):
         attr.pop('lifecycleStatus', None)
         attr['code'] = attr['dn'].split('/')[-1][len(fault_prefix):]
         return result
-
-
-def child_list(aim_attr, aci_attr, aci_mo=None):
-    def func(object_dict, otype, helper, source_identity_attributes,
-             destination_identity_attributes, to_aim=True):
-        result = []
-        if to_aim:
-            res_dict = {}
-            aci_type = aci_mo or otype
-            try:
-                id = default_identity_converter(object_dict, aci_type, helper,
-                                                to_aim=True)
-            except apic_client.DNManager.InvalidNameFormat:
-                return []
-            for index, attr in enumerate(destination_identity_attributes):
-                res_dict[attr] = id[index]
-            if object_dict.get(aci_attr):
-                res_dict[aim_attr] = [object_dict[aci_attr]]
-            result.append(default_to_resource(res_dict, helper, to_aim=True))
-        else:
-            aci_type = aci_mo or helper['resource']
-            child_objs = object_dict[aim_attr]
-            for c in child_objs:
-                dn = default_identity_converter(
-                    object_dict, otype, helper, extra_attributes=[c],
-                    aci_mo_type=aci_type, to_aim=False)[0]
-                result.append({aci_type: {'attributes':
-                                          {'dn': dn, aci_attr: c}}})
-        return result
-    return func
 
 
 def fv_rs_dom_att_converter(object_dict, otype, helper,
@@ -262,7 +135,7 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
             # Get VMM DN
             vmm_dn = default_identity_converter(
                 resource.VMMDomain(
-                    type=utils.OPENSTACK_VMM_TYPE, name=vmm).__dict__,
+                    type=aim_utils.OPENSTACK_VMM_TYPE, name=vmm).__dict__,
                 resource.VMMDomain, helper, aci_mo_type='vmmDomP',
                 to_aim=False)[0]
             dn = default_identity_converter(
@@ -480,11 +353,17 @@ resource_map = {
     }],
     'vzSubj': [{
         'resource': resource.ContractSubject,
-        'skip': ['in_filters', 'out_filters', 'bi_filters'],
+        'skip': ['in_filters', 'out_filters', 'bi_filters',
+                 'service_graph_name'],
     }],
     'vzRsSubjFiltAtt': [{
         'resource': resource.ContractSubject,
         'converter': vzRsSubjFiltAtt_converter
+    }],
+    'vzRsSubjGraphAtt': [{
+        'resource': resource.ContractSubject,
+        'exceptions': {'tnVnsAbsGraphName': {'other': 'service_graph_name'}},
+        'to_resource': default_to_resource_strict,
     }],
     'vzRsFiltAtt': [{'resource': resource.ContractSubject,
                      'converter': vzInTerm_vzRsFiltAtt_converter},
@@ -554,9 +433,15 @@ resource_map = {
     'hostprotRemoteIp': [{
         'resource': resource.SecurityGroupRule,
         'converter': hostprotRemoteIp_converter,
-    }]
+    }],
+    'opflexODev': [{
+        'resource': aim_infra.OpflexDevice,
+        'exceptions': {'domName': {'other': 'domain_name'},
+                       'ctrlrName': {'other': 'controller_name'}, }
+    }],
 }
 
+resource_map.update(service_graph.resource_map)
 
 # Build the reverse map for reverse translation
 reverse_resource_map = {}
@@ -582,14 +467,8 @@ for apic_type, rule_list in resource_map.iteritems():
                                     for s in rules['skip']]
         # Revert Exceptions
         mapped_rules['exceptions'] = {}
-        for exception, value in rules.get('exceptions', {}).iteritems():
-            aci_name = value.get(
-                'other', convert_attribute(exception))
-            mapped_rules['exceptions'][aci_name] = {}
-            mapped_rules['exceptions'][aci_name]['other'] = exception
-            if 'converter' in value:
-                mapped_rules['exceptions'][
-                    aci_name]['converter'] = value['converter']
+        mapped_rules['exceptions'] = (
+            utils.reverse_attribute_mapping_info(rules.get('exceptions', {})))
         mapped_klass.append(mapped_rules)
 
 # Special changes to map and the reverse map can be made here
@@ -613,6 +492,8 @@ resource_map.update({
                        'convert_monitored': False}]
 })
 
+resource_map.update(service_graph.resource_map_post_reverse)
+
 
 class BaseConverter(object):
 
@@ -629,46 +510,9 @@ class BaseConverter(object):
     def _default_converter(self, object_dict, otype, helper,
                            source_identity_attributes,
                            destination_identity_attributes, to_aim=True):
-        """Default AIM/ACI and ACI/AIM converter
-
-        :param object_dict: Object to be converted in the form of a dictionary
-        :param otype: Type of the object. Can be an AIM resource class or a
-                      APIC class name.
-        :param helper: Mapping help from the (reverse_)resource_map
-        :param source_identity_attributes: ID attributes of the src object
-        :param destination_identity_attributes: ID attributes of the dst object
-        :param to_aim: Boolean indicating whether we are converting
-                       ACI/AIM (True) or AIM/ACI (False)
-        :return: list containing the resulting objects
-        """
-        # translate identity
-        res_dict = {}
-        identity = (helper.get('identity_converter') or
-                    default_identity_converter)(object_dict, otype, helper,
-                                                to_aim=to_aim)
-        for index, part in enumerate(destination_identity_attributes):
-            res_dict[part] = identity[index]
-        for attribute in object_dict:
-            if attribute in source_identity_attributes:
-                continue
-            # Verify if it is an exception
-            if attribute in helper.get('exceptions', {}):
-                # LOG.debug("attribute %s is an exception" % attribute)
-                other = helper['exceptions'][attribute].get(
-                    'other', convert_attribute(attribute, to_aim=to_aim))
-                conv = (helper['exceptions'][attribute].get(
-                    'converter') or default_attribute_converter)
-                converted = conv(object_dict, attribute, to_aim=to_aim)
-            else:
-                # Transform in Other format
-                other = convert_attribute(attribute, to_aim=to_aim)
-                converted = object_dict.get(attribute)
-            # Identity was already converted
-            if other not in destination_identity_attributes:
-                res_dict[other] = converted
-        result = (helper.get('to_resource') or default_to_resource)(
-            res_dict, helper, to_aim=to_aim)
-        return [result] if result else []
+        return utils.default_converter(object_dict, otype, helper,
+                                       source_identity_attributes,
+                                       destination_identity_attributes, to_aim)
 
 
 class AciToAimModelConverter(BaseConverter):
@@ -752,7 +596,8 @@ class AimToAciModelConverter(BaseConverter):
         """
         LOG.debug("converting aim objects %s" % aim_objects)
         result = []
-        for object in aim_objects:
+        in_objects = copy.copy(aim_objects)
+        for object in in_objects:
             try:
                 klass = type(object)
                 if klass not in reverse_resource_map:
@@ -775,7 +620,13 @@ class AimToAciModelConverter(BaseConverter):
                         object.__dict__, klass, helper,
                         klass.identity_attributes,
                         ['dn'], to_aim=False)
-                    result.extend(converted)
+                    for c in converted:
+                        # Some converters generate other AIM objects, pass
+                        # them through their converters to get the ACI objects.
+                        if isinstance(c, resource.ResourceBase):
+                            in_objects.append(c)
+                        else:
+                            result.append(c)
                 # Set name alias back to original
                 if 'name_alias' in object.__dict__:
                     object.__dict__['display_name'] = object.name_alias
@@ -783,7 +634,7 @@ class AimToAciModelConverter(BaseConverter):
             except Exception as e:
                 LOG.warn("Could not convert object"
                          "%s with error %s" % (object.__dict__, e.message))
-                LOG.debug(traceback.format_exc())
+                LOG.error(traceback.format_exc())
 
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %

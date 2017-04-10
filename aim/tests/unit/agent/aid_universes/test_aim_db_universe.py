@@ -18,6 +18,7 @@ import mock
 from aim.agent.aid.universes import aim_universe
 from aim import aim_manager
 from aim.api import resource
+from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
@@ -133,11 +134,50 @@ class TestAimDbUniverseBase(object):
         bd2 = resource.BridgeDomain(
             tenant_name='t2', name='bd1', display_name='somestuff',
             vrf_name='vrf2')
+        dc1 = aim_service_graph.DeviceCluster(
+            tenant_name='t1', name='clus1', devices=[{'name': '1'}])
+        dc1_fault = aim_status.AciFault(
+            fault_code='901',
+            external_identifier='uni/tn-t1/lDevVip-clus1/fault-901',
+            description='failure901')
+        sg1 = aim_service_graph.ServiceGraph(
+            tenant_name='t1', name='gr1',
+            linear_chain_nodes=[{'name': 'N1',
+                                 'device_cluster_name': 'cl1'}])
+        sg1_fault = aim_status.AciFault(
+            fault_code='901',
+            external_identifier='uni/tn-t1/AbsGraph-gr1/fault-901',
+            description='failure901')
+        srp1 = aim_service_graph.ServiceRedirectPolicy(
+            tenant_name='t1', name='srp1',
+            destinations=[{'ip': '1.1.1.1', 'mac': 'aa:bb:cc:dd:ee:ff'}])
+        srp1_fault = aim_status.AciFault(
+            fault_code='901',
+            external_identifier=('uni/tn-t1/svcCont/svcRedirectPol-srp1'
+                                 '/fault-901'),
+            description='failure901')
+        dc_ctx1 = aim_service_graph.DeviceClusterContext(
+            tenant_name='t1', contract_name='contract1',
+            service_graph_name='graph1', node_name='N1',
+            device_cluster_name='cluster1',
+            device_cluster_tenant_name='common',
+            bridge_domain_name='svc_bd',
+            service_redirect_policy_name='srp1')
+        dc_ctx1_fault = aim_status.AciFault(
+            fault_code='901',
+            external_identifier=('uni/tn-t1/ldevCtx-c-contract1-'
+                                 'g-graph1-n-N1/fault-901'),
+            description='failure901')
+
         if tree_type == tree_manager.MONITORED_TREE:
             bd1.monitored = True
             bd2.monitored = True
             t1.monitored = True
             t2.monitored = True
+            dc1.monitored = True
+            sg1.monitored = True
+            srp1.monitored = True
+            dc_ctx1.monitored = True
 
         aim_mgr.create(self.ctx, t1)
         aim_mgr.create(self.ctx, t2)
@@ -153,6 +193,19 @@ class TestAimDbUniverseBase(object):
         aim_mgr.set_resource_sync_synced(self.ctx, bd2)
         aim_mgr.set_resource_sync_synced(self.ctx, bd1)
 
+        aim_mgr.create(self.ctx, dc1)
+        aim_mgr.create(self.ctx, sg1)
+        aim_mgr.create(self.ctx, srp1)
+        aim_mgr.create(self.ctx, dc_ctx1)
+        aim_mgr.set_fault(self.ctx, dc1, dc1_fault)
+        aim_mgr.set_fault(self.ctx, sg1, sg1_fault)
+        aim_mgr.set_fault(self.ctx, srp1, srp1_fault)
+        aim_mgr.set_fault(self.ctx, dc_ctx1, dc_ctx1_fault)
+        aim_mgr.set_resource_sync_synced(self.ctx, dc1)
+        aim_mgr.set_resource_sync_synced(self.ctx, sg1)
+        aim_mgr.set_resource_sync_synced(self.ctx, srp1)
+        aim_mgr.set_resource_sync_synced(self.ctx, dc_ctx1)
+
         # Two trees exist
         trees = tree_mgr.find(self.ctx, tree=tree_type)
         self.assertEqual(2, len(trees))
@@ -165,14 +218,22 @@ class TestAimDbUniverseBase(object):
                                              diff_tn_1.get('remove', []) +
                                              diff_tn_2.get('add', []) +
                                              diff_tn_2.get('remove', []))
-        self.assertEqual(4, len(result))
+        self.assertEqual(8, len(result))
         if tree_type in [tree_manager.CONFIG_TREE,
                          tree_manager.MONITORED_TREE]:
             self.assertTrue(bd1 in result)
             self.assertTrue(bd2 in result)
+            self.assertTrue(dc1 in result)
+            self.assertTrue(sg1 in result)
+            self.assertTrue(srp1 in result)
+            self.assertTrue(dc_ctx1 in result)
         elif tree_type == tree_manager.OPERATIONAL_TREE:
             self.assertTrue(bd1_fault in result)
             self.assertTrue(bd1_fault2 in result)
+            self.assertTrue(dc1_fault in result)
+            self.assertTrue(sg1_fault in result)
+            self.assertTrue(srp1_fault in result)
+            self.assertTrue(dc_ctx1_fault in result)
 
     def test_cleanup_state(self, tree_type=tree_manager.CONFIG_TREE):
         tree_mgr = tree_manager.TenantHashTreeManager()
@@ -277,6 +338,96 @@ class TestAimDbUniverseBase(object):
                                               'delete': [ap_aim]})
                 res = aim_mgr.get(self.ctx, ap_aim)
                 self.assertIsNone(res)
+
+    def test_push_resources_service_graph(self):
+        aim_mgr = aim_manager.AimManager()
+        aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
+
+        def create_delete_object(aim_obj, aci_obj, aci_faults):
+            # create object and faults
+            to_create = [aci_obj]
+            to_create.extend(aci_faults)
+            self.universe.push_resources({'create': to_create,
+                                          'delete': []})
+
+            self.assertIsNotNone(aim_mgr.get(self.ctx, aim_obj))
+            status = aim_mgr.get_status(self.ctx, aim_obj)
+            self.assertEqual(len(aci_faults), len(status.faults))
+            self.assertEqual([f['faultInst']['attributes']['code']
+                              for f in aci_faults],
+                             [f.fault_code for f in status.faults])
+
+            # delete filter faults
+            self.universe.push_resources({'create': [],
+                                          'delete': status.faults})
+            status = aim_mgr.get_status(self.ctx, aim_obj)
+            self.assertEqual(0, len(status.faults))
+
+        # Objects with alt_resource
+        dc1_aci = {'vnsLDevVip':
+                   {'attributes': {'dn': 'uni/tn-t1/lDevVip-cl2'}}}
+        dc1_fault_objs = [
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/lDevVip-cl2/fault-F1110',
+                code='F1110'),
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/lDevVip-cl2/lIf-interface/fault-F1111',
+                code='F1111'),
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/lDevVip-cl2/cDev-n2/cIf-[interface]/fault-F1112',
+                code='F1112')]
+        dc1 = aim_service_graph.DeviceCluster(tenant_name='t1', name='cl2')
+
+        create_delete_object(dc1, dc1_aci, dc1_fault_objs)
+
+        sg1_aci = {'vnsAbsGraph':
+                   {'attributes': {'dn': 'uni/tn-t1/AbsGraph-gr2'}}}
+        sg1_fault_objs = [
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/AbsGraph-gr2/fault-F1110',
+                code='F1110'),
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/AbsGraph-gr2/AbsConnection-C1/fault-F1111',
+                code='F1111'),
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N1/fault-F1112',
+                code='F1112')]
+        sg1 = aim_service_graph.ServiceGraph(tenant_name='t1', name='gr2')
+
+        srp1_aci = {'vnsSvcRedirectPol':
+                    {'attributes':
+                     {'dn': 'uni/tn-t1/svcCont/svcRedirectPol-r2'}}}
+        srp1_fault_objs = [
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/svcCont/svcRedirectPol-r2/fault-F1111',
+                code='F1111'),
+            self._get_example_aci_fault(
+                dn=('uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                    'RedirectDest_ip-[10.6.1.1]/fault-F1112'),
+                code='F1112')]
+        srp1 = aim_service_graph.ServiceRedirectPolicy(tenant_name='t1',
+                                                       name='r2')
+
+        dcc1_aci = {'vnsLDevCtx':
+                    {'attributes':
+                     {'dn': 'uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1'}}}
+        dcc1_fault_objs = [
+            self._get_example_aci_fault(
+                dn='uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/fault-F1111',
+                code='F1111'),
+            self._get_example_aci_fault(
+                dn=('uni/tn-t1/ldevCtx-c-c1-g-g1-n-N1/lIfCtx-c-consumer/'
+                    'fault-F1112'),
+                code='F1112')]
+        dcc1 = aim_service_graph.DeviceClusterContext(tenant_name='t1',
+                                                      contract_name='c1',
+                                                      service_graph_name='g1',
+                                                      node_name='N1')
+
+        create_delete_object(dc1, dc1_aci, dc1_fault_objs)
+        create_delete_object(sg1, sg1_aci, sg1_fault_objs)
+        create_delete_object(srp1, srp1_aci, srp1_fault_objs)
+        create_delete_object(dcc1, dcc1_aci, dcc1_fault_objs)
 
 
 class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):

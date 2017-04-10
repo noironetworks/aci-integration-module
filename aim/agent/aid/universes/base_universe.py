@@ -280,7 +280,8 @@ class HashTreeStoredUniverse(AimUniverse):
                 else:
                     # This universe disagrees on deletion
                     delete_candidates.get(tenant, set()).discard(self)
-        LOG.debug("Universe differences: %s" % result)
+        LOG.debug("Universe differences between %s and %s: %s",
+                  self.name, other_universe.name, result)
         if not result.get(CREATE) and not result.get(DELETE):
             LOG.debug("Universe %s and %s are in sync." %
                       (self.name, other_universe.name))
@@ -357,7 +358,7 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _get_aim_object_identifier(self, aim_object):
         # Identify AIM object unequivocally
-        return (type(aim_object).__name__, ) + tuple(
+        return (type(aim_object).__name__,) + tuple(
             [getattr(aim_object, x) for x in aim_object.identity_attributes])
 
     def _noop(self, *args, **kwargs):
