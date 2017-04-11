@@ -152,7 +152,9 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                         'other': 'limitIpLearnToSubnets',
                         'converter': converter.boolean},
                         'l2_unknown_unicast_mode': {
-                        'other': 'unkMacUcastAct', }},
+                        'other': 'unkMacUcastAct', },
+                        'ip_learning': {'other': 'ipLearning',
+                                        'converter': converter.boolean}, },
          'identity_converter': None,
          'converter': None,
          'skip': ['vrfName', 'l3outNames']},
@@ -165,7 +167,8 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
     sample_input = [base.TestAimDBBase._get_example_aci_bd(),
                     [base.TestAimDBBase._get_example_aci_bd(
                         dn='uni/tn-test-tenant/BD-test-1',
-                        nameAlias='alias'),
+                        nameAlias='alias',
+                        ipLearning='no'),
                      _aci_obj('fvRsCtx',
                               dn='uni/tn-test-tenant/BD-test-1/rsctx',
                               tnFvCtxName='shared'),
@@ -178,6 +181,7 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                               enable_arp_flood=False,
                               enable_routing=True,
                               limit_ip_learn_to_subnets=False,
+                              ip_learning=True,
                               l2_unknown_unicast_mode='proxy',
                               ep_move_detect_mode=''),
         resource.BridgeDomain(tenant_name='test-tenant',
@@ -185,6 +189,7 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                               enable_arp_flood=False,
                               enable_routing=True,
                               limit_ip_learn_to_subnets=False,
+                              ip_learning=False,
                               l2_unknown_unicast_mode='proxy',
                               ep_move_detect_mode='',
                               vrf_name='shared',
@@ -1303,12 +1308,13 @@ class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
                                                            'l1', 'l2']),
                     base.TestAimDBBase._get_example_aim_bd(name='test-1',
                                                            vrf_name='common',
-                                                           display_name='ali')]
+                                                           display_name='ali',
+                                                           ip_learning=False)]
     sample_output = [
         [_aci_obj('fvBD', dn="uni/tn-test-tenant/BD-test",
                   arpFlood='no', epMoveDetectMode="",
                   limitIpLearnToSubnets="no", unicastRoute="yes",
-                  unkMacUcastAct="proxy", nameAlias=""),
+                  ipLearning="yes", unkMacUcastAct="proxy", nameAlias=""),
          _aci_obj('fvRsCtx', dn="uni/tn-test-tenant/BD-test/rsctx",
                   tnFvCtxName='default'),
          _aci_obj('fvRsBDToOut',
@@ -1324,6 +1330,7 @@ class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
                     "dn": "uni/tn-test-tenant/BD-test-1",
                     "epMoveDetectMode": "",
                     "limitIpLearnToSubnets": "no",
+                    "ipLearning": "no",
                     "unicastRoute": "yes",
                     "nameAlias": "ali",
                     "unkMacUcastAct": "proxy"}}}, {
@@ -1339,6 +1346,7 @@ class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
                 "dn": "uni/tn-test-tenant/BD-test",
                 "epMoveDetectMode": "",
                 "limitIpLearnToSubnets": "no",
+                "ipLearning": "yes",
                 "unicastRoute": "yes",
                 "unkMacUcastAct": "proxy",
                 "nameAlias": ""}}}]

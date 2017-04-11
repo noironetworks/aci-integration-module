@@ -229,7 +229,10 @@ resource_map = {
             },
             'unkMacUcastAct': {
                 'other': 'l2_unknown_unicast_mode',
-            }
+            },
+            'ipLearning': {
+                'converter': boolean
+            },
         },
         'identity_converter': None,
         'converter': None,

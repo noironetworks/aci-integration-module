@@ -498,16 +498,19 @@ class TestBridgeDomainMixin(object):
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'net1'}
     test_required_attributes = {'tenant_name': 'tenant1',
-                                'name': 'net1'}
+                                'name': 'net1',
+                                'ip_learning': False}
     test_search_attributes = {'l2_unknown_unicast_mode': 'proxy'}
     test_update_attributes = {'l2_unknown_unicast_mode': 'private',
                               'display_name': 'pretty-net1',
                               'vrf_name': 'default',
+                              'ip_learning': True,
                               'l3out_names': ['l3out1', 'out2']}
     test_default_values = {'vrf_name': '',
                            'enable_arp_flood': True,
                            'enable_routing': True,
                            'limit_ip_learn_to_subnets': False,
+                           'ip_learning': True,
                            'l2_unknown_unicast_mode': 'proxy',
                            'ep_move_detect_mode': 'garp',
                            'l3out_names': []}
