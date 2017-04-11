@@ -84,7 +84,10 @@ class AimManager(object):
                      api_service_graph.ServiceRedirectPolicy,
                      api_service_graph.DeviceClusterContext,
                      api_service_graph.DeviceClusterInterfaceContext,
-                     api_infra.OpflexDevice}
+                     api_infra.OpflexDevice,
+                     api_res.VMMPolicy,
+                     api_res.Pod}
+
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}
 
@@ -133,7 +136,7 @@ class AimManager(object):
             # TODO(ivar): workaround for newly created monitored Tenant that
             # will always stay in pending state.
             if not old_db_obj and isinstance(
-                    resource, api_res.Tenant) and getattr(
+                    resource, api_res.AciRoot) and getattr(
                     resource, 'monitored', None):
                 self.set_resource_sync_synced(context, resource)
             elif isinstance(resource, api_res.AciResourceBase):

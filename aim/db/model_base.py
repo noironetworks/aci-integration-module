@@ -19,6 +19,17 @@ from sqlalchemy.ext import declarative
 from aim.common import utils
 
 
+def to_tuple(obj):
+    return obj if isinstance(obj, tuple) else (obj,)
+
+
+def uniq_column(table, *args, **kwargs):
+    name = kwargs.pop('name', None)
+    return (sa.UniqueConstraint(
+        *args, name=('uniq_' + (name or ('%s_identity' % table)))),
+        sa.Index('idx_' + (name or ('%s_identity' % table)), *args))
+
+
 def name_column(**kwargs):
     return sa.Column(sa.String(64), **kwargs)
 

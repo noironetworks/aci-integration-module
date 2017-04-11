@@ -38,15 +38,6 @@ def upgrade():
                             server_default=''))
 
     op.create_table(
-        'aim_device_cluster_devices',
-        sa.Column('dc_aim_id', sa.Integer, nullable=False),
-        sa.Column('name', sa.String(64), nullable=False),
-        sa.Column('path', sa.String(512)),
-        sa.PrimaryKeyConstraint('dc_aim_id', 'name'),
-        sa.ForeignKeyConstraint(
-            ['dc_aim_id'], ['aim_device_clusters.aim_id']))
-
-    op.create_table(
         'aim_device_clusters',
         sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('name', sa.String(64), nullable=False),
@@ -69,12 +60,13 @@ def upgrade():
             ['tenant_name'], ['aim_tenants.name'], name='fk_ldc_tn'))
 
     op.create_table(
-        'aim_device_cluster_if_concrete_ifs',
-        sa.Column('dci_aim_id', sa.Integer, nullable=False),
-        sa.Column('interface', sa.String(64), nullable=False),
-        sa.PrimaryKeyConstraint('dci_aim_id', 'interface'),
+        'aim_device_cluster_devices',
+        sa.Column('dc_aim_id', sa.Integer, nullable=False),
+        sa.Column('name', sa.String(64), nullable=False),
+        sa.Column('path', sa.String(512)),
+        sa.PrimaryKeyConstraint('dc_aim_id', 'name'),
         sa.ForeignKeyConstraint(
-            ['dci_aim_id'], ['aim_device_cluster_ifs.aim_id']))
+            ['dc_aim_id'], ['aim_device_clusters.aim_id']))
 
     op.create_table(
         'aim_device_cluster_ifs',
@@ -94,6 +86,14 @@ def upgrade():
             ['tenant_name', 'device_cluster_name'],
             ['aim_device_clusters.tenant_name', 'aim_device_clusters.name'],
             name='fk_dci_dc'))
+
+    op.create_table(
+        'aim_device_cluster_if_concrete_ifs',
+        sa.Column('dci_aim_id', sa.Integer, nullable=False),
+        sa.Column('interface', sa.String(64), nullable=False),
+        sa.PrimaryKeyConstraint('dci_aim_id', 'interface'),
+        sa.ForeignKeyConstraint(
+            ['dci_aim_id'], ['aim_device_cluster_ifs.aim_id']))
 
     op.create_table(
         'aim_concrete_devices',
@@ -137,12 +137,18 @@ def upgrade():
             name='fk_conc_dev_if_conc_dev'))
 
     op.create_table(
-        'aim_service_graph_connection_conns',
-        sa.Column('sgc_aim_id', sa.Integer, nullable=False),
-        sa.Column('connector', VARCHAR(512, charset='latin1'), nullable=False),
-        sa.PrimaryKeyConstraint('sgc_aim_id', 'connector'),
+        'aim_service_graphs',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
+        sa.Column('name', sa.String(64), nullable=False),
+        sa.Column('tenant_name', sa.String(64), nullable=False),
+        sa.Column('display_name', sa.String(256), nullable=False, default=''),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('tenant_name', 'name',
+                            name='uniq_service_graph_identity'),
+        sa.Index('idx_service_graph_identity', 'tenant_name', 'name'),
         sa.ForeignKeyConstraint(
-            ['sgc_aim_id'], ['aim_service_graph_connections.aim_id']))
+            ['tenant_name'], ['aim_tenants.name'], name='fk_svcgr_tn'))
 
     op.create_table(
         'aim_service_graph_connections',
@@ -168,12 +174,12 @@ def upgrade():
             name='fk_sgc_sg'))
 
     op.create_table(
-        'aim_service_graph_node_conns',
-        sa.Column('sgn_aim_id', sa.Integer, nullable=False),
+        'aim_service_graph_connection_conns',
+        sa.Column('sgc_aim_id', sa.Integer, nullable=False),
         sa.Column('connector', VARCHAR(512, charset='latin1'), nullable=False),
-        sa.PrimaryKeyConstraint('sgn_aim_id', 'connector'),
+        sa.PrimaryKeyConstraint('sgc_aim_id', 'connector'),
         sa.ForeignKeyConstraint(
-            ['sgn_aim_id'], ['aim_service_graph_nodes.aim_id']))
+            ['sgc_aim_id'], ['aim_service_graph_connections.aim_id']))
 
     op.create_table(
         'aim_service_graph_nodes',
@@ -199,6 +205,14 @@ def upgrade():
             name='fk_sgn_sg'))
 
     op.create_table(
+        'aim_service_graph_node_conns',
+        sa.Column('sgn_aim_id', sa.Integer, nullable=False),
+        sa.Column('connector', VARCHAR(512, charset='latin1'), nullable=False),
+        sa.PrimaryKeyConstraint('sgn_aim_id', 'connector'),
+        sa.ForeignKeyConstraint(
+            ['sgn_aim_id'], ['aim_service_graph_nodes.aim_id']))
+
+    op.create_table(
         'aim_service_graph_linear_chain_nodes',
         sa.Column('sg_aim_id', sa.Integer, nullable=False),
         sa.Column('name', sa.String(64), nullable=False),
@@ -207,29 +221,6 @@ def upgrade():
         sa.PrimaryKeyConstraint('sg_aim_id', 'name'),
         sa.ForeignKeyConstraint(
             ['sg_aim_id'], ['aim_service_graphs.aim_id']))
-
-    op.create_table(
-        'aim_service_graphs',
-        sa.Column('aim_id', sa.Integer, autoincrement=True),
-        sa.Column('name', sa.String(64), nullable=False),
-        sa.Column('tenant_name', sa.String(64), nullable=False),
-        sa.Column('display_name', sa.String(256), nullable=False, default=''),
-        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
-        sa.PrimaryKeyConstraint('aim_id'),
-        sa.UniqueConstraint('tenant_name', 'name',
-                            name='uniq_service_graph_identity'),
-        sa.Index('idx_service_graph_identity', 'tenant_name', 'name'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name'], ['aim_tenants.name'], name='fk_svcgr_tn'))
-
-    op.create_table(
-        'aim_service_redirect_policy_destinations',
-        sa.Column('srp_aim_id', sa.Integer, nullable=False),
-        sa.Column('ip', sa.String(64), nullable=False),
-        sa.Column('mac', sa.String(24)),
-        sa.PrimaryKeyConstraint('srp_aim_id', 'ip'),
-        sa.ForeignKeyConstraint(
-            ['srp_aim_id'], ['aim_service_redirect_policies.aim_id']))
 
     op.create_table(
         'aim_service_redirect_policies',
@@ -244,6 +235,15 @@ def upgrade():
         sa.Index('idx_srp_identity', 'tenant_name', 'name'),
         sa.ForeignKeyConstraint(
             ['tenant_name'], ['aim_tenants.name'], name='fk_srp_tn'))
+
+    op.create_table(
+        'aim_service_redirect_policy_destinations',
+        sa.Column('srp_aim_id', sa.Integer, nullable=False),
+        sa.Column('ip', sa.String(64), nullable=False),
+        sa.Column('mac', sa.String(24)),
+        sa.PrimaryKeyConstraint('srp_aim_id', 'ip'),
+        sa.ForeignKeyConstraint(
+            ['srp_aim_id'], ['aim_service_redirect_policies.aim_id']))
 
     op.create_table(
         'aim_device_cluster_contexts',

@@ -18,7 +18,6 @@ from sqlalchemy.dialects.mysql import VARCHAR
 from sqlalchemy import orm
 
 from aim.db import model_base
-from aim.db import models
 
 
 class DeviceClusterDevice(model_base.Base):
@@ -41,11 +40,11 @@ class DeviceCluster(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_device_clusters'
     __table_args__ = (
-        models.uniq_column(__tablename__, 'tenant_name', 'name') +
+        model_base.uniq_column(__tablename__, 'tenant_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name'], ['aim_tenants.name'],
             name='fk_ldc_tn'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     device_type = sa.Column(sa.Enum("PHYSICAL", "VIRTUAL"))
     service_type = sa.Column(sa.Enum("ADC", "FW", "OTHERS", "IDSIPS", "COPY"))
@@ -98,13 +97,13 @@ class DeviceClusterInterface(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_device_cluster_ifs'
     __table_args__ = (
-        models.uniq_column(__tablename__,
-                           'tenant_name', 'device_cluster_name', 'name') +
+        model_base.uniq_column(__tablename__,
+                               'tenant_name', 'device_cluster_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name', 'device_cluster_name'],
             ['aim_device_clusters.tenant_name', 'aim_device_clusters.name'],
             name='fk_dci_dc'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     device_cluster_name = model_base.name_column(nullable=False)
     encap = sa.Column(sa.String(24))
@@ -139,13 +138,13 @@ class ConcreteDevice(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_concrete_devices'
     __table_args__ = (
-        models.uniq_column(__tablename__,
-                           'tenant_name', 'device_cluster_name', 'name') +
+        model_base.uniq_column(__tablename__,
+                               'tenant_name', 'device_cluster_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name', 'device_cluster_name'],
             ['aim_device_clusters.tenant_name', 'aim_device_clusters.name'],
             name='fk_conc_dev_dc'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     device_cluster_name = model_base.name_column(nullable=False)
 
@@ -159,16 +158,16 @@ class ConcreteDeviceInterface(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_concrete_device_ifs'
     __table_args__ = (
-        models.uniq_column(__tablename__,
-                           'tenant_name', 'device_cluster_name',
-                           'device_name', 'name') +
+        model_base.uniq_column(__tablename__,
+                               'tenant_name', 'device_cluster_name',
+                               'device_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name', 'device_cluster_name', 'device_name'],
             ['aim_concrete_devices.tenant_name',
              'aim_concrete_devices.device_cluster_name',
              'aim_concrete_devices.name'],
             name='fk_conc_dev_if_conc_dev'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     device_cluster_name = model_base.name_column(nullable=False)
     device_name = model_base.name_column(nullable=False)
@@ -198,13 +197,13 @@ class ServiceGraphConnection(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_service_graph_connections'
     __table_args__ = (
-        models.uniq_column(__tablename__,
-                           'tenant_name', 'service_graph_name', 'name') +
+        model_base.uniq_column(__tablename__,
+                               'tenant_name', 'service_graph_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name', 'service_graph_name'],
             ['aim_service_graphs.tenant_name', 'aim_service_graphs.name'],
             name='fk_sgc_sg'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     service_graph_name = model_base.name_column(nullable=False)
     adjacency_type = sa.Column(sa.Enum('L2', 'L3'))
@@ -257,13 +256,13 @@ class ServiceGraphNode(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_service_graph_nodes'
     __table_args__ = (
-        models.uniq_column(__tablename__,
-                           'tenant_name', 'service_graph_name', 'name') +
+        model_base.uniq_column(__tablename__,
+                               'tenant_name', 'service_graph_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name', 'service_graph_name'],
             ['aim_service_graphs.tenant_name', 'aim_service_graphs.name'],
             name='fk_sgn_sg'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     service_graph_name = model_base.name_column(nullable=False)
     function_type = sa.Column(sa.Enum('GoTo', 'GoThrough'))
@@ -314,11 +313,11 @@ class ServiceGraph(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_service_graphs'
     __table_args__ = (
-        models.uniq_column(__tablename__, 'tenant_name', 'name') +
+        model_base.uniq_column(__tablename__, 'tenant_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name'], ['aim_tenants.name'],
             name='fk_svcgr_tn'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     linear_chain = orm.relationship(ServiceGraphLinearChainNode,
                                     backref='service_graph',
@@ -375,11 +374,11 @@ class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_service_redirect_policies'
     __table_args__ = (
-        models.uniq_column(__tablename__, 'tenant_name', 'name') +
+        model_base.uniq_column(__tablename__, 'tenant_name', 'name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name'], ['aim_tenants.name'],
             name='fk_srp_tn'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     dest = orm.relationship(ServiceRedirectPolicyDestination,
                             backref='redirect_policy',
@@ -418,13 +417,13 @@ class DeviceClusterContext(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_device_cluster_contexts'
     __table_args__ = (
-        models.uniq_column(__tablename__, 'tenant_name',
-                           'contract_name', 'service_graph_name',
-                           'node_name') +
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'contract_name', 'service_graph_name',
+                               'node_name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name'], ['aim_tenants.name'],
             name='fk_dcctx_tn'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     contract_name = model_base.name_column(nullable=False)
     service_graph_name = model_base.name_column(nullable=False)
@@ -447,9 +446,9 @@ class DeviceClusterInterfaceContext(model_base.Base, model_base.HasAimId,
 
     __tablename__ = 'aim_device_cluster_if_contexts'
     __table_args__ = (
-        models.uniq_column(__tablename__, 'tenant_name',
-                           'contract_name', 'service_graph_name',
-                           'node_name', 'connector_name') +
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'contract_name', 'service_graph_name',
+                               'node_name', 'connector_name') +
         (sa.ForeignKeyConstraint(
             ['tenant_name', 'contract_name', 'service_graph_name',
              'node_name'],
@@ -458,7 +457,7 @@ class DeviceClusterInterfaceContext(model_base.Base, model_base.HasAimId,
              'aim_device_cluster_contexts.service_graph_name',
              'aim_device_cluster_contexts.node_name'],
             name='fk_dc_if_ctx_dcctx'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     contract_name = model_base.name_column(nullable=False)
     service_graph_name = model_base.name_column(nullable=False)

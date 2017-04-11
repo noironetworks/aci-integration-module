@@ -34,35 +34,35 @@ from apicapi import apic_client
 LOG = logging.getLogger(__name__)
 
 
-TENANT_TREE = tree_res.TenantTree
-CONFIG_TREE = tree_res.ConfigTenantTree
-OPERATIONAL_TREE = tree_res.OperationalTenantTree
-MONITORED_TREE = tree_res.MonitoredTenantTree
+ROOT_TREE = tree_res.Tree
+CONFIG_TREE = tree_res.ConfigTree
+OPERATIONAL_TREE = tree_res.OperationalTree
+MONITORED_TREE = tree_res.MonitoredTree
 SUPPORTED_TREES = [CONFIG_TREE, OPERATIONAL_TREE, MONITORED_TREE]
 
 
-class TenantTreeManager(object):
+class TreeManager(object):
 
-    def __init__(self, tree_klass, tenant_rn_funct=None,
-                 tenant_key_funct=None):
+    def __init__(self, tree_klass, root_rn_funct=None,
+                 root_key_funct=None):
         self.tree_klass = tree_klass
-        self.tenant_rn_funct = (tenant_rn_funct or
-                                self._default_tenant_rn_funct)
-        self.tenant_key_funct = (tenant_key_funct or
-                                 self._default_tenant_key_funct)
+        self.root_rn_funct = (root_rn_funct or
+                              self._default_root_rn_funct)
+        self.root_key_funct = (root_key_funct or
+                               self._default_root_key_funct)
         self._after_commit_listeners = []
         self.register_update_listener(
             rpc.AIDEventRpcApi().tree_creation_postcommit)
 
     @utils.log
     def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
-        trees = {self.tenant_rn_funct(x): x for x in hash_trees}
+        trees = {self.root_rn_funct(x): x for x in hash_trees}
         self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
             db_objs = self._find_query(context, tree, lock_update=True,
-                                       in_={'tenant_rn': trees.keys()})
+                                       in_={'root_rn': trees.keys()})
             for obj in db_objs:
-                hash_tree = trees.pop(obj.tenant_rn)
+                hash_tree = trees.pop(obj.root_rn)
                 obj.root_full_hash = hash_tree.root_full_hash
                 obj.tree = str(hash_tree)
                 context.store.add(obj)
@@ -71,19 +71,19 @@ class TenantTreeManager(object):
                 # Tree creation
                 empty_tree = structured_tree.StructuredHashTree()
                 # Create base tree
-                tenant_rn = self.tenant_rn_funct(hash_tree)
-                self._create_if_not_exist(context, TENANT_TREE, tenant_rn)
+                root_rn = self.root_rn_funct(hash_tree)
+                self._create_if_not_exist(context, ROOT_TREE, root_rn)
                 for tree_klass in SUPPORTED_TREES:
                     if tree_klass == tree:
                         # Then put the updated tree in it
                         self._create_if_not_exist(
-                            context, tree_klass, tenant_rn,
+                            context, tree_klass, root_rn,
                             tree=str(hash_tree),
                             root_full_hash=hash_tree.root_full_hash or 'none')
                     else:
                         # Attempt to create an empty tree:
                         self._create_if_not_exist(
-                            context, tree_klass, tenant_rn,
+                            context, tree_klass, root_rn,
                             tree=str(empty_tree),
                             root_full_hash=empty_tree.root_full_hash or 'none')
 
@@ -91,10 +91,10 @@ class TenantTreeManager(object):
     def delete_bulk(self, context, hash_trees):
         self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
-            tenant_rns = [self.tenant_rn_funct(x) for x in hash_trees]
-            for type in SUPPORTED_TREES + [TENANT_TREE]:
+            root_rns = [self.root_rn_funct(x) for x in hash_trees]
+            for type in SUPPORTED_TREES + [ROOT_TREE]:
                 db_objs = self._find_query(context, type, lock_update=True,
-                                           in_={'tenant_rn': tenant_rns})
+                                           in_={'root_rn': root_rns})
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
 
@@ -102,7 +102,7 @@ class TenantTreeManager(object):
     def delete_all(self, context):
         self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
-            for type in SUPPORTED_TREES + [TENANT_TREE]:
+            for type in SUPPORTED_TREES + [ROOT_TREE]:
                 db_objs = self._find_query(context, type, lock_update=True)
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
@@ -116,49 +116,49 @@ class TenantTreeManager(object):
         return self.delete_bulk(context, [hash_tree])
 
     @utils.log
-    def delete_by_tenant_rn(self, context, tenant_rn):
+    def delete_by_root_rn(self, context, root_rn):
         with context.store.begin(subtransactions=True):
-            self._delete_if_exist(context, TENANT_TREE, tenant_rn)
+            self._delete_if_exist(context, ROOT_TREE, root_rn)
             for type in SUPPORTED_TREES:
-                self._delete_if_exist(context, type, tenant_rn)
+                self._delete_if_exist(context, type, root_rn)
 
     @utils.log
     def find(self, context, tree=CONFIG_TREE, **kwargs):
         result = self._find_query(context, tree, in_=kwargs)
         return [self.tree_klass.from_string(
-            str(x.tree), self.tenant_key_funct(x.tenant_rn)) for x in result]
+            str(x.tree), self.root_key_funct(x.root_rn)) for x in result]
 
     @utils.log
-    def get(self, context, tenant_rn, lock_update=False, tree=CONFIG_TREE):
+    def get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
         try:
             return self.tree_klass.from_string(str(
                 self._find_query(context, tree, lock_update=lock_update,
-                                 tenant_rn=tenant_rn)[0].tree),
-                self.tenant_key_funct(tenant_rn))
+                                 root_rn=root_rn)[0].tree),
+                self.root_key_funct(root_rn))
         except IndexError:
-            raise exc.HashTreeNotFound(tenant_rn=tenant_rn)
+            raise exc.HashTreeNotFound(root_rn=root_rn)
 
     @utils.log
-    def find_changed(self, context, tenant_map, tree=CONFIG_TREE):
-        if not tenant_map:
+    def find_changed(self, context, root_map, tree=CONFIG_TREE):
+        if not root_map:
             return {}
-        return dict((x.tenant_rn,
+        return dict((x.root_rn,
                      self.tree_klass.from_string(
-                         str(x.tree), self.tenant_key_funct(x.tenant_rn)))
+                         str(x.tree), self.root_key_funct(x.root_rn)))
                     for x in self._find_query(
-                        context, tree, in_={'tenant_rn': tenant_map.keys()},
-                        notin_={'root_full_hash': tenant_map.values()}))
+                        context, tree, in_={'root_rn': root_map.keys()},
+                        notin_={'root_full_hash': root_map.values()}))
 
     @utils.log
-    def get_tenants(self, context):
-        return [x.tenant_rn for x in self._find_query(context, TENANT_TREE)]
+    def get_roots(self, context):
+        return [x.root_rn for x in self._find_query(context, ROOT_TREE)]
 
     def register_update_listener(self, func):
         """Register callback for update to AIM tree objects.
 
         Parameter 'func' should be a function that accepts 4 parameters.
         The first parameter is SQLAlchemy ORM session in which AIM objects
-        are being updated. Rest of the parameters are lists of AIM tenant rns
+        are being updated. Rest of the parameters are lists of AIM root rns
         that were added, updated and deleted respectively.
         The callback will be invoked before the database transaction
         that updated the AIM object commits.
@@ -168,7 +168,7 @@ class TenantTreeManager(object):
         def my_listener(session, added, updated, deleted):
             "Iterate over 'added', 'updated', 'deleted'
 
-        a_mgr = TenantTreeManager()
+        a_mgr = TreeManager()
         a_mgr.register_update_listener(my_listener)
 
         """
@@ -178,17 +178,17 @@ class TenantTreeManager(object):
         """Remove callback for update to AIM objects."""
         self._after_commit_listeners.remove(func)
 
-    def _delete_if_exist(self, context, tree_type, tenant_rn):
+    def _delete_if_exist(self, context, tree_type, root_rn):
         with context.store.begin(subtransactions=True):
-            obj = self._find_query(context, tree_type, tenant_rn=tenant_rn)
+            obj = self._find_query(context, tree_type, root_rn=root_rn)
             if obj:
                 context.store.delete(obj[0])
 
-    def _create_if_not_exist(self, context, tree_type, tenant_rn, **kwargs):
+    def _create_if_not_exist(self, context, tree_type, root_rn, **kwargs):
         with context.store.begin(subtransactions=True):
-            obj = self._find_query(context, tree_type, tenant_rn=tenant_rn)
+            obj = self._find_query(context, tree_type, root_rn=root_rn)
             if not obj:
-                resource = tree_type(tenant_rn=tenant_rn, **kwargs)
+                resource = tree_type(root_rn=root_rn, **kwargs)
                 db_obj = context.store.make_db_obj(resource)
                 context.store.add(db_obj)
 
@@ -198,10 +198,10 @@ class TenantTreeManager(object):
         return context.store.query(db_type, tree_type, in_=in_, notin_=notin_,
                                    lock_update=lock_update, **kwargs)
 
-    def _default_tenant_rn_funct(self, tree):
+    def _default_root_rn_funct(self, tree):
         return tree.root_key[0]
 
-    def _default_tenant_key_funct(self, rn):
+    def _default_root_key_funct(self, rn):
         return rn,
 
     def _add_commit_hook(self, context):
@@ -222,11 +222,11 @@ class TenantTreeManager(object):
         # Stash tree modifications
         LOG.debug("Invoking after session flush on tree manager for session "
                   "%s" % session)
-        added = set([x.tenant_rn for x in session.new
+        added = set([x.root_rn for x in session.new
                      if isinstance(x, tree_model.TypeTreeBase)])
-        updated = set([x.tenant_rn for x in session.dirty
+        updated = set([x.root_rn for x in session.dirty
                        if isinstance(x, tree_model.TypeTreeBase)])
-        deleted = set([x.tenant_rn for x in session.deleted
+        deleted = set([x.root_rn for x in session.deleted
                        if isinstance(x, tree_model.TypeTreeBase)])
         try:
             session._aim_stash
@@ -298,18 +298,29 @@ class AimHashTreeMaker(object):
     @staticmethod
     def _build_hash_tree_key(resource):
         dn = AimHashTreeMaker._extract_dn(resource)
+        return AimHashTreeMaker._build_hash_tree_key_from_dn(
+            dn, getattr(resource, '_aci_mo_name', None))
+
+    @staticmethod
+    def _build_hash_tree_key_from_dn(dn, mo_name):
         if dn:
             try:
-                return AimHashTreeMaker._dn_to_key(resource._aci_mo_name, dn)
+                return AimHashTreeMaker._dn_to_key(mo_name, dn)
             except Exception as e:
-                LOG.warning("Failed to get DN for resource %s: %s",
-                            resource, e)
+                LOG.warning("Failed to get Key from dn %s: %s", dn, e)
 
     @staticmethod
     def _dn_to_key(mo_type, dn):
         try:
             type_and_dn = apic_client.DNManager().aci_decompose_with_type(
                 dn, mo_type)
+            if type_and_dn:
+                try:
+                    if apic_client.DNManager().get_rn_base(
+                            type_and_dn[0][1]) == type_and_dn[0][1]:
+                        type_and_dn = type_and_dn[1:]
+                except KeyError:
+                    pass
             return tuple(['|'.join(x) for x in type_and_dn])
         except (apic_client.DNManager.InvalidNameFormat,
                 apic_client.cexc.ApicManagedObjectNotSupported):
@@ -317,8 +328,9 @@ class AimHashTreeMaker(object):
             return
 
     @staticmethod
-    def _extract_tenant_name(root_key):
-        return root_key[0][root_key[0].find('|') + 1:]
+    def _extract_root_rn(root_key):
+        root_split = root_key[0].split('|')
+        return apic_client.ManagedObjectClass(root_split[0]).rn(root_split[1])
 
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
@@ -351,7 +363,7 @@ class AimHashTreeMaker(object):
         """Add/update AIM resource to tree.
 
         :param tree: ComparableCollection instance
-        :param updates: list of resources *of a single tenant* that should be
+        :param updates: list of resources *of a single root* that should be
                         added/updated
         :return: The updated tree (value is also changed)
         """
@@ -366,7 +378,7 @@ class AimHashTreeMaker(object):
         """Delete AIM resources from tree.
 
         :param tree: ComparableCollection instance
-        :param deletes: list of resources *of a single tenant* that should be
+        :param deletes: list of resources *of a single root* that should be
                         deleted
         :return: The updated tree (value is also changed)
         """
@@ -393,37 +405,39 @@ class AimHashTreeMaker(object):
                     tree.clear(key)
         return tree
 
-    def get_tenant_key(self, resource):
+    def get_root_key(self, resource):
         key = self._build_hash_tree_key(resource)
-        return self._extract_tenant_name(key) if key else None
+        return self._extract_root_rn(key) if key else None
 
     @staticmethod
-    def tenant_rn_funct(tree):
+    def root_rn_funct(tree):
         """RN funct for Tree Maker
 
         Utility function for TreeManager initialization
         :param tree:
         :return:
         """
-        return AimHashTreeMaker._extract_tenant_name(tree.root_key)
+        return AimHashTreeMaker._extract_root_rn(tree.root_key)
 
     @staticmethod
-    def tenant_key_funct(key):
+    def root_key_funct(key):
         """Key funct for Tree Maker
 
         Utility function for TreeManager initialization
         :param tree:
         :return:
         """
-        return AimHashTreeMaker._build_hash_tree_key(api_res.Tenant(name=key))
+        return AimHashTreeMaker._build_hash_tree_key_from_dn(
+            apic_client.DNManager().get_rn_base(key) + '/' + key,
+            apic_client.ManagedObjectClass.prefix_to_mos[key.split('-')[0]])
 
 
-class TenantHashTreeManager(TenantTreeManager):
+class HashTreeManager(TreeManager):
     def __init__(self):
-        super(TenantHashTreeManager, self).__init__(
+        super(HashTreeManager, self).__init__(
             structured_tree.StructuredHashTree,
-            AimHashTreeMaker.tenant_rn_funct,
-            AimHashTreeMaker.tenant_key_funct)
+            AimHashTreeMaker.root_rn_funct,
+            AimHashTreeMaker.root_key_funct)
 
 
 class HashTreeBuilder(object):
@@ -440,13 +454,13 @@ class HashTreeBuilder(object):
 
         :param updated: list of AIM objects
         :param deleted: list of AIM objects
-        :param tree_map: map of trees by type and tenant
-        eg: {'config': {'tn1': <tenant hashtree>}}
+        :param tree_map: map of trees by type and root
+        eg: {'config': {'tn1': <root hashtree>}}
         :return: tree updates
         """
 
-        # Segregate updates by tenant
-        updates_by_tenant = {}
+        # Segregate updates by root
+        updates_by_root = {}
         all_updates = [added, updated, deleted]
         conf = CONFIG_TREE
         monitor = MONITORED_TREE
@@ -480,25 +494,25 @@ class HashTreeBuilder(object):
                     else:
                         if parent:
                             # Delete parent on operational tree
-                            parent_key = self.tt_maker.get_tenant_key(parent)
-                            updates_by_tenant.setdefault(
+                            parent_key = self.tt_maker.get_root_key(parent)
+                            updates_by_root.setdefault(
                                 parent_key, {conf: ([], []), monitor: ([], []),
                                              oper: ([], [])})
-                            updates_by_tenant[
+                            updates_by_root[
                                 parent_key][oper][tree_index].append(parent)
-                key = self.tt_maker.get_tenant_key(res)
+                key = self.tt_maker.get_root_key(res)
                 if not key:
                     continue
-                updates_by_tenant.setdefault(
+                updates_by_root.setdefault(
                     key, {conf: ([], []), monitor: ([], []), oper: ([], [])})
                 if isinstance(res, aim_status.AciFault):
                     # Operational Tree
-                    updates_by_tenant[key][oper][tree_index].append(res)
+                    updates_by_root[key][oper][tree_index].append(res)
                 else:
                     if getattr(res, 'monitored', None):
                         # Monitored Tree
                         res_copy = copy.deepcopy(res)
-                        updates_by_tenant[key][monitor][tree_index].append(
+                        updates_by_root[key][monitor][tree_index].append(
                             res_copy)
                         # Don't modify the original resource in a visible
                         # way
@@ -507,13 +521,17 @@ class HashTreeBuilder(object):
                         res.pre_existing = True
                         res.monitored = False
                     # Configuration Tree
-                    updates_by_tenant[key][conf][tree_index].append(res)
+                    updates_by_root[key][conf][tree_index].append(res)
 
         upd_trees, udp_op_trees, udp_mon_trees = [], [], []
-        for tenant, upd in updates_by_tenant.iteritems():
-            ttree = tree_map[self.CONFIG][tenant]
-            ttree_operational = tree_map[self.OPER][tenant]
-            ttree_monitor = tree_map[self.MONITOR][tenant]
+        for root, upd in updates_by_root.iteritems():
+            try:
+                ttree = tree_map[self.CONFIG][root]
+                ttree_operational = tree_map[self.OPER][root]
+                ttree_monitor = tree_map[self.MONITOR][root]
+            except KeyError:
+                # Some objects do not belong to the specified roots
+                continue
             # Update Configuration Tree
             self.tt_maker.update(ttree, upd[conf][0])
             self.tt_maker.delete(ttree, upd[conf][1])

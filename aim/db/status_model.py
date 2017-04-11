@@ -19,7 +19,6 @@ from sqlalchemy import orm
 from sqlalchemy.sql.expression import func
 
 from aim.db import model_base
-from aim.db import models
 
 
 LOG = logging.getLogger(__name__)
@@ -28,7 +27,7 @@ LOG = logging.getLogger(__name__)
 class Fault(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_faults'
     __table_args__ = ((sa.Index('idx_aim_faults_status_id', 'status_id'), ) +
-                      models.to_tuple(model_base.Base.__table_args__))
+                      model_base.to_tuple(model_base.Base.__table_args__))
     status_id = sa.Column(sa.String(255), sa.ForeignKey('aim_statuses.id',
                                                         ondelete='CASCADE'),
                           nullable=False)
@@ -48,9 +47,9 @@ class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     """Represents agents running in aim deployments."""
 
     __tablename__ = 'aim_statuses'
-    __table_args__ = (models.uniq_column(__tablename__, 'resource_type',
-                                         'resource_id') +
-                      models.to_tuple(model_base.Base.__table_args__))
+    __table_args__ = (model_base.uniq_column(__tablename__, 'resource_type',
+                                             'resource_id') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
 
     resource_type = sa.Column(sa.String(255), nullable=False)
     resource_id = sa.Column(sa.Integer, nullable=False)

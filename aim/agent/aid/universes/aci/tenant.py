@@ -40,28 +40,57 @@ STATUS_FIELD = 'status'
 SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
 CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
-CHILDREN_MOS = None
+# TODO(ivar): get right children from APICAPI client
+TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev']
+CHILDREN_MOS_UNI = None
+CHILDREN_MOS_TOPOLOGY = None
 
 
-def get_children_mos(apic_session):
-    global CHILDREN_MOS
-    if CHILDREN_MOS is None:
-        CHILDREN_MOS = set()
-        for mo in CHILDREN_LIST:
-            if mo in apic_client.ManagedObjectClass.supported_mos:
-                mo_name = apic_client.ManagedObjectClass(mo).klass_name
-            else:
-                mo_name = mo
-            try:
-                # Verify class support
-                apic_session.GET('/api/mo/uni/tn-common.json?'
-                                 'target-subtree-class=%s' % mo_name)
-            except apic_exc.ApicResponseNotOk as e:
-                if int(e.err_status) == 400 and int(e.err_code) == 12:
-                    continue
-                raise e
-            CHILDREN_MOS.add(mo_name)
-    return CHILDREN_MOS
+def get_children_mos(apic_session, root):
+    root_type = 'uni'
+    try:
+        root_type = apic_client.DNManager().get_rn_base(root)
+    except KeyError:
+        pass
+    global CHILDREN_MOS_UNI
+    global CHILDREN_MOS_TOPOLOGY
+    if root_type in ['uni']:
+        if CHILDREN_MOS_UNI is None:
+            CHILDREN_MOS_UNI = set()
+            for mo in CHILDREN_LIST:
+                if mo in apic_client.ManagedObjectClass.supported_mos:
+                    mo_name = apic_client.ManagedObjectClass(mo).klass_name
+                else:
+                    mo_name = mo
+                try:
+                    # Verify class support
+                    apic_session.GET('/api/mo/uni/tn-common.json?'
+                                     'target-subtree-class=%s' % mo_name)
+                except apic_exc.ApicResponseNotOk as e:
+                    if int(e.err_status) == 400 and int(e.err_code) == 12:
+                        continue
+                    raise e
+                CHILDREN_MOS_UNI.add(mo_name)
+        return CHILDREN_MOS_UNI
+    elif root_type in ['topology']:
+        if CHILDREN_MOS_TOPOLOGY is None:
+            CHILDREN_MOS_TOPOLOGY = set()
+            for mo in TOPOLOGY_CHILDREN_LIST:
+                if mo in apic_client.ManagedObjectClass.supported_mos:
+                    mo_name = apic_client.ManagedObjectClass(mo).klass_name
+                else:
+                    mo_name = mo
+                try:
+                    pass
+                    # TODO(ivar): Verify class support
+                    # apic_session.GET('/api/node/class/%s.json?' % mo_name)
+                except apic_exc.ApicResponseNotOk as e:
+                    if int(e.err_status) == 400 and int(e.err_code) == 12:
+                        continue
+                    raise e
+                CHILDREN_MOS_TOPOLOGY.add(mo_name)
+        return CHILDREN_MOS_TOPOLOGY
+
 
 OPERATIONAL_LIST = [FAULT_KEY]
 TENANT_FAILURE_MAX_WAIT = 60
@@ -74,24 +103,38 @@ for typ in converter.resource_map:
                     typ, []).append(resource['resource']._aci_mo_name)
 
 
-class Tenant(acitoolkit.Tenant):
+class Root(acitoolkit.BaseACIObject):
 
     def __init__(self, *args, **kwargs):
         self.filtered_children = kwargs.pop('filtered_children', [])
-        super(Tenant, self).__init__(*args, **kwargs)
+        rn = kwargs.pop('rn')
+        super(Root, self).__init__(*args, **kwargs)
+        try:
+            self.dn = apic_client.DNManager().get_rn_base(rn) + '/' + rn
+        except KeyError:
+            self.dn = apic_client.DN_BASE + 'rn'
         self.urls = self._get_instance_subscription_urls()
 
     def _get_instance_subscription_urls(self):
-        url = ('/api/mo/uni/tn-{}.json?query-target=subtree&'
-               'rsp-prop-include=config-only&rsp-subtree-include=faults&'
-               'subscription=yes'.format(self.name))
-        # TODO(amitbose) temporary workaround for ACI bug,
-        # remove when ACI is fixed
-        url = url.replace('&rsp-prop-include=config-only', '')
-        # End work-around
-        if self.filtered_children:
-            url += '&target-subtree-class=' + ','.join(self.filtered_children)
-        return [url]
+        if self.dn.startswith('uni/'):
+            url = ('/api/node/mo/{}.json?query-target=subtree&'
+                   'rsp-prop-include=config-only&rsp-subtree-include=faults&'
+                   'subscription=yes'.format(self.dn))
+            # TODO(amitbose) temporary workaround for ACI bug,
+            # remove when ACI is fixed
+            url = url.replace('&rsp-prop-include=config-only', '')
+            # End work-around
+            if self.filtered_children:
+                url += '&target-subtree-class=' + ','.join(
+                    self.filtered_children)
+            return [url]
+        elif self.dn.startswith('topology/'):
+            urls = []
+            for child in self.filtered_children:
+                urls.append(
+                    '/api/node/class/{}.json?subscription=yes&'
+                    'rsp-subtree-include=faults'.format(child))
+            return urls
 
 
 class AciTenantManager(gevent.Greenlet):
@@ -106,8 +149,9 @@ class AciTenantManager(gevent.Greenlet):
         self.aci_session = apic_session
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
-        children_mos = get_children_mos(self.aci_session)
-        self.tenant = Tenant(self.tenant_name, filtered_children=children_mos)
+        children_mos = get_children_mos(self.aci_session, self.tenant_name)
+        self.tenant = Root(self.tenant_name, filtered_children=children_mos,
+                           rn=self.tenant_name)
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
         self._monitored_state = structured_tree.StructuredHashTree()

@@ -88,6 +88,8 @@ def mock_get_data(inst, dn, **kwargs):
     dn_mgr = apic_client.DNManager()
     # Decompose the DN, remove the mo/ in front
     decomposed = decompose_aci_dn(dn[3:])
+    if decomposed[0][0] == 'fabricTopology':
+        decomposed = decomposed[1:]
     try:
         # Find the proper root node
         curr = copy.deepcopy(inst._data_stash[decomposed[0][1]])[0]
@@ -160,6 +162,8 @@ class TestAciClientMixin(object):
                 continue
             decomposed = dn_mgr.aci_decompose_dn_guess(
                 resource.values()[0]['attributes']['dn'], data_type)[1]
+            if decomposed[0][0] == 'fabricTopology':
+                decomposed = decomposed[1:]
             if add:
                 curr = manager.aci_session._data_stash.setdefault(
                     decomposed[0][1], [])
@@ -395,13 +399,13 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         super(TestAciTenant, self).setUp()
         self._do_aci_mocks()
         self.manager = aci_tenant.AciTenantManager(
-            'tenant-1', self.cfg_manager,
+            'tn-tenant-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
             aci_universe.get_websocket_context(self.cfg_manager))
 
     def test_event_loop(self):
         old_name = self.manager.tenant_name
-        self.manager.tenant_name = 'test-tenant'
+        self.manager.tenant_name = 'tn-test-tenant'
         self.manager._subscribe_tenant()
         # Runs with no events
         self.manager._event_loop()
@@ -749,7 +753,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 'code': 'F0952'}}}
         ]
         complete = [
-            {'fvBD': {'attributes': {'dn': u'uni/tn-ivar-wstest/BD-test'}}},
+            {'fvBD': {'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test'}}},
             {'fvRsCtx': {
                 'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
                                'tnFvCtxName': 'asasa'}}},
@@ -819,3 +823,20 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.assertEqual({'fvRsProv': ['l3extInstP'],
                           'fvRsCons': ['l3extInstP']},
                          aci_tenant.ACI_TYPES_NOT_CONVERT_IF_MONITOR)
+
+    def test_tenant_dn_root(self):
+        manager = aci_tenant.AciTenantManager(
+            'tn-test', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
+        self.assertEqual('uni/tn-test', manager.tenant.dn)
+        manager = aci_tenant.AciTenantManager(
+            'phys-test', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
+        self.assertEqual('uni/phys-test', manager.tenant.dn)
+        manager = aci_tenant.AciTenantManager(
+            'pod-test', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
+        self.assertEqual('topology/pod-test', manager.tenant.dn)

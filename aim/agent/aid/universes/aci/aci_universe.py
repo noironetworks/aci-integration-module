@@ -28,6 +28,7 @@ from aim.api import resource
 from aim.api import status
 from aim.common import utils
 from aim import exceptions
+from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ class WebSocketContext(object):
                         break
                 else:
                     result.append(event)
-            return result
+        return result
 
     def has_event(self, urls):
         return any(self.session.has_events(url) for url in urls)
@@ -233,7 +234,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
         self.aci_session = self.establish_aci_session(self.conf_manager)
         # Initialize children MOS here so that it globally fails if there's
         # any bug or network partition.
-        aci_tenant.get_children_mos(self.aci_session)
+        aci_tenant.get_children_mos(self.aci_session, 'tn-common')
+        aci_tenant.get_children_mos(self.aci_session, 'pod-1')
         self.ws_context = get_websocket_context(self.conf_manager)
         self.aim_system_id = self.conf_manager.get_option('aim_system_id',
                                                           'aim')
@@ -318,7 +320,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         by_tenant = {}
         for method, objects in resources.iteritems():
             for data in objects:
-                tenant_name = self._retrieve_tenant_name(data)
+                tenant_name = self._retrieve_tenant_rn(data)
                 if tenant_name:
                     by_tenant.setdefault(tenant_name, {}).setdefault(
                         method, []).append(data)
@@ -356,7 +358,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
             result, self._aim_converter, self.aci_session, get_all=True,
             include_tags=False)
 
-    def _retrieve_tenant_name(self, data):
+    def _retrieve_tenant_rn(self, data):
         if isinstance(data, dict):
             if data.keys()[0] == 'tagInst':
                 # Retrieve tag parent
@@ -371,10 +373,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
                                 decomposed[1][:-1])}}}
             data = self._aim_converter.convert([data])
             data = data[0] if data else None
-        if isinstance(data, resource.Tenant):
-            return data.name
-        elif isinstance(data, resource.ResourceBase):
-            return data.tenant_name
+        if isinstance(data, resource.AciResourceBase):
+            return tree_manager.AimHashTreeMaker().get_root_key(data)
 
     def get_resources_for_delete(self, resource_keys):
         if resource_keys:
@@ -415,8 +415,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
 
     @staticmethod
     def establish_aci_session(apic_config):
-        # TODO(IVAR): unnecessary things will be removed once apicapi gets its
-        # own refactor.
         return apic_client.RestClient(
             logging, '',
             apic_config.get_option('apic_hosts', group='apic'),

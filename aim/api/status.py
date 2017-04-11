@@ -18,7 +18,8 @@ from oslo_utils import importutils
 from aim.api import resource
 from aim.api import types as t
 
-resource_paths = ('aim.api.resource', 'aim.api.service_graph')
+resource_paths = ('aim.api.resource', 'aim.api.service_graph',
+                  'aim.api.infra')
 
 
 class OperationalResource(object):

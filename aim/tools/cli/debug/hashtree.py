@@ -29,10 +29,10 @@ from aim import tree_manager
 @click.pass_context
 def hashtree(ctx):
     aim_ctx = context.AimContext(store=api.get_store(expire_on_commit=True))
-    tenant_tree_mgr = tree_manager.TenantHashTreeManager()
+    tree_mgr = tree_manager.HashTreeManager()
     manager = aim_manager.AimManager()
     ctx.obj['manager'] = manager
-    ctx.obj['tenant_tree_mgr'] = tenant_tree_mgr
+    ctx.obj['tree_mgr'] = tree_mgr
     ctx.obj['aim_ctx'] = aim_ctx
 
 
@@ -50,12 +50,12 @@ def dump(ctx, tenant, flavor):
         if type.startswith(flavor):
             search = tree
             break
-    tenant_tree_mgr = ctx.obj['tenant_tree_mgr']
+    tree_mgr = ctx.obj['tree_mgr']
     aim_ctx = ctx.obj['aim_ctx']
-    tenants = [tenant] if tenant else tenant_tree_mgr.get_tenants(aim_ctx)
+    tenants = [tenant] if tenant else tree_mgr.get_roots(aim_ctx)
     for t in tenants:
         try:
-            tree = tenant_tree_mgr.get(aim_ctx, t, tree=search)
+            tree = tree_mgr.get(aim_ctx, t, tree=search)
             if tree and tree.root:
                 click.echo('%s for tenant %s:' % (search.__name__, t))
                 click.echo(json.dumps(tree.root.to_dict(), indent=2))

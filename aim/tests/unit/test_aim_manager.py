@@ -466,7 +466,7 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
             result[tenant.name] = {}
             for typ in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][typ] = (
-                    self.tt_mgr.get(self.ctx, tenant.name, tree=typ))
+                    self.tt_mgr.get(self.ctx, tenant.rn, tree=typ))
 
     def test_tree_reset(self):
         self._create_prerequisite_objects()
@@ -522,11 +522,11 @@ class TestAgentMixin(object):
                                 'host': 'h1',
                                 'binary_file': 'aid.py',
                                 'version': '1.0',
-                                'hash_trees': ['t1']}
+                                'hash_trees': ['tn-t1']}
     test_search_attributes = {'host': 'h1'}
     test_update_attributes = {'host': 'h2',
                               'version': '2.0',
-                              'hash_trees': ['t2']}
+                              'hash_trees': ['tn-t2']}
     test_default_values = {}
     res_command = 'agent'
 
@@ -588,6 +588,7 @@ class TestEndpointGroupMixin(object):
     prereq_objects = [
         resource.Tenant(name='tenant1'),
         resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
+        resource.VMMPolicy(type='OpenStack'),
         resource.VMMDomain(type='OpenStack', name='openstack'),
         resource.PhysicalDomain(name='phys')]
     test_identity_attributes = {'tenant_name': 'tenant1',
@@ -747,12 +748,14 @@ class TestEndpointMixin(object):
 
 class TestVMMDomainMixin(object):
     resource_class = resource.VMMDomain
+    prereq_objects = [resource.VMMPolicy(type='OpenStack')]
     test_identity_attributes = {'type': 'OpenStack', 'name': 'openstack'}
     test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
     test_search_attributes = {'name': 'openstack'}
     test_update_attributes = {}
     test_default_values = {}
     res_command = 'vmm-domain'
+    test_dn = 'uni/vmmp-OpenStack/dom-openstack'
 
 
 class TestPhysicalDomainMixin(object):
@@ -763,6 +766,7 @@ class TestPhysicalDomainMixin(object):
     test_update_attributes = {}
     test_default_values = {}
     res_command = 'physical-domain'
+    test_dn = 'uni/phys-phys'
 
 
 class TestL3OutsideMixin(object):
@@ -1200,6 +1204,17 @@ class TestOpflexDeviceMixin(object):
     res_command = 'opflex-device'
 
 
+class TestPodMixin(object):
+    resource_class = resource.Pod
+    test_identity_attributes = {'name': '1'}
+    test_required_attributes = {'name': '1'}
+    test_search_attributes = {}
+    test_update_attributes = {}
+    test_default_values = {}
+    res_command = 'pod'
+    test_dn = 'topology/pod-1'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1215,16 +1230,15 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
         super(TestAgent, self).setUp()
-        self.tree_mgr = tree_manager.TenantHashTreeManager()
+        self.tree_mgr = tree_manager.HashTreeManager()
         self.tree_mgr.update_bulk(
-            self.ctx, [structured_tree.StructuredHashTree(root_key=('t1',)),
-                       structured_tree.StructuredHashTree(root_key=('t2',))])
+            self.ctx,
+            [structured_tree.StructuredHashTree(root_key=('fvTenant|t1',)),
+             structured_tree.StructuredHashTree(root_key=('fvTenant|t2',))])
 
     def _clean_trees(self):
-        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
-                                                                 't1')
-        tree_manager.TenantHashTreeManager().delete_by_tenant_rn(self.ctx,
-                                                                 't2')
+        tree_manager.HashTreeManager().delete_by_root_rn(self.ctx, 'tn-t1')
+        tree_manager.HashTreeManager().delete_by_root_rn(self.ctx, 'tn-t2')
 
     def test_timestamp(self):
         if self.ctx.store.current_timestamp:
@@ -1455,4 +1469,8 @@ class TestDeviceClusterInterfaceContext(TestDeviceClusterInterfaceContextMixin,
 
 class TestOpflexDevice(TestOpflexDeviceMixin, TestResourceOpsBase,
                        base.TestAimDBBase):
+    pass
+
+
+class TestPod(TestPodMixin, TestResourceOpsBase, base.TestAimDBBase):
     pass
