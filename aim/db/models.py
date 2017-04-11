@@ -61,6 +61,7 @@ class BridgeDomain(model_base.Base, model_base.HasAimId,
     enable_arp_flood = sa.Column(sa.Boolean)
     enable_routing = sa.Column(sa.Boolean)
     limit_ip_learn_to_subnets = sa.Column(sa.Boolean)
+    ip_learning = sa.Column(sa.Boolean)
     l2_unknown_unicast_mode = sa.Column(sa.String(16))
     ep_move_detect_mode = sa.Column(sa.String(16))
 

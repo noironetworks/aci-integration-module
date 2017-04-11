@@ -823,6 +823,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         fvBD_attr = {'arpFlood': 'no',
                      'epMoveDetectMode': '',
                      'limitIpLearnToSubnets': 'no',
+                     'ipLearning': 'yes',
                      'unicastRoute': 'yes',
                      'unkMacUcastAct': 'proxy',
                      'nameAlias': ''}
@@ -913,6 +914,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         fvBD_attr = {'arpFlood': 'no',
                      'epMoveDetectMode': '',
                      'limitIpLearnToSubnets': 'no',
+                     'ipLearning': 'yes',
                      'unicastRoute': 'yes',
                      'unkMacUcastAct': 'proxy',
                      'nameAlias': ''}
