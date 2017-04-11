@@ -64,7 +64,7 @@ def get_children_mos(apic_session, root):
                     mo_name = mo
                 try:
                     # Verify class support
-                    apic_session.GET('/api/mo/uni/tn-common.json?'
+                    apic_session.GET('/mo/uni/tn-common.json?'
                                      'target-subtree-class=%s' % mo_name)
                 except apic_exc.ApicResponseNotOk as e:
                     if int(e.err_status) == 400 and int(e.err_code) == 12:
@@ -81,9 +81,7 @@ def get_children_mos(apic_session, root):
                 else:
                     mo_name = mo
                 try:
-                    pass
-                    # TODO(ivar): Verify class support
-                    # apic_session.GET('/api/node/class/%s.json?' % mo_name)
+                    apic_session.GET('/node/class/%s.json?' % mo_name)
                 except apic_exc.ApicResponseNotOk as e:
                     if int(e.err_status) == 400 and int(e.err_code) == 12:
                         continue
