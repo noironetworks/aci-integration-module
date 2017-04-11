@@ -17,7 +17,6 @@
 import sqlalchemy as sa
 
 from aim.db import model_base
-from aim.db import models
 
 # Some aim_lib utilities may require additional DB model for keeping state.
 # Use this module for such purpose
@@ -42,7 +41,7 @@ class CloneL3Out(model_base.Base):
             ['source_tenant_name', 'source_name'],
             ['aim_l3outsides.tenant_name', 'aim_l3outsides.name'],
             name='fk_clone_src_l3out_l3out'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
 
     source_tenant_name = model_base.name_column(nullable=False)
     source_name = model_base.name_column(nullable=False)
@@ -60,7 +59,7 @@ class SavedL3Out(model_base.Base):
             ['tenant_name', 'name'],
             ['aim_l3outsides.tenant_name', 'aim_l3outsides.name'],
             name='fk_save_l3out_l3out', ondelete='CASCADE'),) +
-        models.to_tuple(model_base.Base.__table_args__))
+        model_base.to_tuple(model_base.Base.__table_args__))
     tenant_name = model_base.name_column(nullable=False, primary_key=True)
     name = model_base.name_column(nullable=False, primary_key=True)
 

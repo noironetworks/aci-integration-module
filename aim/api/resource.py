@@ -123,7 +123,11 @@ class AciResourceBase(ResourceBase):
             raise exc.InvalidDNForAciResource(dn=dn, cls=cls)
 
 
-class Tenant(AciResourceBase):
+class AciRoot(AciResourceBase):
+    pass
+
+
+class Tenant(AciRoot):
     """Resource representing a Tenant in ACI.
 
     Identity attribute is RN for ACI tenant.
@@ -517,7 +521,7 @@ class Endpoint(ResourceBase):
                                        **kwargs)
 
 
-class VMMPolicy(AciResourceBase):
+class VMMPolicy(AciRoot):
 
     identity_attributes = t.identity(
         ('type', t.enum("VMWare", "OpenStack")))
@@ -552,7 +556,7 @@ class VMMDomain(AciResourceBase):
         super(VMMDomain, self).__init__({'monitored': False}, **kwargs)
 
 
-class PhysicalDomain(AciResourceBase):
+class PhysicalDomain(AciRoot):
     """Resource representing a Physical domain.
 
     Identity attributes: name
@@ -744,7 +748,7 @@ class Configuration(ResourceBase):
         super(Configuration, self).__init__({}, **kwargs)
 
 
-class Pod(AciResourceBase):
+class Pod(AciRoot):
 
     identity_attributes = t.identity(
         ('name', t.name))

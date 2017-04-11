@@ -170,7 +170,7 @@ class WebSocketContext(object):
                         break
                 else:
                     result.append(event)
-            return result
+        return result
 
     def has_event(self, urls):
         return any(self.session.has_events(url) for url in urls)
@@ -234,7 +234,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
         self.aci_session = self.establish_aci_session(self.conf_manager)
         # Initialize children MOS here so that it globally fails if there's
         # any bug or network partition.
-        aci_tenant.get_children_mos(self.aci_session)
+        aci_tenant.get_children_mos(self.aci_session, 'tn-common')
+        aci_tenant.get_children_mos(self.aci_session, 'pod-1')
         self.ws_context = get_websocket_context(self.conf_manager)
         self.aim_system_id = self.conf_manager.get_option('aim_system_id',
                                                           'aim')

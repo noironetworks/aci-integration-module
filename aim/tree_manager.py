@@ -525,9 +525,13 @@ class HashTreeBuilder(object):
 
         upd_trees, udp_op_trees, udp_mon_trees = [], [], []
         for root, upd in updates_by_root.iteritems():
-            ttree = tree_map[self.CONFIG][root]
-            ttree_operational = tree_map[self.OPER][root]
-            ttree_monitor = tree_map[self.MONITOR][root]
+            try:
+                ttree = tree_map[self.CONFIG][root]
+                ttree_operational = tree_map[self.OPER][root]
+                ttree_monitor = tree_map[self.MONITOR][root]
+            except KeyError:
+                # Some objects do not belong to the specified roots
+                continue
             # Update Configuration Tree
             self.tt_maker.update(ttree, upd[conf][0])
             self.tt_maker.delete(ttree, upd[conf][1])
