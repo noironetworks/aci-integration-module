@@ -360,9 +360,9 @@ class TestAimDbUniverseBase(object):
             self.assertIsNotNone(aim_mgr.get(self.ctx, aim_obj))
             status = aim_mgr.get_status(self.ctx, aim_obj)
             self.assertEqual(len(aci_faults), len(status.faults))
-            self.assertEqual([f['faultInst']['attributes']['code']
-                              for f in aci_faults],
-                             [f.fault_code for f in status.faults])
+            self.assertEqual(sorted([f['faultInst']['attributes']['code']
+                                     for f in aci_faults]),
+                             sorted([f.fault_code for f in status.faults]))
 
             # delete filter faults
             self.universe.push_resources({'create': [],
