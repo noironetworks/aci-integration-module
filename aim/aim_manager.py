@@ -123,7 +123,8 @@ class AimManager(object):
                 if old_db_obj:
                     old_monitored = getattr(old_db_obj, 'monitored', None)
                     new_monitored = getattr(resource, 'monitored', None)
-                    if fix_ownership and old_monitored != new_monitored:
+                    if (fix_ownership and old_monitored is not None and
+                            old_monitored != new_monitored):
                         raise exc.InvalidMonitoredStateUpdate(object=resource)
                     attr_val = context.store.extract_attributes(resource,
                                                                 "other")
@@ -167,7 +168,8 @@ class AimManager(object):
             if db_obj:
                 old_monitored = getattr(db_obj, 'monitored', None)
                 new_monitored = update_attr_val.get('monitored')
-                if fix_ownership and old_monitored != new_monitored:
+                if (fix_ownership and old_monitored is not None and
+                        old_monitored != new_monitored):
                     raise exc.InvalidMonitoredStateUpdate(object=resource)
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
                             if k in resource.other_attributes}

@@ -1214,6 +1214,15 @@ class TestOpflexDeviceMixin(object):
     test_dn = 'topology/pod-1/node-301/sys/br-[eth1/33]/odev-167776320'
     res_command = 'opflex-device'
 
+    def test_implicit_monitored(self):
+        odev = self.mgr.create(
+            self.ctx, infra.OpflexDevice(pod_id='1', node_id='301',
+                                         bridge_interface='eth1/33',
+                                         dev_id='167776320'))
+        self.assertTrue(odev.monitored)
+        odev.host_name = 'test'
+        self.mgr.create(self.ctx, odev, overwrite=True, fix_ownership=True)
+
 
 class TestPodMixin(object):
     resource_class = resource.Pod
