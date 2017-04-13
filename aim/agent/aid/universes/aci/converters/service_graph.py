@@ -190,7 +190,7 @@ def service_graph_converter(object_dict, otype, helper,
 
 vnsRsALDevToPhysDomP_converter = utils.dn_decomposer(
     ['physical_domain_name'], 'physDomP')
-vnsRsCIfAtt_converter = utils.child_list('concrete_interfaces', 'tDn')
+vnsRsCIfAttN_converter = utils.child_list('concrete_interfaces', 'tDn')
 vnsRsCIfPathAtt_converter = utils.child_list('path', 'tDn')
 vnsAbsFuncConn_converter = utils.child_list('connectors', 'name')
 vnsLDevVip_dn_decomposer = utils.dn_decomposer(
@@ -226,9 +226,9 @@ resource_map = {
         'skip': ['concrete_interfaces'],
         'alt_resource': service_graph.DeviceCluster
     }],
-    'vnsRsCIfAtt': [{
+    'vnsRsCIfAttN': [{
         'resource': service_graph.DeviceClusterInterface,
-        'converter': vnsRsCIfAtt_converter,
+        'converter': vnsRsCIfAttN_converter,
         'alt_resource': service_graph.DeviceCluster
     }],
     'vnsCDev': [{

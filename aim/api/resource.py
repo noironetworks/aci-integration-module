@@ -490,6 +490,8 @@ class ContractSubject(AciResourceBase):
         ('out_filters', t.list_of_names),
         ('bi_filters', t.list_of_names),
         ('service_graph_name', t.name),
+        ('in_service_graph_name', t.name),
+        ('out_service_graph_name', t.name),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vzSubj'
@@ -499,6 +501,8 @@ class ContractSubject(AciResourceBase):
         super(ContractSubject, self).__init__(
             {'in_filters': [], 'out_filters': [], 'bi_filters': [],
              'service_graph_name': '',
+             'in_service_graph_name': '',
+             'out_service_graph_name': '',
              'monitored': False}, **kwargs)
 
 
