@@ -424,6 +424,8 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
 
     contract_name = model_base.name_column(nullable=False)
     service_graph_name = model_base.name_column()
+    in_service_graph_name = model_base.name_column()
+    out_service_graph_name = model_base.name_column()
 
     filters = orm.relationship(ContractSubjectFilter,
                                backref='contract',

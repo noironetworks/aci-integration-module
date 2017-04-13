@@ -714,13 +714,21 @@ class TestContractSubjectMixin(object):
                                 'in_filters': ['f1', 'f2'],
                                 'out_filters': ['f2', 'f3'],
                                 'bi_filters': ['f1', 'f3', 'f4'],
-                                'service_graph_name': 'g1'}
+                                'service_graph_name': 'g1',
+                                'in_service_graph_name': 'g2',
+                                'out_service_graph_name': 'g3'}
     test_search_attributes = {'name': 'subject1'}
     test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
-                              'out_filters': []}
+                              'out_filters': [],
+                              'service_graph_name': 'g11',
+                              'in_service_graph_name': 'g21',
+                              'out_service_graph_name': 'g31'}
     test_default_values = {'in_filters': [],
                            'out_filters': [],
-                           'bi_filters': []}
+                           'bi_filters': [],
+                           'service_graph_name': '',
+                           'in_service_graph_name': '',
+                           'out_service_graph_name': ''}
     test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
     res_command = 'contract-subject'
 

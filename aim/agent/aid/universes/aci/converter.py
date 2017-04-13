@@ -357,7 +357,8 @@ resource_map = {
     'vzSubj': [{
         'resource': resource.ContractSubject,
         'skip': ['in_filters', 'out_filters', 'bi_filters',
-                 'service_graph_name'],
+                 'service_graph_name', 'in_service_graph_name',
+                 'out_service_graph_name'],
     }],
     'vzRsSubjFiltAtt': [{
         'resource': resource.ContractSubject,
@@ -381,6 +382,18 @@ resource_map = {
         'resource': resource.ContractSubject,
         'to_resource': to_resource_filter_container,
         'skip': ['display_name']
+    }],
+    'vzRsInTermGraphAtt': [{
+        'resource': resource.ContractSubject,
+        'exceptions': {'tnVnsAbsGraphName':
+                       {'other': 'in_service_graph_name'}},
+        'to_resource': default_to_resource_strict,
+    }],
+    'vzRsOutTermGraphAtt': [{
+        'resource': resource.ContractSubject,
+        'exceptions': {'tnVnsAbsGraphName':
+                       {'other': 'out_service_graph_name'}},
+        'to_resource': default_to_resource_strict,
     }],
     'l3extOut': [{
         'resource': resource.L3Outside,
