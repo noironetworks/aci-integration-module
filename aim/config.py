@@ -97,7 +97,13 @@ k8s_options = [
     cfg.StrOpt('k8s_config_path', default='/root/.kube/config',
                help="Path to the Kubernetes configuration file."),
     cfg.StrOpt('k8s_namespace', default='kube-system',
-               help="Kubernetes namespace used by this AIM installation.")
+               help="Kubernetes namespace used by this AIM installation."),
+    cfg.StrOpt('k8s_vmm_domain', default='kubernetes',
+               help="Name of Kubernetes VMM domain used by this "
+                    "AIM installation."),
+    cfg.StrOpt('k8s_controller', default='kube-cluster',
+               help="Name of controller in Kubernetes VMM domain used "
+                    "by this AIM installation.")
 ]
 
 cfg.CONF.register_opts(agent_opts, 'aim')

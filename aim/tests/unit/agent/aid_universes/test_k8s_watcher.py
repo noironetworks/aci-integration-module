@@ -14,8 +14,11 @@
 #    under the License.
 
 import mock
+from mock import patch
+import threading
 
 from aim.agent.aid.universes.k8s import k8s_watcher
+from aim.k8s import api_v1
 from aim.tests import base
 
 
@@ -26,14 +29,45 @@ class TestK8SWatcher(base.TestAimDBBase):
 
     @base.requires(['k8s'])
     def test_connection_monitor(self):
-        k8s_watcher.MONITOR_LOOP_MAX_WAIT = 0
         watcher = k8s_watcher.K8sWatcher()
-        # Watcher's _http_resp is None
-        watcher._monitor_loop()
 
-        watcher._http_resp = mock.Mock(closed=False)
-        watcher._monitor_loop()
+        resp = mock.Mock(closed=False)
+        thd = mock.Mock(is_alive=mock.Mock(return_value=True))
+        watcher._observe_thread_state[thd] = {'http_resp': resp}
 
-        watcher._http_resp.closed = True
-        self.assertRaises(k8s_watcher.K8SObserverStopped,
-                          watcher._monitor_loop)
+        self.assertIsNone(watcher._check_observers())
+
+        resp.closed = True
+        self.assertEqual(k8s_watcher.K8SObserverStopped,
+                         type(watcher._check_observers()))
+
+        resp.closed = False
+        watcher._observe_thread_state[thd]['watch_exception'] = Exception()
+        self.assertEqual(Exception, type(watcher._check_observers()))
+
+    @base.requires(['k8s'])
+    def test_observe_state(self):
+        watcher = k8s_watcher.K8sWatcher()
+        watcher._renew_klient_watch()
+
+        thd = threading.current_thread()
+        watcher._observe_thread_state[thd] = {'watch_stop': False}
+
+        resp = mock.Mock(closed=False)
+        list_mock = mock.Mock(return_value=resp)
+        with patch.object(watcher.klient, 'list', new=list_mock):
+            watcher._observe_objects(api_v1.AciContainersObject)
+
+            self.assertEqual(resp,
+                             watcher._observe_thread_state[thd]['http_resp'])
+
+            resp.closed = True
+            watcher._observe_objects(api_v1.AciContainersObject)
+            ts = watcher._observe_thread_state[thd]['http_resp']
+            self.assertEqual(True, ts.closed)
+
+        stream_mock = mock.Mock(side_effect=Exception('FAKE ERROR'))
+        with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
+            watcher._observe_objects(api_v1.AciContainersObject)
+            exc = watcher._observe_thread_state[thd]['watch_exception']
+            self.assertEqual(Exception, type(exc))

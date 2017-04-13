@@ -113,6 +113,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         if container:
             base = apic_client.ManagedObjectClass(container).dn(*params[:-1])
         self._tree_to_event(data, events, base, self._current_manager)
+        # pre-create Kubernetes VMM domain so that implicitly
+        # created Kubernetes objects can be handled
+        k8s_ctrlr = {'vmmInjectedCont':
+                     {'attributes':
+                      {'dn': ('uni/vmmp-Kubernetes/dom-kubernetes/'
+                              'ctrlr-kube-cluster/injcont')}}}
+        self._set_events([k8s_ctrlr], manager=self._current_manager,
+                         tag=False, create_parents=True)
         # Tagging is done by the tenant manager
         self._set_events(events, manager=self._current_manager, tag=False)
 

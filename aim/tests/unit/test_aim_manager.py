@@ -171,10 +171,10 @@ class TestResourceOpsBase(object):
         # Verify overwrite
         for k, v in test_search_attributes.iteritems():
             setattr(res, k, v)
-        r2 = self.mgr.create(self.ctx, res, overwrite=True)
-
-        for k, v in test_search_attributes.iteritems():
-            self.assertEqual(v, getattr_canonical(r2, k))
+        if not getattr(self, 'skip_overwrite', False):
+            r2 = self.mgr.create(self.ctx, res, overwrite=True)
+            for k, v in test_search_attributes.iteritems():
+                self.assertEqual(v, getattr_canonical(r2, k))
 
         # Test search by identity
         rs1 = self.mgr.find(self.ctx, resource, **test_identity_attributes)
@@ -303,7 +303,7 @@ class TestResourceOpsBase(object):
         creation_attributes.update(test_identity_attributes)
         res = resource(**creation_attributes)
 
-        self.mgr.create(self.ctx, res, overwrite=True)
+        res = self.mgr.create(self.ctx, res, overwrite=True)
         status = self.mgr.get_status(self.ctx, res)
         self.assertTrue(isinstance(status, aim_status.AciStatus))
         # Sync status not available
@@ -1450,17 +1450,13 @@ class TestVmmInjectedServiceMixin(object):
                                 'controller_name': 'kube-cluster',
                                 'name': 'svc1',
                                 'service_type': 'loadBalancer',
-                                'cluster_ip': '1.2.3.4',
                                 'load_balancer_ip': '5.6.7.8',
                                 'service_ports': [{'port': '23',
                                                    'protocol': 'tcp',
-                                                   'target_port': '45'},
-                                                  {'port': '332',
-                                                   'protocol': 'udp',
-                                                   'target_port': '556'}]}
-    test_search_attributes = {'cluster_ip': '1.2.3.4'}
-    test_update_attributes = {'load_balancer_ip': '56.77.78.88',
-                              'service_ports': []}
+                                                   'target_port': '45',
+                                                   'node_port': '32342'}]}
+    test_search_attributes = {'name': 'svc1'}
+    test_update_attributes = {'load_balancer_ip': '56.77.78.88'}
     test_default_values = {'service_type': 'clusterIp',
                            'cluster_ip': '0.0.0.0',
                            'load_balancer_ip': '0.0.0.0',
@@ -1472,6 +1468,11 @@ class TestVmmInjectedServiceMixin(object):
     def _setUp(self):
         _setup_injected_object(self, resource.VmmInjectedNamespace,
                                'namespace_name', self.test_id)
+        if 'k8s' in self.ctx.store.features:
+            self.skip_overwrite = True
+            np1 = 30000 + int(self.test_id.split('-')[0], 16) % 2767
+            self.test_required_attributes[
+                'service_ports'][0]['node_port'] = str(np1)
 
 
 class TestVmmInjectedHostMixin(object):

@@ -34,6 +34,7 @@ from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim.db import model_base
+from aim.k8s import api_v1 as k8s_api_v1
 from aim.tools.cli import shell  # noqa
 from aim import tree_manager
 
@@ -42,6 +43,9 @@ ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
 o_log.register_options(aim_cfg.CONF)
 K8S_STORE_VENV = 'K8S_STORE'
+K8S_CONFIG_ENV = 'K8S_CONFIG'
+
+LOG = o_log.getLogger(__name__)
 
 
 def etcdir(*p):
@@ -125,7 +129,7 @@ def _k8s_post_create(self, created):
         event = {'type': 'ADDED', 'object': created}
         w.klient.watch.stream = mock.Mock(return_value=[event])
         w._reset_trees = mock.Mock()
-        w._observer_loop()
+        w.q.put(event)
         w.warmup_time = -1
         w._persistence_loop()
 
@@ -137,7 +141,7 @@ def _k8s_post_delete(self, deleted):
         event = {'type': 'DELETED', 'object': deleted}
         w.klient.watch.stream = mock.Mock(return_value=[event])
         w._reset_trees = mock.Mock()
-        w._observer_loop()
+        w.q.put(event)
         w.warmup_time = -1
         w._persistence_loop()
 
@@ -172,13 +176,17 @@ class TestAimDBBase(BaseTestCase):
         else:
             CONF.set_override('aim_store', 'k8s', 'aim')
             CONF.set_override('k8s_namespace', self.test_id, 'aim_k8s')
+            k8s_config_path = os.environ.get(K8S_CONFIG_ENV)
+            if k8s_config_path:
+                CONF.set_override('k8s_config_path', k8s_config_path,
+                                  'aim_k8s')
             aim_store.K8sStore._post_delete = _k8s_post_delete
             aim_store.K8sStore._post_create = _k8s_post_create
             global k8s_watcher_instance
             k8s_watcher_instance = k8s_watcher.K8sWatcher()
             k8s_watcher_instance.event_handler = mock.Mock()
             k8s_watcher_instance._renew_klient_watch = mock.Mock()
-            self.addCleanup(self._cleanup_namespace, self.test_id)
+            self.addCleanup(self._cleanup_objects)
 
         self.store = api.get_store(expire_on_commit=True)
         self.ctx = context.AimContext(store=self.store)
@@ -203,8 +211,16 @@ class TestAimDBBase(BaseTestCase):
         if poll:
             self.cfg_manager.subs_mgr._poll_and_execute()
 
-    def _cleanup_namespace(self, namespace):
-        self.ctx.store.klient.delete_collection_namespaced_aci(namespace)
+    def _cleanup_objects(self):
+        objs = [k8s_api_v1.Namespace(), k8s_api_v1.Node()]
+        for obj in objs:
+            obj.setdefault('metadata', {})['name'] = self.test_id
+            try:
+                self.ctx.store.delete(obj)
+            except k8s_api_v1.klient.ApiException as e:
+                if str(e.status) != '420':
+                    LOG.warning("Error while cleaning namespace %s: %s",
+                                obj['metadata']['name'], e)
 
     @classmethod
     def _get_example_aim_bd(cls, **kwargs):

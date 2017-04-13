@@ -25,7 +25,6 @@ from aim.api import resource as api_res
 from aim.api import service_graph as api_service_graph
 from aim.api import status as api_status
 from aim.api import tree as api_tree
-from aim.common import utils
 from aim.db import agent_model
 from aim.db import config_model
 from aim.db import hashtree_db_listener as ht_db_l
@@ -321,13 +320,25 @@ class SqlAlchemyStore(AimStore):
 
 class K8sStore(AimStore):
 
-    def __init__(self, namespace=None, config_file=None):
+    db_model_map = {api_res.VmmInjectedNamespace: api_v1.Namespace,
+                    api_res.VmmInjectedDeployment: api_v1.Deployment,
+                    api_res.VmmInjectedReplicaSet: api_v1.ReplicaSet,
+                    api_res.VmmInjectedService: api_v1.Service,
+                    api_res.VmmInjectedHost: api_v1.Node,
+                    api_res.VmmInjectedGroup: api_v1.Pod}
+
+    def __init__(self, namespace=None, config_file=None,
+                 vmm_domain=None, vmm_controller=None):
         super(K8sStore, self).__init__()
         self.klient = api_v1.AciContainersV1(config_file=config_file)
         self.namespace = namespace or api_v1.K8S_DEFAULT_NAMESPACE
+        self.attribute_defaults = {'domain_type': 'Kubernetes',
+                                   'domain_name': vmm_domain or 'kubernetes',
+                                   'controller_name':
+                                   vmm_controller or 'kube-cluster'}
         self.db_session = None
 
-    _features = ['k8s', 'streaming']
+    _features = ['k8s', 'streaming', 'object_uid']
 
     @property
     def name(self):
@@ -338,60 +349,63 @@ class K8sStore(AimStore):
         return False
 
     def resource_to_db_type(self, resource_klass):
-        return api_v1.AciContainersObject
+        return self.db_model_map.get(resource_klass,
+                                     api_v1.AciContainersObject)
 
     def from_attr(self, db_obj, resource_klass, attribute_dict):
-        name = utils.camel_to_snake(resource_klass.__name__)
-        db_obj.setdefault('spec', {'type': name, name: {}})
-        db_obj.setdefault('metadata', {'labels': {'aim_type': name}})
-        labels = db_obj['metadata']['labels']
-        attrs = db_obj['spec'][name]
-        for k, v in attribute_dict.iteritems():
-            if k in resource_klass.identity_attributes:
-                labels[k] = utils.sanitize_name(v)
-            attrs[k] = v
-        if 'name' not in db_obj['metadata']:
-            db_obj['metadata']['name'] = self._build_name(name, resource_klass,
-                                                          db_obj)
+        db_obj.from_attr(resource_klass, attribute_dict)
 
     def to_attr(self, resource_klass, db_obj):
-        result = {}
-        for k in resource_klass.attributes():
-            try:
-                result[k] = getattr(db_obj, k)
-            except AttributeError:
-                pass
-        return result
+        return db_obj.to_attr(resource_klass, defaults=self.attribute_defaults)
 
     def add(self, db_obj):
         created = None
-        try:
-            curr = self.klient.read_namespaced_aci(db_obj['metadata']['name'],
-                                                   self.namespace)
-            if curr:
-                # Replace this version object
-                curr['spec'] = db_obj['spec']
-                self.klient.replace_namespaced_aci(db_obj['metadata']['name'],
-                                                   self.namespace, curr)
-                created = curr
-        except api_v1.klient.ApiException as e:
-            if str(e.status) == '404':
-                # Object doesn't exist, create it.
-                db_obj.pop('resourceVersion', None)
-                self.klient.create_namespaced_aci(self.namespace, db_obj)
-                created = db_obj
-            else:
-                raise
+        k8s_klass = type(db_obj)
+        retries = 3  # this is arbitrary
+        while retries:
+            retries -= 1
+            try:
+                curr = self.klient.read(k8s_klass, db_obj['metadata']['name'],
+                                        self.namespace)
+                if curr:
+                    curr['spec'].update(db_obj.get('spec', {}))
+                    curr['metadata'].setdefault('annotations', {}).update(
+                        db_obj.get('metadata', {}).get('annotations', {}))
+                    curr['metadata'].setdefault('labels', {}).update(
+                        db_obj.get('metadata', {}).get('labels', {}))
+                    curr.pop('status', None)
+                    self.klient.replace(k8s_klass, db_obj['metadata']['name'],
+                                        self.namespace, curr)
+                    created = curr
+                break
+            except api_v1.klient.ApiException as e:
+                if str(e.status) == '404':
+                    # Object doesn't exist, create it.
+                    db_obj.pop('resourceVersion', None)
+                    self.klient.create(k8s_klass, self.namespace, db_obj)
+                    created = db_obj
+                    break
+                elif str(e.status) == '409' and retries:
+                    LOG.info('Concurrent modification on %s %s, retrying '
+                             'replace operation',
+                             k8s_klass.kind, db_obj['metadata']['name'])
+                else:
+                    raise
         self._post_create(created)
 
     def delete(self, db_obj):
         deleted = db_obj
         try:
-            self.klient.delete_collection_namespaced_aci(
-                self.namespace,
-                label_selector=','.join(
-                    ['%s=%s' % (k, v) for k, v in
-                     db_obj['metadata']['labels'].iteritems()]))
+            if isinstance(db_obj, api_v1.AciContainersObject):
+                # Can't delete third-party objects using their name
+                self.klient.delete_collection(
+                    api_v1.AciContainersObject, self.namespace,
+                    label_selector=','.join(
+                        ['%s=%s' % (k, v) for k, v in
+                         db_obj['metadata']['labels'].iteritems()]))
+            else:
+                self.klient.delete(type(db_obj), db_obj['metadata']['name'],
+                                   self.namespace, {})
         except api_v1.klient.ApiException as e:
             if str(e.status) == '404':
                 LOG.info("Resource %s not found in K8S during deletion",
@@ -402,11 +416,16 @@ class K8sStore(AimStore):
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
               lock_update=False, **filters):
-        name = utils.camel_to_snake(resource_klass.__name__)
+        obj_name = None
         if 'aim_id' in filters:
+            obj_name = filters.pop('aim_id')
+        else:
+            selectors = db_obj_type().build_selectors(resource_klass, filters)
+            obj_name = selectors.pop('name', None)
+
+        if obj_name:
             try:
-                item = self.klient.read_namespaced_aci(filters.pop('aim_id'),
-                                                       self.namespace)
+                item = self.klient.read(db_obj_type, obj_name, self.namespace)
                 items = [item]
             except api_v1.klient.ApiException as e:
                 if str(e.status) == '404':
@@ -414,48 +433,34 @@ class K8sStore(AimStore):
                 else:
                     raise e
         else:
-            label_selector = self._build_label_selector(resource_klass,
-                                                        filters)
-            items = self.klient.list_namespaced_aci(
-                self.namespace, label_selector=label_selector)
+            items = self.klient.list(db_obj_type, self.namespace, **selectors)
             items = items['items']
+
         result = []
-        for item in items:
+        for item in (items or []):
+            if item['metadata'].get('deletionTimestamp'):
+                continue
+            db_obj = db_obj_type()
+            db_obj.update(item)
+            item_attr = db_obj.to_attr(resource_klass,
+                                       defaults=self.attribute_defaults)
             if filters or in_ or notin_:
                 for k, v in filters.iteritems():
-                    if item['spec'][name].get(k) != v:
+                    if item_attr.get(k) != v:
                         break
                 else:
                     for k, v in (in_ or {}).iteritems():
-                        if item['spec'][name].get(k) not in v:
+                        if item_attr.get(k) not in v:
                             break
                     else:
                         for k, v in (notin_ or {}).iteritems():
-                            if item['spec'][name].get(k) in v:
+                            if item_attr.get(k) in v:
                                 break
                         else:
-                            db_obj = api_v1.AciContainersObject()
-                            db_obj.update(item)
                             result.append(db_obj)
             else:
-                db_obj = api_v1.AciContainersObject()
-                db_obj.update(item)
                 result.append(db_obj)
         return result
-
-    def _build_label_selector(self, resource_klass, filters):
-        result = 'aim_type=%s' % utils.camel_to_snake(resource_klass.__name__)
-        for filter in filters:
-            if filter in resource_klass.identity_attributes:
-                result += ',%s=%s' % (
-                    filter, utils.sanitize_name(filters[filter]))
-        return result
-
-    def _build_name(self, type, resource_klass, db_obj):
-        components = []
-        for attr in sorted(resource_klass.identity_attributes):
-            components.append(db_obj['spec'][type][attr])
-        return utils.sanitize_name(type, *components)
 
     def _post_create(self, created):
         # Can be patched in UTs to simulate Hashtree postcommit
