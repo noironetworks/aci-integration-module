@@ -106,6 +106,10 @@ class AciContainersV1(object):
                 else:
                     konfig.load_incluster_config()
                 config.api_client = klient.ApiClient()
+                # K8S python client doesn't provide any way to configure the
+                # client pool size, so we inject the value here
+                config.api_client.rest_client.pool_manager.connection_pool_kw[
+                    'maxsize'] = 5
             self.api_client = config.api_client
         self._watch = None
 
