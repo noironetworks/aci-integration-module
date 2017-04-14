@@ -102,3 +102,12 @@ class HostLinkManager(object):
     def get_switch_and_port_for_host(self, host):
         res = self.get_hostlinks_for_host(host)
         return list(set([(x.switch_id, x.module, x.port) for x in res]))
+
+
+class HostDomainMapping(model_base.Base, model_base.AttributeMixin):
+    __tablename__ = 'aim_host_domain_mapping'
+
+    host_name = sa.Column(sa.String(128), primary_key=True)
+
+    vmm_domain_name = sa.Column(sa.String(64))
+    physical_domain_name = sa.Column(sa.String(64))

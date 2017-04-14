@@ -36,3 +36,18 @@ class HostLink(resource.ResourceBase):
                                         'module': '',
                                         'port': '',
                                         'path': ''}, **kwargs)
+
+
+class HostDomainMapping(resource.ResourceBase):
+    """host to VMM and phys-dom mapping"""
+
+    identity_attributes = t.identity(
+        ('host_name', t.string(128)))
+    other_attributes = t.other(
+        ('vmm_domain_name', t.string(64)),
+        ('physical_domain_name', t.string(64)))
+
+    def __init__(self, **kwargs):
+        super(HostDomainMapping, self).__init__({'vmm_domain_name': '',
+                                                 'physical_domain_name': ''},
+                                                **kwargs)

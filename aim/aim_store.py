@@ -184,6 +184,8 @@ class SqlAlchemyStore(AimStore):
                     api_res.ExternalNetwork: models.ExternalNetwork,
                     api_res.ExternalSubnet: models.ExternalSubnet,
                     api_infra.HostLink: infra_model.HostLink,
+                    api_infra.HostDomainMapping: (
+                        infra_model.HostDomainMapping),
                     api_res.SecurityGroup: models.SecurityGroup,
                     api_res.SecurityGroupSubject: models.SecurityGroupSubject,
                     api_res.SecurityGroupRule: models.SecurityGroupRule,
