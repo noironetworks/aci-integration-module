@@ -391,6 +391,11 @@ class TestHostLink(test_aim_manager.TestHostLinkMixin,
     pass
 
 
+class TestHostDomainMapping(test_aim_manager.TestHostDomainMappingMixin,
+                            TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
 class TestSecurityGroup(test_aim_manager.TestSecurityGroupMixin,
                         TestManagerResourceOpsBase,
                         base.TestShell):

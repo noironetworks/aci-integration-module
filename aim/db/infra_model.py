@@ -117,3 +117,12 @@ class OpflexDevice(model_base.Base, model_base.AttributeMixin):
     fabric_path_dn = sa.Column(sa.String(512))
     domain_name = sa.Column(sa.String(64))
     controller_name = sa.Column(sa.String(64))
+
+
+class HostDomainMapping(model_base.Base, model_base.AttributeMixin):
+    __tablename__ = 'aim_host_domain_mapping'
+
+    host_name = sa.Column(sa.String(128), primary_key=True)
+
+    vmm_domain_name = sa.Column(sa.String(64))
+    physical_domain_name = sa.Column(sa.String(64))
