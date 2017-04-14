@@ -53,6 +53,10 @@ def generate_uuid():
     return str(uuid.uuid4())
 
 
+def sleep(time_in_seconds):
+    gevent.sleep(time_in_seconds)
+
+
 def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
                         notify_exceeding_timeout=True):
     # sleep till end of polling interval
@@ -60,15 +64,15 @@ def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
     log.debug("%(caller)s loop - completed in %(time).3f. ",
               {'caller': readable_caller, 'time': elapsed})
     if elapsed < polling_interval:
-        gevent.sleep(polling_interval - elapsed)
+        sleep(polling_interval - elapsed)
     elif notify_exceeding_timeout:
         log.debug("Loop iteration exceeded interval "
                   "(%(polling_interval)s vs. %(elapsed)s)!",
                   {'polling_interval': polling_interval,
                    'elapsed': elapsed})
-        gevent.sleep(0)
+        sleep(0)
     else:
-        gevent.sleep(0)
+        sleep(0)
 
 
 class Counter(object):
@@ -87,7 +91,7 @@ def exponential_backoff(max_time, tentative=None):
     tentative = tentative or Counter()
     sleep_time_secs = min(random.random() * (2 ** tentative.get()), max_time)
     LOG.debug('Sleeping for %s seconds' % sleep_time_secs)
-    gevent.sleep(sleep_time_secs)
+    sleep(sleep_time_secs)
     tentative.increment()
     return tentative
 
