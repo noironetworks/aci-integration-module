@@ -266,22 +266,24 @@ class TestManagerResourceOpsBase(object):
         for k, v in creation_attributes.iteritems():
             self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
+        id_attr_val = {k: v for k, v in test_identity_attributes.iteritems()
+                       if k in r1.identity_attributes}
         # Verify get
-        r1 = self.get(res_command, test_identity_attributes)
+        r1 = self.get(res_command, id_attr_val)
         for k, v in creation_attributes.iteritems():
             self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
         # Test update
         updates = {}
-        updates.update(test_identity_attributes)
+        updates.update(id_attr_val)
         updates.update(test_update_attributes)
         r1 = self.update(res_command, updates)
         for k, v in test_update_attributes.iteritems():
             self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
         # Test delete
-        self.delete(res_command, test_identity_attributes)
-        self.assertIsNone(self.get(res_command, test_identity_attributes))
+        self.delete(res_command, id_attr_val)
+        self.assertIsNone(self.get(res_command, id_attr_val))
 
     def _create_prerequisite_objects(self):
         for obj in (self.prereq_objects or []):

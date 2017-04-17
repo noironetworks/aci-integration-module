@@ -211,6 +211,28 @@ fvRsProv_Ext_converter = child_list('provided_contract_names', 'tnVzBrCPName',
                                     aci_mo='fvRsProv__Ext')
 fvRsCons_Ext_converter = child_list('consumed_contract_names', 'tnVzBrCPName',
                                     aci_mo='fvRsCons__Ext')
+vmmInjectedSvcPort_converter = utils.list_dict(
+    'service_ports',
+    {'port': {'other': 'port',
+              'converter': port},
+     'protocol': {'other': 'protocol'},
+     'target_port': {'other': 'targetPort'},
+     'node_port': {'other': 'nodePort',
+                   'converter': port,
+                   'default': '0'}, },
+    ['port', 'protocol', 'target_port'])
+infraRsVlanNs_vmm_converter = utils.dn_decomposer(['vlan_pool_name',
+                                                   'vlan_pool_type'],
+                                                  'fvnsVlanInstP')
+vmmRsDomMcastAddrNs_converter = utils.dn_decomposer(['mcast_addr_pool_name'],
+                                                    'fvnsMcastAddrInstP')
+
+
+def infraRsVlan_vmm_id_converter(object_dict, otype, helper, to_aim=True):
+    return utils.default_identity_converter(object_dict, otype, helper,
+                                            aci_mo_type='infraRsVlanNs__vmm',
+                                            to_aim=to_aim)
+
 
 resource_map = {
     'fvBD': [{
@@ -457,9 +479,30 @@ resource_map = {
     }],
     'vmmDomP': [{
         'resource': resource.VMMDomain,
+        'skip': ['vlan_pool_name', 'vlan_pool_type',
+                 'mcast_addr_pool_name'],
+        'exceptions': {'mcastAddr': {'other': 'mcast_address'},
+                       'enfPref': {'other': 'enforcement_pref'}},
+    }],
+    'infraRsVlanNs': [{
+        'resource': resource.VMMDomain,
+        'exceptions': {'tDn': {'other': 'vlan_pool_name',
+                               'converter': infraRsVlanNs_vmm_converter,
+                               'skip_if_empty': True}},
+        'identity_converter': infraRsVlan_vmm_id_converter,
+        'to_resource': utils.default_to_resource_strict,
+    }],
+    'vmmRsDomMcastAddrNs': [{
+        'resource': resource.VMMDomain,
+        'exceptions': {'tDn': {'other': 'mcast_addr_pool_name',
+                               'converter': vmmRsDomMcastAddrNs_converter,
+                               'skip_if_empty': True}},
+        'to_resource': utils.default_to_resource_strict,
     }],
     'vmmProvP': [{
         'resource': resource.VMMPolicy,
+        # temporarily disable nameAlias sync due to ACI bug
+        'skip': ['display_name', 'name_alias'],
     }],
     'physDomP': [{
         'resource': resource.PhysicalDomain,
@@ -469,7 +512,41 @@ resource_map = {
     }],
     'fabricTopology': [{
         'resource': resource.Topology,
-    }]
+    }],
+    'vmmCtrlrP': [{
+        'resource': resource.VMMController,
+    }],
+    'vmmInjectedCont': [{
+        'resource': resource.VMMController,
+        'to_resource': utils.no_op_to_resource,
+    }],
+    'vmmInjectedNs': [{
+        'resource': resource.VmmInjectedNamespace,
+    }],
+    'vmmInjectedDepl': [{
+        'resource': resource.VmmInjectedDeployment,
+        'exceptions': {'replicas': {'converter': utils.integer_str}}
+    }],
+    'vmmInjectedReplSet': [{
+        'resource': resource.VmmInjectedReplicaSet,
+    }],
+    'vmmInjectedSvc': [{
+        'resource': resource.VmmInjectedService,
+        'skip': ['service_ports'],
+        'exceptions': {'type': {'other': 'service_type'},
+                       'lbIp': {'other': 'load_balancer_ip'}},
+    }],
+    'vmmInjectedSvcPort': [{
+        'resource': resource.VmmInjectedService,
+        'converter': vmmInjectedSvcPort_converter,
+    }],
+    'vmmInjectedHost': [{
+        'resource': resource.VmmInjectedHost,
+        'exceptions': {'kernelVer': {'other': 'kernel_version'}}
+    }],
+    'vmmInjectedGrp': [{
+        'resource': resource.VmmInjectedGroup,
+    }],
 }
 
 resource_map.update(service_graph.resource_map)
@@ -520,7 +597,8 @@ resource_map.update({
     'fvRsCons__Ext': [{'resource': resource.ExternalNetwork,
                        'converter': fvRsCons_Ext_converter,
                        'convert_pre_existing': True,
-                       'convert_monitored': False}]
+                       'convert_monitored': False}],
+    'infraRsVlanNs__vmm': [resource_map['infraRsVlanNs'][0]],
 })
 
 resource_map.update(service_graph.resource_map_post_reverse)
@@ -665,7 +743,7 @@ class AimToAciModelConverter(BaseConverter):
             except Exception as e:
                 LOG.warn("Could not convert object"
                          "%s with error %s" % (object.__dict__, e.message))
-                LOG.error(traceback.format_exc())
+                LOG.debug(traceback.format_exc())
 
         squashed = self._squash(result)
         LOG.debug("Converted:\n %s\n into:\n %s" %

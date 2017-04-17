@@ -76,7 +76,20 @@ def upgrade():
         sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('display_name', sa.String(256), nullable=False, default=''),
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
-        sa.PrimaryKeyConstraint('aim_id'))
+        sa.Column('enforcement_pref', sa.Enum('sw', 'hw', 'unknown')),
+        sa.Column('mode', sa.Enum('default', 'n1kv', 'unknown', 'ovs',
+                                  'k8s')),
+        sa.Column('mcast_address', sa.String(64)),
+        sa.Column('encap_mode', sa.Enum('unknown', 'vlan', 'vxlan')),
+        sa.Column('pref_encap_mode', sa.Enum('unspecified', 'vlan',
+                                             'vxlan')),
+        sa.Column('vlan_pool_name', sa.String(64)),
+        sa.Column('vlan_pool_type', sa.Enum('static', 'dynamic')),
+        sa.Column('mcast_addr_pool_name', sa.String(64)),
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('type', 'name',
+                            name='uniq_aim_vmm_domains_identity'),
+        sa.Index('idx_aim_vmm_domains_identity', 'type', 'name'))
 
     op.create_table(
         'aim_physical_domains',

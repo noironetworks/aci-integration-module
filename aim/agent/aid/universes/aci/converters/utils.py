@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
+
 from oslo_log import log as logging
 
 from apicapi import apic_client
@@ -32,6 +34,13 @@ def boolean(resource, attribute, to_aim=True):
 
 def upper(object_dict, attribute_name, to_aim=True):
     return object_dict[attribute_name].upper()
+
+
+def integer_str(object_dict, attribute_name, to_aim=True):
+    if to_aim:
+        return int(object_dict[attribute_name])
+    else:
+        return str(object_dict[attribute_name])
 
 
 def convert_attribute(aim_attribute, to_aim=True):
@@ -100,11 +109,22 @@ def default_to_resource_strict(converted, helper, to_aim=True):
         values = {}
         for k, v in helper.get('exceptions', {}).iteritems():
             attr = v.get('other') or k
-            if converted.get(attr) is not None:
-                values[attr] = converted[attr]
+            skip_if_empty = v.get('skip_if_empty', False)
+            conv_value = converted.get(attr)
+            if conv_value or (conv_value is not None and not skip_if_empty):
+                values[attr] = conv_value
         if values:
             values['dn'] = converted['dn']
             return {helper['resource']: {'attributes': values}}
+
+
+def no_op_to_resource(converted, helper, to_aim=True):
+    # to aim -> same as default_to_resource
+    # to aci -> keep only DN
+    if to_aim:
+        return default_to_resource(converted, helper, to_aim=to_aim)
+    else:
+        return {helper['resource']: {'attributes': {'dn': converted['dn']}}}
 
 
 def default_identity_converter(object_dict, otype, helper,
@@ -129,7 +149,9 @@ def default_identity_converter(object_dict, otype, helper,
     """
     if to_aim:
         dn_mgr = apic_client.DNManager()
-        mos_and_rns = dn_mgr.aci_decompose_with_type(object_dict['dn'], otype)
+        aci_type = aci_mo_type or otype
+        mos_and_rns = dn_mgr.aci_decompose_with_type(object_dict['dn'],
+                                                     aci_type)
         return dn_mgr.filter_rns(mos_and_rns)
     else:
         attr = [object_dict[x] for x in otype.identity_attributes]
@@ -241,6 +263,8 @@ def reverse_attribute_mapping_info(mapping_info, to_aim=True):
         result[other_name] = {'other': exception}
         if 'converter' in value:
             result[other_name]['converter'] = value['converter']
+        if 'skip_if_empty' in value:
+            result[other_name]['skip_if_empty'] = value['skip_if_empty']
     return result
 
 
@@ -273,8 +297,19 @@ def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None):
         else:
             aci_type = aci_mo or helper['resource']
             for aim_list_item in object_dict[aim_attr]:
-                extra_attr = [aim_list_item[a] for a in id_attr
-                              if a in aim_list_item]
+                aim_list_item = copy.copy(aim_list_item)
+                # fill out the defaults
+                for aim_d_a, map_info in mapping_info.iteritems():
+                    if aim_d_a not in aim_list_item and 'default' in map_info:
+                        aim_list_item[aim_d_a] = map_info['default']
+                extra_attr = []
+                for a in id_attr:
+                    if a in aim_list_item:
+                        conv = do_attribute_conversion(aim_list_item, a,
+                                                       mapping_info,
+                                                       to_aim=False)
+                        if conv:
+                            extra_attr.append(conv.values()[0])
                 if len(extra_attr) == len(id_attr):
                     dn = id_conv(object_dict, otype, helper,
                                  extra_attributes=extra_attr,
@@ -297,7 +332,9 @@ def dn_decomposer(aim_attr_list, aci_mo):
         if to_aim:
             dn = object_dict.get(attribute)
             if dn:
-                rns = apic_client.DNManager().aci_decompose(dn, aci_mo)
+                dnm = apic_client.DNManager()
+                mos_and_rns = dnm.aci_decompose_with_type(dn, aci_mo)
+                rns = dnm.filter_rns(mos_and_rns)
                 return dict(zip(aim_attr_list, rns))
             else:
                 return {}

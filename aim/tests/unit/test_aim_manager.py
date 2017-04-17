@@ -164,6 +164,10 @@ class TestResourceOpsBase(object):
         for k, v in creation_attributes.iteritems():
             self.assertEqual(v, getattr_canonical(r1, k))
 
+        if ('object_uid' in self.ctx.store.features and
+                'guid' in resource.db_attributes):
+            self.assertTrue(bool(r1.guid))
+
         # Verify overwrite
         for k, v in test_search_attributes.iteritems():
             setattr(res, k, v)
@@ -204,7 +208,7 @@ class TestResourceOpsBase(object):
         self.assertIsNone(self.mgr.get(self.ctx, res))
         # TODO(ivar): Avoid config creation form AIM resources
         if not isinstance(res, aim_res.Configuration):
-            self.assertEqual([], self.mgr.find(self.ctx, resource))
+            self.assertNotIn(res, self.mgr.find(self.ctx, resource))
 
         # Test update nonexisting object
         r4 = self.mgr.update(self.ctx, res, **{})
@@ -765,11 +769,29 @@ class TestEndpointMixin(object):
 class TestVMMDomainMixin(object):
     resource_class = resource.VMMDomain
     prereq_objects = [resource.VMMPolicy(type='OpenStack')]
-    test_identity_attributes = {'type': 'OpenStack', 'name': 'openstack'}
-    test_required_attributes = {'type': 'OpenStack', 'name': 'openstack'}
+    test_identity_attributes = {'type': 'OpenStack',
+                                'name': 'openstack',
+                                'encap_mode': 'vxlan'}
+    test_required_attributes = {'type': 'OpenStack',
+                                'name': 'openstack',
+                                'enforcement_pref': 'hw',
+                                'mode': 'k8s',
+                                'mcast_address': '255.3.2.1',
+                                'encap_mode': 'vlan',
+                                'encap_mode': 'vxlan',
+                                'vlan_pool_name': 'vlan_pool_1',
+                                'vlan_pool_type': 'static',
+                                'mcast_addr_pool_name': 'mcast_pool_1'}
     test_search_attributes = {'name': 'openstack'}
-    test_update_attributes = {}
-    test_default_values = {}
+    test_update_attributes = {'mode': 'ovs',
+                              'vlan_pool_name': 'pool2'}
+    test_default_values = {'enforcement_pref': 'sw',
+                           'mode': 'ovs',
+                           'mcast_address': '0.0.0.0',
+                           'pref_encap_mode': 'vxlan',
+                           'vlan_pool_name': '',
+                           'mcast_addr_pool_name': '',
+                           'vlan_pool_type': 'dynamic'}
     res_command = 'vmm-domain'
     test_dn = 'uni/vmmp-OpenStack/dom-openstack'
 
@@ -1265,6 +1287,255 @@ class TestTopologyMixin(object):
     test_dn = 'topology'
 
 
+class TestVMMControllerMixin(object):
+    resource_class = resource.VMMController
+    prereq_objects = [resource.VMMPolicy(type='OpenStack'),
+                      resource.VMMDomain(type='OpenStack',
+                                         name='openstack')]
+    test_identity_attributes = {'domain_type': 'OpenStack',
+                                'domain_name': 'openstack',
+                                'name': 'cluster1'}
+    test_required_attributes = {'domain_type': 'OpenStack',
+                                'domain_name': 'openstack',
+                                'name': 'cluster1',
+                                'scope': 'kubernetes',
+                                'root_cont_name': 'root-cluster1',
+                                'host_or_ip': 'host-cluster1',
+                                'mode': 'k8s'}
+    test_search_attributes = {'name': 'cluster1'}
+    test_update_attributes = {'display_name': 'OSTK',
+                              'scope': 'unmanaged'}
+    test_default_values = {'scope': 'openstack',
+                           'root_cont_name': 'cluster1',
+                           'host_or_ip': 'cluster1',
+                           'mode': 'ovs'}
+    res_command = 'vmm-controller'
+    test_dn = 'uni/vmmp-OpenStack/dom-openstack/ctrlr-cluster1'
+
+
+def _setup_injected_object(test_obj, inj_klass, inj_attr, inj_name):
+    test_obj.test_dn = test_obj.test_dn.replace('{%s}' % inj_attr, inj_name)
+    test_obj.prereq_objects = copy.copy(test_obj.prereq_objects)
+    inj_obj = [p for p in test_obj.prereq_objects if isinstance(p, inj_klass)]
+    if inj_obj:
+        setattr(inj_obj[0], 'name', inj_name)
+    test_obj.test_identity_attributes = copy.copy(
+        test_obj.test_identity_attributes)
+    test_obj.test_identity_attributes[inj_attr] = inj_name
+    test_obj.test_required_attributes = copy.copy(
+        test_obj.test_required_attributes)
+    test_obj.test_required_attributes[inj_attr] = inj_name
+    test_obj.test_search_attributes = copy.copy(
+        test_obj.test_search_attributes)
+    test_obj.test_search_attributes[inj_attr] = inj_name
+
+
+class TestVmmInjectedNamespaceMixin(object):
+    resource_class = resource.VmmInjectedNamespace
+    prereq_objects = [resource.VMMPolicy(type='Kubernetes'),
+                      resource.VMMDomain(type='Kubernetes', name='kubernetes'),
+                      resource.VMMController(domain_type='Kubernetes',
+                                             domain_name='kubernetes',
+                                             name='kube-cluster')]
+    test_identity_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster'}
+    test_required_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster'}
+    test_search_attributes = {}
+    test_update_attributes = {'display_name': 'KUBE'}
+    test_default_values = {}
+    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+               'ns-[{name}]')
+    res_command = 'vmm-injected-namespace'
+
+    def _setUp(self):
+        _setup_injected_object(self, resource.VmmInjectedNamespace,
+                               'name', self.test_id)
+
+
+class TestVmmInjectedDeploymentMixin(object):
+    resource_class = resource.VmmInjectedDeployment
+    prereq_objects = [
+        resource.VMMPolicy(type='Kubernetes'),
+        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
+        resource.VMMController(domain_type='Kubernetes',
+                               domain_name='kubernetes',
+                               name='kube-cluster'),
+        resource.VmmInjectedNamespace(domain_type='Kubernetes',
+                                      domain_name='kubernetes',
+                                      controller_name='kube-cluster',
+                                      name='')]
+    test_identity_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'name': 'depl1'}
+    test_required_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'name': 'depl1',
+                                'replicas': 1}
+    test_search_attributes = {'name': 'depl1'}
+    test_update_attributes = {'replicas': 2,
+                              'display_name': 'DEPL'}
+    test_default_values = {'replicas': 0}
+    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+               'ns-[{namespace_name}]/depl-[depl1]')
+    res_command = 'vmm-injected-deployment'
+
+    def _setUp(self):
+        _setup_injected_object(self, resource.VmmInjectedNamespace,
+                               'namespace_name', self.test_id)
+
+
+class TestVmmInjectedReplicaSetMixin(object):
+    resource_class = resource.VmmInjectedReplicaSet
+    prereq_objects = [
+        resource.VMMPolicy(type='Kubernetes'),
+        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
+        resource.VMMController(domain_type='Kubernetes',
+                               domain_name='kubernetes',
+                               name='kube-cluster'),
+        resource.VmmInjectedNamespace(domain_type='Kubernetes',
+                                      domain_name='kubernetes',
+                                      controller_name='kube-cluster',
+                                      name=''),
+        resource.VmmInjectedDeployment(domain_type='Kubernetes',
+                                       domain_name='kubernetes',
+                                       controller_name='kube-cluster',
+                                       namespace_name='',
+                                       name='depl1')]
+    test_identity_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'deployment_name': 'depl1',
+                                'name': 'repl1'}
+    test_required_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'deployment_name': 'depl1',
+                                'name': 'repl1'}
+    test_search_attributes = {'name': 'repl1'}
+    test_update_attributes = {'display_name': 'REPL'}
+    test_default_values = {}
+    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+               'ns-[{namespace_name}]/depl-[depl1]/rs-[repl1]')
+    res_command = 'vmm-injected-replica-set'
+
+    def _setUp(self):
+        _setup_injected_object(self, resource.VmmInjectedNamespace,
+                               'namespace_name', self.test_id)
+        self.prereq_objects[4].namespace_name = self.test_id
+
+
+class TestVmmInjectedServiceMixin(object):
+    resource_class = resource.VmmInjectedService
+    prereq_objects = [
+        resource.VMMPolicy(type='Kubernetes'),
+        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
+        resource.VMMController(domain_type='Kubernetes',
+                               domain_name='kubernetes',
+                               name='kube-cluster'),
+        resource.VmmInjectedNamespace(domain_type='Kubernetes',
+                                      domain_name='kubernetes',
+                                      controller_name='kube-cluster',
+                                      name='')]
+    test_identity_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'name': 'svc1'}
+    test_required_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'name': 'svc1',
+                                'service_type': 'loadBalancer',
+                                'cluster_ip': '1.2.3.4',
+                                'load_balancer_ip': '5.6.7.8',
+                                'service_ports': [{'port': '23',
+                                                   'protocol': 'tcp',
+                                                   'target_port': '45'},
+                                                  {'port': '332',
+                                                   'protocol': 'udp',
+                                                   'target_port': '556'}]}
+    test_search_attributes = {'cluster_ip': '1.2.3.4'}
+    test_update_attributes = {'load_balancer_ip': '56.77.78.88',
+                              'service_ports': []}
+    test_default_values = {'service_type': 'clusterIp',
+                           'cluster_ip': '0.0.0.0',
+                           'load_balancer_ip': '0.0.0.0',
+                           'service_ports': []}
+    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+               'ns-[{namespace_name}]/svc-[svc1]')
+    res_command = 'vmm-injected-service'
+
+    def _setUp(self):
+        _setup_injected_object(self, resource.VmmInjectedNamespace,
+                               'namespace_name', self.test_id)
+
+
+class TestVmmInjectedHostMixin(object):
+    resource_class = resource.VmmInjectedHost
+    prereq_objects = [resource.VMMPolicy(type='Kubernetes'),
+                      resource.VMMDomain(type='Kubernetes', name='kubernetes'),
+                      resource.VMMController(domain_type='Kubernetes',
+                                             domain_name='kubernetes',
+                                             name='kube-cluster'), ]
+    test_identity_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster'}
+    test_required_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'host_name': 'host1.local.lab',
+                                'os': 'Ubuntu',
+                                'kernel_version': '4.16.8'}
+    test_search_attributes = {'os': 'Ubuntu'}
+    test_update_attributes = {'host_name': 'host2.local.lab'}
+    test_default_values = {}
+    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+               'host-[{name}]')
+    res_command = 'vmm-injected-host'
+
+    def _setUp(self):
+        _setup_injected_object(self, resource.VmmInjectedHost,
+                               'name', self.test_id)
+
+
+class TestVmmInjectedGroupMixin(object):
+    resource_class = resource.VmmInjectedGroup
+    prereq_objects = [
+        resource.VMMPolicy(type='Kubernetes'),
+        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
+        resource.VMMController(domain_type='Kubernetes',
+                               domain_name='kubernetes',
+                               name='kube-cluster'),
+        resource.VmmInjectedNamespace(domain_type='Kubernetes',
+                                      domain_name='kubernetes',
+                                      controller_name='kube-cluster',
+                                      name='')]
+    test_identity_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'name': 'pod1'}
+    test_required_attributes = {'domain_type': 'Kubernetes',
+                                'domain_name': 'kubernetes',
+                                'controller_name': 'kube-cluster',
+                                'name': 'pod1',
+                                'host_name': 'host1',
+                                'compute_node_name': 'host1'}
+    test_search_attributes = {'name': 'pod1'}
+    test_update_attributes = {'display_name': 'POD'}
+    test_default_values = {'host_name': ''}
+    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+               'ns-[{namespace_name}]/grp-[pod1]')
+    res_command = 'vmm-injected-group'
+
+    def _setUp(self):
+        _setup_injected_object(self, resource.VmmInjectedNamespace,
+                               'namespace_name', self.test_id)
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1386,7 +1657,7 @@ class TestEndpoint(TestEndpointMixin, TestResourceOpsBase, base.TestAimDBBase):
     pass
 
 
-class TestVMMDomain(TestVMMDomainMixin, TestResourceOpsBase,
+class TestVMMDomain(TestVMMDomainMixin, TestAciResourceOpsBase,
                     base.TestAimDBBase):
     pass
 
@@ -1533,3 +1804,56 @@ class TestPod(TestPodMixin, TestResourceOpsBase, base.TestAimDBBase):
 
 class TestTopology(TestTopologyMixin, TestResourceOpsBase, base.TestAimDBBase):
     pass
+
+
+class TestVMMController(TestVMMControllerMixin, TestAciResourceOpsBase,
+                        base.TestAimDBBase):
+    pass
+
+
+class TestVmmInjectedNamespace(TestVmmInjectedNamespaceMixin,
+                               TestAciResourceOpsBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestVmmInjectedNamespace, self).setUp()
+        self._setUp()
+
+
+class TestVmmInjectedDeployment(TestVmmInjectedDeploymentMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestVmmInjectedDeployment, self).setUp()
+        self._setUp()
+
+
+class TestVmmInjectedReplicaSet(TestVmmInjectedReplicaSetMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestVmmInjectedReplicaSet, self).setUp()
+        self._setUp()
+
+
+class TestVmmInjectedService(TestVmmInjectedServiceMixin,
+                             TestAciResourceOpsBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestVmmInjectedService, self).setUp()
+        self._setUp()
+
+
+class TestVmmInjectedHost(TestVmmInjectedHostMixin,
+                          TestAciResourceOpsBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestVmmInjectedHost, self).setUp()
+        self._setUp()
+
+
+class TestVmmInjectedGroup(TestVmmInjectedGroupMixin,
+                           TestAciResourceOpsBase, base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestVmmInjectedGroup, self).setUp()
+        self._setUp()

@@ -219,7 +219,16 @@ class SqlAlchemyStore(AimStore):
                     api_infra.OpflexDevice: infra_model.OpflexDevice,
                     api_res.VMMPolicy: models.VMMPolicy,
                     api_res.Pod: models.Pod,
-                    api_res.Topology: models.Topology}
+                    api_res.Topology: models.Topology,
+                    api_res.VMMController: models.VMMController,
+                    api_res.VmmInjectedNamespace: models.VmmInjectedNamespace,
+                    api_res.VmmInjectedDeployment: (
+                        models.VmmInjectedDeployment),
+                    api_res.VmmInjectedReplicaSet: (
+                        models.VmmInjectedReplicaSet),
+                    api_res.VmmInjectedService: models.VmmInjectedService,
+                    api_res.VmmInjectedHost: models.VmmInjectedHost,
+                    api_res.VmmInjectedGroup: models.VmmInjectedGroup}
 
     resource_map = {}
     for k, v in db_model_map.iteritems():

@@ -88,7 +88,14 @@ class AimManager(object):
                      api_infra.OpflexDevice,
                      api_res.VMMPolicy,
                      api_res.Pod,
-                     api_res.Topology}
+                     api_res.Topology,
+                     api_res.VMMController,
+                     api_res.VmmInjectedNamespace,
+                     api_res.VmmInjectedDeployment,
+                     api_res.VmmInjectedReplicaSet,
+                     api_res.VmmInjectedService,
+                     api_res.VmmInjectedHost,
+                     api_res.VmmInjectedGroup, }
 
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}

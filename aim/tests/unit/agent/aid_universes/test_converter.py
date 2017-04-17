@@ -1236,6 +1236,288 @@ class TestAciToAimConverterOpflexDevice(TestAciToAimConverterBase,
     ]
 
 
+class TestAciToAimConverterVMMDomain(TestAciToAimConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.VMMDomain
+    reverse_map_output = [
+        {'resource': 'vmmDomP',
+         'skip': ['vlanPoolName', 'vlanPoolType', 'mcastAddrPoolName'],
+         'exceptions': {'mcast_address': {'other': 'mcastAddr'},
+                        'enforcement_pref': {'other': 'enfPref'}}},
+        {'resource': 'infraRsVlanNs',
+         'exceptions': {'vlan_pool_name':
+                        {'other': 'tDn',
+                         'converter': converter.infraRsVlanNs_vmm_converter,
+                         'skip_if_empty': True}},
+         'identity_converter': converter.infraRsVlan_vmm_id_converter,
+         'to_resource': converter.default_to_resource_strict},
+        {'resource': 'vmmRsDomMcastAddrNs',
+         'exceptions': {'mcast_addr_pool_name':
+                        {'other': 'tDn',
+                         'converter': converter.vmmRsDomMcastAddrNs_converter,
+                         'skip_if_empty': True}},
+         'to_resource': converter.default_to_resource_strict}]
+    sample_input = [[_aci_obj('vmmDomP',
+                              dn='uni/vmmp-Kubernetes/dom-k8s',
+                              enfPref='sw',
+                              mode='k8s',
+                              encapMode='vxlan',
+                              prefEncapMode='vlan',
+                              nameAlias='VMM_DOM'),
+                     _aci_obj('infraRsVlanNs',
+                              dn='uni/vmmp-Kubernetes/dom-k8s/rsvlanNs',
+                              tDn='uni/infra/vlanns-[vpool1]-static')],
+                    [_aci_obj('vmmDomP',
+                              dn='uni/vmmp-OpenStack/dom-ostk',
+                              nameAlias='',
+                              mcastAddr='225.1.2.3',
+                              encapMode='vxlan',
+                              enfPref='hw'),
+                     _aci_obj('vmmRsDomMcastAddrNs',
+                              dn=('uni/vmmp-OpenStack/dom-ostk/'
+                                  'rsdomMcastAddrNs'),
+                              tDn='uni/infra/maddrns-mpool3')],
+                    ]
+    sample_output = [
+        resource.VMMDomain(
+            type='Kubernetes', name='k8s', display_name='VMM_DOM',
+            enforcement_pref='sw', mode='k8s',
+            mcast_address='0.0.0.0', encap_mode='vxlan',
+            pref_encap_mode='vlan', vlan_pool_name='vpool1',
+            vlan_pool_type='static'),
+        resource.VMMDomain(
+            type='OpenStack', name='ostk', mcast_addr_pool_name='mpool3',
+            mcast_address='225.1.2.3', enforcement_pref='hw',
+            mode='ovs', encap_mode='vxlan', pref_encap_mode='unspecified'),
+    ]
+
+
+class TestAciToAimConverterVMMController(TestAciToAimConverterBase,
+                                         base.TestAimDBBase):
+    resource_type = resource.VMMController
+    reverse_map_output = [
+        {'resource': 'vmmCtrlrP',
+         'exceptions': {}},
+        {'resource': 'vmmInjectedCont',
+         'exceptions': {},
+         'to_resource': conv_utils.no_op_to_resource}]
+    sample_input = [_aci_obj('vmmCtrlrP',
+                             dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1',
+                             nameAlias='CLSTR',
+                             scope='kubernetes',
+                             mode='ovs',
+                             rootContName='center1',
+                             hostOrIp='my.cluster.host'),
+                    [_aci_obj('vmmCtrlrP',
+                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cls2'),
+                              nameAlias='',
+                              scope='iaas'),
+                     _aci_obj('vmmInjectedCont',
+                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cls2/'
+                                  'injcont'))]]
+    sample_output = [
+        resource.VMMController(
+            domain_type='Kubernetes', domain_name='k8s',
+            name='cluster1', display_name='CLSTR',
+            scope='kubernetes', root_cont_name='center1',
+            host_or_ip='my.cluster.host', mode='ovs'),
+        resource.VMMController(
+            domain_type='Kubernetes', domain_name='k8s', name='cls2',
+            scope='iaas'),
+    ]
+
+
+class TestAciToAimConverterVmmInjNamespace(TestAciToAimConverterBase,
+                                           base.TestAimDBBase):
+    resource_type = resource.VmmInjectedNamespace
+    reverse_map_output = [
+        {'resource': 'vmmInjectedNs',
+         'exceptions': {}}]
+    sample_input = [_aci_obj('vmmInjectedNs',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns1]')),
+                    _aci_obj('vmmInjectedNs',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns2]'),
+                             nameAlias='N')]
+
+    sample_output = [
+        resource.VmmInjectedNamespace(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', name='ns1'),
+        resource.VmmInjectedNamespace(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', name='ns2', display_name='N')
+    ]
+
+
+class TestAciToAimConverterVmmInjDeployment(TestAciToAimConverterBase,
+                                            base.TestAimDBBase):
+    resource_type = resource.VmmInjectedDeployment
+    reverse_map_output = [
+        {'resource': 'vmmInjectedDepl',
+         'exceptions': {'replicas': {'converter': conv_utils.integer_str,
+                                     'other': 'replicas'}}}]
+    sample_input = [_aci_obj('vmmInjectedDepl',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns1]/depl-[depl1]'),
+                             replicas='5'),
+                    _aci_obj('vmmInjectedDepl',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns2]/depl-[depl2]'),
+                             nameAlias='D')]
+
+    sample_output = [
+        resource.VmmInjectedDeployment(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', namespace_name='ns1', name='depl1',
+            replicas=5),
+        resource.VmmInjectedDeployment(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', namespace_name='ns2', name='depl2',
+            display_name='D')
+    ]
+
+
+class TestAciToAimConverterVmmInjReplicaSet(TestAciToAimConverterBase,
+                                            base.TestAimDBBase):
+    resource_type = resource.VmmInjectedReplicaSet
+    reverse_map_output = [
+        {'resource': 'vmmInjectedReplSet',
+         'exceptions': {}}]
+    sample_input = [_aci_obj('vmmInjectedReplSet',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns1]/depl-[depl1]/rs-[set1]')),
+                    _aci_obj('vmmInjectedReplSet',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns2]/depl-[depl2]/rs-[set2]'),
+                             nameAlias='RS')]
+
+    sample_output = [
+        resource.VmmInjectedReplicaSet(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', namespace_name='ns1',
+            deployment_name='depl1', name='set1'),
+        resource.VmmInjectedReplicaSet(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', namespace_name='ns2',
+            deployment_name='depl2', name='set2', display_name='RS')
+    ]
+
+
+class TestAciToAimConverterVmmInjService(TestAciToAimConverterBase,
+                                         base.TestAimDBBase):
+    resource_type = resource.VmmInjectedService
+    reverse_map_output = [
+        {'resource': 'vmmInjectedSvc',
+         'skip': ['servicePorts'],
+         'exceptions': {'service_type': {'other': 'type'},
+                        'load_balancer_ip': {'other': 'lbIp'}}},
+        {'resource': 'vmmInjectedSvcPort',
+         'converter': converter.vmmInjectedSvcPort_converter,
+         'exceptions': {}}]
+    sample_input = [[_aci_obj('vmmInjectedSvc',
+                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                  'injcont/ns-[ns1]/svc-[svc1]'),
+                              clusterIp='1.2.3.4',
+                              type='loadBalancer',
+                              lbIp='5.6.7.8'),
+                     _aci_obj('vmmInjectedSvcPort',
+                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                  'injcont/ns-[ns1]/svc-[svc1]/'
+                                  'p-https-prot-tcp-t-INT_HTTP'),
+                              port='https',
+                              protocol='tcp',
+                              targetPort='INT_HTTP',),
+                     _aci_obj('vmmInjectedSvcPort',
+                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                  'injcont/ns-[ns1]/svc-[svc1]/'
+                                  'p-56-prot-udp-t-2056'),
+                              port='56',
+                              protocol='udp',
+                              targetPort='2056',
+                              nodePort='http')],
+                    _aci_obj('vmmInjectedSvc',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns2]/svc-[svc2]'),
+                             nameAlias='SVC')]
+
+    sample_output = [
+        resource.VmmInjectedService(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', namespace_name='ns1', name='svc1',
+            cluster_ip='1.2.3.4', service_type='loadBalancer',
+            load_balancer_ip='5.6.7.8',
+            service_ports=[{'port': 'https', 'protocol': 'tcp',
+                            'target_port': 'INT_HTTP'},
+                           {'port': '56', 'protocol': 'udp',
+                            'target_port': '2056', 'node_port': 'http'}]),
+        resource.VmmInjectedService(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', namespace_name='ns2', name='svc2',
+            display_name='SVC', cluster_ip='0.0.0.0',
+            service_type='clusterIp', load_balancer_ip='0.0.0.0',
+            service_ports=[])
+    ]
+
+
+class TestAciToAimConverterVmmInjHost(TestAciToAimConverterBase,
+                                      base.TestAimDBBase):
+    resource_type = resource.VmmInjectedHost
+    reverse_map_output = [
+        {'resource': 'vmmInjectedHost',
+         'exceptions': {'kernel_version': {'other': 'kernelVer'}}}]
+    sample_input = [_aci_obj('vmmInjectedHost',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/host-[host1]'),
+                             os='Ubuntu',
+                             kernelVer='4.0',
+                             hostName='my.local.host'),
+                    _aci_obj('vmmInjectedHost',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/host-[host2]'),
+                             nameAlias='HOST')]
+
+    sample_output = [
+        resource.VmmInjectedHost(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', name='host1',
+            os='Ubuntu', kernel_version='4.0', host_name='my.local.host'),
+        resource.VmmInjectedHost(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', name='host2',
+            display_name='HOST')
+    ]
+
+
+class TestAciToAimConverterVmmInjGroup(TestAciToAimConverterBase,
+                                       base.TestAimDBBase):
+    resource_type = resource.VmmInjectedGroup
+    reverse_map_output = [
+        {'resource': 'vmmInjectedGrp',
+         'exceptions': {}}]
+    sample_input = [_aci_obj('vmmInjectedGrp',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns1]/grp-[pod1]'),
+                             hostName='my.local.host',
+                             computeNodeName='host1'),
+                    _aci_obj('vmmInjectedGrp',
+                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                 'injcont/ns-[ns2]/grp-[pod2]'),
+                             nameAlias='POD')]
+
+    sample_output = [
+        resource.VmmInjectedGroup(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', compute_node_name='host1',
+            name='pod1', namespace_name='ns1', host_name='my.local.host'),
+        resource.VmmInjectedGroup(
+            domain_type='Kubernetes', domain_name='k8s',
+            controller_name='cluster1', namespace_name='ns2',
+            name='pod2', display_name='POD')
+    ]
+
+
 class TestAimToAciConverterBase(object):
     sample_input = []
     sample_output = []
@@ -2526,4 +2808,303 @@ class TestAimToAciConverterOpflexDevice(TestAimToAciConverterBase,
                   ctrlrName='cluster1',
                   fabricPathDn=('topology/pod-1/protpaths-201-202/'
                                 'pathep-[bundle-201-1-33-and-202-1-33]'))]
+    ]
+
+
+def get_example_aim_vmm_domain(**kwargs):
+    defs = dict(type='Kubernetes', name='k8s')
+    defs.update(kwargs)
+    example = resource.VMMDomain(**defs)
+    return example
+
+
+class TestAimToAciConverterVMMDomain(TestAimToAciConverterBase,
+                                     base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_domain(
+            display_name='VMM_DOM', enforcement_pref='sw', mode='k8s',
+            mcast_address='0.0.0.0', encap_mode='vxlan',
+            pref_encap_mode='vlan', vlan_pool_name='vpool1',
+            vlan_pool_type='static'),
+        get_example_aim_vmm_domain(
+            type='OpenStack', name='ostk', mcast_addr_pool_name='mpool3',
+            mcast_address='225.1.2.3', enforcement_pref='hw',
+            mode='ovs', encap_mode='vxlan')]
+
+    sample_output = [
+        [_aci_obj('vmmDomP',
+                  dn='uni/vmmp-Kubernetes/dom-k8s',
+                  enfPref='sw',
+                  mode='k8s',
+                  encapMode='vxlan',
+                  prefEncapMode='vlan',
+                  mcastAddr='0.0.0.0',
+                  nameAlias='VMM_DOM'),
+         _aci_obj('infraRsVlanNs',
+                  dn='uni/vmmp-Kubernetes/dom-k8s/rsvlanNs',
+                  tDn='uni/infra/vlanns-[vpool1]-static')],
+        [_aci_obj('vmmDomP',
+                  dn='uni/vmmp-OpenStack/dom-ostk',
+                  nameAlias='',
+                  mcastAddr='225.1.2.3',
+                  encapMode='vxlan',
+                  enfPref='hw',
+                  mode='ovs',
+                  prefEncapMode='vxlan'),
+         _aci_obj('vmmRsDomMcastAddrNs',
+                  dn=('uni/vmmp-OpenStack/dom-ostk/'
+                      'rsdomMcastAddrNs'),
+                  tDn='uni/infra/maddrns-mpool3')]
+    ]
+
+
+def get_example_aim_vmm_controller(**kwargs):
+    defs = dict(domain_type='Kubernetes', domain_name='k8s',
+                name='cluster1')
+    defs.update(kwargs)
+    example = resource.VMMController(**defs)
+    return example
+
+
+class TestAimToAciConverterVMMController(TestAimToAciConverterBase,
+                                         base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_controller(
+            display_name='CLSTR', scope='kubernetes',
+            root_cont_name='center1', host_or_ip='my.cluster.host',
+            mode='ovs'),
+        get_example_aim_vmm_controller(name='cluster2', scope='iaas')]
+
+    sample_output = [
+        [_aci_obj('vmmCtrlrP',
+                  dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1',
+                  nameAlias='CLSTR',
+                  scope='kubernetes',
+                  mode='ovs',
+                  rootContName='center1',
+                  hostOrIp='my.cluster.host'),
+         _aci_obj('vmmInjectedCont',
+                  dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/injcont')],
+        [_aci_obj('vmmCtrlrP',
+                  dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster2',
+                  nameAlias='',
+                  scope='iaas',
+                  mode='k8s',
+                  rootContName='cluster2',
+                  hostOrIp='cluster2'),
+         _aci_obj('vmmInjectedCont',
+                  dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster2/injcont')]
+    ]
+
+
+def get_example_aim_vmm_inj_namespace(**kwargs):
+    example = resource.VmmInjectedNamespace(
+        domain_type='Kubernetes', domain_name='k8s',
+        controller_name='cluster1', name='ns1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterVmmInjNamespace(TestAimToAciConverterBase,
+                                           base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_inj_namespace(display_name='NS1'),
+        get_example_aim_vmm_inj_namespace(name='ns2')]
+
+    sample_output = [
+        [_aci_obj('vmmInjectedNs',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]'),
+                  nameAlias='NS1')],
+        [_aci_obj('vmmInjectedNs',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns2]'),
+                  nameAlias='')]
+    ]
+
+
+def get_example_aim_vmm_inj_deployment(**kwargs):
+    example = resource.VmmInjectedDeployment(
+        domain_type='Kubernetes', domain_name='k8s',
+        controller_name='cluster1', namespace_name='ns1', name='depl1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterVmmInjDeployment(TestAimToAciConverterBase,
+                                            base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_inj_deployment(display_name='DEP1',
+                                           replicas=3, guid='123'),
+        get_example_aim_vmm_inj_deployment(name='depl2')]
+
+    sample_output = [
+        [_aci_obj('vmmInjectedDepl',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/depl-[depl1]'),
+                  replicas='3',
+                  guid='123',
+                  nameAlias='DEP1')],
+        [_aci_obj('vmmInjectedDepl',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/depl-[depl2]'),
+                  replicas='0',
+                  guid='',
+                  nameAlias='')]
+    ]
+
+
+def get_example_aim_vmm_inj_replica_set(**kwargs):
+    example = resource.VmmInjectedReplicaSet(
+        domain_type='Kubernetes', domain_name='k8s',
+        controller_name='cluster1', namespace_name='ns1',
+        deployment_name='depl1', name='set1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterVmmInjReplicaSet(TestAimToAciConverterBase,
+                                            base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_inj_replica_set(display_name='RS1'),
+        get_example_aim_vmm_inj_replica_set(name='set2')]
+
+    sample_output = [
+        [_aci_obj('vmmInjectedReplSet',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/depl-[depl1]/rs-[set1]'),
+                  nameAlias='RS1')],
+        [_aci_obj('vmmInjectedReplSet',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/depl-[depl1]/rs-[set2]'),
+                  nameAlias='')]
+    ]
+
+
+def get_example_aim_vmm_inj_service(**kwargs):
+    example = resource.VmmInjectedService(
+        domain_type='Kubernetes', domain_name='k8s',
+        controller_name='cluster1', namespace_name='ns1', name='svc1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
+                                         base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_inj_service(name='svc2'),
+        get_example_aim_vmm_inj_service(
+            display_name='SVC1', guid='123', cluster_ip='1.2.3.4',
+            service_type='loadBalancer', load_balancer_ip='5.6.7.8',
+            service_ports=[{'port': '443',
+                            'protocol': 'tcp',
+                            'target_port': 'INT_HTTP'},
+                           {'port': '56',
+                            'protocol': 'udp',
+                            'target_port': '2056',
+                            'node_port': '80'}]),
+    ]
+
+    sample_output = [
+        [_aci_obj('vmmInjectedSvc',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/svc-[svc2]'),
+                  nameAlias='',
+                  type='clusterIp',
+                  lbIp='0.0.0.0',
+                  clusterIp='0.0.0.0',
+                  guid='')],
+        [_aci_obj('vmmInjectedSvc',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/svc-[svc1]'),
+                  clusterIp='1.2.3.4',
+                  type='loadBalancer',
+                  lbIp='5.6.7.8',
+                  guid='123',
+                  nameAlias='SVC1',),
+         _aci_obj('vmmInjectedSvcPort',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/svc-[svc1]/'
+                      'p-https-prot-tcp-t-INT_HTTP'),
+                  port='https',
+                  protocol='tcp',
+                  targetPort='INT_HTTP',
+                  nodePort='unspecified'),
+         _aci_obj('vmmInjectedSvcPort',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/svc-[svc1]/'
+                      'p-56-prot-udp-t-2056'),
+                  port='56',
+                  protocol='udp',
+                  targetPort='2056',
+                  nodePort='http')]
+    ]
+
+
+def get_example_aim_vmm_inj_host(**kwargs):
+    example = resource.VmmInjectedHost(
+        domain_type='Kubernetes', domain_name='k8s',
+        controller_name='cluster1', name='host1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterVmmInjHost(TestAimToAciConverterBase,
+                                      base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_inj_host(display_name='HOST1',),
+        get_example_aim_vmm_inj_host(name='host2',
+                                     os='RHEL', host_name='local.host',
+                                     kernel_version='5.9')]
+
+    sample_output = [
+        [_aci_obj('vmmInjectedHost',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/host-[host1]'),
+                  nameAlias='HOST1',
+                  os='',
+                  kernelVer='',
+                  hostName='')],
+        [_aci_obj('vmmInjectedHost',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/host-[host2]'),
+                  nameAlias='',
+                  os='RHEL',
+                  kernelVer='5.9',
+                  hostName='local.host')]
+    ]
+
+
+def get_example_aim_vmm_inj_group(**kwargs):
+    example = resource.VmmInjectedGroup(
+        domain_type='Kubernetes', domain_name='k8s',
+        controller_name='cluster1', namespace_name='ns1', name='pod1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterVmmInjGroup(TestAimToAciConverterBase,
+                                       base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_vmm_inj_group(display_name='POD1',
+                                      host_name='my.local.host',
+                                      compute_node_name='host1',
+                                      guid='123'),
+        get_example_aim_vmm_inj_group(name='pod2')]
+
+    sample_output = [
+        [_aci_obj('vmmInjectedGrp',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/grp-[pod1]'),
+                  hostName='my.local.host',
+                  computeNodeName='host1',
+                  guid='123',
+                  nameAlias='POD1')],
+        [_aci_obj('vmmInjectedGrp',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/grp-[pod2]'),
+                  hostName='',
+                  computeNodeName='',
+                  guid='',
+                  nameAlias='')]
     ]
