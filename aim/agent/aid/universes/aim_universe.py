@@ -155,6 +155,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return list(result)
 
     def get_resources_for_delete(self, resource_keys):
+        # TODO(ivar): optimize by returning the AIM resource only
         return self.get_resources(resource_keys)
 
     def push_resources(self, resources):
@@ -263,6 +264,47 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             parents.append(a_obj)
         return parents
 
+    def _set_sync_pending_state(self, transformed_diff, raw_diff,
+                                other_universe):
+        aim_add = transformed_diff[base.CREATE]
+        # Check if there are transitioning objects
+        transitioning_keys = []
+        if raw_diff[base.DELETE]:
+            mon_state = self._get_state(tree=tree_manager.MONITORED_TREE)
+            for key in raw_diff[base.DELETE]:
+                root = tree_manager.AimHashTreeMaker._extract_root_rn(key)
+                if root in mon_state and mon_state[root].find(key):
+                    transitioning_keys.append(key)
+        aim_transition = [x for x in self.get_resources(transitioning_keys)
+                          if getattr(x, 'monitored', False)]
+        # Set AIM differences to sync_pending
+        for obj in aim_add + aim_transition:
+            self.manager.set_resource_sync_pending(self.context, obj)
+        # If any aim_del, recalculate deletion
+        if aim_transition:
+            transformed_diff[base.DELETE] = (
+                other_universe.get_resources_for_delete(raw_diff[base.DELETE]))
+
+    def _set_synced_state(self, my_state, raw_diff):
+        all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
+        pending_nodes = []
+        for root, tree in my_state.iteritems():
+            pending_nodes.extend(tree.find_by_metadata('pending', True))
+            pending_nodes.extend(tree.find_no_metadata('pending'))
+        keys_to_sync = set(pending_nodes) - all_modified_keys
+        # get_resources_for_delete is enough here, since we only need the AIM
+        # object identity.
+        aim_to_sync = self.get_resources_for_delete(keys_to_sync)
+        for obj in aim_to_sync:
+            self.manager.set_resource_sync_synced(self.context, obj)
+
+    def update_status_objects(self, my_state, other_universe, other_state,
+                              raw_diff, transformed_diff):
+        # AIM Config Universe is the desired state
+        self._set_sync_pending_state(transformed_diff, raw_diff,
+                                     other_universe)
+        self._set_synced_state(my_state, raw_diff)
+
 
 class AimDbOperationalUniverse(AimDbUniverse):
 
@@ -283,6 +325,10 @@ class AimDbOperationalUniverse(AimDbUniverse):
         # reason for the Operational Universe to oppose that decision
         return self._reconcile(other_universe, delete_candidates,
                                always_vote_deletion=True)
+
+    def update_status_objects(self, my_state, other_state, other_universe,
+                              raw_diff, transformed_diff):
+        pass
 
 
 class AimDbMonitoredUniverse(AimDbUniverse):
@@ -306,3 +352,8 @@ class AimDbMonitoredUniverse(AimDbUniverse):
         # AIM tenant doesn't exist.
         return self._reconcile(other_universe, delete_candidates,
                                skip_dummy=True)
+
+    def update_status_objects(self, my_state, other_universe, other_state,
+                              raw_diff, transformed_diff):
+        # AIM Monitored Universe is current state
+        self._set_synced_state(my_state, raw_diff)

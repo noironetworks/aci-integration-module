@@ -217,9 +217,9 @@ class StructuredHashTree(base.ComparableCollection):
             # nothing to do
             return self
         has_metadata = '_metadata' in kwargs
-        metadata_dict = kwargs.pop('_metadata', {}) or {}
+        metadata_dict = kwargs.pop('_metadata', None)
         metadata = KeyValueStore()
-        for meta_key, value in metadata_dict.iteritems():
+        for meta_key, value in (metadata_dict or {}).iteritems():
             metadata.add(KeyValue(meta_key, value))
         error = kwargs.pop('_error', False)
         # When self.root is node, it gets initialized with a bogus node
@@ -252,7 +252,10 @@ class StructuredHashTree(base.ComparableCollection):
         node.dummy = False
         node.error = error
         if has_metadata:
-            node.metadata = metadata
+            if metadata_dict is not None:
+                node.metadata.update(metadata)
+            else:
+                node.metadata = metadata
         # Recalculate full hashes navigating the stack backwards
         self._recalculate_parents_stack(stack)
         return self
@@ -324,6 +327,30 @@ class StructuredHashTree(base.ComparableCollection):
 
     def find(self, key):
         return self._get_node_and_parent_stack(key)[0]
+
+    def find_by_metadata(self, key, value):
+        return self._find_by_metadata(key, value)
+
+    def find_no_metadata(self, key):
+        # Find all the nodes without a certain metadata key
+        return self._find_by_metadata(key, None, False)
+
+    def _find_by_metadata(self, key, value, present=True):
+        # TODO(ivar): this is a linear search on the whole tree, make it more
+        # efficient by storing nodes indexed by their metadata
+        if not self.root:
+            return []
+        result = []
+        visit = [self.root]
+        for curr in visit:
+            visit.extend(curr._children)
+            try:
+                if curr.metadata[key] == value and not curr.dummy and present:
+                    result.append(curr.key)
+            except KeyError:
+                if not present and not curr.dummy:
+                    result.append(curr.key)
+        return result
 
     def diff(self, other):
         # TODO(ivar): exclude dummy nodes

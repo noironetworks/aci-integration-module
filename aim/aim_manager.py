@@ -117,8 +117,6 @@ class AimManager(object):
         self._validate_resource_class(resource)
         with context.store.begin(subtransactions=True):
             old_db_obj = None
-            old_monitored = None
-            new_monitored = None
             if overwrite:
                 old_db_obj = self._query_db_obj(context.store, resource)
                 if old_db_obj:
@@ -134,21 +132,6 @@ class AimManager(object):
             db_obj = old_db_obj or context.store.make_db_obj(resource)
             self._add_commit_hook(context.store)
             context.store.add(db_obj)
-            # Propagate sync status to neighbor objects
-            # TODO(ivar): workaround for newly created monitored Tenant that
-            # will always stay in pending state.
-            if not old_db_obj and isinstance(
-                    resource, api_res.AciRoot) and getattr(
-                    resource, 'monitored', None):
-                self.set_resource_sync_synced(context, resource)
-            elif isinstance(resource, api_res.AciResourceBase):
-                # Monitored objects that are not changing the monitored status
-                # should not go in pending.
-                if self._should_set_pending(old_db_obj, old_monitored,
-                                            new_monitored):
-                    self.set_resource_sync_pending(
-                        context, resource,
-                        force=getattr(db_obj, 'monitored', False))
             return self.get(context, resource)
 
     @utils.log
@@ -174,17 +157,16 @@ class AimManager(object):
                     raise exc.InvalidMonitoredStateUpdate(object=resource)
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
                             if k in resource.other_attributes}
-                context.store.from_attr(db_obj, type(resource), attr_val)
+                if attr_val:
+                    context.store.from_attr(db_obj, type(resource), attr_val)
+                else:
+                    # force update
+                    setattr(
+                        db_obj, resource.identity_attributes.keys()[0],
+                        getattr(db_obj,
+                                resource.identity_attributes.keys()[0]))
                 context.store.add(db_obj)
                 self._add_commit_hook(context.store)
-                if isinstance(resource, api_res.AciResourceBase):
-                    # Monitored objects that are not changing the monitored
-                    # status should not go in pending.
-                    if self._should_set_pending(db_obj, old_monitored,
-                                                new_monitored):
-                        self.set_resource_sync_pending(
-                            context, resource,
-                            force=getattr(db_obj, 'monitored', False))
                 return self.get(context, resource)
 
     def _should_set_pending(self, old_obj, old_monitored, new_monitored):
@@ -284,6 +266,10 @@ class AimManager(object):
                         resource_root=resource.root))
                     if not status:
                         # Create one with default values
+                        # NOTE(ivar): Sometimes we need the status of an object
+                        # even if AID wasn't able to calculate it yet
+                        # (eg. storing faults). In this case the status object
+                        # will be created with N/A sync_status.
                         return self.update_status(
                             context, resource, api_status.AciStatus(
                                 resource_type=res_type, resource_id=res_id,

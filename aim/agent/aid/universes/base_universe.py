@@ -203,6 +203,22 @@ class AimUniverse(BaseUniverse):
         :param key: tenant id
         :return:
         """
+    @abc.abstractmethod
+    def update_status_objects(self, my_state, other_universe, other_state,
+                              raw_diff, transformed_diff):
+        """Update status objects
+
+        Given the current state of the system, update the proper status objects
+        to reflect their sync situation.
+
+        :param my_state: state of the universe
+        :param other_state: state of the comparing universe
+        :param other_universe: handler to the other universe
+        :param raw_diff: difference dictionary listing hashtree keys
+        :param transformed_diff: difference dictionary listing normalized
+                                 objects
+        :return:
+        """
 
 
 class HashTreeStoredUniverse(AimUniverse):
@@ -250,16 +266,21 @@ class HashTreeStoredUniverse(AimUniverse):
                    skip_dummy=False, always_vote_deletion=False):
         # "self" is always the current state, "other" the desired
         my_state = self.state
-        other_state = other_universe.get_optimized_state(my_state)
-        result = {CREATE: [], DELETE: []}
+        # TODO(ivar): We used get_optimized_state method here. By doing that
+        # however, we can't identify what items need to be set in synced state
+        # to improve performance, get_optimized_state should return both
+        # different tenants and those with at least one hashtree node in
+        # pending state.
+        other_state = other_universe.state
+        differences = {CREATE: [], DELETE: []}
         for tenant in set(my_state.keys()) & set(other_state.keys()):
             tree = other_state[tenant]
             my_tenant_state = my_state.get(
                 tenant, structured_tree.StructuredHashTree())
             # Retrieve difference to transform self into other
             difference = tree.diff(my_tenant_state)
-            result[CREATE].extend(difference['add'])
-            result[DELETE].extend(difference['remove'])
+            differences[CREATE].extend(difference['add'])
+            differences[DELETE].extend(difference['remove'])
             if difference['add'] or difference['remove']:
                 LOG.info("Universes %s and %s have differences for tenant "
                          "%s" % (self.name, other_universe.name, tenant))
@@ -279,20 +300,27 @@ class HashTreeStoredUniverse(AimUniverse):
                 else:
                     # This universe disagrees on deletion
                     delete_candidates.get(tenant, set()).discard(self)
-        if not result.get(CREATE) and not result.get(DELETE):
+
+        if not differences.get(CREATE) and not differences.get(DELETE):
             LOG.debug("Universe %s and %s are in sync." %
                       (self.name, other_universe.name))
-            return False
+            diff = False
         else:
-            LOG.info("Universe differences between %s and %s: %s",
-                     self.name, other_universe.name, result)
+            LOG.debug("Universe differences between %s and %s: %s",
+                      self.name, other_universe.name, differences)
+            diff = True
 
         # Get AIM resources at the end to reduce the number of transactions
-        result[CREATE] = other_universe.get_resources(result[CREATE])
-        result[DELETE] = self.get_resources_for_delete(result[DELETE])
+        result = {CREATE: other_universe.get_resources(differences[CREATE]),
+                  DELETE: self.get_resources_for_delete(differences[DELETE])}
+        # Set status objects properly
+        self.update_status_objects(my_state, other_universe, other_state,
+                                   differences, result)
+        other_universe.update_status_objects(other_state, self, my_state,
+                                             differences, result)
         # Reconciliation method for pushing changes
         self.push_resources(result)
-        return True
+        return diff
 
     def reset(self, tenants):
         pass
@@ -318,7 +346,6 @@ class HashTreeStoredUniverse(AimUniverse):
     def creation_succeeded(self, aim_object):
         aim_id = self._get_aim_object_identifier(aim_object)
         self.failure_log.pop(aim_id, None)
-        self.manager.set_resource_sync_synced(self.context, aim_object)
 
     def creation_failed(self, aim_object, reason='unknown',
                         error=errors.UNKNOWN):

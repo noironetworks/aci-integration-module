@@ -300,7 +300,9 @@ class TestResourceOpsBase(object):
         self.mgr.create(self.ctx, res, overwrite=True)
         status = self.mgr.get_status(self.ctx, res)
         self.assertTrue(isinstance(status, aim_status.AciStatus))
-        self.assertTrue(status.is_build())
+        # Sync status not available
+        self.assertEqual(status.SYNC_NA, status.sync_status)
+        self.assertFalse(status.is_build())
         self.assertFalse(status.is_error())
         # Sync object
         self.mgr.set_resource_sync_synced(self.ctx, res)

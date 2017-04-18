@@ -213,7 +213,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
         if not monitored:
             # Changing sync status of the EPG will bring everything back
-            epg = self.mgr.update(self.ctx, epg)
+            self.mgr.set_resource_sync_pending(self.ctx, epg)
+            epg = self.mgr.get(self.ctx, epg)
             # All the objects are in synced state
             for obj in [ap, epg2, epg]:
                 self.assertEqual(
@@ -320,10 +321,6 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         my_cfg_tree = tree.StructuredHashTree()
         my_mon_tree = tree.StructuredHashTree()
         self.db_l.tt_maker.update(my_mon_tree, [tn])
-        # Since the objects except the tenant created are in sync pending,
-        # they will be out of all trees
-        self.assertEqual(my_mon_tree, mon_tree)
-        self.assertEqual(my_cfg_tree, cfg_tree)
         # Succeed their creation
         self.mgr.set_resource_sync_synced(self.ctx, ap)
         self.mgr.set_resource_sync_synced(self.ctx, epg)
@@ -404,38 +401,3 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.assertTrue(len(self.tt_mgr.find(self.ctx)) > 0)
         self.tt_mgr.delete_all(self.ctx)
         self.assertEqual(0, len(self.tt_mgr.find(self.ctx)))
-
-    # REVISIT(ivar): for some reason, FK cascade is not honored by our UTs
-    # therefore the following test doesn't pass. Need to find the root cause.
-    # def test_aim_status_deleted(self):
-    #    tn_name = 'test_aim_status_deleted'
-    #    tn = aim_res.Tenant(name=tn_name, monitored=True)
-    #    ap = aim_res.ApplicationProfile(tenant_name=tn_name, name='ap',
-    #                                    monitored=True)
-    #    epg = aim_res.EndpointGroup(
-    #        tenant_name=tn_name, app_profile_name='ap', name='epg',
-    #        bd_name='some', monitored=True)
-    #    self.mgr.create(self.ctx, tn)
-    #    self.mgr.create(self.ctx, ap)
-    #    self.mgr.create(self.ctx, epg)
-
-    #    op_tree = self.tt_mgr.get(self.ctx, tn_name,
-    #                              tree=tree_manager.OPERATIONAL_TREE)
-    #    # Operational tree is currently empty
-    #    empty_tree = tree.StructuredHashTree()
-    #    self.assertEqual(empty_tree, op_tree)
-    #    # Create a fault
-    #    self.mgr.set_fault(
-    #        self.ctx, epg, aim_status.AciFault(
-    #            fault_code='152', external_identifier=epg.dn + '/fault-152'))
-    #    # Operational tree is not empty anymore
-    #    op_tree = self.tt_mgr.get(self.ctx, tn_name,
-    #                              tree=tree_manager.OPERATIONAL_TREE)
-    #    self.assertFalse(empty_tree == op_tree)
-
-    #    # Delete AIM status directly, should clear the tree
-    #    epg_status = self.mgr.get_status(self.ctx, epg)
-    #    self.mgr.delete(self.ctx, epg_status)
-    #    op_tree = self.tt_mgr.get(self.ctx, tn_name,
-    #                              tree=tree_manager.OPERATIONAL_TREE)
-    #    self.assertEqual(empty_tree, op_tree)

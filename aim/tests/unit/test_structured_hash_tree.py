@@ -291,24 +291,37 @@ class TestStructuredHashTree(base.BaseTestCase):
         node = t.add(('keyA', 'keyA')).find(('keyA', 'keyA'))
         self.assertIsNotNone(node)
         self.assertEqual({}, node.metadata)
+        self.assertEqual([], t.find_by_metadata('foo', 1))
+        self.assertEqual([('keyA', 'keyA')], t.find_no_metadata('foo'))
 
         # new node with metadata
-        t.add(('keyA', 'keyB'), _metadata={"foo": 1})
+        t.add(('keyA', 'keyB'), _metadata={"foo": 1, "bar": 1})
         node = t.find(('keyA', 'keyB'))
         self.assertIsNotNone(node)
-        self.assertEqual({'foo': 1}, node.metadata)
+        self.assertEqual({"foo": 1, "bar": 1}, node.metadata)
         self.assertEqual({}, t.root.metadata)
+        self.assertEqual([('keyA', 'keyB')], t.find_by_metadata('foo', 1))
+        self.assertEqual([('keyA', 'keyB')], t.find_by_metadata('bar', 1))
+        self.assertEqual([], t.find_by_metadata('bar', 2))
+        self.assertEqual([('keyA', 'keyA')], t.find_no_metadata('bar'))
+        self.assertEqual([('keyA', 'keyA')], t.find_no_metadata('foo'))
+        self.assertEqual([('keyA', 'keyA'), ('keyA', 'keyB')],
+                         t.find_no_metadata('keyerror'))
 
         # existing node, no metadata change
         node = t.add(('keyA', 'keyB')).find(('keyA', 'keyB'))
         self.assertIsNotNone(node)
-        self.assertEqual({'foo': 1}, node.metadata)
+        self.assertEqual({"foo": 1, "bar": 1}, node.metadata)
 
-        # existing node, metadata change
+        # existing node, partial metadata change
         t.add(('keyA', 'keyB'), _metadata={"bar": 2})
+        t.add(('keyA', 'keyB', 'keyD'), _metadata={"bar": 3})
         node = t.find(('keyA', 'keyB'))
         self.assertIsNotNone(node)
-        self.assertEqual({'bar': 2}, node.metadata)
+        self.assertEqual({'foo': 1, 'bar': 2}, node.metadata)
+        self.assertEqual([('keyA', 'keyB', 'keyD')],
+                         t.find_by_metadata('bar', 3))
+        self.assertEqual([], t.find_by_metadata('keyerror', 0))
 
         # existing node, unset metadata
         t.add(('keyA', 'keyB'), _metadata=None)

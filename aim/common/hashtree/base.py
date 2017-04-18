@@ -170,6 +170,10 @@ class OrderedList(object):
         except KeyError:
             return default
 
+    def update(self, iterable):
+        for item in iterable:
+            self.add(item)
+
     def __str__(self):
         return "[" + ",".join("%s" % x for x in self._stash) + "]"
 
