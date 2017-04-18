@@ -867,6 +867,20 @@ class TestHostLinkMixin(object):
     res_command = 'host-link'
 
 
+class TestHostDomainMappingMixin(object):
+    resource_class = infra.HostDomainMapping
+    test_identity_attributes = {'host_name': 'host1.example.com'}
+    test_required_attributes = {'host_name': 'host1.example.com',
+                                'vmm_domain_name': 'ostack1',
+                                'physical_domain_name': 'physdom1'}
+    test_search_attributes = {'host_name': 'host1.example.com'}
+    test_update_attributes = {'vmm_domain_name': 'ostack2',
+                              'physical_domain_name': 'physdom2'}
+    test_default_values = {'vmm_domain_name': '',
+                           'physical_domain_name': ''}
+    res_command = 'host-domain-mapping'
+
+
 class TestSecurityGroupMixin(object):
     resource_class = resource.SecurityGroup
     test_identity_attributes = {'tenant_name': 'tenant1', 'name': 'sg1'}
@@ -1389,6 +1403,11 @@ class TestHostLink(TestHostLinkMixin, TestAciResourceOpsBase,
 
     def test_status(self):
         pass
+
+
+class TestHostDomainMapping(TestHostDomainMappingMixin, TestResourceOpsBase,
+                            base.TestAimDBBase):
+    pass
 
 
 class TestSecurityGroup(TestSecurityGroupMixin, TestAciResourceOpsBase,
