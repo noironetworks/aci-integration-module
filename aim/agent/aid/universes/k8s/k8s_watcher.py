@@ -40,6 +40,8 @@ OBSERVER_LOOP_MAX_WAIT = 10
 OBSERVER_LOOP_MAX_RETRIES = 5
 BUILDER_LOOP_MAX_WAIT = 10
 BUILDER_LOOP_MAX_RETRIES = 5
+MONITOR_LOOP_MAX_WAIT = 5
+MONITOR_LOOP_MAX_RETRIES = 5
 
 COLD_BUILD_TIME = 10
 WARM_BUILD_TIME = 0.2
@@ -48,6 +50,10 @@ ACTION_CREATED = 'added'
 ACTION_MODIFIED = 'modified'
 ACTION_DELETED = 'deleted'
 ACTION_ERROR = 'error'
+
+
+class K8SObserverStopped(Exception):
+    message = "Kubernetes observer connection is closed."
 
 
 class K8sWatcher(object):
@@ -61,7 +67,7 @@ class K8sWatcher(object):
         self.ctx = context.AimContext(store=api.get_store())
         if 'streaming' not in self.ctx.store.features:
             # TODO(ivar) raise something meaningful
-            raise
+            raise Exception
         self.mgr = aim_manager.AimManager()
         self.tt_mgr = tree_manager.HashTreeManager()
         self.tt_maker = tree_manager.AimHashTreeMaker()
@@ -78,12 +84,13 @@ class K8sWatcher(object):
         self.affected_tenants = set()
 
     def run(self):
-        self.observer = threading.Thread(target=self.observer_thread)
-        self.observer.daemon = True
-        self.observer.start()
-        self.persister = threading.Thread(target=self.persistence_thread)
-        self.persister.daemon = True
-        self.persister.start()
+        threads = {'observer': self.observer_thread,
+                   'persister': self.persistence_thread,
+                   'monitor': self.monitor_thread}
+        for attr, thd in threads.iteritems():
+            setattr(self, attr, threading.Thread(target=thd))
+            getattr(self, attr).daemon = True
+            getattr(self, attr).start()
 
     def stop_threads(self):
         self._stop = True
@@ -131,6 +138,19 @@ class K8sWatcher(object):
 
     def persistence_thread(self):
         self._thread(self.persistence_loop, "K8S Tree Builder")
+
+    def monitor_thread(self):
+        self._thread(self.monitor_loop, "K8S Connection Monitor")
+
+    @utils.retry_loop(MONITOR_LOOP_MAX_WAIT, MONITOR_LOOP_MAX_RETRIES,
+                      'K8S monitor thread')
+    def monitor_loop(self):
+        self._monitor_loop()
+
+    def _monitor_loop(self):
+        utils.sleep(MONITOR_LOOP_MAX_WAIT)
+        if self._http_resp and self._http_resp.closed:
+            raise K8SObserverStopped()
 
     @utils.retry_loop(OBSERVER_LOOP_MAX_WAIT, OBSERVER_LOOP_MAX_RETRIES,
                       'K8S observer thread')
