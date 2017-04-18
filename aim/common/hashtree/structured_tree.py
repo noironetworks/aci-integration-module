@@ -224,7 +224,6 @@ class StructuredHashTree(base.ComparableCollection):
         error = kwargs.pop('_error', False)
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
-            LOG.debug("Root initialized")
             self.root = StructuredTreeNode(
                 (key[0],), self._hash_attributes(key=(key[0],)),
                 metadata=metadata, error=error)
@@ -323,7 +322,6 @@ class StructuredHashTree(base.ComparableCollection):
         if parents:
             self._recalculate_parents_stack(parents)
 
-    @utils.log
     def find(self, key):
         return self._get_node_and_parent_stack(key)[0]
 

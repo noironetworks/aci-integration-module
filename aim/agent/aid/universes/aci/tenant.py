@@ -301,10 +301,8 @@ class AciTenantManager(gevent.Greenlet):
             self.flat_events(events)
             # Pull incomplete objects
             events = self._fill_events(events)
-            LOG.debug("Filled events: %s", events)
             # Manage Tags
             events = self._filter_ownership(events)
-            LOG.debug("Filtered events: %s" % events)
             self._event_to_tree(events)
         # yield for other threads
         gevent.sleep(max(0, self.polling_yield - (time.time() -
@@ -353,7 +351,6 @@ class AciTenantManager(gevent.Greenlet):
     def _push_aim_resources(self):
         while not self.object_backlog.empty():
             request = self.object_backlog.get()
-            LOG.debug("Requests: %s" % request)
             for method, aim_objects in request.iteritems():
                 # Method will be either "create" or "delete"
                 for aim_object in aim_objects:
@@ -420,7 +417,7 @@ class AciTenantManager(gevent.Greenlet):
                                                  err_type)
 
     def _unsubscribe_tenant(self):
-        LOG.debug("Unsubscribing tenant websocket %s" % self.tenant_name)
+        LOG.info("Unsubscribing tenant websocket %s" % self.tenant_name)
         self.ws_context.unsubscribe(self.tenant.urls)
 
     def _subscribe_tenant(self):
@@ -467,7 +464,6 @@ class AciTenantManager(gevent.Greenlet):
             else:
                 updated.append(event)
         # Some objects are both monitored and owned in this case (think of
-        LOG.debug("Hashtree Builder called with: %s %s", updated, removed)
         upd_trees, upd_op_trees, upd_mon_trees = self.tree_builder.build(
             [], updated, removed,
             {self.tree_builder.CONFIG: {self.tenant_name: self._state},
@@ -484,8 +480,8 @@ class AciTenantManager(gevent.Greenlet):
                 (upd_mon_trees, self._monitored_state, "monitored")]:
             if upd:
                 modified = True
-                LOG.debug("New %s tree for tenant %s: %s" %
-                          (readable, self.tenant_name, str(tree)))
+                LOG.debug("New %s tree for tenant %s" %
+                          (readable, self.tenant_name))
         if modified:
             event_handler.EventHandler.reconcile()
 
@@ -553,8 +549,6 @@ class AciTenantManager(gevent.Greenlet):
                         dn = aim_res.dn
                         res_type = aim_res._aci_mo_name
                         if dn in visited:
-                            LOG.debug("ACI resource %s already "
-                                      "visited for DN %s" % (event, dn))
                             continue
                         query_targets = set([res_type])
                         if include_tags:

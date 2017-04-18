@@ -224,9 +224,6 @@ class ConfigManager(object):
         except exc.ConfigurationUndefined:
             if host == '':
                 raise
-            LOG.debug(
-                "item %s in group %s for host %s doesn't exist. "
-                "Trying with default group." % (item, group, host))
             return self._get_option(item, group, '')
 
     def _convert_value(self, value):
@@ -437,7 +434,7 @@ class ConfigSubscriber(gevent.Greenlet):
                 self.unregister_callback_option(callback, item, group)
 
     def _run(self):
-        LOG.debug("Starting main loop for config subscriber")
+        LOG.info("Starting main loop for config subscriber")
         try:
             while True:
                 self._main_loop()
