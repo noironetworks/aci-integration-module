@@ -263,7 +263,6 @@ class HashTreeStoredUniverse(AimUniverse):
             if difference['add'] or difference['remove']:
                 LOG.info("Universes %s and %s have differences for tenant "
                          "%s" % (self.name, other_universe.name, tenant))
-                LOG.debug("%s\n and\n %s" % (str(my_tenant_state), str(tree)))
         # Remove empty tenants
         for tenant, tree in my_state.iteritems():
             if always_vote_deletion or (

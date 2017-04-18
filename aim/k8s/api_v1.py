@@ -20,8 +20,12 @@ from six import iteritems
 try:
     from kubernetes import client
     from kubernetes.client import api_client as klient
+    from kubernetes.client import rest
     from kubernetes import config as konfig
     from kubernetes import watch
+
+    # K8S client is logging too much, restrict their log level
+    rest.logger.setLevel('INFO')
 except ImportError:
     pass
 
@@ -187,13 +191,11 @@ class AciContainersV1(object):
         # List on base path
         return self._exec_rest_operation('GET', namespace=namespace, **kwargs)
 
-    @utils.log
     def create_namespaced_aci(self, namespace, body, **kwargs):
         # Create ACI object
         return self._exec_rest_operation('POST', namespace=namespace,
                                          body=body, **kwargs)
 
-    @utils.log
     def replace_namespaced_aci(self, name, namespace, body, **kwargs):
         # Replace existing ACI object
         return self._exec_rest_operation('PUT', namespace=namespace, body=body,
@@ -204,19 +206,16 @@ class AciContainersV1(object):
         return self._exec_rest_operation('GET', namespace=namespace, name=name,
                                          **kwargs)
 
-    @utils.log
     def patch_namespaced_aci(self, name, namespace, body, **kwargs):
         # Modify existing ACI object
         return self._exec_rest_operation('PATCH', namespace=namespace,
                                          body=body, name=name, **kwargs)
 
-    @utils.log
     def delete_collection_namespaced_aci(self, namespace, **kwargs):
         # Delete ACI objects given collection filters
         return self._exec_rest_operation('DELETE', namespace=namespace,
                                          **kwargs)
 
-    @utils.log
     def delete_namespaced_aci(self, name, namespace, body, **kwargs):
         # Delete ACI objects
         return self._exec_rest_operation('DELETE', namespace=namespace,

@@ -94,7 +94,6 @@ class ConfigurationDBManager(object):
             return self.update_bulk(
                 context, {(group, key, host): value})
 
-    @utils.log
     def get(self, context, group, key, host='', **kwargs):
         return self._to_dict(
             self._get(context, group, key, host=host, **kwargs))
@@ -127,7 +126,6 @@ class ConfigurationDBManager(object):
             self.delete_all(context, host=host)
             self.update_bulk(context, configs)
 
-    @utils.log
     def get_changed(self, context, configs):
         """Get changed configurations
 

@@ -173,8 +173,8 @@ class K8sWatcher(object):
         self._renew_klient_watch()
         for event in self.klient.watch.stream(self.wrap_list_namespaced_aci,
                                               namespace=self.namespace):
-            LOG.debug("Kubernetes event received: %s", event)
             event = self._parse_event(event)
+            LOG.debug("Kubernetes event received: %s", event)
             if event:
                 self.affected_tenants |= set(self._process_event(event))
             self.q.put(object())
