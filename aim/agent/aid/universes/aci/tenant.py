@@ -534,8 +534,9 @@ class AciTenantManager(gevent.Greenlet):
                                  'status': converter.MODIFIED_STATUS}}})
                 except apic_client.DNManager.InvalidNameFormat:
                     LOG.debug("Tag with DN %s is not supported." % raw_dn)
-            if status == converter.DELETED_STATUS and not (
-                    AciTenantManager.is_rs_object(res_type)):
+            if status == converter.DELETED_STATUS and (
+                    not AciTenantManager.is_child_object(res_type) or
+                    res_type == TAG_KEY):
                 if raw_dn not in visited:
                     result.append(event)
                     visited.add(raw_dn)
@@ -652,7 +653,7 @@ class AciTenantManager(gevent.Greenlet):
             return '/'.join(decomposed[:-1]) in self.tag_set
         else:
             owned = dn in self.tag_set
-            if not owned and self.is_rs_object(type):
+            if not owned and self.is_child_object(type):
                 # Check for parent ownership
                 try:
                     decomposed = (
@@ -689,5 +690,6 @@ class AciTenantManager(gevent.Greenlet):
         return status in [converter.DELETED_STATUS, converter.CLEARED_SEVERITY]
 
     @staticmethod
-    def is_rs_object(type):
-        return 'Rs' in type
+    def is_child_object(type):
+        return type not in [x['resource']._aci_mo_name for x in
+                            converter.resource_map.get(type, [])]
