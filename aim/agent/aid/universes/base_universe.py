@@ -279,12 +279,14 @@ class HashTreeStoredUniverse(AimUniverse):
                 else:
                     # This universe disagrees on deletion
                     delete_candidates.get(tenant, set()).discard(self)
-        LOG.debug("Universe differences between %s and %s: %s",
-                  self.name, other_universe.name, result)
         if not result.get(CREATE) and not result.get(DELETE):
             LOG.debug("Universe %s and %s are in sync." %
                       (self.name, other_universe.name))
             return False
+        else:
+            LOG.info("Universe differences between %s and %s: %s",
+                     self.name, other_universe.name, result)
+
         # Get AIM resources at the end to reduce the number of transactions
         result[CREATE] = other_universe.get_resources(result[CREATE])
         result[DELETE] = self.get_resources_for_delete(result[DELETE])
