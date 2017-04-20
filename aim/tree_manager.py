@@ -311,21 +311,9 @@ class AimHashTreeMaker(object):
 
     @staticmethod
     def _dn_to_key(mo_type, dn):
-        try:
-            type_and_dn = apic_client.DNManager().aci_decompose_with_type(
-                dn, mo_type)
-            if type_and_dn:
-                try:
-                    if apic_client.DNManager().get_rn_base(
-                            type_and_dn[0][1]) == type_and_dn[0][1]:
-                        type_and_dn = type_and_dn[1:]
-                except KeyError:
-                    pass
-            return tuple(['|'.join(x) for x in type_and_dn])
-        except (apic_client.DNManager.InvalidNameFormat,
-                apic_client.cexc.ApicManagedObjectNotSupported):
-            LOG.warning("Failed to transform DN %s to key for hash-tree", dn)
-            return
+        type_and_dn = utils.decompose_dn(mo_type, dn)
+        return tuple(['|'.join(x)
+                      for x in type_and_dn]) if type_and_dn else None
 
     @staticmethod
     def _extract_root_rn(root_key):
@@ -406,8 +394,10 @@ class AimHashTreeMaker(object):
         return tree
 
     def get_root_key(self, resource):
-        key = self._build_hash_tree_key(resource)
-        return self._extract_root_rn(key) if key else None
+        try:
+            return resource.root
+        except (AttributeError, KeyError):
+            return None
 
     @staticmethod
     def root_rn_funct(tree):

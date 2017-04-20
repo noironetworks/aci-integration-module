@@ -122,6 +122,12 @@ class AciResourceBase(ResourceBase):
         except apic_client.DNManager.InvalidNameFormat:
             raise exc.InvalidDNForAciResource(dn=dn, cls=cls)
 
+    @property
+    def root(self):
+        mos_and_types = utils.decompose_dn(self._aci_mo_name, self.dn)
+        mo = apic_client.ManagedObjectClass(mos_and_types[0][0])
+        return mo.rn(mos_and_types[0][1])
+
 
 class AciRoot(AciResourceBase):
     pass
@@ -529,6 +535,8 @@ class Endpoint(ResourceBase):
 
 class VMMPolicy(AciRoot):
 
+    tenant_ref_attribute = 'type'
+
     identity_attributes = t.identity(
         ('type', t.enum("VMWare", "OpenStack")))
     other_attributes = t.other(
@@ -547,6 +555,8 @@ class VMMDomain(AciResourceBase):
 
     Identity attributes: VMM type (eg. Openstack) and name
     """
+
+    tenant_ref_attribute = 'type'
 
     identity_attributes = t.identity(
         ('type', t.enum("VMWare", "OpenStack")),
@@ -567,6 +577,8 @@ class PhysicalDomain(AciRoot):
 
     Identity attributes: name
     """
+
+    tenant_ref_attribute = 'name'
 
     identity_attributes = t.identity(
         ('name', t.name))
@@ -755,6 +767,8 @@ class Configuration(ResourceBase):
 
 
 class Pod(AciRoot):
+
+    tenant_ref_attribute = 'name'
 
     identity_attributes = t.identity(
         ('name', t.name))
