@@ -27,6 +27,7 @@ from aim.agent.aid.universes.aci import aci_universe
 from aim.aim_lib import nat_strategy
 from aim import aim_manager
 from aim.api import resource
+from aim.api import service_graph
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
@@ -1398,6 +1399,73 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             current_config.serving_tenants[pod.rn].aci_session,
             'mo/' + pod.dn)
         self.assertIsNotNone(pod)
+
+    def test_non_rs_nested_objects(self):
+        agent = self._create_agent()
+        tenant_name = 'test_non_rs_nested_objects'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name)
+        tn = self.aim_manager.create(self.ctx, tn)
+        # Serve tenant
+        agent._daemon_loop()
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        # Create SRP parent
+        srp_parent = {
+            'vnsSvcCont': {
+                'attributes': {'dn': 'uni/tn-%s/svcCont' % tenant_name}}}
+        self._set_events(
+            [srp_parent], manager=current_config.serving_tenants[tn.rn],
+            tag=False)
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        srp = service_graph.ServiceRedirectPolicy(
+            tenant_name=tenant_name, name='name')
+        self.aim_manager.create(self.ctx, srp)
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        # Create dest policy
+        self.aim_manager.update(self.ctx, srp,
+                                destinations=[{'ip': '1.1.1.1',
+                                               'mac': 'aa:aa:aa:aa:aa'}])
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        dest = test_aci_tenant.mock_get_data(
+            current_config.serving_tenants[tn.rn].aci_session,
+            'mo/' + srp.dn + '/RedirectDest_ip-[1.1.1.1]')
+        self.assertIsNotNone(dest)
+        # Create one manually
+        aci_dst = {
+            'vnsRedirectDest': {
+                'attributes': {'dn': srp.dn + '/RedirectDest_ip-[1.1.1.2]',
+                               'ip': '1.1.1.2', 'mac': 'aa:aa:aa:aa:ab'}}}
+        self._set_events(
+            [aci_dst], manager=current_config.serving_tenants[tn.rn],
+            tag=False)
+        self._observe_aci_events(current_config)
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
+        # Dest deleted
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk,
+            test_aci_tenant.mock_get_data,
+            current_config.serving_tenants[tn.rn].aci_session,
+            'mo/' + srp.dn + '/RedirectDest_ip-[1.1.1.2]')
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)])
 
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
