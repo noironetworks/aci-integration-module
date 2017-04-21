@@ -319,10 +319,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, bd1_tn1)
         bd1_tn1_status = self.aim_manager.get_status(self.ctx, bd1_tn1)
         bd1_tn2_status = self.aim_manager.get_status(self.ctx, bd1_tn2)
-        self.assertEqual(aim_status.AciStatus.SYNC_PENDING,
-                         bd1_tn1_status.sync_status)
-        self.assertEqual(aim_status.AciStatus.SYNC_PENDING,
-                         bd1_tn2_status.sync_status)
         self.aim_manager.set_fault(
             self.ctx, bd1_tn1, aim_status.AciFault(
                 fault_code='516',
@@ -516,6 +512,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Run the loop for reconciliation
         agent._daemon_loop()
+
+        # Run loop again to set SYNCED state
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+
         # A monitored BD should now exist in AIM
         aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
             tenant_name=tenant_name, name='default'))

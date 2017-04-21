@@ -236,10 +236,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         result = self.universe.get_resources_for_delete(keys)
         self.assertEqual(sorted(objs), sorted(result))
         # Create a pending monitored object
-        self.universe.manager.create(self.ctx, resource.Tenant(name='tn1',
-                                                               monitored=True))
-        self.universe.manager.create(self.ctx, resource.BridgeDomain(
-            tenant_name='tn1', name='monitoredBD', monitored=True))
+        tn1 = resource.Tenant(name='tn1', monitored=True)
+        monitored_bd = resource.BridgeDomain(
+            tenant_name='tn1', name='monitoredBD', monitored=True)
+        self.universe.manager.create(self.ctx, tn1)
+        self.universe.manager.set_resource_sync_pending(self.ctx, tn1)
+        self.universe.manager.create(self.ctx, monitored_bd)
+        self.universe.manager.set_resource_sync_pending(self.ctx, monitored_bd)
+
         result = self.universe.get_resources_for_delete(
             [('fvTenant|tn1', 'fvBD|monitoredBD')])
         self.assertEqual(1, len(result))

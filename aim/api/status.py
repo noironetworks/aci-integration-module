@@ -46,6 +46,7 @@ class AciStatus(resource.ResourceBase, OperationalResource):
     SYNCED = 'synced'
     # Create/update of ACI object failed
     SYNC_FAILED = 'sync_failed'
+    SYNC_NA = 'N/A'
 
     identity_attributes = t.identity(
         ('resource_type', t.string()),
@@ -66,7 +67,7 @@ class AciStatus(resource.ResourceBase, OperationalResource):
     def __init__(self, **kwargs):
         super(AciStatus, self).__init__({'resource_type': None,
                                          'resource_id': None,
-                                         'sync_status': self.SYNC_PENDING,
+                                         'sync_status': self.SYNC_NA,
                                          'sync_message': '',
                                          'health_score': 100,
                                          'faults': []}, **kwargs)

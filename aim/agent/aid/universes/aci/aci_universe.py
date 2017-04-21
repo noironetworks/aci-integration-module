@@ -435,6 +435,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
             sign_hash=apic_config.get_option(
                 'signature_hash_type', group='apic'))
 
+    def update_status_objects(self, my_state, other_state, other_universe,
+                              raw_diff, transformed_diff):
+        pass
+
 
 class AciOperationalUniverse(AciUniverse):
     """ACI Universe for operational state."""

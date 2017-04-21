@@ -323,6 +323,7 @@ class AimHashTreeMaker(object):
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
         is_error = getattr(aim_res, '_error', False)
+        pending = getattr(aim_res, '_pending', None)
         to_aci = converter.AimToAciModelConverter()
         aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
         if not aim_res_dn:
@@ -342,7 +343,9 @@ class AimHashTreeMaker(object):
                 key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
                 if key:
                     if dn != aim_res_dn:
-                        attr['_metadata'] = {'related': True}
+                        attr.setdefault('_metadata', {})['related'] = True
+                    if pending is not None:
+                        attr.setdefault('_metadata', {})['pending'] = pending
                     attr['_error'] = is_error
                     result[key] = attr
         return result
@@ -469,18 +472,16 @@ class HashTreeBuilder(object):
                                 aim_ctx, res.parent_class, res.resource_id)
                             # Put the object in error state
                             parent._error = True
-                            all_updates[1].append(parent)
+                            parent._pending = False
                         elif res.sync_status == res.SYNC_PENDING:
                             # A sync pending monitored object is in a limbo
                             # state, potentially switching from Owned to
                             # Monitored, and therefore should be removed from
                             # all the trees
-                            if getattr(parent, 'monitored', False):
-                                all_updates[-1].append(parent)
-                            else:
-                                all_updates[1].append(parent)
+                            parent._pending = True
                         elif res.sync_status == res.SYNCED:
-                            all_updates[1].append(parent)
+                            parent._pending = False
+                        all_updates[1].append(parent)
                     else:
                         if parent:
                             # Delete parent on operational tree
