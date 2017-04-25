@@ -218,7 +218,8 @@ class SqlAlchemyStore(AimStore):
                         service_graph_model.DeviceClusterInterfaceContext),
                     api_infra.OpflexDevice: infra_model.OpflexDevice,
                     api_res.VMMPolicy: models.VMMPolicy,
-                    api_res.Pod: models.Pod}
+                    api_res.Pod: models.Pod,
+                    api_res.Topology: models.Topology}
 
     resource_map = {}
     for k, v in db_model_map.iteritems():

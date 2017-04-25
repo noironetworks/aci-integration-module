@@ -659,3 +659,10 @@ class Pod(model_base.Base, model_base.HasAimId, model_base.AttributeMixin,
     __tablename__ = 'aim_pods'
     __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
                       model_base.to_tuple(model_base.Base.__table_args__))
+
+
+class Topology(model_base.Base, model_base.AttributeMixin,
+               model_base.HasAimId, model_base.HasName):
+    __tablename__ = 'aim_topologies'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))

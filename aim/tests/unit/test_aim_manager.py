@@ -136,8 +136,9 @@ class TestResourceOpsBase(object):
         :return:
         """
         # Run the following only if ID attributes are also required
-        if not (set(test_identity_attributes.keys()) -
-                set(test_required_attributes.keys())):
+        if (not (set(test_identity_attributes.keys()) -
+                 set(test_required_attributes.keys())) and
+                test_identity_attributes):
             self.assertRaises(
                 exc.IdentityAttributesMissing, resource, **{})
 
@@ -216,14 +217,15 @@ class TestResourceOpsBase(object):
         snake_name = utils.camel_to_snake(klass_name)
         jsonschema.validate({'type': snake_name, snake_name: res.__dict__},
                             self.schema_dict)
-        attributes = copy.deepcopy(res.__dict__)
-        attributes.pop(res.identity_attributes.keys()[0])
-        # Verify that removing a required attribute will fail
-        self.assertRaises(
-            schema_exc.ValidationError, jsonschema.validate,
-            {'type': klass_name,
-             utils.camel_to_snake(klass_name): attributes},
-            self.schema_dict)
+        if res.identity_attributes:
+            attributes = copy.deepcopy(res.__dict__)
+            attributes.pop(res.identity_attributes.keys()[0])
+            # Verify that removing a required attribute will fail
+            self.assertRaises(
+                schema_exc.ValidationError, jsonschema.validate,
+                {'type': klass_name,
+                 utils.camel_to_snake(klass_name): attributes},
+                self.schema_dict)
         # Test delete nonexisting object (no error)
         self.mgr.delete(self.ctx, res)
 
@@ -1252,6 +1254,17 @@ class TestPodMixin(object):
     test_dn = 'topology/pod-1'
 
 
+class TestTopologyMixin(object):
+    resource_class = resource.Topology
+    test_identity_attributes = {}
+    test_required_attributes = {}
+    test_search_attributes = {}
+    test_update_attributes = {}
+    test_default_values = {}
+    res_command = 'topology'
+    test_dn = 'topology'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1515,4 +1528,8 @@ class TestOpflexDevice(TestOpflexDeviceMixin, TestResourceOpsBase,
 
 
 class TestPod(TestPodMixin, TestResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestTopology(TestTopologyMixin, TestResourceOpsBase, base.TestAimDBBase):
     pass

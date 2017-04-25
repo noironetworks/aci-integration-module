@@ -155,9 +155,9 @@ class WebSocketContext(object):
             self.session.unsubscribe(url)
 
     def get_event_data(self, urls):
+        result = []
         for url in urls:
             # Aggregate similar events
-            result = []
             while self.session.has_events(url):
                 event = self.session.get_event(url)['imdata'][0]
                 event_klass = event.keys()[0]

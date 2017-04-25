@@ -34,6 +34,7 @@ import sqlalchemy as sa
 def upgrade():
     op.create_table(
         'aim_opflex_devices',
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('pod_id', sa.String(36), nullable=False),
         sa.Column('node_id', sa.String(36), nullable=False),
         sa.Column('bridge_interface', sa.String(36), nullable=False),
@@ -43,8 +44,11 @@ def upgrade():
         sa.Column('fabric_path_dn', sa.String(512)),
         sa.Column('domain_name', sa.String(64)),
         sa.Column('controller_name', sa.String(64)),
-        sa.PrimaryKeyConstraint('pod_id', 'node_id', 'bridge_interface',
-                                'dev_id'))
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('pod_id', 'node_id', 'bridge_interface', 'dev_id',
+                            name='uniq_aim_odev_identity'),
+        sa.Index('idx_aim_odev_identity', 'pod_id', 'node_id',
+                 'bridge_interface', 'dev_id'))
 
 
 def downgrade():

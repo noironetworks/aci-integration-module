@@ -318,7 +318,7 @@ class AimHashTreeMaker(object):
     @staticmethod
     def _extract_root_rn(root_key):
         root_split = root_key[0].split('|')
-        return apic_client.ManagedObjectClass(root_split[0]).rn(root_split[1])
+        return apic_client.DNManager().build([root_split]).split('/')[-1]
 
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
@@ -420,9 +420,9 @@ class AimHashTreeMaker(object):
         :param tree:
         :return:
         """
-        return AimHashTreeMaker._build_hash_tree_key_from_dn(
-            apic_client.DNManager().get_rn_base(key) + '/' + key,
-            apic_client.ManagedObjectClass.prefix_to_mos[key.split('-')[0]])
+        mo = apic_client.ManagedObjectClass.prefix_to_mos[key.split('-')[0]]
+        dn = apic_client.DNManager().build([[mo, key.split('-')[-1]]])
+        return AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
 
 
 class HashTreeManager(TreeManager):

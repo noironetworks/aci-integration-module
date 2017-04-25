@@ -104,13 +104,18 @@ class HostLinkManager(object):
         return list(set([(x.switch_id, x.module, x.port) for x in res]))
 
 
-class OpflexDevice(model_base.Base, model_base.AttributeMixin):
+class OpflexDevice(model_base.Base, model_base.AttributeMixin,
+                   model_base.HasAimId):
     __tablename__ = 'aim_opflex_devices'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'pod_id', 'node_id',
+                               'bridge_interface', 'dev_id') +
+        model_base.to_tuple(model_base.Base.__table_args__))
 
-    pod_id = sa.Column(sa.String(36), primary_key=True)
-    node_id = sa.Column(sa.String(36), primary_key=True)
-    bridge_interface = sa.Column(sa.String(36), primary_key=True)
-    dev_id = sa.Column(sa.String(36), primary_key=True)
+    pod_id = sa.Column(sa.String(36))
+    node_id = sa.Column(sa.String(36))
+    bridge_interface = sa.Column(sa.String(36))
+    dev_id = sa.Column(sa.String(36))
 
     host_name = sa.Column(sa.String(128))
     ip = sa.Column(sa.String(64))
