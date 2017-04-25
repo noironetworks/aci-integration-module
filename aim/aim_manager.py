@@ -87,7 +87,8 @@ class AimManager(object):
                      api_service_graph.DeviceClusterInterfaceContext,
                      api_infra.OpflexDevice,
                      api_res.VMMPolicy,
-                     api_res.Pod}
+                     api_res.Pod,
+                     api_res.Topology}
 
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}
@@ -159,7 +160,7 @@ class AimManager(object):
                             if k in resource.other_attributes}
                 if attr_val:
                     context.store.from_attr(db_obj, type(resource), attr_val)
-                else:
+                elif resource.identity_attributes:
                     # force update
                     setattr(
                         db_obj, resource.identity_attributes.keys()[0],

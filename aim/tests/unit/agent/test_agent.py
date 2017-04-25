@@ -1374,10 +1374,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         vmm = resource.VMMDomain(type='OpenStack', name='ostack')
         vmmp = resource.VMMPolicy(type='OpenStack')
         phys = resource.PhysicalDomain(name='physdomain')
+        topology = resource.Topology()
         pod = resource.Pod(name='1')
         self.aim_manager.create(self.ctx, vmmp)
         self.aim_manager.create(self.ctx, vmm)
         self.aim_manager.create(self.ctx, phys)
+        self.aim_manager.create(self.ctx, topology)
         self.aim_manager.create(self.ctx, pod)
 
         current_config = agent.multiverse[0]['current']
@@ -1385,6 +1387,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._mock_current_manager_post)
         # Run loop for serving tenant
         agent._daemon_loop()
+        pod_parent = {
+            'fabricTopology': {'attributes': {'dn': 'topology'}}}
+        self._set_events(
+            [pod_parent], manager=current_config.serving_tenants[topology.rn],
+            tag=False)
         self._observe_aci_events(current_config)
 
         vmm = test_aci_tenant.mock_get_data(
@@ -1397,7 +1404,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertIsNotNone(phys)
         self.assertEqual('topology/pod-1', pod.dn)
         pod = test_aci_tenant.mock_get_data(
-            current_config.serving_tenants[pod.rn].aci_session,
+            current_config.serving_tenants[topology.rn].aci_session,
             'mo/' + pod.dn)
         self.assertIsNotNone(pod)
 

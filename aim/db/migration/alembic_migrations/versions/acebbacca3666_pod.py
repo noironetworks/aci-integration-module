@@ -42,6 +42,13 @@ def upgrade():
         sa.UniqueConstraint('name', name='uniq_aim_pod_identity'),
         sa.PrimaryKeyConstraint('aim_id'))
 
+    op.create_table(
+        'aim_topologies',
+        sa.Column('name', sa.String(64), nullable=False),
+        sa.Column('aim_id', sa.Integer, autoincrement=True),
+        sa.UniqueConstraint('name', name='uniq_aim_topology_identity'),
+        sa.PrimaryKeyConstraint('aim_id'))
+
 
 def downgrade():
     pass

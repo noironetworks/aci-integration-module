@@ -41,7 +41,7 @@ SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
 CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
 # TODO(ivar): get right children from APICAPI client
-TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev']
+TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev', 'fabricTopology']
 CHILDREN_MOS_UNI = None
 CHILDREN_MOS_TOPOLOGY = None
 
@@ -126,7 +126,7 @@ class Root(acitoolkit.BaseACIObject):
                 url += '&target-subtree-class=' + ','.join(
                     self.filtered_children)
             return [url]
-        elif self.dn.startswith('topology/'):
+        elif self.dn.startswith('topology'):
             urls = []
             for child in self.filtered_children:
                 urls.append(
@@ -561,7 +561,9 @@ class AciTenantManager(gevent.Greenlet):
                                 type(aim_res), []):
                             if 'resource' in filler:
                                 query_targets.add(filler['resource'])
-                        kargs['target_subtree_class'] = ','.join(query_targets)
+                        if not dn.startswith('topology'):
+                            kargs['target_subtree_class'] = ','.join(
+                                query_targets)
                         # Operational state need full configuration
                         if event.keys()[0] in OPERATIONAL_LIST:
                             kargs.pop('rsp_prop_include')

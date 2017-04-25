@@ -32,7 +32,7 @@ class TestManager(base.TestShell):
     def test_load_domains(self):
         # create a VMM and PhysDom first
         pre_phys = resource.PhysicalDomain(name='pre-phys')
-        pre_vmm = resource.PhysicalDomain(type='OpenStack', name='pre-vmm')
+        pre_vmm = resource.VMMDomain(type='OpenStack', name='pre-vmm')
         ap = resource.ApplicationProfile(tenant_name='tn1', name='ap')
         pre_epg1 = resource.EndpointGroup(
             tenant_name='tn1', app_profile_name='ap', name='epg1')

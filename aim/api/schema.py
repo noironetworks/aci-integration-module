@@ -44,8 +44,9 @@ def generate_schema():
         definitions[utils.camel_to_snake(title)] = collections.OrderedDict(
             [("type", "object"),
              ("title", title),
-             ("properties", properties),
-             ("required", required)])
+             ("properties", properties)])
+        if required:
+            definitions[utils.camel_to_snake(title)]["required"] = required
         type_enum.append(name)
         top_properties[name] = {"$ref": "#/definitions/%s" % name}
     return base

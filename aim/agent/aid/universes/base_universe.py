@@ -306,8 +306,8 @@ class HashTreeStoredUniverse(AimUniverse):
                       (self.name, other_universe.name))
             diff = False
         else:
-            LOG.debug("Universe differences between %s and %s: %s",
-                      self.name, other_universe.name, differences)
+            LOG.info("Universe differences between %s and %s: %s",
+                     self.name, other_universe.name, differences)
             diff = True
 
         # Get AIM resources at the end to reduce the number of transactions

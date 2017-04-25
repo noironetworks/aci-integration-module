@@ -466,6 +466,9 @@ resource_map = {
     }],
     'fabricPod': [{
         'resource': resource.Pod,
+    }],
+    'fabricTopology': [{
+        'resource': resource.Topology,
     }]
 }
 

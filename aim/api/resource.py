@@ -107,7 +107,10 @@ class AciResourceBase(ResourceBase):
     @property
     def rn(self):
         mo = apic_client.ManagedObjectClass(self._aci_mo_name)
-        return mo.rn(*self.identity[-mo.rn_param_count:])
+        if mo.rn_param_count > 0:
+            return mo.rn(*self.identity[-mo.rn_param_count:])
+        else:
+            return mo.rn()
 
     @classmethod
     def from_dn(cls, dn):
@@ -126,11 +129,17 @@ class AciResourceBase(ResourceBase):
     def root(self):
         mos_and_types = utils.decompose_dn(self._aci_mo_name, self.dn)
         mo = apic_client.ManagedObjectClass(mos_and_types[0][0])
-        return mo.rn(mos_and_types[0][1])
+        if mo.rn_param_count > 0:
+            return mo.rn(mos_and_types[0][1])
+        else:
+            return mo.rn()
 
 
 class AciRoot(AciResourceBase):
-    pass
+
+    @property
+    def root(self):
+        return self.rn
 
 
 class Tenant(AciRoot):
@@ -766,9 +775,23 @@ class Configuration(ResourceBase):
         super(Configuration, self).__init__({}, **kwargs)
 
 
-class Pod(AciRoot):
-
+class Topology(AciRoot):
     tenant_ref_attribute = 'name'
+    identity_attributes = t.identity()
+    other_attributes = t.other(
+        ('name', t.name))
+
+    _aci_mo_name = 'fabricTopology'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(Topology, self).__init__({}, name='topology', monitored=True)
+
+
+class Pod(AciResourceBase):
+
+    tenant_ref_attribute = 'root'
+    root = 'topology'
 
     identity_attributes = t.identity(
         ('name', t.name))
@@ -776,7 +799,7 @@ class Pod(AciRoot):
         ('monitored', t.bool))
 
     _aci_mo_name = 'fabricPod'
-    _tree_parent = None
+    _tree_parent = Topology
 
     def __init__(self, **kwargs):
         super(Pod, self).__init__({'monitored': False}, **kwargs)
