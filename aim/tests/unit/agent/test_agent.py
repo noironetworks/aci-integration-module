@@ -1475,6 +1475,37 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(current_config, desired_config),
                                (current_monitor, desired_monitor)])
 
+    def test_monitored_objects_sync_state(self):
+        agent = self._create_agent()
+        tenant_name = 'test_monitored_objects_sync_state'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        tn = resource.Tenant(name=tenant_name, monitored=True)
+        tn = self.aim_manager.create(self.ctx, tn)
+        tenants = agent._calculate_tenants(self.ctx)
+        current_config.serve(tenants)
+        desired_config.serve(tenants)
+        tenant = {
+            'fvTenant': {
+                'attributes': {'dn': 'uni/tn-%s' % tenant_name,
+                               'nameAlias': 'test'}}}
+        self._set_events(
+            [tenant], manager=current_config.serving_tenants[tn.rn],
+            tag=False)
+        self.aim_manager.create(self.ctx, resource.ApplicationProfile(
+            tenant_name=tenant_name, name='ap-name'))
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+        self.assertEqual(aim_status.AciStatus.SYNC_NA,
+                         self.aim_manager.get_status(self.ctx, tn).sync_status)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop()
+        self.assertEqual(aim_status.AciStatus.SYNCED,
+                         self.aim_manager.get_status(self.ctx, tn).sync_status)
+
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
             self._current_manager = tenant

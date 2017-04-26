@@ -313,8 +313,7 @@ class AimManager(object):
     def set_resource_sync_synced(self, context, resource):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
-    def set_resource_sync_pending(self, context, resource, top=True,
-                                  force=False):
+    def set_resource_sync_pending(self, context, resource, top=True):
         # When a resource goes in pending state, propagate to both parent
         # and subtree
         with context.store.begin(subtransactions=True):
@@ -323,9 +322,9 @@ class AimManager(object):
             if self._set_resource_sync(
                     context, resource, api_status.AciStatus.SYNC_PENDING,
                     exclude=[api_status.AciStatus.SYNCED,
-                             api_status.AciStatus.SYNC_PENDING]
-                    if not top else [api_status.AciStatus.SYNC_PENDING] if not
-                    force else []):
+                             api_status.AciStatus.SYNC_PENDING,
+                             api_status.AciStatus.SYNC_NA]
+                    if not top else [api_status.AciStatus.SYNC_PENDING]):
                 # Change parent first
                 parent_klass = resource._tree_parent
                 if parent_klass:
