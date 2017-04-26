@@ -43,7 +43,7 @@ def dispose():
         get_engine().pool.dispose()
 
 
-def get_session(autocommit=True, expire_on_commit=False, use_slave=False):
+def get_session(autocommit=True, expire_on_commit=True, use_slave=False):
     """Helper method to grab session."""
     facade = _create_facade_lazily()
     return facade.get_session(autocommit=autocommit,
@@ -51,7 +51,7 @@ def get_session(autocommit=True, expire_on_commit=False, use_slave=False):
                               use_slave=use_slave)
 
 
-def get_store(autocommit=True, expire_on_commit=False, use_slave=False):
+def get_store(autocommit=True, expire_on_commit=True, use_slave=False):
     store = cfg.CONF.aim.aim_store
     if store == 'sql':
         db_session = get_session(

@@ -106,7 +106,7 @@ class K8sWatcher(object):
         except utils.ThreadExit:
             return
         except Exception as e:
-            LOG.debug(traceback.format_exc())
+            LOG.error(traceback.format_exc())
             utils.perform_harakiri(LOG, "%s thread stopped "
                                         "unexpectedly: %s" % (name, e.message))
 
