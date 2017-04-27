@@ -466,24 +466,22 @@ class HashTreeBuilder(object):
                         aim_ctx, res.parent_class, res.resource_id)
                     # Remove main object from config tree if in sync error
                     # during an update
-                    if tree_index == 0:
-                        if res.sync_status == res.SYNC_FAILED:
-                            parent = self.aim_manager.get_by_id(
-                                aim_ctx, res.parent_class, res.resource_id)
-                            # Put the object in error state
-                            parent._error = True
-                            parent._pending = False
-                        elif res.sync_status == res.SYNC_PENDING:
-                            # A sync pending monitored object is in a limbo
-                            # state, potentially switching from Owned to
-                            # Monitored, and therefore should be removed from
-                            # all the trees
-                            parent._pending = True
-                        elif res.sync_status == res.SYNCED:
-                            parent._pending = False
-                        all_updates[1].append(parent)
-                    else:
-                        if parent:
+                    if parent:
+                        if tree_index == 0:
+                            if res.sync_status == res.SYNC_FAILED:
+                                # Put the object in error state
+                                parent._error = True
+                                parent._pending = False
+                            elif res.sync_status == res.SYNC_PENDING:
+                                # A sync pending monitored object is in a limbo
+                                # state, potentially switching from Owned to
+                                # Monitored, and therefore should be removed
+                                # from all the trees
+                                parent._pending = True
+                            elif res.sync_status == res.SYNCED:
+                                parent._pending = False
+                            all_updates[1].append(parent)
+                        else:
                             # Delete parent on operational tree
                             parent_key = self.tt_maker.get_root_key(parent)
                             updates_by_root.setdefault(
@@ -491,6 +489,18 @@ class HashTreeBuilder(object):
                                              oper: ([], [])})
                             updates_by_root[
                                 parent_key][oper][tree_index].append(parent)
+                    else:
+                        # Parent doesn't exist for some reason, delete the
+                        # status object
+                        try:
+                            LOG.info("Deleting parentless status object "
+                                     "%s" % res)
+                            self.aim_manager.delete(aim_ctx, res)
+                        except Exception as e:
+                            LOG.warning("An exception has occurred while "
+                                        "trying to delete status object "
+                                        "%s: %s" % (res, e.message))
+                        continue
                 key = self.tt_maker.get_root_key(res)
                 if not key:
                     continue

@@ -401,3 +401,18 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.assertTrue(len(self.tt_mgr.find(self.ctx)) > 0)
         self.tt_mgr.delete_all(self.ctx)
         self.assertEqual(0, len(self.tt_mgr.find(self.ctx)))
+
+    def test_leaked_status(self):
+        # Create parentless status object
+        status = aim_status.AciStatus(resource_type='Tenant',
+                                      resource_id='none', resource_root='tn-1')
+        # During creation, the builder will try to delete the parentless status
+        # however, that has not been committed yet to the deletion has no
+        # effect. giving the status another builder round will make sure it is
+        # actually deleted! Note that this only happens for transactional
+        # backends, and it's actually OK since we don't expect Status objects
+        # to be created parentless in a first place.
+        self.mgr.create(self.ctx, status)
+        self.db_l.on_commit(self.ctx.store, [status], [], [])
+        # status doesn't exist anymore
+        self.assertIsNone(self.mgr.get(self.ctx, status))
