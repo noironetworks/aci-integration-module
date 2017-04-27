@@ -156,4 +156,5 @@ class AciFault(resource.ResourceBase, OperationalResource):
         if mos_and_types:
             # Faults associated with unrecognized MOs will not decompose
             mo = apic_client.ManagedObjectClass(mos_and_types[0][0])
-            return mo.rn(mos_and_types[0][1])
+            return (mo.rn(mos_and_types[0][1])
+                    if mo.rn_param_count else mo.rn())

@@ -1794,16 +1794,17 @@ class TestDeviceClusterInterfaceContext(TestDeviceClusterInterfaceContextMixin,
     pass
 
 
-class TestOpflexDevice(TestOpflexDeviceMixin, TestResourceOpsBase,
+class TestOpflexDevice(TestOpflexDeviceMixin, TestAciResourceOpsBase,
                        base.TestAimDBBase):
     pass
 
 
-class TestPod(TestPodMixin, TestResourceOpsBase, base.TestAimDBBase):
+class TestPod(TestPodMixin, TestAciResourceOpsBase, base.TestAimDBBase):
     pass
 
 
-class TestTopology(TestTopologyMixin, TestResourceOpsBase, base.TestAimDBBase):
+class TestTopology(TestTopologyMixin, TestResourceOpsBase,
+                   base.TestAimDBBase):
     pass
 
 
