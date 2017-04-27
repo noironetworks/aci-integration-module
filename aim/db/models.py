@@ -172,6 +172,14 @@ class VMMDomain(model_base.Base, model_base.HasDisplayName,
                       model_base.to_tuple(model_base.Base.__table_args__))
 
     type = sa.Column(sa.String(64))
+    enforcement_pref = sa.Column(sa.Enum('sw', 'hw', 'unknown'))
+    mode = sa.Column(sa.Enum('default', 'n1kv', 'unknown', 'ovs', 'k8s'))
+    mcast_address = sa.Column(sa.String(64))
+    encap_mode = sa.Column(sa.Enum('unknown', 'vlan', 'vxlan'))
+    pref_encap_mode = sa.Column(sa.Enum('unspecified', 'vlan', 'vxlan'))
+    vlan_pool_name = model_base.name_column()
+    vlan_pool_type = sa.Column(sa.Enum('static', 'dynamic'))
+    mcast_addr_pool_name = model_base.name_column()
 
 
 class PhysicalDomain(model_base.Base, model_base.HasDisplayName,
@@ -666,3 +674,221 @@ class Topology(model_base.Base, model_base.AttributeMixin,
     __tablename__ = 'aim_topologies'
     __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
                       model_base.to_tuple(model_base.Base.__table_args__))
+
+
+class VMMController(model_base.Base, model_base.HasDisplayName,
+                    model_base.HasAimId, model_base.AttributeMixin,
+                    model_base.IsMonitored, model_base.HasName):
+    """DB model for VMM Controller."""
+    __tablename__ = 'aim_vmm_controllers'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'name') +
+        (sa.ForeignKeyConstraint(
+            ['domain_type', 'domain_name'],
+            ['aim_vmm_domains.type', 'aim_vmm_domains.name'],
+            name='fk_vmm_controller_vmm_domain'),) +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_name = model_base.name_column(nullable=False)
+    domain_type = model_base.name_column(nullable=False)
+
+    scope = sa.Column(sa.Enum('unmanaged', 'vm', 'iaas', 'network',
+                              'MicrosoftSCVMM', 'openstack', 'kubernetes'))
+    root_cont_name = sa.Column(sa.String(64))
+    host_or_ip = sa.Column(sa.String(128))
+    mode = sa.Column(sa.Enum('default', 'n1kv', 'unknown', 'ovs', 'k8s'))
+
+
+class VmmInjectedNamespace(model_base.Base, model_base.HasAimId,
+                           model_base.HasName, model_base.HasDisplayName,
+                           model_base.AttributeMixin):
+    """DB model VmmInjectedNamespace."""
+    __tablename__ = 'aim_vmm_inj_namespaces'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'controller_name', 'name') +
+        (sa.ForeignKeyConstraint(
+            ['domain_type', 'domain_name', 'controller_name'],
+            ['aim_vmm_controllers.domain_type',
+             'aim_vmm_controllers.domain_name',
+             'aim_vmm_controllers.name'],
+            name='fk_inj_ns_vmm_controller'),) +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_type = model_base.name_column(nullable=False)
+    domain_name = model_base.name_column(nullable=False)
+    controller_name = model_base.name_column(nullable=False)
+
+
+class VmmInjectedDeployment(model_base.Base, model_base.HasAimId,
+                            model_base.HasName, model_base.HasDisplayName,
+                            model_base.AttributeMixin):
+    """DB model VmmInjectedDeployment."""
+    __tablename__ = 'aim_vmm_inj_deployments'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'controller_name', 'namespace_name', 'name') +
+        (sa.ForeignKeyConstraint(
+            ['domain_type', 'domain_name', 'controller_name',
+             'namespace_name'],
+            ['aim_vmm_inj_namespaces.domain_type',
+             'aim_vmm_inj_namespaces.domain_name',
+             'aim_vmm_inj_namespaces.controller_name',
+             'aim_vmm_inj_namespaces.name'],
+            name='fk_inj_depl_inj_ns'),) +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_type = model_base.name_column(nullable=False)
+    domain_name = model_base.name_column(nullable=False)
+    controller_name = model_base.name_column(nullable=False)
+    namespace_name = model_base.name_column(nullable=False)
+
+    replicas = sa.Column(sa.Integer)
+
+
+class VmmInjectedReplicaSet(model_base.Base, model_base.HasAimId,
+                            model_base.HasName, model_base.HasDisplayName,
+                            model_base.AttributeMixin):
+    """DB model VmmInjectedReplicaSet."""
+    __tablename__ = 'aim_vmm_inj_replica_sets'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'controller_name', 'namespace_name',
+                               'deployment_name', 'name') +
+        (sa.ForeignKeyConstraint(
+            ['domain_type', 'domain_name', 'controller_name',
+             'namespace_name', 'deployment_name'],
+            ['aim_vmm_inj_deployments.domain_type',
+             'aim_vmm_inj_deployments.domain_name',
+             'aim_vmm_inj_deployments.controller_name',
+             'aim_vmm_inj_deployments.namespace_name',
+             'aim_vmm_inj_deployments.name'],
+            name='fk_inj_repl_set_inj_depl'),) +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_type = model_base.name_column(nullable=False)
+    domain_name = model_base.name_column(nullable=False)
+    controller_name = model_base.name_column(nullable=False)
+    namespace_name = model_base.name_column(nullable=False)
+    deployment_name = model_base.name_column(nullable=False)
+
+
+class VmmInjectedServicePort(model_base.Base):
+    """DB model service_ports used by VmmInjectedService."""
+    __tablename__ = 'aim_vmm_inj_service_ports'
+
+    svc_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_vmm_inj_services.aim_id'),
+        primary_key=True)
+    port = sa.Column(sa.String(32), nullable=False, primary_key=True)
+    protocol = sa.Column(sa.String(32), nullable=False, primary_key=True)
+    target_port = sa.Column(sa.String(32), nullable=False, primary_key=True)
+    node_port = sa.Column(sa.String(32))
+
+
+class VmmInjectedService(model_base.Base, model_base.HasAimId,
+                         model_base.HasName, model_base.HasDisplayName,
+                         model_base.AttributeMixin):
+    """DB model VmmInjectedService."""
+    __tablename__ = 'aim_vmm_inj_services'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'controller_name', 'namespace_name', 'name') +
+        (sa.ForeignKeyConstraint(
+            ['domain_type', 'domain_name', 'controller_name',
+             'namespace_name'],
+            ['aim_vmm_inj_namespaces.domain_type',
+             'aim_vmm_inj_namespaces.domain_name',
+             'aim_vmm_inj_namespaces.controller_name',
+             'aim_vmm_inj_namespaces.name'],
+            name='fk_inj_service_inj_ns'),) +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_type = model_base.name_column(nullable=False)
+    domain_name = model_base.name_column(nullable=False)
+    controller_name = model_base.name_column(nullable=False)
+    namespace_name = model_base.name_column(nullable=False)
+    service_type = sa.Column(sa.Enum('clusterIp', 'externalName',
+                                     'nodePort', 'loadBalancer'))
+    cluster_ip = sa.Column(sa.String(64))
+    load_balancer_ip = sa.Column(sa.String(64))
+
+    ports = orm.relationship(VmmInjectedServicePort,
+                             backref='service',
+                             cascade='all, delete-orphan',
+                             lazy='joined')
+
+    def from_attr(self, session, res_attr):
+        if 'service_ports' in res_attr:
+            ports = []
+            for p in (res_attr.pop('service_ports', []) or []):
+                if not (p.get('port') and p.get('target_port') and
+                        p.get('protocol')):
+                    continue
+                ports.append(VmmInjectedServicePort(**p))
+            self.ports = ports
+        # map remaining attributes to model
+        super(VmmInjectedService, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(VmmInjectedService, self).to_attr(session)
+        for p in res_attr.pop('ports', []):
+            port = {'port': p.port, 'protocol': p.protocol,
+                    'target_port': p.target_port}
+            if p.node_port is not None:
+                port['node_port'] = p.node_port
+            res_attr.setdefault('service_ports', []).append(port)
+        return res_attr
+
+
+class VmmInjectedHost(model_base.Base, model_base.HasAimId,
+                      model_base.HasName, model_base.HasDisplayName,
+                      model_base.AttributeMixin):
+    """DB model VmmInjectedHost."""
+    __tablename__ = 'aim_vmm_inj_hosts'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'controller_name', 'name') +
+        (sa.ForeignKeyConstraint(
+            ['domain_type', 'domain_name', 'controller_name'],
+            ['aim_vmm_controllers.domain_type',
+             'aim_vmm_controllers.domain_name',
+             'aim_vmm_controllers.name'],
+            name='fk_inj_host_vmm_controller'),) +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_type = model_base.name_column(nullable=False)
+    domain_name = model_base.name_column(nullable=False)
+    controller_name = model_base.name_column(nullable=False)
+
+    host_name = sa.Column(sa.String(128))
+    kernel_version = sa.Column(sa.String(32))
+    os = sa.Column(sa.String(64))
+
+
+class VmmInjectedGroup(model_base.Base, model_base.HasAimId,
+                       model_base.HasName, model_base.HasDisplayName,
+                       model_base.AttributeMixin):
+    """DB model VmmInjectedGroup."""
+    __tablename__ = 'aim_vmm_inj_groups'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'controller_name', 'namespace_name') +
+        (sa.ForeignKeyConstraint(
+            ['domain_type', 'domain_name', 'controller_name',
+             'namespace_name'],
+            ['aim_vmm_inj_namespaces.domain_type',
+             'aim_vmm_inj_namespaces.domain_name',
+             'aim_vmm_inj_namespaces.controller_name',
+             'aim_vmm_inj_namespaces.name'],
+            name='fk_inj_group_inj_ns'),) +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_type = model_base.name_column(nullable=False)
+    domain_name = model_base.name_column(nullable=False)
+    controller_name = model_base.name_column(nullable=False)
+    namespace_name = model_base.name_column(nullable=False)
+
+    host_name = model_base.name_column(nullable=False)
+    compute_node_name = model_base.name_column(nullable=False)

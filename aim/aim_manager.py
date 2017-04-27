@@ -88,7 +88,14 @@ class AimManager(object):
                      api_infra.OpflexDevice,
                      api_res.VMMPolicy,
                      api_res.Pod,
-                     api_res.Topology}
+                     api_res.Topology,
+                     api_res.VMMController,
+                     api_res.VmmInjectedNamespace,
+                     api_res.VmmInjectedDeployment,
+                     api_res.VmmInjectedReplicaSet,
+                     api_res.VmmInjectedService,
+                     api_res.VmmInjectedHost,
+                     api_res.VmmInjectedGroup, }
 
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}
@@ -158,14 +165,11 @@ class AimManager(object):
                     raise exc.InvalidMonitoredStateUpdate(object=resource)
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
                             if k in resource.other_attributes}
-                if attr_val:
-                    context.store.from_attr(db_obj, type(resource), attr_val)
-                elif resource.identity_attributes:
+                if not attr_val and resource.identity_attributes:
                     # force update
-                    setattr(
-                        db_obj, resource.identity_attributes.keys()[0],
-                        getattr(db_obj,
-                                resource.identity_attributes.keys()[0]))
+                    id_attr_0 = resource.identity_attributes.keys()[0]
+                    attr_val = {id_attr_0: getattr(resource, id_attr_0)}
+                context.store.from_attr(db_obj, type(resource), attr_val)
                 context.store.add(db_obj)
                 self._add_commit_hook(context.store)
                 return self.get(context, resource)

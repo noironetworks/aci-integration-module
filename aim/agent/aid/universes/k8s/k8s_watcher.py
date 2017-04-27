@@ -22,6 +22,8 @@ from oslo_log import log as logging
 
 from aim.agent.aid import event_handler
 from aim import aim_manager
+from aim.api import resource
+from aim.api import status
 from aim.api import tree as aim_tree
 from aim.common.hashtree import structured_tree
 from aim.common import utils
@@ -81,11 +83,23 @@ class K8sWatcher(object):
         self._http_resp = None
         # Tenants whose trees need to be saved in AIM
         self.affected_tenants = set()
+        self._observe_thread_state = {}
+
+        self._k8s_types_to_observe = set([])
+        self._k8s_aim_type_map = {}
+        self._k8s_kinds = set([])
+
+        for aim_res in aim_manager.AimManager.aim_resources:
+            if issubclass(aim_res, resource.AciResourceBase):
+                k8s_type = self.ctx.store.resource_to_db_type(aim_res)
+                self._k8s_types_to_observe.add(k8s_type)
+                self._k8s_kinds.add(k8s_type.kind)
+                if k8s_type != api_v1.AciContainersObject:
+                    self._k8s_aim_type_map[k8s_type.kind] = (aim_res, k8s_type)
 
     def run(self):
         threads = {'observer': self.observer_thread,
-                   'persister': self.persistence_thread,
-                   'monitor': self.monitor_thread}
+                   'persister': self.persistence_thread}
         for attr, thd in threads.iteritems():
             setattr(self, attr, threading.Thread(target=thd))
             getattr(self, attr).daemon = True
@@ -110,18 +124,6 @@ class K8sWatcher(object):
             utils.perform_harakiri(LOG, "%s thread stopped "
                                         "unexpectedly: %s" % (name, e.message))
 
-    def _parse_event(self, event):
-        event_type = event['type']
-        event_object = event['object']
-        res_klass = name_to_res.get(event_object['spec']['type'])
-        if res_klass:
-            db_obj = api_v1.AciContainersObject()
-            db_obj.update(event_object)
-            return {
-                'event_type': event_type,
-                'resource': self.ctx.store.make_resource(res_klass, db_obj)
-            }
-
     def _get_event(self, timeout=None):
         try:
             return self.q.get(timeout=timeout)
@@ -133,50 +135,98 @@ class K8sWatcher(object):
         self.klient.get_new_watch()
 
     def observer_thread(self):
-        self._thread(self.observer_loop, "K8S Observer")
+        self._thread(self.observe_and_monitor_loop, "K8S Observer")
 
     def persistence_thread(self):
         self._thread(self.persistence_loop, "K8S Tree Builder")
 
-    def monitor_thread(self):
-        self._thread(self.monitor_loop, "K8S Connection Monitor")
-
-    @utils.retry_loop(MONITOR_LOOP_MAX_WAIT, MONITOR_LOOP_MAX_RETRIES,
-                      'K8S monitor thread')
-    def monitor_loop(self):
-        self._monitor_loop()
-
-    def _monitor_loop(self):
-        utils.sleep(MONITOR_LOOP_MAX_WAIT)
-        if self._http_resp and self._http_resp.closed:
-            raise K8SObserverStopped()
-
     @utils.retry_loop(OBSERVER_LOOP_MAX_WAIT, OBSERVER_LOOP_MAX_RETRIES,
                       'K8S observer thread')
-    def observer_loop(self):
-        self._observer_loop()
+    def observe_and_monitor_loop(self):
+        LOG.info("Starting observe and monitor loop.")
 
-    def wrap_list_namespaced_aci(self, *args, **kwargs):
-        resp = self.klient.list_namespaced_aci(*args, **kwargs)
-        if hasattr(resp, 'close') and callable(resp.close):
-            self._http_resp = resp
-        return resp
-
-    def _observer_loop(self):
-        # Reset all trees and events
-        LOG.info("Resetting observer loop.")
         if self._stop:
-            LOG.info("Quitting k8s observer loop")
+            LOG.info("Quitting k8s observe and monitor loop")
             raise utils.ThreadExit()
+
+        self._start_observers()
+
+        while not self._stop:
+            exc = self._check_observers()
+            if exc:
+                break
+            utils.sleep(MONITOR_LOOP_MAX_WAIT)
+        for ts in self._observe_thread_state.values():
+            ts['watch_stop'] = True
+        if self.klient.watch:
+            self.klient.stop_watch()
+        if exc:
+            raise exc
+
+    def _start_observers(self):
         self._reset_trees()
         self._renew_klient_watch()
-        for event in self.klient.watch.stream(self.wrap_list_namespaced_aci,
-                                              namespace=self.namespace):
-            event = self._parse_event(event)
-            LOG.debug("Kubernetes event received: %s", event)
-            if event:
-                self.affected_tenants |= set(self._process_event(event))
-            self.q.put(object())
+
+        self._observe_thread_state = {}
+        for typ in self._k8s_types_to_observe:
+            thd = threading.Thread(target=self._observe_objects,
+                                   args=(typ,))
+            thd.daemon = True
+            self._observe_thread_state[thd] = dict(watch_stop=False)
+            thd.start()
+
+    def _check_observers(self):
+        exc = None
+        for t in self._observe_thread_state:
+            tstate = self._observe_thread_state[t]
+            if tstate.get('watch_exception'):
+                exc = tstate.get('watch_exception')
+                LOG.info('Thread %s raised exception %s', t, exc)
+                break
+            if tstate.get('http_resp') and tstate['http_resp'].closed:
+                LOG.info('HTTP response closed for thread %s', t)
+                exc = K8SObserverStopped()
+                break
+            if not t.is_alive():
+                LOG.info('Thread %s is not alive', t)
+                exc = K8SObserverStopped()
+                break
+        return exc
+
+    def wrap_list_call(self, *args, **kwargs):
+        tstate = kwargs.pop('_thread_state')
+        resp = self.klient.list(*args, **kwargs)
+        if hasattr(resp, 'close') and callable(resp.close):
+            tstate['http_resp'] = resp
+        return resp
+
+    def _observe_objects(self, k8s_type):
+        my_thread = threading.current_thread()
+        my_state = self._observe_thread_state[my_thread]
+        LOG.debug('Start observing %s objects (thread %s)',
+                  k8s_type.kind, my_thread)
+        if not my_state['watch_stop']:
+            try:
+                kwargs = {}
+                if k8s_type == api_v1.Namespace:
+                    kwargs['name'] = self.namespace
+                for event in self.klient.watch.stream(
+                        self.wrap_list_call, k8s_type,
+                        _thread_state=my_state,
+                        namespace=self.namespace):
+                    if my_state['watch_stop']:
+                        LOG.debug('Stopping %s objects thread %s',
+                                  k8s_type.kind, my_thread)
+                        break
+                    LOG.debug("Kubernetes event (%s objects) received: %s",
+                              k8s_type.kind, event)
+                    self.q.put(event)
+            except Exception as e:
+                LOG.debug('Observe %s objects caught exception: %s',
+                          k8s_type.kind, e)
+                my_state['watch_exception'] = e
+        LOG.debug('End observing %s objects (thread %s)',
+                  k8s_type.kind, my_thread)
 
     def _reset_trees(self):
         self.trees = None
@@ -201,6 +251,7 @@ class K8sWatcher(object):
             raise utils.ThreadExit()
         first_event_time = None
         warmup_wait = COLD_BUILD_TIME
+        affected_tenants = set(self.affected_tenants)
         while warmup_wait > 0:
             event = self._get_event(warmup_wait)
             if not first_event_time:
@@ -209,24 +260,57 @@ class K8sWatcher(object):
                            time.time())
             if event:
                 LOG.debug('Got save event from queue')
+                affected_tenants |= self._process_event(event)
 
-        if self.trees:
-            affected_tenants = self.affected_tenants
-            self.affected_tenants = set()
+        if affected_tenants:
+            LOG.debug('Saving trees for tenants: %s', affected_tenants)
             try:
                 # Save procedure can be context switched at this point
                 self._save_trees(affected_tenants)
                 self.warmup_time = WARM_BUILD_TIME
+                self.affected_tenants = set()
             except Exception:
                 LOG.error(traceback.format_exc())
                 # Put the affected tenants back to the list since we couldn't
                 # persist their trees.
                 self.affected_tenants |= affected_tenants
 
+    def _parse_event(self, event):
+        event_type = event['type']
+        event_object = event['object']
+        kind = event_object.get('kind')
+        if kind not in self._k8s_kinds:
+            return
+
+        if kind == api_v1.AciContainersObject.kind:
+            aim_klass = name_to_res.get(event_object['spec']['type'])
+            k8s_type = api_v1.AciContainersObject
+        else:
+            aim_klass, k8s_type = self._k8s_aim_type_map[kind]
+
+        if aim_klass and k8s_type:
+            db_obj = k8s_type()
+            db_obj.update(event_object)
+            aim_res = self.ctx.store.make_resource(aim_klass, db_obj)
+            return {'event_type': event_type,
+                    'resource': aim_res}
+
     def _process_event(self, event):
-        # push event into tree
+        event = self._parse_event(event)
         affected_tenants = set()
+        if not event:
+            return affected_tenants
+
         aim_res = event['resource']
+        if (not isinstance(aim_res, resource.AciResourceBase) and
+                not isinstance(aim_res, status.OperationalResource)):
+            return affected_tenants
+        # filter out unrelated namespaces
+        if (isinstance(aim_res, resource.VmmInjectedNamespace) and
+                aim_res.name != self.namespace):
+            return affected_tenants
+
+        # push event into tree
         action = event['event_type']
         changes = {'added': [], 'deleted': []}
         if action.lower() in [ACTION_CREATED, ACTION_MODIFIED]:
@@ -234,6 +318,8 @@ class K8sWatcher(object):
         elif action.lower() in [ACTION_DELETED]:
             changes['deleted'].append(aim_res)
         key = self.tt_maker.get_root_key(aim_res)
+
+        LOG.info('K8s event: %s %s', action, aim_res)
 
         # Initialize tree if needed
         if key and self.trees is not None:

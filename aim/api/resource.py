@@ -50,7 +50,8 @@ class ResourceBase(object):
         if 'display_name' in self.other_attributes:
             defaults.setdefault('display_name', '')
         if unset_attr:
-            raise exc.IdentityAttributesMissing(attr=unset_attr)
+            raise exc.IdentityAttributesMissing(klass=type(self).__name__,
+                                                attr=unset_attr)
         if kwargs.pop('_set_default', True):
             for k, v in defaults.iteritems():
                 setattr(self, k, v)
@@ -547,7 +548,7 @@ class VMMPolicy(AciRoot):
     tenant_ref_attribute = 'type'
 
     identity_attributes = t.identity(
-        ('type', t.enum("VMWare", "OpenStack")))
+        ('type', t.enum("VMWare", "OpenStack", "Kubernetes")))
     other_attributes = t.other(
         ('monitored', t.bool),
         ('display_name', t.name))
@@ -568,17 +569,43 @@ class VMMDomain(AciResourceBase):
     tenant_ref_attribute = 'type'
 
     identity_attributes = t.identity(
-        ('type', t.enum("VMWare", "OpenStack")),
+        ('type', t.enum("VMWare", "OpenStack", "Kubernetes")),
         ('name', t.name))
     other_attributes = t.other(
         ('monitored', t.bool),
-        ('display_name', t.name))
+        ('display_name', t.name),
+        ('enforcement_pref', t.enum('sw', 'hw', 'unknown')),
+        ('mode', t.enum('default', 'n1kv', 'unknown', 'ovs', 'k8s')),
+        ('mcast_address', t.string()),
+        ('encap_mode', t.enum('unknown', 'vlan', 'vxlan')),
+        ('pref_encap_mode', t.enum('unspecified', 'vlan', 'vxlan')),
+        ('vlan_pool_name', t.name),
+        ('vlan_pool_type', t.enum('static', 'dynamic')),
+        ('mcast_addr_pool_name', t.name))
 
     _aci_mo_name = 'vmmDomP'
     _tree_parent = VMMPolicy
 
     def __init__(self, **kwargs):
-        super(VMMDomain, self).__init__({'monitored': False}, **kwargs)
+        defaults = {'monitored': False,
+                    'enforcement_pref': 'hw',
+                    'mode': 'default',
+                    'mcast_address': '0.0.0.0',
+                    'encap_mode': 'unknown',
+                    'pref_encap_mode': 'unspecified',
+                    'vlan_pool_name': '',
+                    'vlan_pool_type': 'dynamic',
+                    'mcast_addr_pool_name': ''}
+        vmm_type = kwargs.get('type')
+        if vmm_type == 'Kubernetes':
+            defaults['enforcement_pref'] = 'sw'
+            defaults['mode'] = 'k8s'
+        elif vmm_type == 'OpenStack':
+            defaults['enforcement_pref'] = 'sw'
+            defaults['mode'] = 'ovs'
+        if kwargs.get('encap_mode') and kwargs['encap_mode'] != 'unknown':
+            defaults['pref_encap_mode'] = kwargs['encap_mode']
+        super(VMMDomain, self).__init__(defaults, **kwargs)
 
 
 class PhysicalDomain(AciRoot):
@@ -803,3 +830,206 @@ class Pod(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(Pod, self).__init__({'monitored': False}, **kwargs)
+
+
+class VMMController(AciResourceBase):
+    """Resource representing a VMM controller profile in ACI.
+
+    Identity attributes: VMM domain type, VMM domain name, controller name.
+    """
+    identity_attributes = t.identity(
+        ('domain_type', t.name),
+        ('domain_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('scope', t.enum('unmanaged', 'vm', 'iaas', 'network',
+                         'MicrosoftSCVMM', 'openstack', 'kubernetes')),
+        ('root_cont_name', t.name),
+        ('host_or_ip', t.name),
+        ('mode', t.enum('default', 'n1kv', 'unknown', 'ovs', 'k8s')),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vmmCtrlrP'
+    _tree_parent = VMMDomain
+
+    def __init__(self, **kwargs):
+        defaults = {'monitored': False,
+                    'scope': 'vm',
+                    'root_cont_name': '',
+                    'host_or_ip': '',
+                    'mode': 'default'}
+        vmm_type = kwargs.get('domain_type')
+        if vmm_type == 'Kubernetes':
+            defaults['scope'] = 'kubernetes'
+            defaults['mode'] = 'k8s'
+        elif vmm_type == 'OpenStack':
+            defaults['scope'] = 'openstack'
+            defaults['mode'] = 'ovs'
+        name = kwargs.get('name')
+        if name:
+            defaults['root_cont_name'] = name
+            defaults['host_or_ip'] = name
+        super(VMMController, self).__init__(defaults, **kwargs)
+
+
+class VmmInjectedNamespace(AciResourceBase):
+    """Resource representing a VMM injected namespace in ACI.
+
+    Identity attributes: VMM domain type, VMM domain name, controller name,
+    and namespace name.
+    """
+    identity_attributes = t.identity(
+        ('domain_type', t.name),
+        ('domain_name', t.name),
+        ('controller_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name))
+
+    _aci_mo_name = 'vmmInjectedNs'
+    _tree_parent = VMMController
+
+    def __init__(self, **kwargs):
+        super(VmmInjectedNamespace, self).__init__({}, **kwargs)
+
+
+class VmmInjectedDeployment(AciResourceBase):
+    """Resource representing a VMM injected deployment in ACI.
+
+    Identity attributes: VMM domain type, VMM domain name, controller name,
+    namespace name and deployment name.
+    """
+    identity_attributes = t.identity(
+        ('domain_type', t.name),
+        ('domain_name', t.name),
+        ('controller_name', t.name),
+        ('namespace_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('replicas', t.integer))
+    db_attributes = t.db(('guid', t.string()))
+
+    _aci_mo_name = 'vmmInjectedDepl'
+    _tree_parent = VmmInjectedNamespace
+
+    def __init__(self, **kwargs):
+        super(VmmInjectedDeployment, self).__init__({'replicas': 0,
+                                                     'guid': ''},
+                                                    **kwargs)
+
+
+class VmmInjectedReplicaSet(AciResourceBase):
+    """Resource representing a VMM injected replica-set in ACI.
+
+    Identity attributes: VMM domain type, VMM domain name, controller name,
+    namespace name, deployment name and replica-set name.
+    """
+    identity_attributes = t.identity(
+        ('domain_type', t.name),
+        ('domain_name', t.name),
+        ('controller_name', t.name),
+        ('namespace_name', t.name),
+        ('deployment_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name))
+
+    _aci_mo_name = 'vmmInjectedReplSet'
+    _tree_parent = VmmInjectedDeployment
+
+    def __init__(self, **kwargs):
+        super(VmmInjectedReplicaSet, self).__init__({}, **kwargs)
+
+
+class VmmInjectedService(AciResourceBase):
+    """Resource representing a VMM injected service in ACI.
+
+    Identity attributes: VMM domain type, VMM domain name, controller name,
+    namespace name and service name.
+    """
+    identity_attributes = t.identity(
+        ('domain_type', t.name),
+        ('domain_name', t.name),
+        ('controller_name', t.name),
+        ('namespace_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('service_type', t.enum('clusterIp', 'externalName', 'nodePort',
+                                'loadBalancer')),
+        ('cluster_ip', t.string()),
+        ('load_balancer_ip', t.string()),
+        ('service_ports', t.list_of_dicts(('port', t.ports),
+                                          ('protocol', t.string(32)),
+                                          ('target_port', t.string(32)),
+                                          ('node_port', t.ports))))
+    db_attributes = t.db(('guid', t.string()))
+
+    _aci_mo_name = 'vmmInjectedSvc'
+    _tree_parent = VmmInjectedNamespace
+
+    def __init__(self, **kwargs):
+        super(VmmInjectedService, self).__init__(
+            {'service_type': 'clusterIp',
+             'cluster_ip': '0.0.0.0',
+             'load_balancer_ip': '0.0.0.0',
+             'service_ports': [],
+             'guid': ''},
+            **kwargs)
+
+
+class VmmInjectedHost(AciResourceBase):
+    """Resource representing a VMM injected host in ACI.
+
+    Identity attributes: VMM domain type, VMM domain name, controller name
+    and host name.
+    """
+    identity_attributes = t.identity(
+        ('domain_type', t.name),
+        ('domain_name', t.name),
+        ('controller_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('host_name', t.string()),
+        ('kernel_version', t.string()),
+        ('os', t.string()))
+
+    _aci_mo_name = 'vmmInjectedHost'
+    _tree_parent = VMMController
+
+    def __init__(self, **kwargs):
+        super(VmmInjectedHost, self).__init__({'host_name': '',
+                                               'kernel_version': '',
+                                               'os': ''},
+                                              **kwargs)
+
+
+class VmmInjectedGroup(AciResourceBase):
+    """Resource representing a VMM injected group in ACI.
+
+    Identity attributes: VMM domain type, VMM domain name, controller name,
+    namespace name and group name.
+    """
+    identity_attributes = t.identity(
+        ('domain_type', t.name),
+        ('domain_name', t.name),
+        ('controller_name', t.name),
+        ('namespace_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('host_name', t.name),
+        ('compute_node_name', t.name))
+    db_attributes = t.db(('guid', t.string()))
+
+    _aci_mo_name = 'vmmInjectedGrp'
+    _tree_parent = VmmInjectedNamespace
+
+    def __init__(self, **kwargs):
+        super(VmmInjectedGroup, self).__init__({'host_name': '',
+                                                'compute_node_name': '',
+                                                'guid': ''},
+                                               **kwargs)

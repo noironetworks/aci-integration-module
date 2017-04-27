@@ -71,6 +71,7 @@ def list_of_dicts(*dict_keys_and_types):
 
 
 bool = {"type": "boolean"}
+integer = {"type": "integer"}
 name = {"type": "string", "pattern": "^[a-zA-Z0-9_.:-]{0,63}$"}
 list_of_names = {"type": "array", "items": name}
 list_of_ids = {"type": "array", "items": string(36)}

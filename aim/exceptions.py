@@ -38,7 +38,7 @@ class AimException(Exception):
 
 
 class IdentityAttributesMissing(AimException):
-    message = "Identity attributes missing: %(attr)s."
+    message = "Identity attributes missing for type %(klass)s: %(attr)s."
 
 
 class UnknownResourceType(AimException):

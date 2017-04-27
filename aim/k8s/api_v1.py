@@ -14,9 +14,11 @@
 #    under the License.
 
 import ast
+import copy
 import json
 from six import iteritems
 
+from aim.api import types
 try:
     from kubernetes import client
     from kubernetes.client import api_client as klient
@@ -33,9 +35,245 @@ from aim.common import utils
 
 
 K8S_DEFAULT_NAMESPACE = 'default'
+K8S_API_VERSION_CORE_V1 = 'v1'
+K8S_API_VERSION_EXTENSIONS_V1BETA1 = 'extensions/v1beta1'
+
+
+class K8sObject(dict):
+
+    attribute_map = {'name': ('metadata', 'name'),
+                     'display_name': ('metadata', 'annotations',
+                                      'aim/display_name'),
+                     'namespace_name': ('metadata', 'namespace'),
+                     'guid': ('metadata', 'uid')}
+
+    default_spec = {}
+
+    def __getattr__(self, item):
+        if item == 'aim_id':
+            return self['metadata']['name']
+        elif item in self.attribute_map:
+            try:
+                d = self
+                for a in self.attribute_map[item]:
+                    d = d[a]
+                return d
+            except KeyError:
+                pass
+        return super(K8sObject, self).__getattr__(item)
+
+    def from_attr(self, resource_klass, attribute_dict):
+        self.setdefault('spec', self.default_spec)
+        for k, v in attribute_dict.iteritems():
+            k8s_attrs = self.attribute_map.get(k)
+            if not k8s_attrs:
+                continue
+            d = self
+            for a in k8s_attrs[:-1]:
+                d = d.setdefault(a, {})
+            d[k8s_attrs[-1]] = v
+
+    def to_attr(self, resource_klass, defaults=None):
+        result = {}
+        if defaults:
+            result.update(defaults)
+        for k in resource_klass.attributes():
+            try:
+                result[k] = getattr(self, k)
+            except AttributeError:
+                pass
+        return result
+
+    def build_selectors(self, aim_klass, filters):
+        label_selectors = []
+        name = None
+        for fltr, value in filters.iteritems():
+            k8s_attrs = self.attribute_map.get(fltr)
+            if not k8s_attrs:
+                continue
+            if k8s_attrs == ('metadata', 'name'):
+                name = value
+            elif (len(k8s_attrs) == 3 and
+                    k8s_attrs[:2] == ('metadata', 'labels')):
+                label_selectors.append('%s=%s' % (k8s_attrs[-1], value))
+        result = {}
+        if label_selectors:
+            result['label_selector'] = '&'.join(label_selectors)
+        if name:
+            result['name'] = name
+        return result
+
+
+class Namespace(K8sObject):
+    api_version = K8S_API_VERSION_CORE_V1
+    kind = 'Namespace'
+    namespaced = False
+
+
+class Deployment(K8sObject):
+    api_version = K8S_API_VERSION_EXTENSIONS_V1BETA1
+    kind = 'Deployment'
+
+    attribute_map = copy.copy(K8sObject.attribute_map)
+    attribute_map.update({'replicas': ('spec', 'replicas')})
+
+    # These values are needed to make K8s ApiServer happy in unit-test.
+    default_spec = {'template':
+                    {'spec':
+                     {'containers': [{'image': 'dummy', 'name': 'dummy'}]}}}
+
+    def from_attr(self, resource_klass, attribute_dict):
+        super(Deployment, self).from_attr(resource_klass, attribute_dict)
+        if 'name' in attribute_dict:
+            match = self.setdefault('spec', {}).setdefault(
+                'selector', {}).setdefault('matchLabels', {})
+            if not match:
+                match['k8s-app'] = attribute_dict['name']
+            t_label = self.setdefault('spec', {}).setdefault(
+                'template', {}).setdefault(
+                    'metadata', {}).setdefault('labels', {})
+            if not t_label:
+                t_label['k8s-app'] = attribute_dict['name']
+
+
+class ReplicaSet(K8sObject):
+    api_version = K8S_API_VERSION_EXTENSIONS_V1BETA1
+    kind = 'ReplicaSet'
+
+    attribute_map = copy.copy(K8sObject.attribute_map)
+    attribute_map.update({'name': ('metadata', 'labels', 'pod-template-hash')})
+
+    # These values are needed to make K8s ApiServer happy in unit-test.
+    default_spec = {'template':
+                    {'spec':
+                     {'containers': [{'image': 'dummy', 'name': 'dummy'}]}}}
+
+    def from_attr(self, resource_klass, attr):
+        super(ReplicaSet, self).from_attr(resource_klass, attr)
+        if 'deployment_name' in attr:
+            if 'name' in attr:
+                self.setdefault('metadata', {})['name'] = (
+                    '%s-%s' % (attr['deployment_name'], attr['name']))
+            match = self.setdefault('spec', {}).setdefault(
+                'selector', {}).setdefault('matchLabels', {})
+            if not match:
+                match['k8s-app'] = attr['deployment_name']
+            t_label = self.setdefault('spec', {}).setdefault(
+                'template', {}).setdefault(
+                    'metadata', {}).setdefault('labels', {})
+            if not t_label:
+                t_label['k8s-app'] = attr['deployment_name']
+
+    def to_attr(self, resource_klass, defaults=None):
+        result = super(ReplicaSet, self).to_attr(resource_klass,
+                                                 defaults=defaults)
+        depl_name = self['metadata']['name'].replace('-%s' % result['name'],
+                                                     '')
+        result['deployment_name'] = depl_name
+        return result
+
+
+class Service(K8sObject):
+    api_version = K8S_API_VERSION_CORE_V1
+    kind = 'Service'
+
+    attribute_map = copy.copy(K8sObject.attribute_map)
+    attribute_map.update({'service_type': ('spec', 'type'),
+                          'cluster_ip': ('spec', 'clusterIP'),
+                          'load_balancer_ip': ('spec', 'loadBalancerIP')})
+    service_types = {'ClusterIP': 'clusterIp',
+                     'ExternalName': 'externalName',
+                     'LoadBalancer': 'loadBalancer',
+                     'NodePort': 'nodePort'}
+
+    def _port_to_num(self, port_str):
+        try:
+            return int(port_str)
+        except ValueError:
+            # check well-defined string names for ports
+            port_str = port_str.lower()
+            for p_num, p_name in types.ports.iteritems():
+                if p_name == port_str:
+                    return int(p_num)
+        return port_str
+
+    def from_attr(self, resource_klass, attr):
+        # fix service_type
+        if 'service_type' in attr:
+            for st_k, st_a in self.service_types.iteritems():
+                if st_a == attr['service_type']:
+                    attr['service_type'] = st_k
+        if attr.get('cluster_ip') == '0.0.0.0':
+            attr.pop('cluster_ip')
+        super(Service, self).from_attr(resource_klass, attr)
+
+        if 'service_ports' in attr:
+            ports = []
+            for p in attr['service_ports']:
+                if not (p.get('port') and p.get('protocol') and
+                        p.get('target_port')):
+                    continue
+                pt = {'port': self._port_to_num(p['port']),
+                      'protocol': p['protocol'].upper(),
+                      'targetPort': self._port_to_num(p['target_port']),
+                      'name': '%s-%s-%s' % (p['port'], p['protocol'],
+                                            p['target_port'])}
+                if p.get('node_port'):
+                    pt['nodePort'] = self._port_to_num(p['node_port'])
+                ports.append(pt)
+            self.setdefault('spec', {})['ports'] = ports
+
+    def to_attr(self, resource_klass, defaults=None):
+        result = super(Service, self).to_attr(resource_klass,
+                                              defaults=defaults)
+        # fix service_type
+        if 'service_type' in result:
+            result['service_type'] = (
+                self.service_types.get(result['service_type'],
+                                       result['service_type']))
+        for p in self['spec'].get('ports'):
+            pt = {'port': str(p['port']),
+                  'protocol': p.get('protocol', 'TCP').lower(),
+                  'target_port': str(p.get('targetPort', p['port']))}
+            if 'nodePort' in p:
+                pt['node_port'] = str(p['nodePort'])
+            result.setdefault('service_ports', []).append(pt)
+        return result
+
+
+class Node(K8sObject):
+    api_version = K8S_API_VERSION_CORE_V1
+    kind = 'Node'
+    namespaced = False
+
+    attribute_map = copy.copy(K8sObject.attribute_map)
+    attribute_map.update({'host_name': ('metadata', 'labels',
+                                        'kubernetes.io/hostname'),
+                          'os': ('status', 'nodeInfo', 'osImage'),
+                          'kernel_version': ('status', 'nodeInfo',
+                                             'kernelVersion')})
+
+
+class Pod(K8sObject):
+    api_version = K8S_API_VERSION_CORE_V1
+    kind = 'Pod'
+
+    attribute_map = copy.copy(K8sObject.attribute_map)
+    attribute_map.update({'compute_node_name': ('spec', 'nodeName')})
+
+    # These values are needed to make K8s ApiServer happy in unit-test.
+    default_spec = {'containers': [{'image': 'dummy', 'name': 'dummy'}]}
+
+    def to_attr(self, resource_klass, defaults=None):
+        result = super(Pod, self).to_attr(resource_klass, defaults=defaults)
+        if 'compute_node_name' in result:
+            result.setdefault('host_name', result['compute_node_name'])
+        return result
 
 
 class AciContainersObject(dict):
+    api_version = 'acicontainers.cisco.com/v1'
+    kind = 'Aci'
 
     def __getattr__(self, item):
         try:
@@ -71,6 +309,42 @@ class AciContainersObject(dict):
                 pass
         self[item] = value
 
+    def from_attr(self, resource_klass, attribute_dict):
+        name = utils.camel_to_snake(resource_klass.__name__)
+        self.setdefault('spec', {'type': name, name: {}})
+        self.setdefault('metadata', {'labels': {'aim_type': name}})
+        labels = self['metadata']['labels']
+        attrs = self['spec'][name]
+        for k, v in attribute_dict.iteritems():
+            if k in resource_klass.identity_attributes:
+                labels[k] = utils.sanitize_name(v)
+            attrs[k] = v
+        if 'name' not in self['metadata']:
+            self['metadata']['name'] = self._build_name(name, resource_klass)
+
+    def to_attr(self, resource_klass, defaults=None):
+        result = {}
+        for k in resource_klass.attributes():
+            try:
+                result[k] = getattr(self, k)
+            except AttributeError:
+                pass
+        return result
+
+    def build_selectors(self, aim_klass, filters):
+        result = 'aim_type=%s' % utils.camel_to_snake(aim_klass.__name__)
+        for fltr in filters:
+            if fltr in aim_klass.identity_attributes:
+                result += ',%s=%s' % (
+                    fltr, utils.sanitize_name(filters[fltr]))
+        return {'label_selector': result}
+
+    def _build_name(self, type, resource_klass):
+        components = []
+        for attr in sorted(resource_klass.identity_attributes):
+            components.append(self['spec'][type][attr])
+        return utils.sanitize_name(type, *components)
+
 
 class AciContainersV1(object):
 
@@ -97,7 +371,6 @@ class AciContainersV1(object):
                   'application/merge-patch+json',
                   'application/strategic-merge-patch+json'],
     }
-    base_path = '/apis/acicontainers.cisco.com/v1/namespaces/{namespace}/acis'
 
     def __init__(self, api_client=None, config_file=None):
         config = client.Configuration()
@@ -128,22 +401,34 @@ class AciContainersV1(object):
     def stop_watch(self):
         self.watch.stop()
 
-    def _exec_rest_operation(self, verb, **kwargs):
+    def _exec_rest_operation(self, k8s_klass, verb, **kwargs):
         kwargs['_return_http_data_only'] = True
         if kwargs.get('callback'):
-            return self._exec_rest_operation_with_http_info(verb, **kwargs)
+            return self._exec_rest_operation_with_http_info(k8s_klass, verb,
+                                                            **kwargs)
         else:
-            (data) = self._exec_rest_operation_with_http_info(verb, **kwargs)
+            (data) = self._exec_rest_operation_with_http_info(k8s_klass, verb,
+                                                              **kwargs)
             return data
 
-    def _exec_rest_operation_with_http_info(self, verb, **kwargs):
+    def _exec_rest_operation_with_http_info(self, k8s_klass, verb, **kwargs):
         params = locals()
         for key, val in iteritems(params['kwargs']):
             params[key] = val
         del params['kwargs']
 
-        path = self.base_path
-        path_params = {'namespace': params['namespace']}
+        # Path looks like
+        # /api(s)?/<api_version>(/namespaces/{namespace})?/<kind>(/{name})?'
+
+        path = '/api'
+        if k8s_klass.api_version != K8S_API_VERSION_CORE_V1:
+            path += 's'
+        path += '/' + k8s_klass.api_version
+        path_params = {}
+        if getattr(k8s_klass, 'namespaced', True):
+            path += '/namespaces/{namespace}'
+            path_params['namespace'] = params['namespace']
+        path += ('/%ss' % k8s_klass.kind.lower())
         # When name is passed, use it as a path parameter
         if 'name' in params:
             path += '/{name}'
@@ -165,9 +450,9 @@ class AciContainersV1(object):
 
         # Authentication setting
         auth_settings = ['BearerToken']
-        if 'body' in params:
-            params['body']['kind'] = 'Aci'
-            params['body']['apiVersion'] = "acicontainers.cisco.com/v1"
+        if verb == 'POST' and 'body' in params:
+            params['body']['kind'] = k8s_klass.kind
+            params['body']['apiVersion'] = k8s_klass.api_version
 
         result = self.api_client.call_api(
             resource_path, verb, path_params, query_params, header_params,
@@ -179,44 +464,50 @@ class AciContainersV1(object):
             _request_timeout=params.get('_request_timeout'))
         if result and isinstance(result, str):
             try:
-                return json.loads(result.replace("u'", "'").replace("'", '"'))
+                return json.loads(
+                    result.replace(": u'", "'").replace("'", '"'))
             except ValueError:
                 try:
                     return ast.literal_eval(result)
                 except ValueError:
                     pass
+
         return result
 
-    def list_namespaced_aci(self, namespace, **kwargs):
+    def list(self, k8s_klass, namespace, **kwargs):
         # List on base path
-        return self._exec_rest_operation('GET', namespace=namespace, **kwargs)
-
-    def create_namespaced_aci(self, namespace, body, **kwargs):
-        # Create ACI object
-        return self._exec_rest_operation('POST', namespace=namespace,
-                                         body=body, **kwargs)
-
-    def replace_namespaced_aci(self, name, namespace, body, **kwargs):
-        # Replace existing ACI object
-        return self._exec_rest_operation('PUT', namespace=namespace, body=body,
-                                         name=name, **kwargs)
-
-    def read_namespaced_aci(self, name, namespace, **kwargs):
-        # Read existing ACI object
-        return self._exec_rest_operation('GET', namespace=namespace, name=name,
+        return self._exec_rest_operation(k8s_klass, 'GET', namespace=namespace,
                                          **kwargs)
 
-    def patch_namespaced_aci(self, name, namespace, body, **kwargs):
-        # Modify existing ACI object
-        return self._exec_rest_operation('PATCH', namespace=namespace,
+    def create(self, k8s_klass, namespace, body, **kwargs):
+        # Create object
+        return self._exec_rest_operation(k8s_klass, 'POST',
+                                         namespace=namespace, body=body,
+                                         **kwargs)
+
+    def replace(self, k8s_klass, name, namespace, body, **kwargs):
+        # Replace existing object
+        return self._exec_rest_operation(k8s_klass, 'PUT', namespace=namespace,
                                          body=body, name=name, **kwargs)
 
-    def delete_collection_namespaced_aci(self, namespace, **kwargs):
-        # Delete ACI objects given collection filters
-        return self._exec_rest_operation('DELETE', namespace=namespace,
-                                         **kwargs)
+    def read(self, k8s_klass, name, namespace, **kwargs):
+        # Read existing object
+        return self._exec_rest_operation(k8s_klass, 'GET', namespace=namespace,
+                                         name=name, **kwargs)
 
-    def delete_namespaced_aci(self, name, namespace, body, **kwargs):
-        # Delete ACI objects
-        return self._exec_rest_operation('DELETE', namespace=namespace,
+    def patch(self, k8s_klass, name, namespace, body, **kwargs):
+        # Modify existing object
+        return self._exec_rest_operation(k8s_klass, 'PATCH',
+                                         namespace=namespace,
+                                         body=body, name=name, **kwargs)
+
+    def delete_collection(self, k8s_klass, namespace, **kwargs):
+        # Delete objects given collection filters
+        return self._exec_rest_operation(k8s_klass, 'DELETE',
+                                         namespace=namespace, **kwargs)
+
+    def delete(self, k8s_klass, name, namespace, body, **kwargs):
+        # Delete objects
+        return self._exec_rest_operation(k8s_klass, 'DELETE',
+                                         namespace=namespace,
                                          name=name, body=body, **kwargs)

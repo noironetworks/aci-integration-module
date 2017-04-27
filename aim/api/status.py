@@ -153,5 +153,7 @@ class AciFault(resource.ResourceBase, OperationalResource):
     @property
     def root(self):
         mos_and_types = utils.decompose_dn(self._aci_mo_name, self.dn)
-        mo = apic_client.ManagedObjectClass(mos_and_types[0][0])
-        return mo.rn(mos_and_types[0][1])
+        if mos_and_types:
+            # Faults associated with unrecognized MOs will not decompose
+            mo = apic_client.ManagedObjectClass(mos_and_types[0][0])
+            return mo.rn(mos_and_types[0][1])
