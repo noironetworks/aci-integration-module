@@ -40,18 +40,38 @@ K8S_API_VERSION_EXTENSIONS_V1BETA1 = 'extensions/v1beta1'
 
 
 class K8sObject(dict):
+    # Base class for all Kubernetes objects.
+    # Override the follow functions to customize behavior
+    # - from_attr() -> update this K8s object from AIM attribute dictionary
+    # - to_attr() -> create AIM attribute dictionary from this K8s object
+    # - build_selectors() -> build K8s query selectors from given AIM
+    #                        attribute filters
 
     attribute_map = {'name': ('metadata', 'name'),
                      'display_name': ('metadata', 'annotations',
                                       'aim/display_name'),
                      'namespace_name': ('metadata', 'namespace'),
                      'guid': ('metadata', 'uid')}
-
+    namespaced = True
     default_spec = {}
+
+    def _get_aim_id(self):
+        if self.namespaced:
+            return '%s %s %s' % (self['metadata']['name'],
+                                 self['metadata']['namespace'],
+                                 self['metadata']['uid'])
+        return '%s %s' % (self['metadata']['name'], self['metadata']['uid'])
+
+    def _get_aim_id_selector(self, filters):
+        if 'aim_id' in filters:
+            parts = filters['aim_id'].split(' ')
+            return {'name': parts[0],
+                    'namespace': parts[1] if len(parts) > 1 else None}
+        return {}
 
     def __getattr__(self, item):
         if item == 'aim_id':
-            return self['metadata']['name']
+            return self._get_aim_id()
         elif item in self.attribute_map:
             try:
                 d = self
@@ -96,7 +116,7 @@ class K8sObject(dict):
             elif (len(k8s_attrs) == 3 and
                     k8s_attrs[:2] == ('metadata', 'labels')):
                 label_selectors.append('%s=%s' % (k8s_attrs[-1], value))
-        result = {}
+        result = self._get_aim_id_selector(filters)
         if label_selectors:
             result['label_selector'] = '&'.join(label_selectors)
         if name:
@@ -271,7 +291,7 @@ class Pod(K8sObject):
         return result
 
 
-class AciContainersObject(dict):
+class AciContainersObject(K8sObject):
     api_version = 'acicontainers.cisco.com/v1'
     kind = 'Aci'
 
@@ -280,7 +300,9 @@ class AciContainersObject(dict):
             return self['spec'][self['spec']['type']][item]
         except KeyError:
             try:
-                if item in ['aim_id', 'id']:
+                if item == 'aim_id':
+                    return self._get_aim_id()
+                if item in ['id']:
                     return self['metadata']['name']
                 if item in ['last_update_timestamp', 'heartbeat_timestamp']:
                     return self['metadata']['creationTimestamp']
@@ -296,7 +318,7 @@ class AciContainersObject(dict):
             return
         except KeyError:
             try:
-                if item in ['aim_id', 'id']:
+                if item in ['id']:
                     self['metadata']['name'] = value
                     return
                 if item in ['last_update_timestamp', 'heartbeat_timestamp']:
@@ -337,7 +359,9 @@ class AciContainersObject(dict):
             if fltr in aim_klass.identity_attributes:
                 result += ',%s=%s' % (
                     fltr, utils.sanitize_name(filters[fltr]))
-        return {'label_selector': result}
+        selectors = self._get_aim_id_selector(filters)
+        selectors['label_selector'] = result
+        return selectors
 
     def _build_name(self, type, resource_klass):
         components = []
@@ -425,7 +449,7 @@ class AciContainersV1(object):
             path += 's'
         path += '/' + k8s_klass.api_version
         path_params = {}
-        if getattr(k8s_klass, 'namespaced', True):
+        if getattr(k8s_klass, 'namespaced', True) and params['namespace']:
             path += '/namespaces/{namespace}'
             path_params['namespace'] = params['namespace']
         path += ('/%ss' % k8s_klass.kind.lower())

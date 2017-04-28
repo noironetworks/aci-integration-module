@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
 import mock
 from mock import patch
 import threading
@@ -71,3 +72,36 @@ class TestK8SWatcher(base.TestAimDBBase):
             watcher._observe_objects(api_v1.AciContainersObject)
             exc = watcher._observe_thread_state[thd]['watch_exception']
             self.assertEqual(Exception, type(exc))
+
+    @base.requires(['k8s'])
+    def test_pod_event_filter(self):
+        watcher = k8s_watcher.K8sWatcher()
+        watcher._renew_klient_watch()
+
+        thd = threading.current_thread()
+        watcher._observe_thread_state[thd] = {'watch_stop': False}
+
+        self.assertTrue(watcher.q.empty())
+        ev = {'type': 'ADDED',
+              'object': {'kind': 'Pod',
+                         'spec': {'hostNetwork': True}}}
+        ev_exp = copy.copy(ev)
+        ev_exp['type'] = 'DELETED'
+        stream_mock = mock.Mock(return_value=[ev])
+
+        with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
+            watcher._observe_objects(api_v1.Pod)
+            self.assertEqual(ev_exp, watcher.q.get_nowait())
+
+            ev['object']['spec']['hostNetwork'] = False
+            watcher._observe_objects(api_v1.Pod)
+            self.assertEqual(ev_exp, watcher.q.get_nowait())
+
+            ev['object']['spec'].pop('hostNetwork', None)
+            watcher._observe_objects(api_v1.Pod)
+            self.assertEqual(ev_exp, watcher.q.get_nowait())
+
+            ev['type'] = 'MODIFIED'
+            ev['object']['spec']['hostNetwork'] = True
+            watcher._observe_objects(api_v1.Pod)
+            self.assertEqual(ev_exp, watcher.q.get_nowait())

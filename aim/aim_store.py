@@ -361,12 +361,15 @@ class K8sStore(AimStore):
     def add(self, db_obj):
         created = None
         k8s_klass = type(db_obj)
+        obj_ns = (self.namespace
+                  if k8s_klass == api_v1.AciContainersObject
+                  else db_obj['metadata'].get('namespace', self.namespace))
         retries = 3  # this is arbitrary
         while retries:
             retries -= 1
             try:
                 curr = self.klient.read(k8s_klass, db_obj['metadata']['name'],
-                                        self.namespace)
+                                        obj_ns)
                 if curr:
                     curr['spec'].update(db_obj.get('spec', {}))
                     curr['metadata'].setdefault('annotations', {}).update(
@@ -375,14 +378,14 @@ class K8sStore(AimStore):
                         db_obj.get('metadata', {}).get('labels', {}))
                     curr.pop('status', None)
                     self.klient.replace(k8s_klass, db_obj['metadata']['name'],
-                                        self.namespace, curr)
+                                        obj_ns, curr)
                     created = curr
                 break
             except api_v1.klient.ApiException as e:
                 if str(e.status) == '404':
                     # Object doesn't exist, create it.
                     db_obj.pop('resourceVersion', None)
-                    self.klient.create(k8s_klass, self.namespace, db_obj)
+                    self.klient.create(k8s_klass, obj_ns, db_obj)
                     created = db_obj
                     break
                 elif str(e.status) == '409' and retries:
@@ -395,6 +398,7 @@ class K8sStore(AimStore):
 
     def delete(self, db_obj):
         deleted = db_obj
+        obj_ns = db_obj['metadata'].get('namespace', self.namespace)
         try:
             if isinstance(db_obj, api_v1.AciContainersObject):
                 # Can't delete third-party objects using their name
@@ -405,7 +409,7 @@ class K8sStore(AimStore):
                          db_obj['metadata']['labels'].iteritems()]))
             else:
                 self.klient.delete(type(db_obj), db_obj['metadata']['name'],
-                                   self.namespace, {})
+                                   obj_ns, {})
         except api_v1.klient.ApiException as e:
             if str(e.status) == '404':
                 LOG.info("Resource %s not found in K8S during deletion",
@@ -416,16 +420,16 @@ class K8sStore(AimStore):
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
               lock_update=False, **filters):
-        obj_name = None
-        if 'aim_id' in filters:
-            obj_name = filters.pop('aim_id')
-        else:
-            selectors = db_obj_type().build_selectors(resource_klass, filters)
-            obj_name = selectors.pop('name', None)
+        def_ns = (self.namespace
+                  if db_obj_type == api_v1.AciContainersObject else None)
 
-        if obj_name:
+        selectors = db_obj_type().build_selectors(resource_klass, filters)
+        obj_name = selectors.pop('name', None)
+        obj_ns = selectors.pop('namespace', None) or def_ns
+
+        if obj_name and obj_ns:
             try:
-                item = self.klient.read(db_obj_type, obj_name, self.namespace)
+                item = self.klient.read(db_obj_type, obj_name, obj_ns)
                 items = [item]
             except api_v1.klient.ApiException as e:
                 if str(e.status) == '404':
@@ -433,15 +437,33 @@ class K8sStore(AimStore):
                 else:
                     raise e
         else:
-            items = self.klient.list(db_obj_type, self.namespace, **selectors)
-            items = items['items']
+            field_selectors = selectors.pop('field_selector', [])
+            if obj_name:
+                field_selectors.append('metadata.name=%s' % obj_name)
+            if field_selectors:
+                selectors['field_selector'] = '&'.join(field_selectors)
+            try:
+                items = self.klient.list(db_obj_type, obj_ns, **selectors)
+                items = items['items']
+            except api_v1.klient.ApiException as e:
+                if str(e.status) == '400':
+                    # Some K8S objects may not support fieldSelector
+                    LOG.info('Query for %s, namespace %s, selectors %s '
+                             'treated as Bad Request: %s',
+                             db_obj_type.kind, obj_ns, selectors, e)
+                    items = []
+                else:
+                    raise e
 
         result = []
+        aim_id_val = filters.pop('aim_id', None)
         for item in (items or []):
             if item['metadata'].get('deletionTimestamp'):
                 continue
             db_obj = db_obj_type()
             db_obj.update(item)
+            if aim_id_val is not None and db_obj.aim_id != aim_id_val:
+                continue
             item_attr = db_obj.to_attr(resource_klass,
                                        defaults=self.attribute_defaults)
             if filters or in_ or notin_:

@@ -1314,6 +1314,8 @@ class TestVMMControllerMixin(object):
 
 
 def _setup_injected_object(test_obj, inj_klass, inj_attr, inj_name):
+    if inj_klass == resource.VmmInjectedNamespace:
+        inj_name = 'ns-' + inj_name
     test_obj.test_dn = test_obj.test_dn.replace('{%s}' % inj_attr, inj_name)
     test_obj.prereq_objects = copy.copy(test_obj.prereq_objects)
     inj_obj = [p for p in test_obj.prereq_objects if isinstance(p, inj_klass)]
@@ -1426,7 +1428,7 @@ class TestVmmInjectedReplicaSetMixin(object):
     def _setUp(self):
         _setup_injected_object(self, resource.VmmInjectedNamespace,
                                'namespace_name', self.test_id)
-        self.prereq_objects[4].namespace_name = self.test_id
+        self.prereq_objects[4].namespace_name = 'ns-' + self.test_id
 
 
 class TestVmmInjectedServiceMixin(object):

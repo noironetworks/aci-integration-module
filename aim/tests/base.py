@@ -212,15 +212,16 @@ class TestAimDBBase(BaseTestCase):
             self.cfg_manager.subs_mgr._poll_and_execute()
 
     def _cleanup_objects(self):
-        objs = [k8s_api_v1.Namespace(), k8s_api_v1.Node()]
+        objs = [k8s_api_v1.Namespace(metadata={'name': self.test_id}),
+                k8s_api_v1.Namespace(metadata={'name': 'ns-' + self.test_id}),
+                k8s_api_v1.Node(metadata={'name': self.test_id})]
         for obj in objs:
-            obj.setdefault('metadata', {})['name'] = self.test_id
             try:
                 self.ctx.store.delete(obj)
             except k8s_api_v1.klient.ApiException as e:
                 if str(e.status) != '420':
-                    LOG.warning("Error while cleaning namespace %s: %s",
-                                obj['metadata']['name'], e)
+                    LOG.warning("Error while cleaning %s %s: %s",
+                                obj.kind, obj['metadata']['name'], e)
 
     @classmethod
     def _get_example_aim_bd(cls, **kwargs):
