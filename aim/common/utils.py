@@ -171,5 +171,6 @@ def decompose_dn(mo_type, dn):
         return apic_client.DNManager().aci_decompose_with_type(dn, mo_type)
     except (apic_client.DNManager.InvalidNameFormat,
             apic_client.cexc.ApicManagedObjectNotSupported):
+        import pdb; pdb.set_trace()
         LOG.warning("Failed to transform DN %s to key for hash-tree", dn)
         return

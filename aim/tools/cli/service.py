@@ -1,4 +1,4 @@
-# Copyright (c) 2016 Cisco Systems
+# Copyright (c) 2017 Cisco Systems
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,20 +13,31 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_log import log as logging
+from gevent import monkey
+monkey.patch_all()
 
-from aim import config as aim_cfg
-from aim.tools.cli.groups import aimcli
-from aim.tools.cli.commands import *  # noqa
-from aim.tools.cli.debug import *  # noqa
-
-logging.register_options(aim_cfg.CONF)
-aim_debug = aimcli.aim
-
-
-def run():
-    aim_debug(auto_envvar_prefix='AIM')
+from aim.agent.aid import service
+from aim.agent.aid.event_services import polling
+from aim.agent.aid.event_services import rpc_service
+from aim.tools.cli import debug_shell
+from aim.tools.cli import shell
 
 
-if __name__ == '__main__':
-    run()
+def aid():
+    service.main()
+
+
+def aimctl():
+    shell.run()
+
+
+def aimdebug():
+    debug_shell.run()
+
+
+def event_polling():
+    polling.main()
+
+
+def rpc():
+    rpc_service.main()
