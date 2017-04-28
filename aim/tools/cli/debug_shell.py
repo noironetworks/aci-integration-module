@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from gevent import monkey
+monkey.patch_all()
+
 from oslo_log import log as logging
 
 from aim import config as aim_cfg
