@@ -64,7 +64,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.addCleanup(self._reset_apic_client)
         self._do_aci_mocks()
         self.tenant_thread = mock.patch(
-            'aim.agent.aid.universes.aci.tenant.AciTenantManager._run')
+            'aim.agent.aid.universes.aci.tenant.AciTenantManager.run')
         self.tenant_thread.start()
 
         self.thread_dead = mock.patch(

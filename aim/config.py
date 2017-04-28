@@ -19,7 +19,7 @@ import time
 import traceback
 
 from apicapi import config as apic_config  # noqa
-import gevent
+import greenlet
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -301,7 +301,7 @@ class ConfigManager(object):
             return value.lower() in self.true
 
 
-class ConfigSubscriber(gevent.Greenlet):
+class ConfigSubscriber(utils.AIMThread):
     """Configuration Subscriber.
 
     For each AIM process that requires dynamic configuration, one
@@ -439,12 +439,12 @@ class ConfigSubscriber(gevent.Greenlet):
             for item in items:
                 self.unregister_callback_option(callback, item, group)
 
-    def _run(self):
+    def run(self):
         LOG.info("Starting main loop for config subscriber")
         try:
             while True:
                 self._main_loop()
-        except gevent.GreenletExit:
+        except greenlet.GreenletExit:
             try:
                 # Unsubscribe all the config callbacks
                 self.config_mgr.callback_unsubscribe(
@@ -460,7 +460,7 @@ class ConfigSubscriber(gevent.Greenlet):
             self._poll_and_execute()
             utils.wait_for_next_cycle(start, self.polling_interval, LOG,
                                       readable_caller='Config Subscriber')
-        except gevent.GreenletExit:
+        except greenlet.GreenletExit:
             # Raise GreenletExit to make sure that the thread dies
             raise
         except Exception as e:

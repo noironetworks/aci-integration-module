@@ -13,8 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import Queue as queue
-import threading
+import eventlet
+from eventlet import queue
 import time
 import traceback
 
@@ -103,9 +103,7 @@ class K8sWatcher(object):
         threads = {'observer': self.observer_thread,
                    'persister': self.persistence_thread}
         for attr, thd in threads.iteritems():
-            setattr(self, attr, threading.Thread(target=thd))
-            getattr(self, attr).daemon = True
-            getattr(self, attr).start()
+            setattr(self, attr, eventlet.spawn(thd))
 
     def stop_threads(self):
         self._stop = True
@@ -179,29 +177,29 @@ class K8sWatcher(object):
         self._renew_klient_watch()
 
         self._observe_thread_state = {}
-        for typ in self._k8s_types_to_observe:
-            thd = threading.Thread(target=self._observe_objects,
-                                   args=(typ,))
-            thd.daemon = True
-            self._observe_thread_state[thd] = dict(watch_stop=False)
-            thd.start()
+        for id, typ in enumerate(list(self._k8s_types_to_observe)):
+            self._observe_thread_state[id] = dict(watch_stop=False)
+            thd = eventlet.spawn(self._observe_objects, typ, id)
+            self._observe_thread_state[id]['thread'] = thd
 
     def _check_observers(self):
         exc = None
         for t in self._observe_thread_state:
             tstate = self._observe_thread_state[t]
-            if tstate.get('watch_exception'):
-                exc = tstate.get('watch_exception')
-                LOG.info('Thread %s raised exception %s', t, exc)
-                break
-            if tstate.get('http_resp') and tstate['http_resp'].closed:
-                LOG.info('HTTP response closed for thread %s', t)
-                exc = K8SObserverStopped()
-                break
-            if not t.is_alive():
-                LOG.info('Thread %s is not alive', t)
-                exc = K8SObserverStopped()
-                break
+            thd = tstate.get('thread')
+            if thd:
+                if tstate.get('watch_exception'):
+                    exc = tstate.get('watch_exception')
+                    LOG.info('Thread %s raised exception %s', thd, exc)
+                    break
+                if tstate.get('http_resp') and tstate['http_resp'].closed:
+                    LOG.info('HTTP response closed for thread %s', thd)
+                    exc = K8SObserverStopped()
+                    break
+                if thd.dead:
+                    LOG.info('Thread %s is not alive', thd)
+                    exc = K8SObserverStopped()
+                    break
         return exc
 
     def wrap_list_call(self, *args, **kwargs):
@@ -211,11 +209,9 @@ class K8sWatcher(object):
             tstate['http_resp'] = resp
         return resp
 
-    def _observe_objects(self, k8s_type):
-        my_thread = threading.current_thread()
-        my_state = self._observe_thread_state[my_thread]
-        LOG.debug('Start observing %s objects (thread %s)',
-                  k8s_type.kind, my_thread)
+    def _observe_objects(self, k8s_type, id):
+        my_state = self._observe_thread_state.get(id, {})
+        LOG.debug('Start observing %s objects', k8s_type.kind)
         ev_filt = self._event_filters.get(k8s_type, lambda x: True)
         if not my_state['watch_stop']:
             try:
@@ -226,8 +222,7 @@ class K8sWatcher(object):
                         _thread_state=my_state,
                         namespace=ns):
                     if my_state['watch_stop']:
-                        LOG.debug('Stopping %s objects thread %s',
-                                  k8s_type.kind, my_thread)
+                        LOG.debug('Stopping %s objects thread', k8s_type.kind)
                         break
                     ev_name = event.get('object',
                                         {}).get('metadata',
@@ -244,8 +239,7 @@ class K8sWatcher(object):
                           k8s_type.kind, e)
                 LOG.debug(traceback.format_exc())
                 my_state['watch_exception'] = e
-        LOG.debug('End observing %s objects (thread %s)',
-                  k8s_type.kind, my_thread)
+        LOG.debug('End observing %s objects', k8s_type.kind)
 
     def _reset_trees(self):
         self.trees = None

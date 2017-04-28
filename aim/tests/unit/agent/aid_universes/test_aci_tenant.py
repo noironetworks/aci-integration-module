@@ -17,7 +17,7 @@ import collections
 import copy
 
 from apicapi import apic_client
-import gevent
+import greenlet
 import json
 import mock
 
@@ -420,7 +420,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                               self.manager.ws_context.establish_ws_session)
 
     def test_is_dead(self):
-        self.assertFalse(self.manager.is_dead())
+        self.assertTrue(self.manager.is_dead())
 
     def test_event_loop_failure(self):
         manager = aci_tenant.AciTenantManager(
@@ -432,14 +432,14 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         manager._main_loop()
         # Failure by GreenletExit
         manager.ws_context.has_event = mock.Mock(
-            side_effect=gevent.GreenletExit)
-        self.assertRaises(gevent.GreenletExit, manager._main_loop)
-        # Upon GreenExit, even _run stops the loop
-        manager._run()
+            side_effect=greenlet.GreenletExit)
+        self.assertRaises(greenlet.GreenletExit, manager._main_loop)
+        # Upon GreenletExit, even run stops the loop
+        manager.run()
         # Instance unsubscribe could rise an exception itself
         with mock.patch('acitoolkit.acitoolkit.Session.unsubscribe',
                         side_effect=Exception):
-            manager._run()
+            manager.run()
 
     def test_squash_events(self):
         double_events = [

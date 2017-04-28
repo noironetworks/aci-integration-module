@@ -16,7 +16,8 @@
 import os
 import tempfile
 
-import gevent
+import eventlet
+import greenlet
 import mock
 
 from aim.agent.aid import event_handler
@@ -36,11 +37,11 @@ class TestEventHandler(base.TestAimDBBase):
         self.handler = event_handler.EventHandler().initialize(
             self.cfg_manager)
         # Context switch
-        gevent.sleep(0)
+        eventlet.sleep(0)
         self.addCleanup(self._unlink_socket)
 
         self.sender = event_handler.EventSender().initialize(self.cfg_manager)
-        gevent.sleep(0)
+        eventlet.sleep(0)
         # Context switch
         if self.sender:
             self.addCleanup(self.sender.sock.close)
@@ -56,8 +57,8 @@ class TestEventHandler(base.TestAimDBBase):
         os.unlink(self.handler.us_path)
 
     def test_open(self):
-        self.assertFalse(self.handler.sock.closed)
-        self.assertFalse(self.sender.sock.closed)
+        self.assertFalse(self.handler.sock._closed)
+        self.assertFalse(self.sender.sock._closed)
 
     def test_receive_event(self):
         self.sender.serve()
@@ -73,12 +74,12 @@ class TestEventHandler(base.TestAimDBBase):
 
         self.handler._recv_loop = mock.Mock(side_effect=Exception)
         self.handler.listener = self.handler._spawn_listener()
-        gevent.sleep(0)
+        eventlet.sleep(0)
         self.assertFalse(self.handler.listener.dead)
         self.handler.listener.kill()
 
         del self.handler.sock
-        self.handler._connect = mock.Mock(side_effect=gevent.GreenletExit)
+        self.handler._connect = mock.Mock(side_effect=greenlet.GreenletExit)
         self.handler.listener = self.handler._spawn_listener()
-        gevent.sleep(0)
+        eventlet.sleep(0)
         self.assertTrue(self.handler.listener.dead)

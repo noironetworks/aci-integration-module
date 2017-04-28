@@ -13,8 +13,10 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from gevent import monkey
-monkey.patch_all()
+import eventlet
+# https://github.com/eventlet/eventlet/issues/401
+eventlet.sleep()
+eventlet.monkey_patch()
 
 import logging  # noqa
 import os

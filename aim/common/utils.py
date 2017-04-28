@@ -24,7 +24,8 @@ import traceback
 import uuid
 
 from apicapi import apic_client
-import gevent
+import eventlet
+import greenlet
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -56,7 +57,7 @@ def generate_uuid():
 
 
 def sleep(time_in_seconds):
-    gevent.sleep(time_in_seconds)
+    time.sleep(time_in_seconds)
 
 
 def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
@@ -146,7 +147,7 @@ def retry_loop(max_wait, max_retries, name):
                 try:
                     func(*args, **kwargs)
                     recovery_retries = None
-                except (gevent.GreenletExit, ThreadExit) as e:
+                except (greenlet.GreenletExit, ThreadExit) as e:
                     raise e
                 except Exception as e:
                     LOG.error(traceback.format_exc())
@@ -171,6 +172,29 @@ def decompose_dn(mo_type, dn):
         return apic_client.DNManager().aci_decompose_with_type(dn, mo_type)
     except (apic_client.DNManager.InvalidNameFormat,
             apic_client.cexc.ApicManagedObjectNotSupported):
-        import pdb; pdb.set_trace()
         LOG.warning("Failed to transform DN %s to key for hash-tree", dn)
         return
+
+
+class AIMThread(object):
+
+    def __init__(self, *args, **kwargs):
+        self._thread = None
+
+    def start(self):
+        self._thread = eventlet.spawn(self.run)
+        return self
+
+    def run(self):
+        pass
+
+    def kill(self):
+        if self._thread:
+            self._thread.kill()
+
+    @property
+    def dead(self):
+        if self._thread:
+            return self._thread.dead
+        else:
+            return True

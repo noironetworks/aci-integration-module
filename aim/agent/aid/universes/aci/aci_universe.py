@@ -18,7 +18,7 @@ import json
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
-import gevent
+import eventlet
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
@@ -68,10 +68,10 @@ class WebSocketContext(object):
         self._spawn_monitors()
 
     def _spawn_monitors(self):
-        gevent.spawn(self._thread_monitor, self.session.login_thread,
-                     'login_thread')
-        gevent.spawn(self._thread_monitor, self.session.subscription_thread,
-                     'subscription_thread')
+        eventlet.spawn(self._thread_monitor, self.session.login_thread,
+                       'login_thread')
+        eventlet.spawn(self._thread_monitor, self.session.subscription_thread,
+                       'subscription_thread')
 
     def _reload_websocket_config(self):
         # Don't subscribe in this case
@@ -176,10 +176,7 @@ class WebSocketContext(object):
         return any(self.session.has_events(url) for url in urls)
 
     def _thread_monitor(self, thread, name):
-        # REVISIT(ivar): I could have used thread.join instead of this, but
-        # using gevent together with acitoolkit's standard threading doesn't
-        # seem to work very well. We should look at moving to something common
-        # (like eventlet monkey patch).
+        # TODO(ivar): I could have used thread.join instead of this
         retries = None
         max_retries = len(self.ws_urls)
         LOG.debug("Monitoring thread %s" % name)
@@ -204,7 +201,7 @@ class WebSocketContext(object):
                 else:
                     LOG.debug("Thread %s is in good shape" % name)
                     retries = None
-                gevent.sleep(self.monitor_sleep_time)
+                eventlet.sleep(self.monitor_sleep_time)
                 # for testing purposes
                 self.monitor_runs -= 1
         except Exception as e:

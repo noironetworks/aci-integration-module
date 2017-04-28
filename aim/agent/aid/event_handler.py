@@ -14,13 +14,14 @@
 #    under the License.
 
 import abc
+import greenlet
 import os
 import six
+import socket
 import traceback
 
-import gevent
-from gevent import queue
-from gevent import socket
+import eventlet
+from eventlet import queue
 from oslo_log import log as logging
 
 from aim.common import utils
@@ -94,7 +95,7 @@ class EventHandler(EventHandlerBase):
         self.conf_manager = conf_manager
         self.listener = self._spawn_listener()
         EventHandler.q = queue.Queue()
-        gevent.sleep(0)
+        eventlet.sleep(0)
         return self
 
     def _connect(self):
@@ -113,7 +114,7 @@ class EventHandler(EventHandlerBase):
         self.sock.bind(self.us_path)
 
     def _spawn_listener(self):
-        return gevent.spawn(self._listener)
+        return eventlet.spawn(self._listener)
 
     def _listener(self):
         # Multiple event notifiers can connect to AID
@@ -124,7 +125,7 @@ class EventHandler(EventHandlerBase):
                 while True:
                     self._recv_loop()
                 self.recovery_retries = None
-            except gevent.GreenletExit:
+            except greenlet.GreenletExit:
                 LOG.warn("Killed event listener thread")
                 return
             except Exception as e:
