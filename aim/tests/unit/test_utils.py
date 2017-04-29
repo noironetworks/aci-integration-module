@@ -41,7 +41,7 @@ class TestUtils(base.TestAimDBBase):
     def test_exponential_backoff(self):
         with mock.patch.object(internal_utils.random, 'random',
                                return_value=1):
-            with mock.patch.object(internal_utils.gevent, 'sleep') as sleep:
+            with mock.patch.object(internal_utils.time, 'sleep') as sleep:
                 tentative = None
                 tentative = internal_utils.exponential_backoff(10, tentative)
                 self.assertEqual(1, tentative.get())

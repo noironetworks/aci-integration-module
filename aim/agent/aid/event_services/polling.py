@@ -16,7 +16,8 @@
 import time
 import traceback
 
-import gevent
+import eventlet
+import greenlet
 from oslo_log import log as logging
 
 from aim.agent.aid.event_services import event_service_base
@@ -40,10 +41,10 @@ class Poller(event_service_base.EventServiceBase):
         self.recovery_retries = None
 
     def run(self):
-        t = gevent.spawn(self._poll)
+        t = eventlet.spawn(self._poll)
         try:
             while self.run_daemon_loop:
-                gevent.sleep(1)
+                eventlet.sleep(1)
         finally:
             LOG.info("Killing poller thread")
             t.kill()
@@ -62,14 +63,14 @@ class Poller(event_service_base.EventServiceBase):
                         notify_exceeding_timeout=False)
                     self.loop_count -= 1
                     self.recovery_retries = None
-                except gevent.GreenletExit:
+                except greenlet.GreenletExit:
                     raise
                 except Exception:
                     LOG.error('A error occurred in polling agent.')
                     LOG.error(traceback.format_exc())
                     self.recovery_retries = utils.exponential_backoff(
                         10, tentative=self.recovery_retries)
-        except gevent.GreenletExit:
+        except greenlet.GreenletExit:
             LOG.info("Poller thread is dead.")
             return
 

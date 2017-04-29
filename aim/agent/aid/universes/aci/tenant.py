@@ -21,7 +21,7 @@ import traceback
 from acitoolkit import acitoolkit
 from apicapi import apic_client
 from apicapi import exceptions as apic_exc
-import gevent
+import greenlet
 from oslo_log import log as logging
 
 from aim.agent.aid import event_handler
@@ -135,7 +135,7 @@ class Root(acitoolkit.BaseACIObject):
             return urls
 
 
-class AciTenantManager(gevent.Greenlet):
+class AciTenantManager(utils.AIMThread):
 
     def __init__(self, tenant_name, apic_config, apic_session, ws_context,
                  creation_succeeded=None, creation_failed=None,
@@ -209,12 +209,12 @@ class AciTenantManager(gevent.Greenlet):
             str(self._monitored_state),
             root_key=self._monitored_state.root_key)
 
-    def _run(self):
+    def run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
         try:
             while True:
                 self._main_loop()
-        except (gevent.GreenletExit, Exception) as e:
+        except (greenlet.GreenletExit, Exception) as e:
             LOG.error("Exiting thread for tenant %s: %s" %
                       (self.tenant_name, e.message))
             try:
@@ -257,7 +257,7 @@ class AciTenantManager(gevent.Greenlet):
                     last_time = curr_time
                 # Successfull run
                 self.recovery_retries = None
-        except gevent.GreenletExit:
+        except greenlet.GreenletExit:
             raise
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
@@ -271,7 +271,7 @@ class AciTenantManager(gevent.Greenlet):
                 LOG.error("Exceeded max recovery retries for tenant %s. "
                           "Destroying the manager." %
                           self.tenant_name)
-                raise gevent.GreenletExit()
+                raise greenlet.GreenletExit()
 
     def _event_loop(self):
         start_time = time.time()
@@ -305,8 +305,7 @@ class AciTenantManager(gevent.Greenlet):
             events = self._filter_ownership(events)
             self._event_to_tree(events)
         # yield for other threads
-        gevent.sleep(max(0, self.polling_yield - (time.time() -
-                                                  start_time)))
+        time.sleep(max(0, self.polling_yield - (time.time() - start_time)))
 
     def push_aim_resources(self, resources):
         """Given a map of AIM resources for this tenant, push them into APIC

@@ -18,7 +18,7 @@ import sys
 import time
 import traceback
 
-import gevent
+import eventlet
 from oslo_log import log as logging
 import semantic_version
 
@@ -99,7 +99,7 @@ class AID(object):
             self._change_report_interval, 'agent_report_interval', group='aim')
         self.squash_time = self.conf_manager.get_option_and_subscribe(
             self._change_squash_time, 'agent_event_squash_time', group='aim')
-        gevent.spawn(self._heartbeat_loop)
+        eventlet.spawn(self._heartbeat_loop)
         self.events = event_handler.EventHandler().initialize(
             self.conf_manager)
         self.max_down_time = 4 * self.report_interval
@@ -191,7 +191,8 @@ class AID(object):
         while True:
             start = time.time()
             self._send_heartbeat()
-            gevent.sleep(max(0, self.report_interval - (time.time() - start)))
+            eventlet.sleep(
+                max(0, self.report_interval - (time.time() - start)))
 
     def _send_heartbeat(self):
         LOG.debug("Sending Heartbeat for agent %s" % self.agent_id)
