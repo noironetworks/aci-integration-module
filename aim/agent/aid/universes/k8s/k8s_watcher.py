@@ -97,6 +97,8 @@ class K8sWatcher(object):
                 if k8s_type != api_v1.AciContainersObject:
                     self._k8s_aim_type_map[k8s_type.kind] = (aim_res, k8s_type)
 
+        self._event_filters = {api_v1.Pod: self._pod_event_filter}
+
     def run(self):
         threads = {'observer': self.observer_thread,
                    'persister': self.persistence_thread}
@@ -123,6 +125,15 @@ class K8sWatcher(object):
             LOG.debug(traceback.format_exc())
             utils.perform_harakiri(LOG, "%s thread stopped "
                                         "unexpectedly: %s" % (name, e.message))
+
+    def _pod_event_filter(self, event):
+        spec = event.get('object', {}).get('spec', {})
+        if (spec.get('hostNetwork') and
+                event['type'].lower() != ACTION_DELETED):
+            # Mark hostNetwork objects as deleted to clean them and any
+            # related objects (e.g. Status) from the tree/backend.
+            event['type'] = ACTION_DELETED.upper()
+        return True
 
     def _get_event(self, timeout=None):
         try:
@@ -205,25 +216,33 @@ class K8sWatcher(object):
         my_state = self._observe_thread_state[my_thread]
         LOG.debug('Start observing %s objects (thread %s)',
                   k8s_type.kind, my_thread)
+        ev_filt = self._event_filters.get(k8s_type, lambda x: True)
         if not my_state['watch_stop']:
             try:
-                kwargs = {}
-                if k8s_type == api_v1.Namespace:
-                    kwargs['name'] = self.namespace
+                ns = (self.namespace
+                      if k8s_type == api_v1.AciContainersObject else None)
                 for event in self.klient.watch.stream(
                         self.wrap_list_call, k8s_type,
                         _thread_state=my_state,
-                        namespace=self.namespace):
+                        namespace=ns):
                     if my_state['watch_stop']:
                         LOG.debug('Stopping %s objects thread %s',
                                   k8s_type.kind, my_thread)
                         break
-                    LOG.debug("Kubernetes event (%s objects) received: %s",
-                              k8s_type.kind, event)
-                    self.q.put(event)
+                    ev_name = event.get('object',
+                                        {}).get('metadata',
+                                                {}).get('name')
+                    if ev_filt(event):
+                        LOG.debug("Received Kubernetes event for %s %s",
+                                  k8s_type.kind, ev_name or event)
+                        self.q.put(event)
+                    else:
+                        LOG.debug("Ignoring Kubernetes event for %s %s",
+                                  k8s_type.kind, ev_name or event)
             except Exception as e:
                 LOG.debug('Observe %s objects caught exception: %s',
                           k8s_type.kind, e)
+                LOG.debug(traceback.format_exc())
                 my_state['watch_exception'] = e
         LOG.debug('End observing %s objects (thread %s)',
                   k8s_type.kind, my_thread)
@@ -304,10 +323,6 @@ class K8sWatcher(object):
         aim_res = event['resource']
         if (not isinstance(aim_res, resource.AciResourceBase) and
                 not isinstance(aim_res, status.OperationalResource)):
-            return affected_tenants
-        # filter out unrelated namespaces
-        if (isinstance(aim_res, resource.VmmInjectedNamespace) and
-                aim_res.name != self.namespace):
             return affected_tenants
 
         # push event into tree
