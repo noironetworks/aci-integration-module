@@ -58,8 +58,12 @@ def to_resource_filter_container(converted, helper, to_aim=True):
     if to_aim:
         return default_to_resource(converted, helper, to_aim=to_aim)
     else:
-        in_ = helper['resource'] is 'vzInTerm' and converted.get('inFilters')
-        out = helper['resource'] is 'vzOutTerm' and converted.get('outFilters')
+        in_ = (helper['resource'] is 'vzInTerm' and
+               (converted.get('inFilters') or
+                converted.get('inServiceGraphName')))
+        out = (helper['resource'] is 'vzOutTerm' and
+               (converted.get('outFilters') or
+                converted.get('outServiceGraphName')))
         if in_ or out:
             return {
                 helper['resource']: {'attributes': {'dn': converted['dn']}}}
@@ -388,7 +392,8 @@ resource_map = {
     }],
     'vzRsSubjGraphAtt': [{
         'resource': resource.ContractSubject,
-        'exceptions': {'tnVnsAbsGraphName': {'other': 'service_graph_name'}},
+        'exceptions': {'tnVnsAbsGraphName': {'other': 'service_graph_name',
+                                             'skip_if_empty': True}},
         'to_resource': default_to_resource_strict,
     }],
     'vzRsFiltAtt': [{'resource': resource.ContractSubject,
@@ -408,13 +413,15 @@ resource_map = {
     'vzRsInTermGraphAtt': [{
         'resource': resource.ContractSubject,
         'exceptions': {'tnVnsAbsGraphName':
-                       {'other': 'in_service_graph_name'}},
+                       {'other': 'in_service_graph_name',
+                        'skip_if_empty': True}},
         'to_resource': default_to_resource_strict,
     }],
     'vzRsOutTermGraphAtt': [{
         'resource': resource.ContractSubject,
         'exceptions': {'tnVnsAbsGraphName':
-                       {'other': 'out_service_graph_name'}},
+                       {'other': 'out_service_graph_name',
+                        'skip_if_empty': True}},
         'to_resource': default_to_resource_strict,
     }],
     'l3extOut': [{
