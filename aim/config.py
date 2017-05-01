@@ -466,7 +466,7 @@ class ConfigSubscriber(utils.AIMThread):
         except Exception as e:
             LOG.error("An exception has occurred in config subscriber thread "
                       "%s" % e.message)
-            LOG.debug(traceback.format_exc())
+            LOG.error(traceback.format_exc())
 
     def _poll_and_execute(self):
         # prepare call
@@ -498,7 +498,7 @@ class ConfigSubscriber(utils.AIMThread):
                                 "An exception has occurred while "
                                 "executing callback %s: %s" % (
                                     values['callback'], e.message))
-                            LOG.debug(traceback.format_exc())
+                            LOG.error(traceback.format_exc())
 
     def _get_call_id(self, callback):
         return id(callback)

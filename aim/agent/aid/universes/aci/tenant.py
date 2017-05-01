@@ -262,7 +262,7 @@ class AciTenantManager(utils.AIMThread):
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, e.message))
-            LOG.debug(traceback.format_exc())
+            LOG.error(traceback.format_exc())
             self.health_state = False
             self._unsubscribe_tenant()
             self.recovery_retries = utils.exponential_backoff(
