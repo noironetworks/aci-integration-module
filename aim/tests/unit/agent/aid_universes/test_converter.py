@@ -546,7 +546,8 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
          'exceptions': {},
          'converter': converter.vzRsSubjFiltAtt_converter},
         {'resource': 'vzRsSubjGraphAtt',
-         'exceptions': {'service_graph_name': {'other': 'tnVnsAbsGraphName'}},
+         'exceptions': {'service_graph_name': {'other': 'tnVnsAbsGraphName',
+                                               'skip_if_empty': True}},
          'to_resource': converter.default_to_resource_strict},
         {'resource': 'vzRsFiltAtt',
          'exceptions': {},
@@ -564,11 +565,13 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
          'to_resource': converter.to_resource_filter_container},
         {'resource': 'vzRsInTermGraphAtt',
          'exceptions': {'in_service_graph_name':
-                        {'other': 'tnVnsAbsGraphName'}},
+                        {'other': 'tnVnsAbsGraphName',
+                         'skip_if_empty': True}},
          'to_resource': converter.default_to_resource_strict},
         {'resource': 'vzRsOutTermGraphAtt',
          'exceptions': {'out_service_graph_name':
-                        {'other': 'tnVnsAbsGraphName'}},
+                        {'other': 'tnVnsAbsGraphName',
+                         'skip_if_empty': True}},
          'to_resource': converter.default_to_resource_strict}]
     sample_input = [[get_example_aci_subject(nameAlias='alias'),
                      _aci_obj('vzRsSubjFiltAtt',
@@ -1931,9 +1934,9 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
                                          bi_filters=['f1', 'f2'],
                                          service_graph_name='g1',
                                          in_service_graph_name='g2',
-                                         out_service_graph_name='g3',
                                          display_name='alias'),
-        get_example_aim_contract_subject(name='s2')]
+        get_example_aim_contract_subject(name='s2',
+                                         out_service_graph_name='g3')]
     sample_output = [
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s1',
                   nameAlias='alias'),
@@ -1965,24 +1968,15 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
          _aci_obj('vzRsInTermGraphAtt',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl/'
                      'rsInTermGraphAtt',
-                  tnVnsAbsGraphName='g2'),
-         _aci_obj('vzRsOutTermGraphAtt',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl/'
-                     'rsOutTermGraphAtt',
-                  tnVnsAbsGraphName='g3')],
+                  tnVnsAbsGraphName='g2')],
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s2',
                   nameAlias=""),
-         _aci_obj('vzRsSubjGraphAtt',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s2/rsSubjGraphAtt',
-                  tnVnsAbsGraphName=''),
-         _aci_obj('vzRsInTermGraphAtt',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s2/intmnl/'
-                     'rsInTermGraphAtt',
-                  tnVnsAbsGraphName=''),
+         _aci_obj('vzOutTerm',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s2/outtmnl'),
          _aci_obj('vzRsOutTermGraphAtt',
                   dn='uni/tn-test-tenant/brc-c1/subj-s2/outtmnl/'
                      'rsOutTermGraphAtt',
-                  tnVnsAbsGraphName='')]]
+                  tnVnsAbsGraphName='g3')]]
 
 
 def get_example_aim_l3outside(**kwargs):

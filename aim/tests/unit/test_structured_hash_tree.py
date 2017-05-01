@@ -909,18 +909,6 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzRsSubjFiltAtt|f1'),
             tnVzFilterName='f1')
-        exp_tree = exp_tree.add(
-            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
-             'vzRsSubjGraphAtt|rsSubjGraphAtt'),
-            tnVnsAbsGraphName='')
-        exp_tree = exp_tree.add(
-            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
-             'vzInTerm|intmnl', 'vzRsInTermGraphAtt|rsInTermGraphAtt'),
-            tnVnsAbsGraphName='')
-        exp_tree = exp_tree.add(
-            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
-             'vzOutTerm|outtmnl', 'vzRsOutTermGraphAtt|rsOutTermGraphAtt'),
-            tnVnsAbsGraphName='')
         self.assertEqual(exp_tree, htree)
 
     def test_delete(self):
