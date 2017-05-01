@@ -53,9 +53,13 @@ class AID(object):
     def __init__(self, conf):
         self.run_daemon_loop = True
         self.host = conf.aim.aim_service_identifier
-        self.store = api.get_store()
-        self.context = context.AimContext(store=self.store)
-        self.conf_manager = aim_cfg.ConfigManager(self.context, self.host)
+
+        aim_ctx = context.AimContext(store=api.get_store())
+        # This config manager is shared between multiple threads. Therefore
+        # all DB activity through this config manager will use the same
+        # DB session which can result in conflicts.
+        # TODO(amitbose) Fix ConfigManager to not use cached AimContext
+        self.conf_manager = aim_cfg.ConfigManager(aim_ctx, self.host)
 
         # Define multiverse pairs, First position is desired state
         self.multiverse = [
@@ -90,7 +94,7 @@ class AID(object):
                                     description=AGENT_DESCRIPTION,
                                     version=AGENT_VERSION, beat_count=0)
         # Register agent
-        self._send_heartbeat()
+        self._send_heartbeat(aim_ctx)
         # Report procedure should happen asynchronously
         self.polling_interval = self.conf_manager.get_option_and_subscribe(
             self._change_polling_interval, 'agent_polling_interval',
@@ -111,8 +115,9 @@ class AID(object):
             self.k8s_watcher.run()
 
     def daemon_loop(self):
+        aim_ctx = context.AimContext(store=api.get_store())
         # Serve tenants the very first time regardless of the events received
-        self._daemon_loop(True)
+        self._daemon_loop(aim_ctx, True)
         while True:
             try:
                 serve = False
@@ -137,7 +142,7 @@ class AID(object):
                             # Serving tenants is required as well
                             serve = True
                 start_time = time.time()
-                self._daemon_loop(serve)
+                self._daemon_loop(aim_ctx, serve)
                 utils.wait_for_next_cycle(start_time, self.polling_interval,
                                           LOG, readable_caller='AID',
                                           notify_exceeding_timeout=False)
@@ -145,10 +150,10 @@ class AID(object):
                 LOG.error('A error occurred in agent')
                 LOG.error(traceback.format_exc())
 
-    def _daemon_loop(self, serve=True):
+    def _daemon_loop(self, aim_ctx, serve=True):
         if serve:
             LOG.info("Start serving cycle.")
-            tenants = self._calculate_tenants(self.context)
+            tenants = self._calculate_tenants(aim_ctx)
             # Filter delete candidates with currently served tenants
             self.delete_candidates = {k: v for k, v in
                                       self.delete_candidates.iteritems()
@@ -188,33 +193,34 @@ class AID(object):
                         universe.cleanup_state(tenant)
 
     def _heartbeat_loop(self):
+        aim_ctx = context.AimContext(store=api.get_store())
         while True:
             start = time.time()
-            self._send_heartbeat()
+            self._send_heartbeat(aim_ctx)
             eventlet.sleep(
                 max(0, self.report_interval - (time.time() - start)))
 
-    def _send_heartbeat(self):
+    def _send_heartbeat(self, aim_ctx):
         LOG.debug("Sending Heartbeat for agent %s" % self.agent_id)
         self.agent.beat_count += 1
-        self.agent = self.manager.create(self.context, self.agent,
+        self.agent = self.manager.create(aim_ctx, self.agent,
                                          overwrite=True)
 
-    def _calculate_tenants(self, context):
+    def _calculate_tenants(self, aim_ctx):
         # REVISIT(ivar): should we lock the Agent table?
-        with context.store.begin(subtransactions=True):
+        with aim_ctx.store.begin(subtransactions=True):
             # Refresh this agent
-            self.agent = self.manager.get(context, self.agent)
+            self.agent = self.manager.get(aim_ctx, self.agent)
             if not self.single_aid:
-                down_time = self.agent.down_time(context)
+                down_time = self.agent.down_time(aim_ctx)
                 if max(0, down_time or 0) > self.max_down_time:
                     utils.perform_harakiri(LOG, "Agent has been down for %s "
                                                 "seconds." % down_time)
                 # Get peers
                 agents = [
-                    x for x in self.manager.find(context, resource.Agent,
+                    x for x in self.manager.find(aim_ctx, resource.Agent,
                                                  admin_state_up=True)
-                    if not x.is_down(context)]
+                    if not x.is_down(aim_ctx)]
                 # Validate agent version
                 if not agents:
                     return []
@@ -228,13 +234,13 @@ class AID(object):
                           self._major_vercompare(x.version, max_version) == 0]
             else:
                 agents = [self.agent]
-            result = self._tenant_assignation_algorithm(context, agents)
+            result = self._tenant_assignation_algorithm(aim_ctx, agents)
             # Store result in DB
             self.agent.hash_trees = result
-            self.manager.create(context, self.agent, overwrite=True)
+            self.manager.create(aim_ctx, self.agent, overwrite=True)
             return result
 
-    def _tenant_assignation_algorithm(self, context, agents):
+    def _tenant_assignation_algorithm(self, aim_ctx, agents):
         # TODO(ivar): just randomly hash each tenant to agents for now. This
         # algorithm should be made way more optimal (through the use of
         # consistent hashing) and possibly pluggable.
@@ -249,7 +255,7 @@ class AID(object):
         ring = hashring.ConsistentHashRing(dict([(x.id, None)
                                                  for x in agents]))
         # retrieve tenants
-        for tenant in self.tree_manager.get_roots(self.context):
+        for tenant in self.tree_manager.get_roots(aim_ctx):
             allocations = ring.assign_key(tenant)
             if self.agent_id in allocations:
                 result.append(tenant)
