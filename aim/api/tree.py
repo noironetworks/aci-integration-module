@@ -37,7 +37,9 @@ class TypeTreeBase(object):
         ('root_full_hash', t.string(256)),
         ('tree', t.string())
     )
-    db_attributes = t.db()
+    db_attributes = t.db(
+        ('resource_version', t.number)
+    )
 
     def __init__(self, **kwargs):
         super(TypeTreeBase, self).__init__({}, **kwargs)

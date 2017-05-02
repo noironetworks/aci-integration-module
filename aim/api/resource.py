@@ -13,7 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import base64
+import collections
 import datetime
+from hashlib import md5
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -71,6 +74,14 @@ class ResourceBase(object):
     def members(self):
         return {x: self.__dict__[x] for x in self.attributes() +
                 ['pre_existing', '_error', '_pending'] if x in self.__dict__}
+
+    @property
+    def hash(self):
+        parts = collections.OrderedDict()
+        parts.update(self.members)
+        return int(md5(base64.b64encode(
+            '|'.join(['%s=%s' % (x, y)
+                      for x, y in parts.iteritems()]))).hexdigest(), 16)
 
     def __str__(self):
         return '%s(%s)' % (type(self).__name__, ','.join(self.identity))

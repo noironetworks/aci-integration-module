@@ -306,8 +306,11 @@ class AciContainersObject(K8sObject):
                     return self['metadata']['name']
                 if item in ['last_update_timestamp', 'heartbeat_timestamp']:
                     return self['metadata']['creationTimestamp']
-                if item in ['version']:
-                    return self['metadata']['resourceVersion']
+                # TODO(ivar): remove 'version' from the following list once
+                # db config objects move to resource_version. This is needed
+                # to avoid confusion with agent versioning.
+                if item in ['version', 'resource_version']:
+                    return int(self['metadata']['resourceVersion'])
             except KeyError:
                 pass
         raise AttributeError
@@ -340,7 +343,10 @@ class AciContainersObject(K8sObject):
         for k, v in attribute_dict.iteritems():
             if k in resource_klass.identity_attributes:
                 labels[k] = utils.sanitize_name(v)
-            attrs[k] = v
+            if k == 'resource_version':
+                self['metadata']['resourceVersion'] = str(v)
+            else:
+                attrs[k] = v
         if 'name' not in self['metadata']:
             self['metadata']['name'] = self._build_name(name, resource_klass)
 

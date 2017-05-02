@@ -170,9 +170,9 @@ class StructuredHashTree(base.ComparableCollection):
     tree.pop(('tn-tenant', 'bd-bridge3'))
     """
 
-    __slots__ = ['root', 'root_key']
+    __slots__ = ['root', 'root_key', 'version']
 
-    def __init__(self, root=None, root_key=None):
+    def __init__(self, root=None, root_key=None, version=None):
         """Initialize a Structured Hash Tree.
 
         Initial data can be passed to initialize the tree
@@ -180,6 +180,7 @@ class StructuredHashTree(base.ComparableCollection):
         """
         self.root = root
         self.root_key = root_key
+        self.version = version
         if self.root:
             # Ignore the value passed in the constructor
             self.root_key = self.root.key
@@ -194,10 +195,13 @@ class StructuredHashTree(base.ComparableCollection):
             return None
 
     @staticmethod
-    def from_string(string, root_key=None):
+    def from_string(string, root_key=None, version=None):
         to_dict = json.loads(string)
-        return (StructuredHashTree(StructuredHashTree._build_tree(to_dict)) if
-                to_dict else StructuredHashTree(root_key=root_key))
+        return (
+            StructuredHashTree(StructuredHashTree._build_tree(to_dict),
+                               version=version) if
+            to_dict else StructuredHashTree(root_key=root_key,
+                                            version=version))
 
     @staticmethod
     def _build_tree(root_dict):

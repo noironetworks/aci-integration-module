@@ -33,6 +33,7 @@ from aim.db import models
 from aim.db import service_graph_model
 from aim.db import status_model
 from aim.db import tree_model
+from aim import exceptions as exc
 from aim.k8s import api_v1
 
 
@@ -84,6 +85,10 @@ class AimStore(object):
 
     def add(self, db_obj):
         # Save (create/update) object to backend
+        pass
+
+    def replace(self, aim_resource):
+        # Replace current item in the store minding versioning
         pass
 
     def delete(self, db_obj):
@@ -270,6 +275,19 @@ class SqlAlchemyStore(AimStore):
     def delete(self, db_obj):
         self.db_session.delete(db_obj)
 
+    def replace(self, aim_resource):
+        db_type = self.resource_to_db_type(type(aim_resource))
+        with self.begin(substransactions=True):
+            curr = self.query(db_type, type(aim_resource),
+                              **self.extract_attributes(aim_resource, 'id'))
+            if not curr:
+                return
+            curr = curr[0]
+            if curr.resource_version != aim_resource.resource_version:
+                raise exc.UpdateVersionMismatch(object=aim_resource)
+            for k, v in self.extract_attributes(aim_resource).iteritems():
+                setattr(curr, k, v)
+
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
               lock_update=False, **filters):
         query = self.db_session.query(db_obj_type)
@@ -395,6 +413,17 @@ class K8sStore(AimStore):
                 else:
                     raise
         self._post_create(created)
+
+    def replace(self, aim_resource):
+        db_obj = self.make_db_obj(aim_resource)
+        try:
+            self.klient.replace_namespaced_aci(db_obj['metadata']['name'],
+                                               self.namespace, db_obj)
+        except api_v1.klient.ApiException as e:
+            if str(e.status) == '404':
+                return
+            if str(e.status) == '409':
+                raise exc.UpdateVersionMismatch(object=aim_resource)
 
     def delete(self, db_obj):
         deleted = db_obj

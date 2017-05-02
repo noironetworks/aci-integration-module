@@ -50,7 +50,11 @@ class Tree(model_base.Base, model_base.AttributeMixin):
 class TypeTreeBase(object):
     root_rn = sa.Column(sa.String(64), primary_key=True, name='tenant_rn')
     root_full_hash = sa.Column(sa.String(256), nullable=True)
+    resource_version = sa.Column(sa.Integer, nullable=False)
     tree = sa.Column(sa.LargeBinary(length=2 ** 24), nullable=True)
+    __mapper_args__ = {
+        "version_id_col": resource_version
+    }
 
 
 class ConfigTree(model_base.Base, TypeTreeBase, model_base.AttributeMixin):

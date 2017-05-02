@@ -135,6 +135,10 @@ def sanitize_name(type, *args):
     return base64.b32encode(h.digest()).rstrip('=').lower()
 
 
+def noop(*args, **kwargs):
+    pass
+
+
 class ThreadExit(Exception):
     pass
 

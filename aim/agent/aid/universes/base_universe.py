@@ -18,6 +18,7 @@ import abc
 import six
 import time
 
+from apicapi import apic_client
 from oslo_log import log as logging
 
 from aim.agent.aid.universes import errors
@@ -25,6 +26,8 @@ from aim import aim_manager
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import context
+from aim import exceptions
+from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
@@ -197,6 +200,40 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
+    def detect_hashtree_divergence(self, differences, not_found, state,
+                                   other_state, other_universe):
+        """Detect hashtree divergence
+
+        Checks for hashtree inconsistencies and take action when possible in
+        order to avoid agent divergence.
+
+        :param differences: hashtree diff calculated between this universe and
+        its counterpart
+        :param not_found: resources that could not be found from the desired
+        state. They can be useful to detect whether certain AIM resources have
+        disappeared from the main model, but they are still in the hashtree.
+        :param state: the current state on which the differences were
+        calculated
+        :param other_state: the state of the other universe from which the
+        differences were calculated
+        :param other_universe: handler to the counterpart universe
+        :return:
+        """
+
+    @abc.abstractmethod
+    def replace_state(self, root, tree):
+        """Replace state
+
+        Given a root, replace its current state minding the tree version. A
+        tree with a version number different from the one currently set will
+        not be replaced.
+
+        :param root:
+        :param tree:
+        :return:
+        """
+
+    @abc.abstractmethod
     def cleanup_state(self, key):
         """Cleanup state entry
 
@@ -221,6 +258,10 @@ class AimUniverse(BaseUniverse):
         """
 
 
+class ResetReconciliation(exceptions.AimException):
+    message = 'Reconciliation phase needs to be reset by universe %(name)s'
+
+
 class HashTreeStoredUniverse(AimUniverse):
     """Universe storing state in the form of a Hash Tree."""
 
@@ -233,23 +274,48 @@ class HashTreeStoredUniverse(AimUniverse):
         self.failure_log = {}
         self.max_create_retry = self.conf_manager.get_option(
             'max_operation_retry', 'aim')
+        self.max_consecutive_operations = 2 * self.max_create_retry
         # Don't increase retry value if at least retry_cooldown seconds have
         # passed
-        self.retry_cooldown = self.conf_manager.get_option(
-            'retry_cooldown', 'aim')
+        self.retry_cooldown = self.conf_manager.get_option('retry_cooldown',
+                                                           'aim')
         self.error_handlers = {
             errors.OPERATION_TRANSIENT: self._retry_until_max,
             errors.UNKNOWN: self._retry_until_max,
             errors.OPERATION_CRITICAL: self._surrender_operation,
             errors.SYSTEM_CRITICAL: self._fail_agent,
         }
-
+        self.tt_maker = tree_manager.AimHashTreeMaker()
+        self._action_cache = {}
         return self
 
     def _dissect_key(self, key):
         # Returns ('apicType', [identity list])
         aci_type = key[-1][:key[-1].find('|')]
         return aci_type, [x[x.find('|') + 1:] for x in key]
+
+    def _split_key(self, key):
+        # Returns [['apicType', 'rn'], ['apicType1', 'rn1'] ...]
+        return [k.split('|', 2) for k in key]
+
+    def _keys_to_bare_aci_objects(self, keys):
+        # Transforms hashtree keys into minimal ACI objects
+        aci_objects = []
+        for key in keys:
+            fault_code = None
+            key_parts = self._split_key(key)
+            mo_type = key_parts[-1][0]
+            aci_object = {mo_type: {'attributes': {}}}
+            if mo_type == 'faultInst':
+                fault_code = key_parts[-1][1]
+                key_parts = key_parts[:-1]
+            dn = apic_client.DNManager().build(key_parts)
+            if fault_code:
+                dn += '/fault-%s' % fault_code
+                aci_object[mo_type]['attributes']['code'] = fault_code
+            aci_object[mo_type]['attributes']['dn'] = dn
+            aci_objects.append(aci_object)
+        return aci_objects
 
     def observe(self):
         pass
@@ -272,6 +338,7 @@ class HashTreeStoredUniverse(AimUniverse):
         # different tenants and those with at least one hashtree node in
         # pending state.
         other_state = other_universe.state
+
         differences = {CREATE: [], DELETE: []}
         for tenant in set(my_state.keys()) & set(other_state.keys()):
             tree = other_state[tenant]
@@ -311,8 +378,21 @@ class HashTreeStoredUniverse(AimUniverse):
             diff = True
 
         # Get AIM resources at the end to reduce the number of transactions
-        result = {CREATE: other_universe.get_resources(differences[CREATE]),
+        to_create, not_found = other_universe.get_resources(
+            differences[CREATE])
+        result = {CREATE: to_create,
                   DELETE: self.get_resources_for_delete(differences[DELETE])}
+        self._track_universe_actions(result, my_state)
+
+        try:
+            self.detect_hashtree_divergence(
+                differences, not_found, my_state, other_state, other_universe)
+            other_universe.detect_hashtree_divergence(
+                differences, not_found, other_state, my_state, self)
+        except ResetReconciliation as e:
+            LOG.warn(e.message)
+            return True
+
         # Set status objects properly
         self.update_status_objects(my_state, other_universe, other_state,
                                    differences, result)
@@ -332,7 +412,7 @@ class HashTreeStoredUniverse(AimUniverse):
         pass
 
     def get_resource(self, resource_key):
-        return self.get_resources([resource_key])
+        return self.get_resources([resource_key])[0]
 
     def serve(self, tenants):
         pass
@@ -357,8 +437,8 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _fail_aim_synchronization(self, aim_object, operation, reason,
                                   error):
-        return self.error_handlers.get(error, self._noop)(
-            aim_object, operation, reason)
+        return self.error_handlers.get(error, utils.noop)(aim_object,
+                                                          operation, reason)
 
     def _retry_until_max(self, aim_object, operation, reason):
         aim_id = self._get_aim_object_identifier(aim_object)
@@ -389,8 +469,134 @@ class HashTreeStoredUniverse(AimUniverse):
         return (type(aim_object).__name__,) + tuple(
             [getattr(aim_object, x) for x in aim_object.identity_attributes])
 
-    def _noop(self, *args, **kwargs):
-        return
+    def _action_items_to_aim_resources(self, actions, action):
+        return actions[action]
+
+    def _track_universe_actions(self, actions, state):
+        """Track Universe Actions.
+
+        Keep track of what the universe has been doing in the past few
+        iterations. Keeping count of any operation repeated over time and
+        decreasing count of actions that are not happening in this iteration.
+
+        :param actions: dictionary in the form {'create': [..], 'delete': [..]}
+        :param state: current state of the tenants that own the objects
+               specified in 'actions'
+        :return:
+        """
+        cache = {}
+        for action in [CREATE, DELETE]:
+            for res in self._action_items_to_aim_resources(actions, action):
+                # Same resource created twice in the same iteration is
+                # increased only once
+                root = self.tt_maker.resource_to_root(res)
+                version = state[root].version
+                (cache.setdefault(action, {}).
+                 setdefault(root, {}).
+                 setdefault(version, {}).
+                 setdefault(res.hash,
+                            (self._action_cache.get(action, {}).get(root, {})
+                             .get(version, {}).get(res.hash, (0,))[0] + 1,
+                             res)))
+        self._action_cache = cache
+
+    def _get_resources_consecutive_actions(self, state, action, limit):
+        result = {}
+        for root in self._action_cache.get(action, {}):
+            for naction, res in self._action_cache[action][root].get(
+                    state[root].version, {}).values():
+                if naction >= limit:
+                    result.setdefault(root, []).append(res)
+        return result
+
+    def _desired_state_leaked_node_detection(self, differences, not_found,
+                                             state):
+        """Leaked node detection for desired state
+
+        Resource present in the ADD section of 'differences' is not
+        found in desired state; Solve by removing such node from hashtree,
+        """
+        if not_found:
+            modified = set()
+            LOG.warn("Objects with keys %s are leaking in %s state. Removing "
+                     "from hashtree." % (not_found, self.name))
+            for res in not_found:
+                root = self.tt_maker.resource_to_root(res)
+                self.tt_maker.delete(state[root], [res])
+                modified.add(root)
+            for root in modified:
+                self.replace_state(root, state[root])
+            # TODO(ivar): should we fire a reconcile event?
+            return modified
+
+    def _desired_state_missing_node_detection(self, differences, not_found,
+                                              state):
+        """Missing node detection for desired state
+
+        No way to detect this with the current info.
+        """
+
+    def _current_state_leaked_node_detection(self, differences, not_found,
+                                             state):
+        """Leaked node detection for current state
+
+        Same item is being deleted multiple times for the same tree
+        version; Solve by removing node if not found in current state.
+        """
+        divergent_items = self._get_resources_consecutive_actions(
+            state, DELETE, self.max_consecutive_operations)
+        modified = set()
+        for root, objects in divergent_items.iteritems():
+            if objects:
+                LOG.warn("Objects %s have reached the limit of consecutive "
+                         "DELETE tries on %s, removing them from the "
+                         "hashtree" % (objects, self.name))
+                self.tt_maker.delete(state[root], objects)
+                modified.add(root)
+                for object in objects:
+                    # Mark deletion failed if possible
+                    self.deletion_failed(
+                        object, reason='Reached the limit of consecutive '
+                                       'DELETE retries',
+                        error=errors.OPERATION_CRITICAL)
+        for root in modified:
+            self.replace_state(root, state[root])
+        return modified
+
+    def _current_state_missing_node_detection(self, differences, not_found,
+                                              state, other_state,
+                                              other_universe):
+        """Missing node detection for current state
+
+        Same item is being created multiple times for the same tree version;
+        Solve by removing the object from the other universe's tree and place
+        the item in error state.
+        """
+        divergent_items = self._get_resources_consecutive_actions(
+            state, CREATE, self.max_consecutive_operations)
+        modified = set()
+        for root, objects in divergent_items.iteritems():
+            if objects:
+                LOG.warn("Objects %s have reached the limit of consecutive "
+                         "CREATE tries on %s, removing them from the "
+                         "desired state hashtree in "
+                         "%s" % (objects, self.name, other_universe.name))
+                self.tt_maker.delete(other_state[root], objects)
+                modified.add(root)
+        for root in modified:
+            other_universe.replace_state(root, other_state[root])
+        # Do this after the tree replace or it will change the version
+        for root, objects in divergent_items.iteritems():
+            for object in objects:
+                # Mark deletion failed if possible
+                other_universe.creation_failed(
+                    object, reason='Reached the limit of consecutive '
+                                   'DELETE retries',
+                    error=errors.OPERATION_CRITICAL)
+        return modified
+
+    def replace_state(self, root, tree):
+        pass
 
     @property
     def state(self):

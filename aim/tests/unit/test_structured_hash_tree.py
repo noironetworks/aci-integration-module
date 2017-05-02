@@ -19,6 +19,7 @@ from aim import aim_manager
 from aim.api import resource
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree as tree
+from aim import exceptions as aim_exc
 from aim.tests import base
 from aim import tree_manager
 
@@ -799,6 +800,35 @@ class TestHashTreeManager(base.TestAimDBBase):
             agent1 = aim_manager.AimManager().get(self.get_new_context(),
                                                   agent1)
             self.assertEqual(set(['keyA1', 'keyA2']), set(agent1.hash_trees))
+
+    def test_tree_version(self):
+        data1 = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+        self.mgr.update_bulk(self.ctx, [data1])
+        version = self.mgr.get(self.ctx, 'keyA').version
+
+        data1.add(('keyA', 'keyF'), test='test')
+        self.mgr.update_bulk(self.ctx, [data1])
+        self.assertTrue(self.mgr.get(self.ctx, 'keyA').version > version)
+
+        curr = self.mgr.get(self.ctx, 'keyA')
+        curr.add(('keyA', 'keyE'), test='test')
+        curr.version = 1
+        self.assertRaises(aim_exc.UpdateVersionMismatch,
+                          self.mgr.update_version, self.ctx, curr)
+
+        curr = self.mgr.get(self.ctx, 'keyA')
+        prev_hash = curr.root_full_hash
+        prev_ver = curr.version
+        curr.add(('keyA', 'keyE'), test='test')
+        self.mgr.update_version(self.ctx, curr)
+        curr = self.mgr.get(self.ctx, 'keyA')
+        self.assertTrue(curr.version > prev_ver)
+        self.assertNotEqual(prev_hash, curr.root_full_hash)
+
+        self.mgr.delete_by_root_rn(self.ctx, root_rn='keyA')
+        self.assertIsNone(self.mgr.update_version(self.ctx, curr))
 
 
 class TestAimHashTreeMaker(base.TestAimDBBase):

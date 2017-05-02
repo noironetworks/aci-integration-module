@@ -505,8 +505,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(current_config)
         # Simulate an external actor creating a BD
         aci_bd = self._get_example_aci_bd(
-            tenant_name=tenant_name, name='default',
-            dn='uni/tn-%s/BD-default' % tenant_name)
+            name='default', dn='uni/tn-%s/BD-default' % tenant_name)
         aci_rsctx = self._get_example_aci_rs_ctx(
             dn='uni/tn-%s/BD-default/rsctx' % tenant_name)
         self._set_events(
@@ -1313,8 +1312,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.set_override('max_operation_retry', 2, 'aim')
         self.set_override('retry_cooldown', -1, 'aim')
         agent = self._create_agent()
-        tenant_name = 'test_manual_rs'
+        tenant_name = 'test_aci_errors'
         current_config = agent.multiverse[0]['current']
+        current_config.max_consecutive_operations = 100
         tn = resource.Tenant(name=tenant_name)
         tn = self.aim_manager.create(self.ctx, tn)
         # Serve tenant
@@ -1549,6 +1549,277 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop(self.ctx)
         self.assertEqual(aim_status.AciStatus.SYNCED,
                          self.aim_manager.get_status(self.ctx, tn).sync_status)
+
+    def test_desired_state_leaked_node_detection(self):
+        agent = self._create_agent()
+        tenant_name = 'test_desired_state_leaked_node_detection'
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_moni = agent.multiverse[2]['current']
+        desired_moni = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        # Create a couple of tenants, and some objects in them (both monitored
+        # and managed)
+        tn1 = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn1)
+        vrf1 = resource.VRF(tenant_name=tenant_name, name='vrf1')
+        self.aim_manager.create(self.ctx, vrf1)
+        # Serve tenant
+        agent._daemon_loop()
+        self._observe_aci_events(desired_moni)
+
+        self._set_events(
+            [self._get_example_aci_bd(
+                tenant_name=tenant_name, name='default', nameAlias='ciao',
+                dn='uni/tn-%s/BD-default' % tenant_name)],
+            manager=desired_moni.serving_tenants[tn1.rn], tag=False)
+        self._observe_aci_events(desired_moni)
+        desired_moni.observe()
+        # Delete the fault before it goes to AIM
+        desired_moni.aci_session.DELETE(
+            '/mo/uni/tn-%s/BD-default.json' % tenant_name)
+        # Lose the delete event
+        self._reset_events(manager=self._current_manager)
+        self._observe_aci_events(desired_moni)
+        desired_moni.observe()
+        # Node is present in the operational universe's hashtree
+        node_key = tree_manager.AimHashTreeMaker._dn_to_key(
+            'fvBD', 'uni/tn-%s/BD-default' % tenant_name)
+        self.assertIsNotNone(
+            desired_moni.state[tn1.rn].find(node_key))
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_moni.serving_tenants[tn1.rn].aci_session,
+            'mo/uni/tn-%s/BD-default' % tenant_name)
+        agent._daemon_loop()
+        # Default BD doesn't exist
+        self.assertIsNone(
+            self.aim_manager.get(
+                self.ctx, resource.BridgeDomain(tenant_name=tenant_name,
+                                                name='default')))
+        # Action was taken to remove the node
+        self.assertIsNone(desired_moni.state[tn1.rn].find(node_key))
+        self._assert_universe_sync(desired_moni, current_moni)
+
+        bd1 = resource.BridgeDomain(tenant_name=tenant_name, name='bd1')
+        self.aim_manager.create(self.ctx, bd1)
+
+        with mock.patch('aim.tree_manager.TreeManager.update_bulk'):
+            self.aim_manager.delete(self.ctx, bd1)
+            node_key = tree_manager.AimHashTreeMaker._dn_to_key(
+                bd1._aci_mo_name, bd1.dn)
+            self.assertIsNotNone(
+                desired_config.state[tn1.rn].find(node_key))
+            # At this point, the BD is still present in the desired hashtree,
+            # but cannot be created in ACI
+            self._observe_aci_events(desired_moni)
+            agent._daemon_loop()
+            self._assert_universe_sync(desired_config, current_config)
+            self.assertIsNone(desired_config.state[tn1.rn].find(node_key))
+
+    def test_track_universe_actions(self):
+        agent = self._create_agent()
+        tenant_name = 'test_track_universe_actions'
+        current_config = agent.multiverse[0]['current']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn1 = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn1)
+        # Serve tenant
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Make push resources a noop
+        current_config.push_resources = mock.Mock()
+        vrf1 = resource.VRF(tenant_name=tenant_name, name='vrf1')
+        vrf1 = self.aim_manager.create(self.ctx, vrf1)
+        for x in range(1, 5):
+            agent._daemon_loop()
+            self._observe_aci_events(current_config)
+            # Verify action log
+            self.assertEqual(
+                {'create': {tn1.rn: {
+                    current_config.state[tn1.rn].version: {
+                        vrf1.hash: (x, vrf1)}}}},
+                current_config._action_cache)
+        # create another object
+        vrf2 = resource.VRF(tenant_name=tenant_name, name='vrf2')
+        vrf2 = self.aim_manager.create(self.ctx, vrf2)
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        # Verify action log
+        self.assertEqual(
+            {'create': {tn1.rn: {
+                current_config.state[tn1.rn].version: {
+                    vrf1.hash: (x + 1, vrf1), vrf2.hash: (1, vrf2)}}}},
+            current_config._action_cache)
+        # Modify tree version and see that the tree is reset
+        aci_bd = self._get_example_aci_bd(
+            tenant_name=tenant_name, name='default', display_name='ciao',
+            dn='uni/tn-%s/BD-default' % tenant_name, status='created')
+        aci_rsctx = self._get_example_aci_rs_ctx(
+            dn='uni/tn-%s/BD-default/rsctx' % tenant_name, status='created')
+        self._set_events(
+            [aci_bd, aci_rsctx],
+            manager=current_config.serving_tenants[tn1.rn], tag=True)
+        self._observe_aci_events(current_config)
+        current_config.observe()
+        agent._daemon_loop()
+        self._observe_aci_events(current_config)
+        self.assertEqual(
+            {'create': {tn1.rn: {
+                current_config.state[tn1.rn].version: {
+                    vrf1.hash: (1, vrf1),
+                    vrf2.hash: (1, vrf2)}}},
+             'delete': {tn1.rn: {
+                 current_config.state[tn1.rn].version: mock.ANY}}},
+            current_config._action_cache)
+
+    def test_current_state_leaked_node_detection(self):
+        agent = self._create_agent()
+        tenant_name = 'test_current_state_leaked_node_detection'
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_moni = agent.multiverse[2]['current']
+        desired_moni = agent.multiverse[2]['desired']
+        current_config.max_create_retry = 100
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = mock.Mock()
+        # Create a couple of tenants, and some objects in them (both monitored
+        # and managed)
+        tn1 = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn1)
+        vrf1 = resource.VRF(tenant_name=tenant_name, name='vrf1')
+        self.aim_manager.create(self.ctx, vrf1)
+        # Serve tenant
+        agent._daemon_loop()
+        self._observe_aci_events(desired_moni)
+
+        self._set_events(
+            [self._get_example_aci_bd(
+                tenant_name=tenant_name, name='default', nameAlias='ciao',
+                dn='uni/tn-%s/BD-default' % tenant_name)],
+            manager=desired_moni.serving_tenants[tn1.rn], tag=False)
+        agent._daemon_loop()
+        self._observe_aci_events(desired_moni)
+
+        # Prevent the ACI universe from reading any event.
+        with mock.patch('aim.agent.aid.universes.aci.tenant.'
+                        'AciTenantManager._event_to_tree'):
+            self.aim_manager.delete(self.ctx, vrf1)
+            node_key = tree_manager.AimHashTreeMaker._dn_to_key(
+                vrf1._aci_mo_name, vrf1.dn)
+            # Node doesn't exist in AIM
+            self.assertIsNone(
+                desired_config.state[tn1.rn].find(node_key))
+            self._observe_aci_events(desired_moni)
+            agent._daemon_loop()
+            # Node still exists in ACI
+            self.assertIsNotNone(
+                current_config.state[tn1.rn].find(node_key))
+            # After a number of runs, the node gets removed
+            for x in range(current_config.max_consecutive_operations):
+                self._observe_aci_events(desired_moni)
+                agent._daemon_loop()
+            self.assertIsNone(
+                current_config.state[tn1.rn].find(node_key))
+            self._assert_universe_sync(desired_config, current_config)
+        # Now prevent AIM from listening to events
+        with mock.patch('aim.tree_manager.TreeManager.update_bulk'):
+            self._mock_current_manager_delete(
+                '/mo/uni/tn-%s/BD-default.json' % tenant_name)
+            bd = resource.BridgeDomain(tenant_name=tenant_name, name='default')
+            node_key = tree_manager.AimHashTreeMaker._dn_to_key(
+                bd._aci_mo_name, bd.dn)
+            self._observe_aci_events(desired_moni)
+            agent._daemon_loop()
+            # Node doesn't exist in monitored desired tree
+            self.assertIsNone(
+                desired_moni.state[tn1.rn].find(node_key))
+            # Node still exists in current monitored tree
+            self.assertIsNotNone(
+                current_moni.state[tn1.rn].find(node_key))
+            # After a number of runs, the node gets removed
+            for x in range(current_config.max_consecutive_operations):
+                self._observe_aci_events(desired_moni)
+                agent._daemon_loop()
+            self.assertIsNone(
+                current_moni.state[tn1.rn].find(node_key))
+            self._assert_universe_sync(desired_moni, current_moni)
+
+    def test_current_state_missing_node_detection(self):
+        agent = self._create_agent()
+        tenant_name = 'test_current_state_missing_node_detection'
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_moni = agent.multiverse[2]['current']
+        desired_moni = agent.multiverse[2]['desired']
+        current_config.max_create_retry = 100
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        # Create a couple of tenants, and some objects in them (both monitored
+        # and managed)
+        tn1 = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn1)
+        # Serve tenant
+        agent._daemon_loop()
+        self._observe_aci_events(desired_moni)
+
+        # Prevent the ACI universe from reading any event.
+        with mock.patch('aim.agent.aid.universes.aci.tenant.'
+                        'AciTenantManager._event_to_tree'):
+            vrf1 = resource.VRF(tenant_name=tenant_name, name='vrf1')
+            self.aim_manager.create(self.ctx, vrf1)
+            node_key = tree_manager.AimHashTreeMaker._dn_to_key(
+                vrf1._aci_mo_name, vrf1.dn)
+            # Node exists in AIM
+            self.assertIsNotNone(
+                desired_config.state[tn1.rn].find(node_key))
+            self._observe_aci_events(current_config)
+            agent._daemon_loop()
+            self._observe_aci_events(current_config)
+            current_config.observe()
+            # Node still doesn't exist in ACI
+            self.assertIsNone(
+                current_config.state[tn1.rn].find(node_key))
+
+            # After a number of runs, the node gets removed in desired Universe
+            for x in range(current_config.max_consecutive_operations):
+                self._observe_aci_events(current_config)
+                agent._daemon_loop()
+            self._observe_aci_events(current_config)
+            self.assertTrue(
+                desired_config.state[tn1.rn].find(node_key).error)
+            self._assert_universe_sync(desired_config, current_config)
+        # Now prevent AIM from listening to events
+        with mock.patch('aim.tree_manager.TreeManager.update_bulk'):
+            self._set_events(
+                [self._get_example_aci_bd(
+                    tenant_name=tenant_name, name='default', nameAlias='ciao',
+                    dn='uni/tn-%s/BD-default' % tenant_name)],
+                manager=desired_moni.serving_tenants[tn1.rn], tag=False)
+            bd = resource.BridgeDomain(tenant_name=tenant_name, name='default')
+            node_key = tree_manager.AimHashTreeMaker._dn_to_key(
+                bd._aci_mo_name, bd.dn)
+            self._observe_aci_events(desired_moni)
+            agent._daemon_loop()
+            # Node exists in monitored desired tree
+            self.assertIsNotNone(
+                desired_moni.state[tn1.rn].find(node_key))
+            # Node doesn't in current monitored tree
+            self.assertIsNone(
+                current_moni.state[tn1.rn].find(node_key))
+            # After a number of runs, the node gets removed from desired tree
+            for x in range(current_config.max_consecutive_operations):
+                self._observe_aci_events(desired_moni)
+                agent._daemon_loop()
+            self.assertIsNone(
+                desired_moni.state[tn1.rn].find(node_key))
+            self._assert_universe_sync(desired_moni, current_moni)
 
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
