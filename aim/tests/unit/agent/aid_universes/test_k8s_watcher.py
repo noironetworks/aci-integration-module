@@ -13,9 +13,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+
+import eventlet
+# https://github.com/eventlet/eventlet/issues/401
+eventlet.sleep()
+eventlet.monkey_patch()
+
 import copy
 import mock
 from mock import patch
+import time
 
 from aim.agent.aid.universes.k8s import k8s_watcher
 from aim.k8s import api_v1
@@ -73,6 +80,16 @@ class TestK8SWatcher(base.TestAimDBBase):
             watcher._observe_objects(api_v1.AciContainersObject, 1)
             exc = watcher._observe_thread_state[thd]['watch_exception']
             self.assertEqual(Exception, type(exc))
+
+    @base.requires(['k8s'])
+    def test_observe_thread_dead(self):
+        watcher = k8s_watcher.K8sWatcher()
+
+        with patch.object(watcher, '_observe_objects'):
+            watcher._start_observers(['a'])
+            time.sleep(1)  # yield
+            self.assertEqual(k8s_watcher.K8SObserverStopped,
+                             type(watcher._check_observers()))
 
     @base.requires(['k8s'])
     def test_pod_event_filter(self):
