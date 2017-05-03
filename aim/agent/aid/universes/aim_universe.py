@@ -155,8 +155,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return list(result)
 
     def get_resources_for_delete(self, resource_keys):
-        # TODO(ivar): optimize by returning the AIM resource only
-        return self.get_resources(resource_keys)
+        return self._converter.convert(
+            self._keys_to_bare_aci_objects(resource_keys))
 
     def push_resources(self, resources):
         return self._push_resources(resources, monitored=False)

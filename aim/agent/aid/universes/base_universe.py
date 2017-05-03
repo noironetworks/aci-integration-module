@@ -18,6 +18,7 @@ import abc
 import six
 import time
 
+from apicapi import apic_client
 from oslo_log import log as logging
 
 from aim.agent.aid.universes import errors
@@ -250,6 +251,29 @@ class HashTreeStoredUniverse(AimUniverse):
         # Returns ('apicType', [identity list])
         aci_type = key[-1][:key[-1].find('|')]
         return aci_type, [x[x.find('|') + 1:] for x in key]
+
+    def _split_key(self, key):
+        # Returns [['apicType', 'rn'], ['apicType1', 'rn1'] ...]
+        return [k.split('|', 2) for k in key]
+
+    def _keys_to_bare_aci_objects(self, keys):
+        # Transforms hashtree keys into minimal ACI objects
+        aci_objects = []
+        for key in keys:
+            fault_code = None
+            key_parts = self._split_key(key)
+            mo_type = key_parts[-1][0]
+            aci_object = {mo_type: {'attributes': {}}}
+            if mo_type == 'faultInst':
+                fault_code = key_parts[-1][1]
+                key_parts = key_parts[:-1]
+            dn = apic_client.DNManager().build(key_parts)
+            if fault_code:
+                dn += '/fault-%s' % fault_code
+                aci_object[mo_type]['attributes']['code'] = fault_code
+            aci_object[mo_type]['attributes']['dn'] = dn
+            aci_objects.append(aci_object)
+        return aci_objects
 
     def observe(self):
         pass
