@@ -396,16 +396,18 @@ class AimManager(object):
 
     def _get_status_params(self, context, resource):
         res_type = type(resource).__name__
-        db_obj = self._query_db_obj(context.store, resource)
-        if db_obj is None:
-            # TODO(ivar): should we raise a proper exception?
-            return None, None
-        try:
-            res_id = db_obj.aim_id
-        except AttributeError:
-            LOG.warn("Resource with type %s doesn't support status" %
-                     res_type)
-            return None, None
+        res_id = getattr(resource, 'aim_id', None)
+        if not res_id:
+            db_obj = self._query_db_obj(context.store, resource)
+            if db_obj is None:
+                # TODO(ivar): should we raise a proper exception?
+                return None, None
+            try:
+                res_id = db_obj.aim_id
+            except AttributeError:
+                LOG.warn("Resource with type %s doesn't support status" %
+                         res_type)
+                return None, None
         return res_type, res_id
 
     def _iter_children(self, context, resource, **kwargs):

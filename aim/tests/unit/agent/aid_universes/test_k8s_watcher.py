@@ -25,6 +25,8 @@ from mock import patch
 import time
 
 from aim.agent.aid.universes.k8s import k8s_watcher
+from aim import aim_manager
+from aim.api import resource
 from aim.k8s import api_v1
 from aim.tests import base
 
@@ -33,6 +35,7 @@ class TestK8SWatcher(base.TestAimDBBase):
 
     def setUp(self):
         super(TestK8SWatcher, self).setUp()
+        self.mgr = aim_manager.AimManager()
 
     @base.requires(['k8s'])
     def test_connection_monitor(self):
@@ -123,3 +126,13 @@ class TestK8SWatcher(base.TestAimDBBase):
             ev['object']['spec']['hostNetwork'] = True
             watcher._observe_objects(api_v1.Pod, 1)
             self.assertEqual(ev_exp, watcher.q.get_nowait())
+
+    @base.requires(['k8s'])
+    def test_delete_status(self):
+        tn = self.mgr.create(self.ctx, resource.Tenant(
+            name='test_delete_status'))
+        st = self.mgr.get_status(self.ctx, tn)
+        self.assertIsNotNone(self.mgr.get(self.ctx, st))
+        db_obj = self.mgr._query_db_obj(self.ctx.store, tn)
+        self.ctx.store.delete(db_obj)
+        self.assertIsNone(self.mgr.get(self.ctx, st))

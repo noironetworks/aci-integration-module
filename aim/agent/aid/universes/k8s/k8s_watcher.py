@@ -305,6 +305,10 @@ class K8sWatcher(object):
             db_obj = k8s_type()
             db_obj.update(event_object)
             aim_res = self.ctx.store.make_resource(aim_klass, db_obj)
+            try:
+                aim_res.aim_id = db_obj.aim_id
+            except (AttributeError, KeyError):
+                pass
             return {'event_type': event_type,
                     'resource': aim_res}
 
@@ -325,6 +329,7 @@ class K8sWatcher(object):
         if action.lower() in [ACTION_CREATED, ACTION_MODIFIED]:
             changes['added'].append(aim_res)
         elif action.lower() in [ACTION_DELETED]:
+            self._cleanup_status(aim_res)
             changes['deleted'].append(aim_res)
         key = self.tt_maker.get_root_key(aim_res)
 
@@ -346,6 +351,13 @@ class K8sWatcher(object):
                                    self.tt_builder.OPER: {key: oper}},
                                   aim_ctx=self.ctx)
         return affected_tenants
+
+    def _cleanup_status(self, aim_res):
+        if isinstance(aim_res, resource.AciResourceBase):
+            LOG.debug("Cleanup status for AIM resource: %s" % aim_res)
+            status = self.mgr.get_status(self.ctx, aim_res)
+            if status:
+                self.mgr.delete(self.ctx, status)
 
     def _save_trees(self, affected_tenants):
         cfg_trees = []
