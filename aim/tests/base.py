@@ -142,8 +142,8 @@ def _k8s_post_create(self, created):
 def _k8s_post_delete(self, deleted):
     if deleted:
         w = k8s_watcher_instance
-        w.klient.get_new_watch()
         event = {'type': 'DELETED', 'object': deleted}
+        w.klient.get_new_watch()
         w.klient.watch.stream = mock.Mock(return_value=[event])
         w._reset_trees = mock.Mock()
         w.q.put(event)
