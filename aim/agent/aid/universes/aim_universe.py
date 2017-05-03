@@ -249,10 +249,14 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # external is the DN of the ACI resource
         dn_mgr = apic_client.DNManager()
         mos_rns = dn_mgr.aci_decompose_with_type(external, ACI_FAULT)[:-1]
-        aci_klass = mos_rns[-1][0]
         rns = dn_mgr.filter_rns(mos_rns)
-
-        conv_info = converter.resource_map[aci_klass][0]
+        conv_info = None
+        step = -1
+        while conv_info is None or len(conv_info) > 1:
+            aci_klass = mos_rns[step][0]
+            conv_info = converter.resource_map[aci_klass]
+            step -= 1
+        conv_info = conv_info[0]
         klasses = [conv_info['resource']]
         if conv_info.get('alt_resource'):
             klasses.append(conv_info['alt_resource'])

@@ -420,7 +420,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                               self.manager.ws_context.establish_ws_session)
 
     def test_is_dead(self):
-        self.assertTrue(self.manager.is_dead())
+        self.assertFalse(self.manager.is_dead())
 
     def test_event_loop_failure(self):
         manager = aci_tenant.AciTenantManager(

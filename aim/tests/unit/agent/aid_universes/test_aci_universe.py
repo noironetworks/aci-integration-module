@@ -50,7 +50,6 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             return_value=True)
         self.mock_is_warm.start()
 
-        aci_tenant.AciTenantManager.health_state = True
         aci_tenant.AciTenantManager.kill = _kill_thread
         self.addCleanup(self.mock_start.stop)
         self.addCleanup(self.mock_is_dead.stop)
@@ -74,9 +73,6 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         # Test same tenants cause a noop
         serving_tenants_copy = dict(
             [(k, v) for k, v in self.universe.serving_tenants.iteritems()])
-        # Health state has to be True
-        for k, v in self.universe.serving_tenants.iteritems():
-            v.health_state = True
         self.universe.serve(tenant_list)
         for k, v in serving_tenants_copy.iteritems():
             # Serving tenant values are the same
@@ -124,9 +120,6 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
     def test_serve_exception(self):
         tenant_list = ['tn%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
-        # Health state has to be True for served tenants
-        for k, v in self.universe.serving_tenants.iteritems():
-            v.health_state = True
         # Remove some tenants
         tenant_list_new = tenant_list[5:]
         old = self.universe.serving_tenants['tn9'].is_dead

@@ -153,7 +153,6 @@ class AciTenantManager(utils.AIMThread):
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
         self._monitored_state = structured_tree.StructuredHashTree()
-        self._health_state = False
         self.polling_yield = self.apic_config.get_option(
             'aci_tenant_polling_yield', 'aim')
         self.to_aim_converter = converter.AciToAimModelConverter()
@@ -184,14 +183,6 @@ class AciTenantManager(utils.AIMThread):
     def is_warm(self):
         return self._warm
 
-    @property
-    def health_state(self):
-        return self._health_state
-
-    @health_state.setter
-    def health_state(self, value):
-        self._health_state = value
-
     # These methods are dangerous if run concurrently with _event_to_tree.
     # However, serialization/deserialization of the in-memory tree should not
     # cause I/O operation, therefore they can't be context switched.
@@ -215,6 +206,7 @@ class AciTenantManager(utils.AIMThread):
             while True:
                 self._main_loop()
         except (greenlet.GreenletExit, Exception) as e:
+            LOG.error(traceback.format_exc())
             LOG.error("Exiting thread for tenant %s: %s" %
                       (self.tenant_name, e.message))
             try:
@@ -263,7 +255,6 @@ class AciTenantManager(utils.AIMThread):
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, e.message))
             LOG.error(traceback.format_exc())
-            self.health_state = False
             self._unsubscribe_tenant()
             self.recovery_retries = utils.exponential_backoff(
                 TENANT_FAILURE_MAX_WAIT, tentative=self.recovery_retries)
@@ -421,7 +412,6 @@ class AciTenantManager(utils.AIMThread):
 
     def _subscribe_tenant(self):
         self.ws_context.subscribe(self.tenant.urls)
-        self.health_state = True
 
     def _event_to_tree(self, events):
         """Parse the event and push it into the tree

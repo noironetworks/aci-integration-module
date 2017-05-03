@@ -196,5 +196,3 @@ class AIMThread(object):
     def dead(self):
         if self._thread:
             return self._thread.dead
-        else:
-            return True

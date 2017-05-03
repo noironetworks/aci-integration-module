@@ -436,6 +436,24 @@ class TestAimDbUniverseBase(object):
         create_delete_object(srp1, srp1_aci, srp1_fault_objs)
         create_delete_object(dcc1, dcc1_aci, dcc1_fault_objs)
 
+    def test_retrieve_fault_parent(self):
+        ext_net = aim_status.AciFault(
+            fault_code='F0967',
+            external_identifier=('uni/tn-common/out-l3out-1/instP-kepg/'
+                                 'rscons-service__default_frontend/'
+                                 'fault-F0967'))
+        self.assertTrue(
+            isinstance(self.universe._retrieve_fault_parent(ext_net)[0],
+                       resource.ExternalNetwork))
+        epg = aim_status.AciFault(
+            fault_code='F0967',
+            external_identifier=('uni/tn-common/ap-ap1/epg-epg1/'
+                                 'rscons-service__default_frontend/'
+                                 'fault-F0967'))
+        self.assertTrue(
+            isinstance(self.universe._retrieve_fault_parent(epg)[0],
+                       resource.EndpointGroup))
+
 
 class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
     pass

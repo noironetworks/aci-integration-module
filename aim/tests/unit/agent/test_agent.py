@@ -77,11 +77,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             return_value=True)
         self.thread_warm.start()
 
-        self.thread_health = mock.patch(
-            'aim.agent.aid.universes.aci.tenant.AciTenantManager.health_state',
-            return_value=True)
-        self.thread_health.start()
-
         self.events_thread = mock.patch(
             'aim.agent.aid.event_handler.EventHandler._spawn_listener')
         self.events_thread.start()
@@ -97,7 +92,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
-        self.addCleanup(self.thread_health.stop)
         self.addCleanup(self.events_thread.stop)
         self.addCleanup(self.watcher_threads.stop)
         self.addCleanup(self.stop_watcher_threads.stop)
@@ -342,7 +336,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         for tenant in agent.current_universe.serving_tenants.values():
             tenant._subscribe_tenant()
-            tenant.health_state = True
         # The ACI universe will not push the configuration unless explicitly
         # called
         self.assertFalse(

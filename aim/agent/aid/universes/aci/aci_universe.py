@@ -15,6 +15,7 @@
 
 import collections
 import json
+import traceback
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
@@ -274,8 +275,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     except KeyError:
                         LOG.debug("%s not found in %s during serving copy" %
                                   (added, serving_tenant_copy))
-                if (added not in serving_tenants or not
-                        serving_tenants[added].health_state or
+                if (added not in serving_tenants or
                         serving_tenants[added].is_dead()):
                     LOG.debug("Adding new tenant %s" % added)
                     # Start thread or replace broken one
@@ -283,12 +283,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     # a kill successfully happened but then  the state was
                     # rolled back by a further exception
                     if added in serving_tenants:
-                        LOG.debug(
+                        LOG.info(
                             "Tenant %s was served but needs to be replaced: "
-                            "healthy-%s, dead-%s",
-                            added,
-                            serving_tenants[added].health_state,
-                            serving_tenants[added].is_dead())
+                            "dead-%s",
+                            added, serving_tenants[added].is_dead())
                         # Cleanup the tenant's state
                         serving_tenants[added].kill()
                         serving_tenants[added]._unsubscribe_tenant()
@@ -298,6 +296,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                         self.creation_failed, self.aim_system_id)
                     serving_tenants[added].start()
         except Exception as e:
+            LOG.error(traceback.format_exc())
             LOG.error('Failed to serve new tenants %s' % tenants)
             # Rollback served tenants
             serving_tenants = serving_tenant_copy
