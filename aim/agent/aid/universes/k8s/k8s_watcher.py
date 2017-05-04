@@ -306,7 +306,7 @@ class K8sWatcher(object):
             db_obj.update(event_object)
             aim_res = self.ctx.store.make_resource(aim_klass, db_obj)
             try:
-                aim_res.aim_id = db_obj.aim_id
+                aim_res._injected_aim_id = db_obj.aim_id
             except (AttributeError, KeyError):
                 pass
             return {'event_type': event_type,

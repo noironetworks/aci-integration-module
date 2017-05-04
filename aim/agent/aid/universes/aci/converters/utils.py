@@ -86,7 +86,8 @@ def default_attribute_converter(object_dict, attribute,
 
 def default_to_resource(converted, helper, to_aim=True):
     klass = helper['resource']
-    default_skip = ['preExisting', 'monitored', 'Error', 'Pending']
+    default_skip = ['preExisting', 'monitored', 'Error', 'Pending',
+                    'InjectedAimId']
     skip = helper.get('skip', [])
     if to_aim:
         # APIC to AIM
