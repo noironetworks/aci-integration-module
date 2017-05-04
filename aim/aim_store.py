@@ -227,7 +227,7 @@ class SqlAlchemyStore(AimStore):
                         models.VmmInjectedReplicaSet),
                     api_res.VmmInjectedService: models.VmmInjectedService,
                     api_res.VmmInjectedHost: models.VmmInjectedHost,
-                    api_res.VmmInjectedGroup: models.VmmInjectedGroup}
+                    api_res.VmmInjectedContGroup: models.VmmInjectedContGroup}
 
     resource_map = {}
     for k, v in db_model_map.iteritems():
@@ -325,7 +325,7 @@ class K8sStore(AimStore):
                     api_res.VmmInjectedReplicaSet: api_v1.ReplicaSet,
                     api_res.VmmInjectedService: api_v1.Service,
                     api_res.VmmInjectedHost: api_v1.Node,
-                    api_res.VmmInjectedGroup: api_v1.Pod}
+                    api_res.VmmInjectedContGroup: api_v1.Pod}
 
     def __init__(self, namespace=None, config_file=None,
                  vmm_domain=None, vmm_controller=None):

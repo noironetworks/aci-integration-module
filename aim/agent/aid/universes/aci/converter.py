@@ -551,8 +551,8 @@ resource_map = {
         'resource': resource.VmmInjectedHost,
         'exceptions': {'kernelVer': {'other': 'kernel_version'}}
     }],
-    'vmmInjectedGrp': [{
-        'resource': resource.VmmInjectedGroup,
+    'vmmInjectedContGrp': [{
+        'resource': resource.VmmInjectedContGroup,
     }],
 }
 

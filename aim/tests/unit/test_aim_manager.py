@@ -1402,16 +1402,10 @@ class TestVmmInjectedReplicaSetMixin(object):
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
                                       controller_name='kube-cluster',
-                                      name=''),
-        resource.VmmInjectedDeployment(domain_type='Kubernetes',
-                                       domain_name='kubernetes',
-                                       controller_name='kube-cluster',
-                                       namespace_name='',
-                                       name='depl1')]
+                                      name='')]
     test_identity_attributes = {'domain_type': 'Kubernetes',
                                 'domain_name': 'kubernetes',
                                 'controller_name': 'kube-cluster',
-                                'deployment_name': 'depl1',
                                 'name': 'repl1'}
     test_required_attributes = {'domain_type': 'Kubernetes',
                                 'domain_name': 'kubernetes',
@@ -1422,13 +1416,12 @@ class TestVmmInjectedReplicaSetMixin(object):
     test_update_attributes = {'display_name': 'REPL'}
     test_default_values = {}
     test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
-               'ns-[{namespace_name}]/depl-[depl1]/rs-[repl1]')
+               'ns-[{namespace_name}]/rs-[repl1]')
     res_command = 'vmm-injected-replica-set'
 
     def _setUp(self):
         _setup_injected_object(self, resource.VmmInjectedNamespace,
                                'namespace_name', self.test_id)
-        self.prereq_objects[4].namespace_name = 'ns-' + self.test_id
 
 
 class TestVmmInjectedServiceMixin(object):
@@ -1505,8 +1498,8 @@ class TestVmmInjectedHostMixin(object):
                                'name', self.test_id)
 
 
-class TestVmmInjectedGroupMixin(object):
-    resource_class = resource.VmmInjectedGroup
+class TestVmmInjectedContGroupMixin(object):
+    resource_class = resource.VmmInjectedContGroup
     prereq_objects = [
         resource.VMMPolicy(type='Kubernetes'),
         resource.VMMDomain(type='Kubernetes', name='kubernetes'),
@@ -1526,13 +1519,14 @@ class TestVmmInjectedGroupMixin(object):
                                 'controller_name': 'kube-cluster',
                                 'name': 'pod1',
                                 'host_name': 'host1',
-                                'compute_node_name': 'host1'}
+                                'compute_node_name': 'host1',
+                                'replica_set_name': 'rs1'}
     test_search_attributes = {'name': 'pod1'}
     test_update_attributes = {'display_name': 'POD'}
     test_default_values = {'host_name': ''}
     test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
                'ns-[{namespace_name}]/grp-[pod1]')
-    res_command = 'vmm-injected-group'
+    res_command = 'vmm-injected-cont-group'
 
     def _setUp(self):
         _setup_injected_object(self, resource.VmmInjectedNamespace,
@@ -1838,6 +1832,47 @@ class TestVmmInjectedReplicaSet(TestVmmInjectedReplicaSetMixin,
         super(TestVmmInjectedReplicaSet, self).setUp()
         self._setUp()
 
+    @base.requires(['k8s'])
+    def test_owner_reference(self):
+        # Creating a Deployment creates an implicit ReplicaSet.
+        # Verify that the ReplicaSet points to the Deployment.
+        self._create_prerequisite_objects()
+        ns = [o for o in self.prereq_objects
+              if isinstance(o, resource.VmmInjectedNamespace)][0]
+        depl = resource.VmmInjectedDeployment(
+            domain_type=ns.domain_type,
+            domain_name=ns.domain_name,
+            controller_name=ns.controller_name,
+            namespace_name=ns.name,
+            name='depl1')
+        self.mgr.create(self.ctx, depl)
+        rss = self.mgr.find(self.ctx, resource.VmmInjectedReplicaSet,
+                            domain_type=ns.domain_type,
+                            domain_name=ns.domain_name,
+                            controller_name=ns.controller_name,
+                            namespace_name=ns.name)
+        self.assertGreater(len(rss), 0)
+        for rs in rss:
+            self.assertEqual(depl.name, rs.deployment_name)
+
+        # test older k8s version - simulate no ownerReferences
+        rs_db_obj = self.ctx.store.make_db_obj(rs)
+        curr = self.ctx.store.klient.read(type(rs_db_obj),
+                                          rs_db_obj['metadata']['name'],
+                                          rs_db_obj['metadata']['namespace'])
+        curr['metadata'].pop('ownerReferences', None)
+        self.ctx.store.klient.replace(type(rs_db_obj),
+                                      rs_db_obj['metadata']['name'],
+                                      rs_db_obj['metadata']['namespace'],
+                                      curr)
+        curr = self.ctx.store.klient.read(type(rs_db_obj),
+                                          rs_db_obj['metadata']['name'],
+                                          rs_db_obj['metadata']['namespace'])
+        self.assertFalse(curr['metadata'].get('ownerReferences'))
+
+        rs = self.mgr.get(self.ctx, rs)
+        self.assertEqual(depl.name, rs.deployment_name)
+
 
 class TestVmmInjectedService(TestVmmInjectedServiceMixin,
                              TestAciResourceOpsBase, base.TestAimDBBase):
@@ -1855,9 +1890,51 @@ class TestVmmInjectedHost(TestVmmInjectedHostMixin,
         self._setUp()
 
 
-class TestVmmInjectedGroup(TestVmmInjectedGroupMixin,
-                           TestAciResourceOpsBase, base.TestAimDBBase):
+class TestVmmInjectedContGroup(TestVmmInjectedContGroupMixin,
+                               TestAciResourceOpsBase, base.TestAimDBBase):
 
     def setUp(self):
-        super(TestVmmInjectedGroup, self).setUp()
+        super(TestVmmInjectedContGroup, self).setUp()
         self._setUp()
+
+    @base.requires(['k8s'])
+    def test_owner_reference(self):
+        # Inject an ownerReference to a Pod object and verify
+        # replica_set_name is reported correctly
+        self._create_prerequisite_objects()
+        ns = [o for o in self.prereq_objects
+              if isinstance(o, resource.VmmInjectedNamespace)][0]
+        rs = resource.VmmInjectedReplicaSet(
+            domain_type=ns.domain_type,
+            domain_name=ns.domain_name,
+            controller_name=ns.controller_name,
+            namespace_name=ns.name,
+            name='rs1')
+        rs = self.mgr.create(self.ctx, rs)
+        store = self.ctx.store
+        rs_db_obj = store.make_db_obj(rs)
+        rs_db_obj = store.klient.read(type(rs_db_obj),
+                                      rs_db_obj['metadata']['name'],
+                                      rs_db_obj['metadata']['namespace'])
+
+        grp = self.mgr.create(
+            self.ctx,
+            resource.VmmInjectedContGroup(**self.test_required_attributes))
+        grp_db_obj = store.make_db_obj(grp)
+        grp_db_type = type(grp_db_obj)
+        grp_db_obj = store.klient.read(grp_db_type,
+                                       grp_db_obj['metadata']['name'],
+                                       grp_db_obj['metadata']['namespace'])
+
+        own_ref = {'kind': rs_db_obj['kind'],
+                   'apiVersion': rs_db_obj['apiVersion'],
+                   'name': rs_db_obj['metadata']['name'],
+                   'uid': rs_db_obj['metadata']['uid']}
+        grp_db_obj['metadata']['ownerReferences'] = [own_ref]
+        self.ctx.store.klient.replace(grp_db_type,
+                                      grp_db_obj['metadata']['name'],
+                                      grp_db_obj['metadata']['namespace'],
+                                      grp_db_obj)
+
+        grp = self.mgr.get(self.ctx, grp)
+        self.assertEqual(rs.name, grp.replica_set_name)

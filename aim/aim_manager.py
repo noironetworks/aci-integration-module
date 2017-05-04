@@ -95,7 +95,7 @@ class AimManager(object):
                      api_res.VmmInjectedReplicaSet,
                      api_res.VmmInjectedService,
                      api_res.VmmInjectedHost,
-                     api_res.VmmInjectedGroup, }
+                     api_res.VmmInjectedContGroup, }
 
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}

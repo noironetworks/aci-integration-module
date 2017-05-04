@@ -755,23 +755,22 @@ class VmmInjectedReplicaSet(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'namespace_name',
-                               'deployment_name', 'name') +
+                               'name') +
         (sa.ForeignKeyConstraint(
             ['domain_type', 'domain_name', 'controller_name',
-             'namespace_name', 'deployment_name'],
-            ['aim_vmm_inj_deployments.domain_type',
-             'aim_vmm_inj_deployments.domain_name',
-             'aim_vmm_inj_deployments.controller_name',
-             'aim_vmm_inj_deployments.namespace_name',
-             'aim_vmm_inj_deployments.name'],
-            name='fk_inj_repl_set_inj_depl'),) +
+             'namespace_name'],
+            ['aim_vmm_inj_namespaces.domain_type',
+             'aim_vmm_inj_namespaces.domain_name',
+             'aim_vmm_inj_namespaces.controller_name',
+             'aim_vmm_inj_namespaces.name'],
+            name='fk_inj_repl_set_inj_ns'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_type = model_base.name_column(nullable=False)
     domain_name = model_base.name_column(nullable=False)
     controller_name = model_base.name_column(nullable=False)
     namespace_name = model_base.name_column(nullable=False)
-    deployment_name = model_base.name_column(nullable=False)
+    deployment_name = model_base.name_column()
 
 
 class VmmInjectedServicePort(model_base.Base):
@@ -867,11 +866,11 @@ class VmmInjectedHost(model_base.Base, model_base.HasAimId,
     os = sa.Column(sa.String(64))
 
 
-class VmmInjectedGroup(model_base.Base, model_base.HasAimId,
-                       model_base.HasName, model_base.HasDisplayName,
-                       model_base.AttributeMixin):
-    """DB model VmmInjectedGroup."""
-    __tablename__ = 'aim_vmm_inj_groups'
+class VmmInjectedContGroup(model_base.Base, model_base.HasAimId,
+                           model_base.HasName, model_base.HasDisplayName,
+                           model_base.AttributeMixin):
+    """DB model VmmInjectedContGroup."""
+    __tablename__ = 'aim_vmm_inj_cont_groups'
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'namespace_name') +
@@ -892,3 +891,4 @@ class VmmInjectedGroup(model_base.Base, model_base.HasAimId,
 
     host_name = model_base.name_column(nullable=False)
     compute_node_name = model_base.name_column(nullable=False)
+    replica_set_name = model_base.name_column(nullable=False)

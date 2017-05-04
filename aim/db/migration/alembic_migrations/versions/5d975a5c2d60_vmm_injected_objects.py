@@ -111,25 +111,24 @@ def upgrade():
         sa.Column('domain_name', sa.String(64), nullable=False),
         sa.Column('controller_name', sa.String(64), nullable=False),
         sa.Column('namespace_name', sa.String(64), nullable=False),
-        sa.Column('deployment_name', sa.String(64), nullable=False),
+        sa.Column('deployment_name', sa.String(64)),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256), nullable=False, default=''),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('domain_type', 'domain_name', 'controller_name',
-                            'namespace_name', 'deployment_name', 'name',
+                            'namespace_name', 'name',
                             name='uniq_aim_vmm_inj_replica_sets_identity'),
         sa.Index('idx_aim_vmm_inj_replica_sets_identity',
                  'domain_type', 'domain_name', 'controller_name',
-                 'namespace_name', 'deployment_name', 'name'),
+                 'namespace_name', 'name'),
         sa.ForeignKeyConstraint(
             ['domain_type', 'domain_name', 'controller_name',
-             'namespace_name', 'deployment_name'],
-            ['aim_vmm_inj_deployments.domain_type',
-             'aim_vmm_inj_deployments.domain_name',
-             'aim_vmm_inj_deployments.controller_name',
-             'aim_vmm_inj_deployments.namespace_name',
-             'aim_vmm_inj_deployments.name'],
-            name='fk_inj_repl_set_inj_depl'))
+             'namespace_name'],
+            ['aim_vmm_inj_namespaces.domain_type',
+             'aim_vmm_inj_namespaces.domain_name',
+             'aim_vmm_inj_namespaces.controller_name',
+             'aim_vmm_inj_namespaces.name'],
+            name='fk_inj_repl_set_inj_ns'))
 
     op.create_table(
         'aim_vmm_inj_services',
@@ -197,7 +196,7 @@ def upgrade():
             ['svc_aim_id'], ['aim_vmm_inj_services.aim_id']))
 
     op.create_table(
-        'aim_vmm_inj_groups',
+        'aim_vmm_inj_cont_groups',
         sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('domain_type', sa.String(64), nullable=False),
         sa.Column('domain_name', sa.String(64), nullable=False),
@@ -206,6 +205,7 @@ def upgrade():
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('host_name', sa.String(64), nullable=False),
         sa.Column('compute_node_name', sa.String(64), nullable=False),
+        sa.Column('replica_set_name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256), nullable=False, default=''),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('domain_type', 'domain_name', 'controller_name',

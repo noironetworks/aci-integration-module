@@ -107,12 +107,15 @@ class K8sObject(dict):
     def build_selectors(self, aim_klass, filters):
         label_selectors = []
         name = None
+        ns = None
         for fltr, value in filters.iteritems():
             k8s_attrs = self.attribute_map.get(fltr)
             if not k8s_attrs:
                 continue
             if k8s_attrs == ('metadata', 'name'):
                 name = value
+            elif k8s_attrs == ('metadata', 'namespace'):
+                ns = value
             elif (len(k8s_attrs) == 3 and
                     k8s_attrs[:2] == ('metadata', 'labels')):
                 label_selectors.append('%s=%s' % (k8s_attrs[-1], value))
@@ -121,7 +124,15 @@ class K8sObject(dict):
             result['label_selector'] = '&'.join(label_selectors)
         if name:
             result['name'] = name
+        if ns:
+            result['namespace'] = ns
         return result
+
+    def _extract_owner_reference(self, ref_type):
+        for ref in self['metadata'].get('ownerReferences', []):
+            if (ref['kind'] == ref_type.kind and
+                    ref['apiVersion'] == ref_type.api_version):
+                return ref['name']
 
 
 class Namespace(K8sObject):
@@ -161,7 +172,8 @@ class ReplicaSet(K8sObject):
     kind = 'ReplicaSet'
 
     attribute_map = copy.copy(K8sObject.attribute_map)
-    attribute_map.update({'name': ('metadata', 'labels', 'pod-template-hash')})
+    attribute_map.update({'deployment_name': ('metadata', 'annotations',
+                                              'aim/deployment_name')})
 
     # These values are needed to make K8s ApiServer happy in unit-test.
     default_spec = {'template':
@@ -171,9 +183,8 @@ class ReplicaSet(K8sObject):
     def from_attr(self, resource_klass, attr):
         super(ReplicaSet, self).from_attr(resource_klass, attr)
         if 'deployment_name' in attr:
-            if 'name' in attr:
-                self.setdefault('metadata', {})['name'] = (
-                    '%s-%s' % (attr['deployment_name'], attr['name']))
+            # We don't set deployment_name in ownerReferences because we
+            # don't have information like uid for the Deployment
             match = self.setdefault('spec', {}).setdefault(
                 'selector', {}).setdefault('matchLabels', {})
             if not match:
@@ -187,9 +198,18 @@ class ReplicaSet(K8sObject):
     def to_attr(self, resource_klass, defaults=None):
         result = super(ReplicaSet, self).to_attr(resource_klass,
                                                  defaults=defaults)
-        depl_name = self['metadata']['name'].replace('-%s' % result['name'],
-                                                     '')
-        result['deployment_name'] = depl_name
+        depl = self._extract_owner_reference(Deployment)
+        if depl:
+            result['deployment_name'] = depl
+        elif 'deployment_name' not in result:
+            # workaround for older versions of Kubernetes - guess the
+            # deployment name from ReplicaSet attributes
+            pod_hash = self['metadata'].get('labels',
+                                            {}).get('pod-template-hash')
+            name = self['metadata']['name']
+            if pod_hash and name.endswith(pod_hash):
+                result['deployment_name'] = name.replace('-%s' % pod_hash,
+                                                         '')
         return result
 
 
@@ -279,13 +299,18 @@ class Pod(K8sObject):
     kind = 'Pod'
 
     attribute_map = copy.copy(K8sObject.attribute_map)
-    attribute_map.update({'compute_node_name': ('spec', 'nodeName')})
+    attribute_map.update({'compute_node_name': ('spec', 'nodeName'),
+                          'replica_set_name': ('metadata', 'annotations',
+                                               'aim/replica_set_name')})
 
     # These values are needed to make K8s ApiServer happy in unit-test.
     default_spec = {'containers': [{'image': 'dummy', 'name': 'dummy'}]}
 
     def to_attr(self, resource_klass, defaults=None):
         result = super(Pod, self).to_attr(resource_klass, defaults=defaults)
+        repl_set = self._extract_owner_reference(ReplicaSet)
+        if repl_set:
+            result['replica_set_name'] = repl_set
         if 'compute_node_name' in result:
             result.setdefault('host_name', result['compute_node_name'])
         return result
