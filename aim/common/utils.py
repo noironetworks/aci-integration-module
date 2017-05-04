@@ -19,13 +19,12 @@ import hashlib
 import os
 import random
 import re
+import threading
 import time
 import traceback
 import uuid
 
 from apicapi import apic_client
-import eventlet
-import greenlet
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -147,7 +146,7 @@ def retry_loop(max_wait, max_retries, name):
                 try:
                     func(*args, **kwargs)
                     recovery_retries = None
-                except (greenlet.GreenletExit, ThreadExit) as e:
+                except ThreadExit as e:
                     raise e
                 except Exception as e:
                     LOG.error(traceback.format_exc())
@@ -177,23 +176,43 @@ def decompose_dn(mo_type, dn):
         return
 
 
+class ThreadKillTimeout(Exception):
+    message = "Thread kill timed out"
+
+
 class AIMThread(object):
+    KILL_TIMEOUT = 10
 
     def __init__(self, *args, **kwargs):
         self._thread = None
+        self._stop = False
 
     def start(self):
-        self._thread = eventlet.spawn(self.run)
+        self._thread = spawn_thread(self.run)
         return self
 
     def run(self):
         pass
 
-    def kill(self):
+    def kill(self, wait=False, timeout=KILL_TIMEOUT):
         if self._thread:
-            self._thread.kill()
+            self._stop = True
+            if wait:
+                tentative = None
+                curr_time = time.time()
+                while not self.dead and curr_time + timeout < time.time():
+                    exponential_backoff(timeout / 3, tentative)
+                if not self.dead:
+                    raise
 
     @property
     def dead(self):
         if self._thread:
-            return self._thread.dead
+            return not self._thread.is_alive()
+
+
+def spawn_thread(target, *args, **kwargs):
+    thd = threading.Thread(target=target, args=args, kwargs=kwargs)
+    thd.daemon = True
+    thd.start()
+    return thd

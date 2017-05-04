@@ -17,7 +17,6 @@ import collections
 import copy
 
 from apicapi import apic_client
-import greenlet
 import json
 import mock
 
@@ -430,16 +429,6 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         manager.ws_context.has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
-        # Failure by GreenletExit
-        manager.ws_context.has_event = mock.Mock(
-            side_effect=greenlet.GreenletExit)
-        self.assertRaises(greenlet.GreenletExit, manager._main_loop)
-        # Upon GreenletExit, even run stops the loop
-        manager.run()
-        # Instance unsubscribe could rise an exception itself
-        with mock.patch('acitoolkit.acitoolkit.Session.unsubscribe',
-                        side_effect=Exception):
-            manager.run()
 
     def test_squash_events(self):
         double_events = [

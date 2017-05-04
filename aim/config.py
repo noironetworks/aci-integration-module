@@ -19,7 +19,6 @@ import time
 import traceback
 
 from apicapi import config as apic_config  # noqa
-import greenlet
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -441,18 +440,10 @@ class ConfigSubscriber(utils.AIMThread):
 
     def run(self):
         LOG.info("Starting main loop for config subscriber")
-        try:
-            while True:
-                self._main_loop()
-        except greenlet.GreenletExit:
-            try:
-                # Unsubscribe all the config callbacks
-                self.config_mgr.callback_unsubscribe(
-                    self._change_polling_interval)
-            finally:
-                # We need to make sure that this thread dies upon
-                # GreenletExit
-                return
+        while not self._stop:
+            self._main_loop()
+        # Unsubscribe all the config callbacks
+        self.config_mgr.callback_unsubscribe(self._change_polling_interval)
 
     def _main_loop(self):
         try:
@@ -460,9 +451,6 @@ class ConfigSubscriber(utils.AIMThread):
             self._poll_and_execute()
             utils.wait_for_next_cycle(start, self.polling_interval, LOG,
                                       readable_caller='Config Subscriber')
-        except greenlet.GreenletExit:
-            # Raise GreenletExit to make sure that the thread dies
-            raise
         except Exception as e:
             LOG.error("An exception has occurred in config subscriber thread "
                       "%s" % e.message)

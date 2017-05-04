@@ -13,11 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import eventlet
-# https://github.com/eventlet/eventlet/issues/401
-eventlet.sleep()
-eventlet.monkey_patch()
-
 from aim.agent.aid.event_services import polling
 from aim.agent.aid.event_services import rpc_service
 from aim.agent.aid import service

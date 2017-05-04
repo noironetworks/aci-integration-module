@@ -21,7 +21,6 @@ import traceback
 from acitoolkit import acitoolkit
 from apicapi import apic_client
 from apicapi import exceptions as apic_exc
-import greenlet
 from oslo_log import log as logging
 
 from aim.agent.aid import event_handler
@@ -203,9 +202,9 @@ class AciTenantManager(utils.AIMThread):
     def run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
         try:
-            while True:
+            while not self._stop:
                 self._main_loop()
-        except (greenlet.GreenletExit, Exception) as e:
+        except Exception as e:
             LOG.error(traceback.format_exc())
             LOG.error("Exiting thread for tenant %s: %s" %
                       (self.tenant_name, e.message))
@@ -228,7 +227,7 @@ class AciTenantManager(utils.AIMThread):
             count = 3
             last_time = 0
             epsilon = 0.5
-            while True:
+            while not self._stop:
                 start = time.time()
                 self._event_loop()
                 if count == 0:
@@ -249,8 +248,6 @@ class AciTenantManager(utils.AIMThread):
                     last_time = curr_time
                 # Successfull run
                 self.recovery_retries = None
-        except greenlet.GreenletExit:
-            raise
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, e.message))
@@ -262,7 +259,7 @@ class AciTenantManager(utils.AIMThread):
                 LOG.error("Exceeded max recovery retries for tenant %s. "
                           "Destroying the manager." %
                           self.tenant_name)
-                raise greenlet.GreenletExit()
+                self.kill()
 
     def _event_loop(self):
         start_time = time.time()
@@ -450,10 +447,11 @@ class AciTenantManager(utils.AIMThread):
             if event.dn not in self.tag_set:
                 event.monitored = True
             if event.dn in removing_dns:
+                LOG.info('ACI event: REMOVED %s' % event)
                 removed.append(event)
             else:
+                LOG.info('ACI event: ADDED %s' % event)
                 updated.append(event)
-        # Some objects are both monitored and owned in this case (think of
         upd_trees, upd_op_trees, upd_mon_trees = self.tree_builder.build(
             [], updated, removed,
             {self.tree_builder.CONFIG: {self.tenant_name: self._state},

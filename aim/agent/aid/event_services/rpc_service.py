@@ -13,8 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import eventlet
-eventlet.monkey_patch()
+import time
 
 from oslo_log import log as logging
 
@@ -38,7 +37,7 @@ class RpcEventService(event_service_base.EventServiceBase):
         LOG.info("RPC Event Service initialized!")
         try:
             while self.run_daemon_loop:
-                eventlet.sleep(1)
+                time.sleep(1)
         finally:
             LOG.info("Closing RPC connection.")
             self.conn.close()

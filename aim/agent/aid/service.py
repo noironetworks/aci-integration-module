@@ -18,7 +18,6 @@ import sys
 import time
 import traceback
 
-import eventlet
 from oslo_log import log as logging
 import semantic_version
 
@@ -103,7 +102,7 @@ class AID(object):
             self._change_report_interval, 'agent_report_interval', group='aim')
         self.squash_time = self.conf_manager.get_option_and_subscribe(
             self._change_squash_time, 'agent_event_squash_time', group='aim')
-        eventlet.spawn(self._heartbeat_loop)
+        self._spawn_heartbeat_loop()
         self.events = event_handler.EventHandler().initialize(
             self.conf_manager)
         self.max_down_time = 4 * self.report_interval
@@ -192,12 +191,15 @@ class AID(object):
                                  (universe.name, tenant))
                         universe.cleanup_state(tenant)
 
+    def _spawn_heartbeat_loop(self):
+        utils.spawn_thread(self._heartbeat_loop)
+
     def _heartbeat_loop(self):
         aim_ctx = context.AimContext(store=api.get_store())
         while True:
             start = time.time()
             self._send_heartbeat(aim_ctx)
-            eventlet.sleep(
+            time.sleep(
                 max(0, self.report_interval - (time.time() - start)))
 
     def _send_heartbeat(self, aim_ctx):

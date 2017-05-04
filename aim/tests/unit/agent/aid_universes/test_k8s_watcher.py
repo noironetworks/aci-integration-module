@@ -13,12 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
-import eventlet
-# https://github.com/eventlet/eventlet/issues/401
-eventlet.sleep()
-eventlet.monkey_patch()
-
 import copy
 import mock
 from mock import patch

@@ -13,8 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import eventlet
-from eventlet import queue
+import Queue as queue
 import time
 import traceback
 
@@ -106,7 +105,8 @@ class K8sWatcher(object):
         threads = {'observer': self.observer_thread,
                    'persister': self.persistence_thread}
         for attr, thd in threads.iteritems():
-            setattr(self, attr, eventlet.spawn(thd))
+            thd = utils.spawn_thread(thd)
+            setattr(self, attr, thd)
 
     def stop_threads(self):
         self._stop = True
@@ -179,7 +179,6 @@ class K8sWatcher(object):
         if exc:
             for ts in self._observe_thread_state.values():
                 ts['watch_stop'] = True
-                ts['thread'].kill()
             if self.klient.watch:
                 self.klient.stop_watch()
             self._observe_thread_state = {}
@@ -193,26 +192,27 @@ class K8sWatcher(object):
         self._observe_thread_state = {}
         for id, typ in enumerate(list(types_to_observe)):
             self._observe_thread_state[id] = dict(watch_stop=False)
-            thd = eventlet.spawn(self._observe_objects, typ, id)
+            thd = utils.spawn_thread(self._observe_objects, typ, id)
             self._observe_thread_state[id]['thread'] = thd
 
     def _check_observers(self):
         exc = None
         for t in self._observe_thread_state:
             tstate = self._observe_thread_state[t]
-            thd = tstate['thread']
-            if tstate.get('watch_exception'):
-                exc = tstate.get('watch_exception')
-                LOG.info('Thread %s raised exception %s', thd, exc)
-                break
-            if tstate.get('http_resp') and tstate['http_resp'].closed:
-                LOG.info('HTTP response closed for thread %s', thd)
-                exc = K8SObserverStopped()
-                break
-            if thd.dead:
-                LOG.info('Thread %s is not alive', thd)
-                exc = K8SObserverStopped()
-                break
+            thd = tstate.get('thread')
+            if thd:
+                if tstate.get('watch_exception'):
+                    exc = tstate.get('watch_exception')
+                    LOG.info('Thread %s raised exception %s', thd, exc)
+                    break
+                if tstate.get('http_resp') and tstate['http_resp'].closed:
+                    LOG.info('HTTP response closed for thread %s', thd)
+                    exc = K8SObserverStopped()
+                    break
+                if not thd.is_alive():
+                    LOG.info('Thread %s is not alive', thd)
+                    exc = K8SObserverStopped()
+                    break
         return exc
 
     def wrap_list_call(self, *args, **kwargs):
