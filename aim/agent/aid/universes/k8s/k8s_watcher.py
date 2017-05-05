@@ -276,7 +276,7 @@ class K8sWatcher(object):
                 affected_tenants |= self._process_event(event)
 
         if affected_tenants:
-            LOG.debug('Saving trees for tenants: %s', affected_tenants)
+            LOG.info('Saving trees for tenants: %s', affected_tenants)
             try:
                 # Save procedure can be context switched at this point
                 self._save_trees(affected_tenants)
@@ -343,13 +343,18 @@ class K8sWatcher(object):
                 key, structured_tree.StructuredHashTree())
             oper = self.trees.setdefault(self.tt_builder.OPER, {}).setdefault(
                 key, structured_tree.StructuredHashTree())
-            affected_tenants.add(key)
+            old_hash = (cfg.root_full_hash, mo.root_full_hash,
+                        oper.root_full_hash)
 
             self.tt_builder.build(changes['added'], [], changes['deleted'],
                                   {self.tt_builder.CONFIG: {key: cfg},
                                    self.tt_builder.MONITOR: {key: mo},
                                    self.tt_builder.OPER: {key: oper}},
                                   aim_ctx=self.ctx)
+            new_hash = (cfg.root_full_hash, mo.root_full_hash,
+                        oper.root_full_hash)
+            if old_hash != new_hash:
+                affected_tenants.add(key)
         return affected_tenants
 
     def _cleanup_status(self, aim_res):

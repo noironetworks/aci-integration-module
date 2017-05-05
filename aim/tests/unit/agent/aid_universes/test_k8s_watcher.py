@@ -136,3 +136,30 @@ class TestK8SWatcher(base.TestAimDBBase):
         db_obj = self.mgr._query_db_obj(self.ctx.store, tn)
         self.ctx.store.delete(db_obj)
         self.assertIsNone(self.mgr.get(self.ctx, st))
+
+    @base.requires(['k8s'])
+    def test_no_tree_update_on_event(self):
+        bd = resource.BridgeDomain(tenant_name='t1', name='bd1')
+        bd_db_obj = self.ctx.store.make_db_obj(bd)
+        bd_db_obj.update({'kind': bd_db_obj.kind,
+                          'apiVersion': bd_db_obj.api_version})
+
+        ev = {'type': 'ADDED', 'object': bd_db_obj}
+
+        watcher = k8s_watcher.K8sWatcher()
+        self.assertEqual(set(['tn-t1']), watcher._process_event(ev))
+
+        # no-change event
+        self.assertEqual(set(), watcher._process_event(ev))
+
+        # no real change
+        ev['type'] = 'MODIFIED'
+        self.assertEqual(set(), watcher._process_event(ev))
+
+        # change to irrelevant attribute
+        ev['object']['spec']['someAttr'] = 'someValue'
+        self.assertEqual(set(), watcher._process_event(ev))
+
+        # delete
+        ev['type'] = 'DELETED'
+        self.assertEqual(set(['tn-t1']), watcher._process_event(ev))
