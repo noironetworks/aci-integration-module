@@ -149,29 +149,30 @@ class K8sWatcher(object):
     def persistence_thread(self):
         self._thread(self.persistence_loop, "K8S Tree Builder")
 
-    @utils.retry_loop(OBSERVER_LOOP_MAX_WAIT, OBSERVER_LOOP_MAX_RETRIES,
-                      'K8S observer thread')
     def observe_and_monitor_loop(self):
         LOG.info("Starting observe and monitor loop.")
+        self._observe_and_monitor_loop()
 
+    @utils.retry_loop(MONITOR_LOOP_MAX_WAIT, MONITOR_LOOP_MAX_RETRIES,
+                      'K8S observer thread')
+    def _observe_and_monitor_loop(self):
         if self._stop:
             LOG.info("Quitting k8s observe and monitor loop")
             raise utils.ThreadExit()
 
-        self._start_observers(self._k8s_types_to_observe)
+        if not self._observe_thread_state:
+            self._start_observers(self._k8s_types_to_observe)
 
-        while not self._stop:
-            exc = self._check_observers()
-            if exc:
-                break
-            utils.sleep(MONITOR_LOOP_MAX_WAIT)
-        for ts in self._observe_thread_state.values():
-            ts['watch_stop'] = True
-            ts['thread'].kill()
-        if self.klient.watch:
-            self.klient.stop_watch()
+        exc = self._check_observers()
         if exc:
+            for ts in self._observe_thread_state.values():
+                ts['watch_stop'] = True
+                ts['thread'].kill()
+            if self.klient.watch:
+                self.klient.stop_watch()
+            self._observe_thread_state = {}
             raise exc
+        time.sleep(MONITOR_LOOP_MAX_WAIT)
 
     def _start_observers(self, types_to_observe):
         self._reset_trees()
@@ -211,7 +212,7 @@ class K8sWatcher(object):
 
     def _observe_objects(self, k8s_type, id):
         my_state = self._observe_thread_state.get(id, {})
-        LOG.debug('Start observing %s objects', k8s_type.kind)
+        LOG.info('Start observing %s objects', k8s_type.kind)
         ev_filt = self._event_filters.get(k8s_type, lambda x: True)
         if not my_state['watch_stop']:
             try:
@@ -319,8 +320,11 @@ class K8sWatcher(object):
             return affected_tenants
 
         aim_res = event['resource']
-        if (not isinstance(aim_res, resource.AciResourceBase) and
-                not isinstance(aim_res, status.OperationalResource)):
+        if isinstance(aim_res, resource.AciResourceBase):
+            is_oper = False
+        elif isinstance(aim_res, status.OperationalResource):
+            is_oper = True
+        else:
             return affected_tenants
 
         # push event into tree
@@ -353,7 +357,9 @@ class K8sWatcher(object):
                                   aim_ctx=self.ctx)
             new_hash = (cfg.root_full_hash, mo.root_full_hash,
                         oper.root_full_hash)
-            if old_hash != new_hash:
+            # Operational state changes can modify trees without changing
+            # their hash
+            if old_hash != new_hash or is_oper:
                 affected_tenants.add(key)
         return affected_tenants
 
