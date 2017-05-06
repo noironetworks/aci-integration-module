@@ -216,3 +216,27 @@ def spawn_thread(target, *args, **kwargs):
     thd.daemon = True
     thd.start()
     return thd
+
+
+all_locks = {}
+
+
+def get_rlock(lock_name):
+    return all_locks.setdefault(lock_name, threading.RLock())
+
+
+def rlock(lock_name):
+    def wrap(func):
+        def inner(*args, **kwargs):
+            # setdefault is atomic
+            lock = get_rlock(lock_name)
+            # Too much output if we log this. However, it would be really
+            # useful to have a debug mode that show us which lock is held
+            # by which thread/method
+            try:
+                lock.acquire()
+                return func(*args, **kwargs)
+            finally:
+                lock.release()
+        return inner
+    return wrap

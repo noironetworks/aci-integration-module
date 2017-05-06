@@ -27,6 +27,7 @@ from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import error
 from aim.agent.aid.universes import base_universe
+from aim.agent.aid.universes import constants as lcon
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import tree_manager
@@ -156,7 +157,7 @@ class AciTenantManager(utils.AIMThread):
             'aci_tenant_polling_yield', 'aim')
         self.to_aim_converter = converter.AciToAimModelConverter()
         self.to_aci_converter = converter.AimToAciModelConverter()
-        self.object_backlog = Queue.Queue()
+        self._reset_object_backlock()
         self.tree_builder = tree_manager.HashTreeBuilder(None)
         self.tag_name = aim_system_id or self.apic_config.get_option(
             'aim_system_id', 'aim')
@@ -174,6 +175,10 @@ class AciTenantManager(utils.AIMThread):
         self.recovery_retries = None
         self.max_retries = 5
         self.error_handler = error.APICAPIErrorHandler()
+        # Initialize tenant tree
+
+    def _reset_object_backlock(self):
+        self.object_backlog = Queue.Queue()
 
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
@@ -182,22 +187,25 @@ class AciTenantManager(utils.AIMThread):
     def is_warm(self):
         return self._warm
 
-    # These methods are dangerous if run concurrently with _event_to_tree.
-    # However, serialization/deserialization of the in-memory tree should not
-    # cause I/O operation, therefore they can't be context switched.
     def get_state_copy(self):
-        return structured_tree.StructuredHashTree.from_string(
-            str(self._state), root_key=self._state.root_key)
+        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
+                             self.tenant_name):
+            return structured_tree.StructuredHashTree.from_string(
+                str(self._state), root_key=self._state.root_key)
 
     def get_operational_state_copy(self):
-        return structured_tree.StructuredHashTree.from_string(
-            str(self._operational_state),
-            root_key=self._operational_state.root_key)
+        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
+                             self.tenant_name):
+            return structured_tree.StructuredHashTree.from_string(
+                str(self._operational_state),
+                root_key=self._operational_state.root_key)
 
     def get_monitored_state_copy(self):
-        return structured_tree.StructuredHashTree.from_string(
-            str(self._monitored_state),
-            root_key=self._monitored_state.root_key)
+        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
+                             self.tenant_name):
+            return structured_tree.StructuredHashTree.from_string(
+                str(self._monitored_state),
+                root_key=self._monitored_state.root_key)
 
     def run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
@@ -224,19 +232,11 @@ class AciTenantManager(utils.AIMThread):
             # tenant subscription is redone upon exception
             self._subscribe_tenant()
             LOG.debug("Starting event loop for tenant %s" % self.tenant_name)
-            count = 3
             last_time = 0
             epsilon = 0.5
             while not self._stop:
                 start = time.time()
                 self._event_loop()
-                if count == 0:
-                    LOG.debug("Setting tenant %s to warm state" %
-                              self.tenant_name)
-                    self._warm = True
-                    count -= 1
-                elif count > 0:
-                    count -= 1
                 curr_time = time.time() - start
                 if abs(curr_time - last_time) > epsilon:
                     # Only log significant differences
@@ -268,8 +268,6 @@ class AciTenantManager(utils.AIMThread):
         # iteration.
         self._push_aim_resources()
         if self.ws_context.has_event(self.tenant.urls):
-            LOG.debug("Event for tenant %s in warm state %s" %
-                      (self.tenant_name, self._warm))
             # Continuously check for events
             events = self.ws_context.get_event_data(self.tenant.urls)
             for event in events:
@@ -292,7 +290,6 @@ class AciTenantManager(utils.AIMThread):
             # Manage Tags
             events = self._filter_ownership(events)
             self._event_to_tree(events)
-        # yield for other threads
         time.sleep(max(0, self.polling_yield - (time.time() - start_time)))
 
     def push_aim_resources(self, resources):
@@ -406,10 +403,14 @@ class AciTenantManager(utils.AIMThread):
 
     def _unsubscribe_tenant(self):
         LOG.info("Unsubscribing tenant websocket %s" % self.tenant_name)
+        self._warm = False
         self.ws_context.unsubscribe(self.tenant.urls)
+        self._reset_object_backlock()
 
     def _subscribe_tenant(self):
         self.ws_context.subscribe(self.tenant.urls)
+        self._event_loop()
+        self._warm = True
 
     def _event_to_tree(self, events):
         """Parse the event and push it into the tree
@@ -419,59 +420,62 @@ class AciTenantManager(utils.AIMThread):
         :param events: an ACI event in the form of a list of objects
         :return:
         """
-        removed, updated = [], []
-        removing_dns = set()
-        filtered_events = []
-        # Set the owned events
-        for event in events:
-            # Exclude some events from monitored objects.
-            # Some RS objects can be set from AIM even for monitored objects,
-            # therefore we need to exclude events regarding those RS objects
-            # when we don't own them. One example is fvRsProv on external
-            # networks
-            if event.keys()[0] in ACI_TYPES_NOT_CONVERT_IF_MONITOR:
-                # Check that the object is indeed correct looking at the parent
-                if self._check_parent_type(
-                        event,
-                        ACI_TYPES_NOT_CONVERT_IF_MONITOR[event.keys()[0]]):
-                    if not self._is_owned(event):
-                        # For an RS object like fvRsProv we check the parent
-                        # ownership as well.
-                        continue
+        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
+                             self.tenant_name):
+            removed, updated = [], []
+            removing_dns = set()
+            filtered_events = []
+            # Set the owned events
+            for event in events:
+                # Exclude some events from monitored objects.
+                # Some RS objects can be set from AIM even for monitored
+                # objects, therefore we need to exclude events regarding those
+                # RS objects when we don't own them. One example is fvRsProv on
+                # external networks
+                if event.keys()[0] in ACI_TYPES_NOT_CONVERT_IF_MONITOR:
+                    # Check that the object is indeed correct looking at the
+                    # parent
+                    if self._check_parent_type(
+                            event,
+                            ACI_TYPES_NOT_CONVERT_IF_MONITOR[event.keys()[0]]):
+                        if not self._is_owned(event):
+                            # For an RS object like fvRsProv we check the
+                            # parent ownership as well.
+                            continue
 
-            if self._is_deleting(event):
-                dn = event.values()[0]['attributes']['dn']
-                removing_dns.add(dn)
-            filtered_events.append(event)
-        for event in self.to_aim_converter.convert(filtered_events):
-            if event.dn not in self.tag_set:
-                event.monitored = True
-            if event.dn in removing_dns:
-                LOG.info('ACI event: REMOVED %s' % event)
-                removed.append(event)
-            else:
-                LOG.info('ACI event: ADDED %s' % event)
-                updated.append(event)
-        upd_trees, upd_op_trees, upd_mon_trees = self.tree_builder.build(
-            [], updated, removed,
-            {self.tree_builder.CONFIG: {self.tenant_name: self._state},
-             self.tree_builder.MONITOR:
-                 {self.tenant_name: self._monitored_state},
-             self.tree_builder.OPER:
-                 {self.tenant_name: self._operational_state}})
+                if self._is_deleting(event):
+                    dn = event.values()[0]['attributes']['dn']
+                    removing_dns.add(dn)
+                filtered_events.append(event)
+            for event in self.to_aim_converter.convert(filtered_events):
+                if event.dn not in self.tag_set:
+                    event.monitored = True
+                if event.dn in removing_dns:
+                    LOG.info('ACI event: REMOVED %s' % event)
+                    removed.append(event)
+                else:
+                    LOG.info('ACI event: ADDED %s' % event)
+                    updated.append(event)
+            upd_trees, upd_op_trees, upd_mon_trees = self.tree_builder.build(
+                [], updated, removed,
+                {self.tree_builder.CONFIG: {self.tenant_name: self._state},
+                 self.tree_builder.MONITOR:
+                     {self.tenant_name: self._monitored_state},
+                 self.tree_builder.OPER:
+                     {self.tenant_name: self._operational_state}})
 
-        # Send events on update
-        modified = False
-        for upd, tree, readable in [
-                (upd_trees, self._state, "configuration"),
-                (upd_op_trees, self._operational_state, "operational"),
-                (upd_mon_trees, self._monitored_state, "monitored")]:
-            if upd:
-                modified = True
-                LOG.debug("New %s tree for tenant %s" %
-                          (readable, self.tenant_name))
-        if modified:
-            event_handler.EventHandler.reconcile()
+            # Send events on update
+            modified = False
+            for upd, tree, readable in [
+                    (upd_trees, self._state, "configuration"),
+                    (upd_op_trees, self._operational_state, "operational"),
+                    (upd_mon_trees, self._monitored_state, "monitored")]:
+                if upd:
+                    modified = True
+                    LOG.debug("New %s tree for tenant %s" %
+                              (readable, self.tenant_name))
+            if modified:
+                event_handler.EventHandler.reconcile()
 
     def _fill_events(self, events):
         """Gets incomplete objects from APIC if needed

@@ -63,19 +63,22 @@ class TestK8SWatcher(base.TestAimDBBase):
         resp = mock.Mock(closed=False)
         list_mock = mock.Mock(return_value=resp)
         with patch.object(watcher.klient, 'list', new=list_mock):
-            watcher._observe_objects(api_v1.AciContainersObject, 1)
+            watcher._observe_objects(watcher.klient.watch.stream,
+                                     api_v1.AciContainersObject, 1)
 
             self.assertEqual(resp,
                              watcher._observe_thread_state[thd]['http_resp'])
 
             resp.closed = True
-            watcher._observe_objects(api_v1.AciContainersObject, 1)
+            watcher._observe_objects(watcher.klient.watch.stream,
+                                     api_v1.AciContainersObject, 1)
             ts = watcher._observe_thread_state[thd]['http_resp']
             self.assertEqual(True, ts.closed)
 
         stream_mock = mock.Mock(side_effect=Exception('FAKE ERROR'))
         with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
-            watcher._observe_objects(api_v1.AciContainersObject, 1)
+            watcher._observe_objects(watcher.klient.watch.stream,
+                                     api_v1.AciContainersObject, 1)
             exc = watcher._observe_thread_state[thd]['watch_exception']
             self.assertEqual(Exception, type(exc))
 
@@ -107,23 +110,27 @@ class TestK8SWatcher(base.TestAimDBBase):
 
         with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev_exp, watcher.q.get_nowait())
 
             ev['object']['spec']['hostNetwork'] = False
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev, watcher.q.get_nowait())
 
             ev['object']['spec'].pop('hostNetwork', None)
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev, watcher.q.get_nowait())
 
             ev['type'] = 'MODIFIED'
             ev['object']['spec']['hostNetwork'] = True
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev_exp, watcher.q.get_nowait())
 
     @base.requires(['k8s'])

@@ -339,8 +339,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # reconcile the state
         agent._daemon_loop(self.ctx)
 
-        for tenant in agent.current_universe.serving_tenants.values():
-            tenant._subscribe_tenant()
         # The ACI universe will not push the configuration unless explicitly
         # called
         self.assertFalse(

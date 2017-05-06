@@ -492,7 +492,7 @@ class HashTreeBuilder(object):
                                              oper: ([], [])})
                             updates_by_root[
                                 parent_key][oper][tree_index].append(parent)
-                    else:
+                    elif tree_index == 0:
                         # Parent doesn't exist for some reason, delete the
                         # status object
                         try:

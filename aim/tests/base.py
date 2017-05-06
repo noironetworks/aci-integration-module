@@ -130,8 +130,7 @@ def _k8s_post_create(self, created):
         w.klient.watch.stream = mock.Mock(return_value=[event])
         w._reset_trees = mock.Mock()
         w.q.put(event)
-        w.warmup_time = -1
-        w._persistence_loop()
+        w._persistence_loop(save_on_empty=True, warmup_wait=0)
 
 
 def _k8s_post_delete(self, deleted):
@@ -142,8 +141,7 @@ def _k8s_post_delete(self, deleted):
         w.klient.watch.stream = mock.Mock(return_value=[event])
         w._reset_trees = mock.Mock()
         w.q.put(event)
-        w.warmup_time = -1
-        w._persistence_loop()
+        w._persistence_loop(save_on_empty=True, warmup_wait=0)
 
 
 class TestAimDBBase(BaseTestCase):

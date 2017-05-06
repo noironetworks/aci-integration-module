@@ -90,3 +90,16 @@ class TestUtils(base.TestAimDBBase):
             [('fvTenant', 'common'), ('vzBrCP', 'p'), ('vzSubj', 'p'),
              ('vzInTerm', 'intmnl'), ('vzRsFiltAtt', 'p')],
             internal_utils.decompose_dn(type, dn))
+
+    @internal_utils.rlock('test')
+    def locked_func(self):
+        with internal_utils.get_rlock('test2'):
+            pass
+
+    def test_cover_lock(self):
+        internal_utils.all_locks = {}
+        self.assertTrue('test' not in internal_utils.all_locks)
+        self.locked_func()
+        self.assertTrue('test' in internal_utils.all_locks)
+        self.assertTrue('test2' in internal_utils.all_locks)
+        self.assertEqual(2, len(internal_utils.all_locks))
