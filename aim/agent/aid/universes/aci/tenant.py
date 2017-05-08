@@ -549,7 +549,9 @@ class AciTenantManager(utils.AIMThread):
                         # See if there's any extra object to be retrieved
                         for filler in converter.reverse_resource_map.get(
                                 type(aim_res), []):
-                            if 'resource' in filler:
+                            if ('resource' in filler and filler['resource'] in
+                                    get_children_mos(aci_session,
+                                                     aim_res.root)):
                                 query_targets.add(filler['resource'])
                         if not dn.startswith('topology'):
                             kargs['target_subtree_class'] = ','.join(
