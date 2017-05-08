@@ -931,16 +931,19 @@ class VmmInjectedReplicaSet(AciResourceBase):
         ('domain_name', t.name),
         ('controller_name', t.name),
         ('namespace_name', t.name),
-        ('deployment_name', t.name),
         ('name', t.name))
     other_attributes = t.other(
-        ('display_name', t.name))
+        ('display_name', t.name),
+        ('deployment_name', t.name))
+    db_attributes = t.db(('guid', t.string()))
 
     _aci_mo_name = 'vmmInjectedReplSet'
-    _tree_parent = VmmInjectedDeployment
+    _tree_parent = VmmInjectedNamespace
 
     def __init__(self, **kwargs):
-        super(VmmInjectedReplicaSet, self).__init__({}, **kwargs)
+        super(VmmInjectedReplicaSet, self).__init__({'deployment_name': '',
+                                                     'guid': ''},
+                                                    **kwargs)
 
 
 class VmmInjectedService(AciResourceBase):
@@ -1007,8 +1010,8 @@ class VmmInjectedHost(AciResourceBase):
                                               **kwargs)
 
 
-class VmmInjectedGroup(AciResourceBase):
-    """Resource representing a VMM injected group in ACI.
+class VmmInjectedContGroup(AciResourceBase):
+    """Resource representing a VMM injected container group in ACI.
 
     Identity attributes: VMM domain type, VMM domain name, controller name,
     namespace name and group name.
@@ -1022,14 +1025,16 @@ class VmmInjectedGroup(AciResourceBase):
     other_attributes = t.other(
         ('display_name', t.name),
         ('host_name', t.name),
-        ('compute_node_name', t.name))
+        ('compute_node_name', t.name),
+        ('replica_set_name', t.name))
     db_attributes = t.db(('guid', t.string()))
 
-    _aci_mo_name = 'vmmInjectedGrp'
+    _aci_mo_name = 'vmmInjectedContGrp'
     _tree_parent = VmmInjectedNamespace
 
     def __init__(self, **kwargs):
-        super(VmmInjectedGroup, self).__init__({'host_name': '',
-                                                'compute_node_name': '',
-                                                'guid': ''},
-                                               **kwargs)
+        super(VmmInjectedContGroup, self).__init__({'host_name': '',
+                                                    'compute_node_name': '',
+                                                    'replica_set_name': '',
+                                                    'guid': ''},
+                                                   **kwargs)

@@ -1390,10 +1390,11 @@ class TestAciToAimConverterVmmInjReplicaSet(TestAciToAimConverterBase,
          'exceptions': {}}]
     sample_input = [_aci_obj('vmmInjectedReplSet',
                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
-                                 'injcont/ns-[ns1]/depl-[depl1]/rs-[set1]')),
+                                 'injcont/ns-[ns1]/rs-[set1]'),
+                             deploymentName='depl1'),
                     _aci_obj('vmmInjectedReplSet',
                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
-                                 'injcont/ns-[ns2]/depl-[depl2]/rs-[set2]'),
+                                 'injcont/ns-[ns2]/rs-[set2]'),
                              nameAlias='RS')]
 
     sample_output = [
@@ -1404,7 +1405,7 @@ class TestAciToAimConverterVmmInjReplicaSet(TestAciToAimConverterBase,
         resource.VmmInjectedReplicaSet(
             domain_type='Kubernetes', domain_name='k8s',
             controller_name='cluster1', namespace_name='ns2',
-            deployment_name='depl2', name='set2', display_name='RS')
+            name='set2', display_name='RS')
     ]
 
 
@@ -1493,31 +1494,33 @@ class TestAciToAimConverterVmmInjHost(TestAciToAimConverterBase,
     ]
 
 
-class TestAciToAimConverterVmmInjGroup(TestAciToAimConverterBase,
-                                       base.TestAimDBBase):
-    resource_type = resource.VmmInjectedGroup
+class TestAciToAimConverterVmmInjContGroup(TestAciToAimConverterBase,
+                                           base.TestAimDBBase):
+    resource_type = resource.VmmInjectedContGroup
     reverse_map_output = [
-        {'resource': 'vmmInjectedGrp',
+        {'resource': 'vmmInjectedContGrp',
          'exceptions': {}}]
-    sample_input = [_aci_obj('vmmInjectedGrp',
+    sample_input = [_aci_obj('vmmInjectedContGrp',
                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
                                  'injcont/ns-[ns1]/grp-[pod1]'),
                              hostName='my.local.host',
-                             computeNodeName='host1'),
-                    _aci_obj('vmmInjectedGrp',
+                             computeNodeName='host1',
+                             replicaSetName='rs1'),
+                    _aci_obj('vmmInjectedContGrp',
                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
                                  'injcont/ns-[ns2]/grp-[pod2]'),
                              nameAlias='POD')]
 
     sample_output = [
-        resource.VmmInjectedGroup(
+        resource.VmmInjectedContGroup(
             domain_type='Kubernetes', domain_name='k8s',
             controller_name='cluster1', compute_node_name='host1',
-            name='pod1', namespace_name='ns1', host_name='my.local.host'),
-        resource.VmmInjectedGroup(
+            name='pod1', namespace_name='ns1', host_name='my.local.host',
+            replica_set_name='rs1'),
+        resource.VmmInjectedContGroup(
             domain_type='Kubernetes', domain_name='k8s',
             controller_name='cluster1', namespace_name='ns2',
-            name='pod2', display_name='POD')
+            name='pod2', display_name='POD', replica_set_name='')
     ]
 
 
@@ -2951,8 +2954,7 @@ class TestAimToAciConverterVmmInjDeployment(TestAimToAciConverterBase,
 def get_example_aim_vmm_inj_replica_set(**kwargs):
     example = resource.VmmInjectedReplicaSet(
         domain_type='Kubernetes', domain_name='k8s',
-        controller_name='cluster1', namespace_name='ns1',
-        deployment_name='depl1', name='set1')
+        controller_name='cluster1', namespace_name='ns1', name='set1')
     example.__dict__.update(kwargs)
     return example
 
@@ -2960,18 +2962,24 @@ def get_example_aim_vmm_inj_replica_set(**kwargs):
 class TestAimToAciConverterVmmInjReplicaSet(TestAimToAciConverterBase,
                                             base.TestAimDBBase):
     sample_input = [
-        get_example_aim_vmm_inj_replica_set(display_name='RS1'),
+        get_example_aim_vmm_inj_replica_set(display_name='RS1',
+                                            deployment_name='depl1',
+                                            guid='123'),
         get_example_aim_vmm_inj_replica_set(name='set2')]
 
     sample_output = [
         [_aci_obj('vmmInjectedReplSet',
                   dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
-                      'injcont/ns-[ns1]/depl-[depl1]/rs-[set1]'),
-                  nameAlias='RS1')],
+                      'injcont/ns-[ns1]/rs-[set1]'),
+                  nameAlias='RS1',
+                  deploymentName='depl1',
+                  guid='123')],
         [_aci_obj('vmmInjectedReplSet',
                   dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
-                      'injcont/ns-[ns1]/depl-[depl1]/rs-[set2]'),
-                  nameAlias='')]
+                      'injcont/ns-[ns1]/rs-[set2]'),
+                  nameAlias='',
+                  deploymentName='',
+                  guid='')]
     ]
 
 
@@ -3069,36 +3077,39 @@ class TestAimToAciConverterVmmInjHost(TestAimToAciConverterBase,
     ]
 
 
-def get_example_aim_vmm_inj_group(**kwargs):
-    example = resource.VmmInjectedGroup(
+def get_example_aim_vmm_inj_cont_group(**kwargs):
+    example = resource.VmmInjectedContGroup(
         domain_type='Kubernetes', domain_name='k8s',
         controller_name='cluster1', namespace_name='ns1', name='pod1')
     example.__dict__.update(kwargs)
     return example
 
 
-class TestAimToAciConverterVmmInjGroup(TestAimToAciConverterBase,
-                                       base.TestAimDBBase):
+class TestAimToAciConverterVmmInjContGroup(TestAimToAciConverterBase,
+                                           base.TestAimDBBase):
     sample_input = [
-        get_example_aim_vmm_inj_group(display_name='POD1',
-                                      host_name='my.local.host',
-                                      compute_node_name='host1',
-                                      guid='123'),
-        get_example_aim_vmm_inj_group(name='pod2')]
+        get_example_aim_vmm_inj_cont_group(display_name='POD1',
+                                           host_name='my.local.host',
+                                           compute_node_name='host1',
+                                           guid='123',
+                                           replica_set_name='rs1'),
+        get_example_aim_vmm_inj_cont_group(name='pod2')]
 
     sample_output = [
-        [_aci_obj('vmmInjectedGrp',
+        [_aci_obj('vmmInjectedContGrp',
                   dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
                       'injcont/ns-[ns1]/grp-[pod1]'),
                   hostName='my.local.host',
                   computeNodeName='host1',
                   guid='123',
-                  nameAlias='POD1')],
-        [_aci_obj('vmmInjectedGrp',
+                  nameAlias='POD1',
+                  replicaSetName='rs1')],
+        [_aci_obj('vmmInjectedContGrp',
                   dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
                       'injcont/ns-[ns1]/grp-[pod2]'),
                   hostName='',
                   computeNodeName='',
                   guid='',
-                  nameAlias='')]
+                  nameAlias='',
+                  replicaSetName='')]
     ]
