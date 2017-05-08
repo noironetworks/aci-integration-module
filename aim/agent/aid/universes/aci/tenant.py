@@ -396,7 +396,8 @@ class AciTenantManager(utils.AIMThread):
                     except Exception as e:
                         LOG.debug(traceback.format_exc())
                         LOG.error("An error has occurred during %s for "
-                                  "object %s" % (method, aim_object))
+                                  "object %s: %s" % (method, aim_object,
+                                                     e.message))
                         if method == base_universe.CREATE:
                             err_type = self.error_handler.analyze_exception(e)
                             # REVISIT(ivar): for now, treat UNKNOWN errors the
