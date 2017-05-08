@@ -223,10 +223,11 @@ def load_domains(ctx, replace, enforce):
         vmms = config.create_vmdom_dictionary()
         physdoms = config.create_physdom_dictionary()
         for vmm in vmms:
-            res = resource.VMMDomain(type='OpenStack', name=vmm)
+            res = resource.VMMDomain(type='OpenStack', name=vmm,
+                                     monitored=True)
             print_resource(manager.create(aim_ctx, res, overwrite=True))
         for phys in physdoms:
-            res = resource.PhysicalDomain(name=phys)
+            res = resource.PhysicalDomain(name=phys, monitored=True)
             print_resource(manager.create(aim_ctx, res, overwrite=True))
 
         if enforce:
