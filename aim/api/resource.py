@@ -60,7 +60,7 @@ class ResourceBase(object):
 
     @property
     def identity(self):
-        return [getattr(self, x) for x in self.identity_attributes.keys()]
+        return [str(getattr(self, x)) for x in self.identity_attributes.keys()]
 
     @classmethod
     def attributes(cls):

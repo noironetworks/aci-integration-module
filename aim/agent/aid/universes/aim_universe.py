@@ -162,8 +162,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return self._push_resources(resources, monitored=False)
 
     def _push_resources(self, resources, monitored=False):
-        fault_method = {'create': self.manager.set_fault,
-                        'delete': self.manager.clear_fault}
         for method in resources:
             if method == 'delete':
                 # Use ACI items directly
@@ -176,16 +174,20 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 try:
                     if isinstance(resource, aim_status.AciFault):
                         # Retrieve fault's parent and set/unset the fault
-                        parents = self._retrieve_fault_parent(resource)
-                        for parent in parents:
-                            if self.manager.get_status(self.context, parent):
-                                LOG.debug("%s for object %s: %s",
-                                          fault_method[method].__name__,
-                                          parent, resource)
-                                fault_method[method](self.context,
-                                                     resource=parent,
-                                                     fault=resource)
-                                break
+                        if method == 'create':
+                            parents = self._retrieve_fault_parent(resource)
+                            for parent in parents:
+                                if self.manager.get_status(self.context,
+                                                           parent):
+                                    LOG.debug("%s for object %s: %s",
+                                              self.manager.set_fault.__name__,
+                                              parent, resource)
+                                    self.manager.set_fault(self.context,
+                                                           resource=parent,
+                                                           fault=resource)
+                                    break
+                        else:
+                            self.manager.delete(self.context, resource)
                     else:
                         LOG.debug("%s object in AIM %s" %
                                   (method, resource))
