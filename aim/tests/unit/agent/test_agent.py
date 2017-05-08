@@ -1543,6 +1543,29 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(aim_status.AciStatus.SYNCED,
                          self.aim_manager.get_status(self.ctx, tn).sync_status)
 
+    @base.requires(['k8s'])
+    def test_k8s_node_faults(self):
+        agent = self._create_agent()
+
+        desired_oper = agent.multiverse[1]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        vmm = resource.VMMDomain(type='Kubernetes', name='kubernetes',
+                                 monitored=True)
+        self.aim_manager.create(self.ctx, vmm)
+        agent._daemon_loop(self.ctx)
+        f1 = aim_status.AciFault(
+            fault_code='F609007',
+            external_identifier='uni/vmmp-Kubernetes/dom-kubernetes/'
+                                'ctrlr-kubernetes/injcont/ns-[default]/'
+                                'svc-[frontend]/p-http-prot-tcp-t-80/'
+                                'fault-F609007')
+        self.assertIsNotNone(self.aim_manager.create(self.ctx, f1))
+        # see if it gets deleted
+        self._observe_aci_events(desired_oper)
+        agent._daemon_loop(self.ctx)
+        self.assertIsNone(self.aim_manager.get(self.ctx, f1))
+
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
             self._current_manager = tenant

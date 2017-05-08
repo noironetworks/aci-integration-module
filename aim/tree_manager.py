@@ -21,7 +21,6 @@ from sqlalchemy import event as sa_event
 
 from aim.agent.aid.event_services import rpc
 from aim.agent.aid.universes.aci import converter
-from aim.api import resource as api_res
 from aim.api import status as aim_status
 from aim.api import tree as tree_res
 from aim.common.hashtree import exceptions as exc
@@ -287,10 +286,7 @@ class AimHashTreeMaker(object):
     @staticmethod
     def _extract_dn(res):
         try:
-            if isinstance(res, aim_status.AciFault):
-                return res.external_identifier
-            elif isinstance(res, api_res.AciResourceBase):
-                return res.dn
+            return res.dn
         except Exception as e:
             LOG.warning("Failed to extract DN for resource %s: %s",
                         res, e)
