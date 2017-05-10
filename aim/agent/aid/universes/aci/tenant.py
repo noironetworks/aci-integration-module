@@ -524,6 +524,15 @@ class AciTenantManager(utils.AIMThread):
                                  'status': converter.MODIFIED_STATUS}}})
                 except apic_client.DNManager.InvalidNameFormat:
                     LOG.debug("Tag with DN %s is not supported." % raw_dn)
+                    continue
+            if res_type == FAULT_KEY:
+                # Make sure we support the parent object
+                try:
+                    apic_client.DNManager().aci_decompose_dn_guess(raw_dn,
+                                                                   res_type)
+                except apic_client.DNManager.InvalidNameFormat:
+                    LOG.debug("Fault with DN %s is not supported." % raw_dn)
+                    continue
             if status == converter.DELETED_STATUS and (
                     not AciTenantManager.is_child_object(res_type) or
                     res_type == TAG_KEY):

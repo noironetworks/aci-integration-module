@@ -210,6 +210,22 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         result = self.universe.get_resources(keys)
         self.assertEqual(sorted(objs), sorted(result))
 
+    def test_get_unsupported_faults(self):
+        objs = [
+            {'faultInst': {
+                'attributes': {'status': 'modified', 'domain': 'infra',
+                               'code': 'F0951', 'occur': '1',
+                               'subject': 'relation-resolution',
+                               'severity': 'cleared',
+                               'origSeverity': 'warning', 'rn': '',
+                               'childAction': '', 'type': 'config',
+                               'dn': 'uni/tn-prj_35e6d34e81a84091854ddf388d1e5'
+                                     '5d1/BD-net_c6e85f2a-eb05-44b6-9b04-c065'
+                                     '6d72a2b8/rsbdToEpRet/fault-F0951'}}}]
+        result = aci_tenant.AciTenantManager.retrieve_aci_objects(
+            objs, self.universe._aim_converter, self.universe.aci_session)
+        self.assertEqual([], result)
+
     def test_get_resources_for_delete(self):
         objs = [
             {'fvBD': {'attributes': {
