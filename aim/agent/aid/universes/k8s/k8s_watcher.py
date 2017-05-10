@@ -92,12 +92,15 @@ class K8sWatcher(object):
         for aim_res in aim_manager.AimManager.aim_resources:
             if issubclass(aim_res, resource.AciResourceBase):
                 k8s_type = self.ctx.store.resource_to_db_type(aim_res)
-                self._k8s_types_to_observe.add(k8s_type)
-                self._k8s_kinds.add(k8s_type.kind)
-                if k8s_type != api_v1.AciContainersObject:
-                    self._k8s_aim_type_map[k8s_type.kind] = (aim_res, k8s_type)
+                for ktype in ([k8s_type] + k8s_type.aux_objects.values()):
+                    self._k8s_types_to_observe.add(ktype)
+                    self._k8s_kinds.add(ktype.kind)
+                    if ktype != api_v1.AciContainersObject:
+                        self._k8s_aim_type_map[ktype.kind] = (
+                            aim_res, k8s_type)
 
-        self._event_filters = {api_v1.Pod: self._pod_event_filter}
+        self._event_filters = {api_v1.Pod: self._pod_event_filter,
+                               api_v1.Endpoints: self._endpoints_event_filter}
 
     def run(self):
         threads = {'observer': self.observer_thread,
@@ -131,6 +134,14 @@ class K8sWatcher(object):
             # Mark hostNetwork objects as deleted to clean them and any
             # related objects (e.g. Status) from the tree/backend.
             event['type'] = ACTION_DELETED.upper()
+        return True
+
+    def _endpoints_event_filter(self, event):
+        # Filter out "system" Endpoints. These don't correspond to a Service
+        # and are very chatty.
+        name = event.get('object', {}).get('metadata', {}).get('name')
+        if name in ['kube-controller-manager', 'kube-scheduler']:
+            return False
         return True
 
     def _get_event(self, timeout=None):
@@ -306,6 +317,23 @@ class K8sWatcher(object):
             db_obj = k8s_type()
             db_obj.update(event_object)
             aim_res = self.ctx.store.make_resource(aim_klass, db_obj)
+
+            if k8s_type.kind != kind:
+                # Event on an auxiliary object. Fetch the main object and
+                # treat this event as a modify event for the main object.
+                # Drop this event if main object cannot be retrieved.
+                id_attr = {k: getattr(aim_res, k)
+                           for k in aim_res.identity_attributes}
+                db_obj = self.ctx.store.query(k8s_type, aim_klass, **id_attr)
+                if not db_obj:
+                    LOG.debug('Unable to fetch main %s object from event '
+                              'on auxiliary object %s %s',
+                              k8s_type.kind, kind,
+                              event_object['metadata']['name'])
+                    return
+                event_type = ACTION_MODIFIED
+                aim_res = self.ctx.store.make_resource(aim_klass, db_obj[0])
+
             try:
                 aim_res._injected_aim_id = db_obj.aim_id
             except (AttributeError, KeyError):

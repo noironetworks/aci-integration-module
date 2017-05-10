@@ -54,6 +54,7 @@ class K8sObject(dict):
                      'guid': ('metadata', 'uid')}
     namespaced = True
     default_spec = {}
+    aux_objects = {}
 
     def _get_aim_id(self):
         if self.namespaced:
@@ -83,15 +84,20 @@ class K8sObject(dict):
         return super(K8sObject, self).__getattr__(item)
 
     def from_attr(self, resource_klass, attribute_dict):
-        self.setdefault('spec', self.default_spec)
+        self.setdefault('spec', copy.copy(self.default_spec))
         for k, v in attribute_dict.iteritems():
             k8s_attrs = self.attribute_map.get(k)
-            if not k8s_attrs:
+            if k8s_attrs:
+                d = self
+                for a in k8s_attrs[:-1]:
+                    d = d.setdefault(a, {})
+                d[k8s_attrs[-1]] = v
                 continue
-            d = self
-            for a in k8s_attrs[:-1]:
-                d = d.setdefault(a, {})
-            d[k8s_attrs[-1]] = v
+            aux_kls = self.aux_objects.get(k)
+            if aux_kls:
+                aux_obj = aux_kls()
+                aux_obj.from_attr(resource_klass, attribute_dict)
+                setattr(self, k, aux_obj)
 
     def to_attr(self, resource_klass, defaults=None):
         result = {}
@@ -100,6 +106,10 @@ class K8sObject(dict):
         for k in resource_klass.attributes():
             try:
                 result[k] = getattr(self, k)
+                if self.aux_objects.get(k):
+                    aux_attr = result[k].to_attr(resource_klass,
+                                                 defaults=defaults)
+                    result[k] = aux_attr.get(k)
             except AttributeError:
                 pass
         return result
@@ -213,6 +223,39 @@ class ReplicaSet(K8sObject):
         return result
 
 
+class Endpoints(K8sObject):
+    api_version = K8S_API_VERSION_CORE_V1
+    kind = 'Endpoints'
+
+    attribute_map = copy.copy(K8sObject.attribute_map)
+    attribute_map.pop('guid', None)
+    attribute_map.pop('display_name', None)
+
+    def from_attr(self, resource_klass, attr):
+        super(Endpoints, self).from_attr(resource_klass, attr)
+        self.pop('spec', None)
+        for ep in attr.get('endpoints', []):
+            if ep.get('ip') and ep.get('pod_name'):
+                ss = self.setdefault('subsets', [{'addresses': []}])
+                ep_info = {'ip': ep['ip'],
+                           'targetRef': {'kind': Pod.kind,
+                                         'name': ep['pod_name']}}
+                ss[0]['addresses'].append(ep_info)
+
+    def to_attr(self, resource_klass, defaults=None):
+        result = super(Endpoints, self).to_attr(resource_klass,
+                                                defaults=defaults)
+        eps = []
+        for ss in self.get('subsets', []):
+            for addr in ss.get('addresses', []):
+                ep = {'ip': addr['ip']}
+                if addr.get('targetRef', {}).get('kind') == Pod.kind:
+                    ep['pod_name'] = addr['targetRef']['name']
+                eps.append(ep)
+        result['endpoints'] = eps
+        return result
+
+
 class Service(K8sObject):
     api_version = K8S_API_VERSION_CORE_V1
     kind = 'Service'
@@ -221,6 +264,8 @@ class Service(K8sObject):
     attribute_map.update({'service_type': ('spec', 'type'),
                           'cluster_ip': ('spec', 'clusterIP'),
                           'load_balancer_ip': ('spec', 'loadBalancerIP')})
+    aux_objects = copy.copy(K8sObject.aux_objects)
+    aux_objects.update({'endpoints': Endpoints})
     service_types = {'ClusterIP': 'clusterIp',
                      'ExternalName': 'externalName',
                      'LoadBalancer': 'loadBalancer',
@@ -271,7 +316,7 @@ class Service(K8sObject):
             result['service_type'] = (
                 self.service_types.get(result['service_type'],
                                        result['service_type']))
-        for p in self['spec'].get('ports'):
+        for p in self.get('spec', {}).get('ports', []):
             pt = {'port': str(p['port']),
                   'protocol': p.get('protocol', 'TCP').lower(),
                   'target_port': str(p.get('targetPort', p['port']))}
@@ -477,7 +522,9 @@ class AciContainersV1(object):
         if getattr(k8s_klass, 'namespaced', True) and params['namespace']:
             path += '/namespaces/{namespace}'
             path_params['namespace'] = params['namespace']
-        path += ('/%ss' % k8s_klass.kind.lower())
+        path += ('/%s' % k8s_klass.kind.lower())
+        if not k8s_klass.kind.endswith('s'):
+            path += 's'
         # When name is passed, use it as a path parameter
         if 'name' in params:
             path += '/{name}'

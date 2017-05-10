@@ -786,6 +786,17 @@ class VmmInjectedServicePort(model_base.Base):
     node_port = sa.Column(sa.String(32))
 
 
+class VmmInjectedServiceEndpoint(model_base.Base):
+    """DB model endpoints used by VmmInjectedService."""
+    __tablename__ = 'aim_vmm_inj_service_endpoints'
+
+    svc_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_vmm_inj_services.aim_id'),
+        primary_key=True)
+    ip = sa.Column(sa.String(64), primary_key=True)
+    pod_name = model_base.name_column(primary_key=True)
+
+
 class VmmInjectedService(model_base.Base, model_base.HasAimId,
                          model_base.HasName, model_base.HasDisplayName,
                          model_base.AttributeMixin):
@@ -817,6 +828,10 @@ class VmmInjectedService(model_base.Base, model_base.HasAimId,
                              backref='service',
                              cascade='all, delete-orphan',
                              lazy='joined')
+    eps = orm.relationship(VmmInjectedServiceEndpoint,
+                           backref='service',
+                           cascade='all, delete-orphan',
+                           lazy='joined')
 
     def from_attr(self, session, res_attr):
         if 'service_ports' in res_attr:
@@ -827,6 +842,12 @@ class VmmInjectedService(model_base.Base, model_base.HasAimId,
                     continue
                 ports.append(VmmInjectedServicePort(**p))
             self.ports = ports
+        if 'endpoints' in res_attr:
+            eps = []
+            for e in (res_attr.pop('endpoints', []) or []):
+                if e.get('ip') and e.get('pod_name'):
+                    eps.append(VmmInjectedServiceEndpoint(**e))
+            self.eps = eps
         # map remaining attributes to model
         super(VmmInjectedService, self).from_attr(session, res_attr)
 
@@ -838,6 +859,10 @@ class VmmInjectedService(model_base.Base, model_base.HasAimId,
             if p.node_port is not None:
                 port['node_port'] = p.node_port
             res_attr.setdefault('service_ports', []).append(port)
+        for e in res_attr.pop('eps', []):
+            res_attr.setdefault('endpoints',
+                                []).append({'ip': e.ip,
+                                            'pod_name': e.pod_name})
         return res_attr
 
 

@@ -359,6 +359,7 @@ class K8sStore(AimStore):
         return db_obj.to_attr(resource_klass, defaults=self.attribute_defaults)
 
     def add(self, db_obj):
+        # TODO(amitbose) Handle aux_objects
         created = None
         k8s_klass = type(db_obj)
         obj_ns = (self.namespace
@@ -397,6 +398,7 @@ class K8sStore(AimStore):
         self._post_create(created)
 
     def delete(self, db_obj):
+        # TODO(amitbose) Handle aux_objects
         deleted = db_obj
         obj_ns = db_obj['metadata'].get('namespace', self.namespace)
         try:
@@ -464,6 +466,18 @@ class K8sStore(AimStore):
             db_obj.update(item)
             if aim_id_val is not None and db_obj.aim_id != aim_id_val:
                 continue
+            for aux_a, aux_kls in db_obj_type.aux_objects.iteritems():
+                try:
+                    aux_item_raw = self.klient.read(
+                        aux_kls,
+                        db_obj['metadata']['name'],
+                        db_obj['metadata'].get('namespace'))
+                    aux_item = aux_kls()
+                    aux_item.update(aux_item_raw)
+                    setattr(db_obj, aux_a, aux_item)
+                except api_v1.klient.ApiException as e:
+                    if str(e.status) != '404':
+                        raise e
             item_attr = db_obj.to_attr(resource_klass,
                                        defaults=self.attribute_defaults)
             if filters or in_ or notin_:

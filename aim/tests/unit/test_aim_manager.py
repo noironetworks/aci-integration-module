@@ -1449,9 +1449,14 @@ class TestVmmInjectedServiceMixin(object):
                                 'service_ports': [{'port': '23',
                                                    'protocol': 'tcp',
                                                    'target_port': '45',
-                                                   'node_port': '32342'}]}
+                                                   'node_port': '32342'}],
+                                'endpoints': [{'ip': '1.2.3.4',
+                                               'pod_name': 'foo'},
+                                              {'ip': '2.1.3.4',
+                                               'pod_name': 'bar'}]}
     test_search_attributes = {'name': 'svc1'}
-    test_update_attributes = {'load_balancer_ip': '56.77.78.88'}
+    test_update_attributes = {'load_balancer_ip': '56.77.78.88',
+                              'endpoints': []}
     test_default_values = {'service_type': 'clusterIp',
                            'cluster_ip': '0.0.0.0',
                            'load_balancer_ip': '0.0.0.0',
@@ -1468,6 +1473,7 @@ class TestVmmInjectedServiceMixin(object):
             np1 = 30000 + int(self.test_id.split('-')[0], 16) % 2767
             self.test_required_attributes[
                 'service_ports'][0]['node_port'] = str(np1)
+            self.test_required_attributes.pop('endpoints', None)
 
 
 class TestVmmInjectedHostMixin(object):
@@ -1880,6 +1886,45 @@ class TestVmmInjectedService(TestVmmInjectedServiceMixin,
     def setUp(self):
         super(TestVmmInjectedService, self).setUp()
         self._setUp()
+
+    @base.requires(['k8s'])
+    def test_endpoints(self):
+        # Create an Endpoints object for a Service and verify that it
+        # gets reported properly in VmmInjectedService
+        self._create_prerequisite_objects()
+        svc = resource.VmmInjectedService(**self.test_required_attributes)
+        svc = self.mgr.create(self.ctx, svc)
+
+        exp_ep = [{'ip': '10.1.2.3', 'pod_name': 'foo'},
+                  {'ip': '10.1.2.4', 'pod_name': 'bar'}]
+
+        store = self.ctx.store
+
+        # create Endpoints
+        svc.endpoints = exp_ep
+        svc_db_obj = store.make_db_obj(svc)
+        ep_db_obj = svc_db_obj.endpoints
+        ep_db_obj['subsets'][0]['ports'] = [{'port': 80}]
+        store.klient.create(type(ep_db_obj),
+                            ep_db_obj['metadata']['namespace'],
+                            ep_db_obj)
+
+        svc = self.mgr.get(self.ctx, svc)
+        self.assertEqual(exp_ep, svc.endpoints)
+
+        # update Endpoints
+        exp_ep.append({'ip': '10.1.2.5', 'pod_name': 'baz'})
+        svc.endpoints = exp_ep
+        svc_db_obj = store.make_db_obj(svc)
+        ep_db_obj = svc_db_obj.endpoints
+        ep_db_obj['subsets'][0]['ports'] = [{'port': 80}]
+        store.klient.replace(type(ep_db_obj),
+                             ep_db_obj['metadata']['name'],
+                             ep_db_obj['metadata']['namespace'],
+                             ep_db_obj)
+
+        svc = self.mgr.get(self.ctx, svc)
+        self.assertEqual(exp_ep, svc.endpoints)
 
 
 class TestVmmInjectedHost(TestVmmInjectedHostMixin,

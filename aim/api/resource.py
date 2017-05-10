@@ -967,7 +967,9 @@ class VmmInjectedService(AciResourceBase):
         ('service_ports', t.list_of_dicts(('port', t.ports),
                                           ('protocol', t.string(32)),
                                           ('target_port', t.string(32)),
-                                          ('node_port', t.ports))))
+                                          ('node_port', t.ports))),
+        ('endpoints', t.list_of_dicts(('ip', t.string()),
+                                      ('pod_name', t.name))))
     db_attributes = t.db(('guid', t.string()))
 
     _aci_mo_name = 'vmmInjectedSvc'
@@ -979,6 +981,7 @@ class VmmInjectedService(AciResourceBase):
              'cluster_ip': '0.0.0.0',
              'load_balancer_ip': '0.0.0.0',
              'service_ports': [],
+             'endpoints': [],
              'guid': ''},
             **kwargs)
 

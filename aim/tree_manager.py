@@ -286,7 +286,8 @@ class AimHashTreeMaker(object):
     @staticmethod
     def _extract_dn(res):
         try:
-            return res.dn
+            if not isinstance(res, aim_status.AciStatus):
+                return res.dn
         except Exception as e:
             LOG.warning("Failed to extract DN for resource %s: %s",
                         res, e)
