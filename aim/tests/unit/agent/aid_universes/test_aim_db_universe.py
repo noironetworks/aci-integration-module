@@ -15,13 +15,13 @@
 
 import mock
 
+from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import aim_universe
 from aim import aim_manager
 from aim.api import resource
 from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
 from aim.common.hashtree import structured_tree as tree
-from aim.common import utils
 from aim import config as aim_cfg
 from aim.db import agent_model  # noqa
 from aim.tests import base
@@ -34,7 +34,7 @@ class TestAimDbUniverseBase(object):
         super(TestAimDbUniverseBase, self).setUp()
         self.klass = klass
         self.universe = self.klass().initialize(
-            self.store, aim_cfg.ConfigManager(self.ctx, ''))
+            self.store, aim_cfg.ConfigManager(self.ctx, ''), [])
         self.tree_mgr = tree_manager.HashTreeManager()
         self.monitor_universe = False
 
@@ -63,6 +63,7 @@ class TestAimDbUniverseBase(object):
         # Serve tnA, tnA2 and tnExtra
         self.universe.serve(['tn-tnA', 'tn-tnA2', 'tn-tnExtra'])
         # Now observe
+        self.universe.observe()
         state = self.universe.state
         # tnA and tnA2 have updated values, tnExtra is still empty
         self.assertEqual(data1, state['tn-tnA'])
@@ -74,9 +75,13 @@ class TestAimDbUniverseBase(object):
         self.tree_mgr.update_bulk(self.ctx, [data1], tree=tree_type)
         # Observe and verify that trees are back in sync
         self.assertNotEqual(data1, state['tn-tnA'])
+        self.universe.observe()
         state = self.universe.state
         self.assertEqual(data1, state['tn-tnA'])
 
+    # TODO(ivar): unskip once the method has been fixed with the proper
+    # semantics
+    @base.requires(['skip'])
     def test_get_optimized_state(self, tree_type=tree_manager.CONFIG_TREE):
         data1 = tree.StructuredHashTree().include(
             [{'key': ('fvTenant|tnA', 'keyB')},
@@ -220,21 +225,25 @@ class TestAimDbUniverseBase(object):
         # Calculate the different with empty trees to retrieve missing keys
         diff_tn_1 = trees[0].diff(tree.StructuredHashTree())
         diff_tn_2 = trees[1].diff(tree.StructuredHashTree())
-
+        self.universe.get_relevant_state_for_read = mock.Mock(
+            return_value=[{'tn-t1': trees[0], 'tn-t2': trees[1]}])
         result = self.universe.get_resources(diff_tn_1.get('add', []) +
                                              diff_tn_1.get('remove', []) +
                                              diff_tn_2.get('add', []) +
                                              diff_tn_2.get('remove', []))
-        self.assertEqual(8, len(result))
+        converted = converter.AciToAimModelConverter().convert(
+            converter.AimToAciModelConverter().convert(
+                [bd1, bd2, dc1, sg1, srp1, dc_ctx1, t1, t2]))
+        if tree_type == tree_manager.MONITORED_TREE:
+            for x in converted:
+                x.monitored = True
         if tree_type in [tree_manager.CONFIG_TREE,
                          tree_manager.MONITORED_TREE]:
-            self.assertTrue(bd1 in result)
-            self.assertTrue(bd2 in result)
-            self.assertTrue(dc1 in result)
-            self.assertTrue(sg1 in result)
-            self.assertTrue(srp1 in result)
-            self.assertTrue(dc_ctx1 in result)
+            self.assertEqual(len(converted), len(result))
+            for item in converted:
+                self.assertTrue(item in result)
         elif tree_type == tree_manager.OPERATIONAL_TREE:
+            self.assertEqual(8, len(result))
             self.assertTrue(bd1_fault in result)
             self.assertTrue(bd1_fault2 in result)
             self.assertTrue(dc1_fault in result)
@@ -504,19 +513,3 @@ class TestAimDbMonitoredUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
     def test_cleanup_state(self):
         super(TestAimDbMonitoredUniverse, self).test_cleanup_state(
             tree_type=tree_manager.MONITORED_TREE)
-
-    def test_push_resources_harakiri(self):
-        aim_mgr = aim_manager.AimManager()
-        aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
-        tn = self._get_example_aci_tenant(dn='uni/tn-t1',
-                                          nameAlias='CommonTenant')
-        self.universe.push_resources({'create': [tn], 'delete': []})
-        self.assertEqual(1, self.universe._monitored_state_update_failures)
-        with mock.patch.object(utils, 'perform_harakiri') as harakiri:
-            for x in range(self.universe._max_monitored_state_update_failures):
-                self.universe.push_resources({'create': [tn], 'delete': []})
-            harakiri.assert_called_once_with(mock.ANY, mock.ANY)
-        self.assertEqual(6, self.universe._monitored_state_update_failures)
-        ap = self._get_example_aci_app_profile(dn='uni/tn-t1/ap-a1')
-        self.universe.push_resources({'create': [ap], 'delete': []})
-        self.assertEqual(0, self.universe._monitored_state_update_failures)

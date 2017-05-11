@@ -20,9 +20,9 @@ from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe as base
+from aim.agent.aid.universes import errors
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
-from aim.common import utils
 from aim import context
 from aim import exceptions as aim_exc
 from aim import tree_manager
@@ -39,8 +39,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     from the AIM database.
     """
 
-    def initialize(self, store, conf_mgr):
-        super(AimDbUniverse, self).initialize(store, conf_mgr)
+    def initialize(self, store, conf_mgr, multiverse):
+        super(AimDbUniverse, self).initialize(store, conf_mgr, multiverse)
         self.tree_manager = tree_manager.HashTreeManager()
         self.context = context.AimContext(store=store)
         self._converter = converter.AciToAimModelConverter()
@@ -50,30 +50,50 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._max_monitored_state_update_failures = 5
         return self
 
+    def get_state_by_type(self, type):
+        try:
+            if type == base.CONFIG_UNIVERSE:
+                return self.multiverse[base.CONFIG_UNIVERSE]['desired'].state
+            else:
+                return self.multiverse[type]['current'].state
+        except IndexError:
+            LOG.warn('Requested universe type %s not found', type)
+            return self.state
+
+    def get_relevant_state_for_read(self):
+        return [self.state, self.get_state_by_type(base.MONITOR_UNIVERSE)]
+
     @property
     def name(self):
         return "AIM_Config_Universe"
 
     def serve(self, tenants):
         tenants = set(tenants)
+        new_state = {}
         if self._served_tenants != tenants:
             LOG.debug('%s serving tenants: %s' % (self.name, tenants))
             self._served_tenants = set(tenants)
+        for tenant in self._served_tenants:
+            new_state.setdefault(tenant, self._state.get(tenant))
+        self._state = new_state
 
     def observe(self):
-        pass
+        self._state.update(self.get_optimized_state(self.state))
 
     def get_optimized_state(self, other_state, tree=tree_manager.CONFIG_TREE):
-        request = {}
-        for tenant in self._served_tenants:
-            request[tenant] = None
-            if tenant in other_state:
-                try:
-                    request[tenant] = other_state[tenant].root_full_hash
-                except AttributeError:
-                    # Empty tree
-                    request[tenant] = None
-        return self.tree_manager.find_changed(self.context, request, tree=tree)
+        # TODO(ivar): make it tree-version based to reflect metadata changes
+        return self._get_state(tree=tree)
+        # request = {}
+        # for tenant in self._served_tenants:
+        #     request[tenant] = None
+        #     if tenant in other_state:
+        #         try:
+        #             request[tenant] = other_state[tenant].root_full_hash
+        #         except AttributeError:
+        #             # Empty tree
+        #             request[tenant] = None
+        # return self.tree_manager.find_changed(self.context, request,
+        #                                       tree=tree)
 
     def cleanup_state(self, key):
         self.tree_manager.delete_by_root_rn(self.context, key)
@@ -90,73 +110,23 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         :return: current state
         """
         # Returns state for all the tenants regardless
-        return self._get_state()
+        return self._state
 
-    def get_resources(self, resource_keys):
-        if resource_keys:
-            LOG.debug("Requesting resource keys in AIM Universe: %s",
-                      resource_keys)
-        result = []
-        id_set = set()
-
-        for key in resource_keys:
-            fault_code = None
-            dissected = self._dissect_key(key)
-            if dissected[0] == ACI_FAULT:
-                fault_code = dissected[1][-1]
-                dissected = self._dissect_key(key[:-1])
-                key = key[:-1]
-            aci_dn = apic_client.DNManager().build(
-                [tuple(x.split('|')) for x in key])
-            dn_mgr = apic_client.DNManager()
-            aci_klass, mos_rns = dn_mgr.aci_decompose_dn_guess(aci_dn,
-                                                               dissected[0])
-            rns = dn_mgr.filter_rns(mos_rns)
-            # TODO(amitbose) We should be using 'alt_resource' only if we don't
-            # find an AIM object by using 'resource'
-            conv_info = converter.resource_map[aci_klass][0]
-            klass = conv_info.get('alt_resource') or conv_info['resource']
-            res = klass(
-                **dict([(y, rns[x])
-                        for x, y in enumerate(klass.identity_attributes)]))
-            id_tuple = tuple([(x, getattr(res, x)) for x in
-                              res.identity_attributes])
-            if fault_code:
-                id_tuple += ('fault', fault_code)
-            id_tuple = (klass,) + id_tuple
-            if id_tuple not in id_set:
-                try:
-                    if fault_code:
-                        res_db = None
-                        res_status = self.manager.get_status(self.context, res)
-                        if res_status:
-                            for fault in res_status.faults:
-                                if fault.fault_code == fault_code:
-                                    res_db = fault
-                                    break
-                    else:
-                        res_db = self.manager.get(self.context, res)
-                    if res_db:
-                        result.append(res_db)
-                        id_set.add(id_tuple)
-                    else:
-                        LOG.debug("Resource %s not found in AIM, here is a "
-                                  "list of similar resources: %s" %
-                                  (str(res),
-                                   [str(x) for x in self.manager.find(
-                                       self.context, type(res))]))
-                except aim_exc.UnknownResourceType:
-                    LOG.warn("Resource %s is not defined in AIM", dissected)
-                    result.append(res)
-                    id_set.add(id_tuple)
-        if resource_keys:
-            LOG.debug("Result for keys %s\n in AIM Universe:\n %s" %
-                      (resource_keys, result))
-        return list(result)
+    def _convert_get_resources_result(self, result, monitored_set):
+        result = converter.AciToAimModelConverter().convert(result)
+        for item in result:
+            if item.dn in monitored_set:
+                item.monitored = True
+        return result
 
     def get_resources_for_delete(self, resource_keys):
+        des_mon = self.multiverse[base.MONITOR_UNIVERSE]['desired'].state
+
+        def action(result, aci_object, node):
+            if not node or node.dummy:
+                result.append(aci_object)
         return self._converter.convert(
-            self._keys_to_bare_aci_objects(resource_keys))
+            self._get_resources_for_delete(resource_keys, des_mon, action))
 
     def push_resources(self, resources):
         return self._push_resources(resources, monitored=False)
@@ -230,10 +200,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     msg = ("Failed to %s object %s in AIM: %s." %
                            (method, resource, e.message))
                     LOG.error(msg)
-                    self._monitored_state_update_failures += 1
-                    if (self._monitored_state_update_failures >
-                            self._max_monitored_state_update_failures):
-                        utils.perform_harakiri(LOG, msg)
+                    self.creation_failed(resource, reason=e.message,
+                                         error=errors.OPERATION_CRITICAL)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, e.message))
@@ -274,23 +242,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def _set_sync_pending_state(self, transformed_diff, raw_diff,
                                 other_universe):
         aim_add = transformed_diff[base.CREATE]
-        # Check if there are transitioning objects
-        transitioning_keys = []
-        if raw_diff[base.DELETE]:
-            mon_state = self._get_state(tree=tree_manager.MONITORED_TREE)
-            for key in raw_diff[base.DELETE]:
-                root = tree_manager.AimHashTreeMaker._extract_root_rn(key)
-                if root in mon_state and mon_state[root].find(key):
-                    transitioning_keys.append(key)
-        aim_transition = [x for x in self.get_resources(transitioning_keys)
-                          if getattr(x, 'monitored', False)]
         # Set AIM differences to sync_pending
-        for obj in aim_add + aim_transition:
+        for obj in aim_add:
             self.manager.set_resource_sync_pending(self.context, obj)
-        # If any aim_del, recalculate deletion
-        if aim_transition:
-            transformed_diff[base.DELETE] = (
-                other_universe.get_resources_for_delete(raw_diff[base.DELETE]))
 
     def _set_synced_state(self, my_state, raw_diff):
         all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
@@ -299,9 +253,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             pending_nodes.extend(tree.find_by_metadata('pending', True))
             pending_nodes.extend(tree.find_no_metadata('pending'))
         keys_to_sync = set(pending_nodes) - all_modified_keys
-        # get_resources_for_delete is enough here, since we only need the AIM
-        # object identity.
-        aim_to_sync = self.get_resources_for_delete(keys_to_sync)
+        aim_to_sync = self.get_resources(list(keys_to_sync))
         for obj in aim_to_sync:
             self.manager.set_resource_sync_synced(self.context, obj)
 
@@ -316,16 +268,16 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
 class AimDbOperationalUniverse(AimDbUniverse):
 
     @property
-    def state(self):
-        return self._get_state(tree=tree_manager.OPERATIONAL_TREE)
-
-    @property
     def name(self):
         return "AIM_Operational_Universe"
 
-    def get_optimized_state(self, other_state):
+    def get_relevant_state_for_read(self):
+        return [self.state]
+
+    def get_optimized_state(
+            self, other_state, tree=tree_manager.OPERATIONAL_TREE):
         return super(AimDbOperationalUniverse, self).get_optimized_state(
-            other_state, tree=tree_manager.OPERATIONAL_TREE)
+            other_state, tree=tree)
 
     def reconcile(self, other_universe, delete_candidates):
         # When the other universes are ok with deleting a Tenant, there's no
@@ -339,17 +291,18 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
 
 class AimDbMonitoredUniverse(AimDbUniverse):
-    @property
-    def state(self):
-        return self._get_state(tree=tree_manager.MONITORED_TREE)
 
     @property
     def name(self):
         return "AIM_Monitored_Universe"
 
-    def get_optimized_state(self, other_state):
+    def get_relevant_state_for_read(self):
+        return [self.state, self.get_state_by_type(base.CONFIG_UNIVERSE)]
+
+    def get_optimized_state(
+            self, other_state, tree=tree_manager.MONITORED_TREE):
         return super(AimDbMonitoredUniverse, self).get_optimized_state(
-            other_state, tree=tree_manager.MONITORED_TREE)
+            other_state, tree=tree)
 
     def push_resources(self, resources):
         self._push_resources(resources, monitored=True)
@@ -363,4 +316,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
     def update_status_objects(self, my_state, other_universe, other_state,
                               raw_diff, transformed_diff):
         # AIM Monitored Universe is current state
+        add_diff = {
+            base.CREATE: self.get_resources(list(raw_diff[base.CREATE]))}
+        self._set_sync_pending_state(add_diff, raw_diff, other_universe)
         self._set_synced_state(my_state, raw_diff)

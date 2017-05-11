@@ -14,6 +14,7 @@
 #    under the License.
 
 import base64
+from contextlib import contextmanager
 import functools
 import hashlib
 import os
@@ -221,15 +222,30 @@ def spawn_thread(target, *args, **kwargs):
 all_locks = {}
 
 
-def get_rlock(lock_name):
+class LockNotAcquired(Exception):
+    pass
+
+
+def generate_rlock(lock_name):
     return all_locks.setdefault(lock_name, threading.RLock())
+
+
+@contextmanager
+def get_rlock(lock_name, blocking=True):
+    lock = generate_rlock(lock_name)
+    if not lock.acquire(blocking):
+        raise LockNotAcquired()
+    try:
+        yield lock
+    finally:
+        lock.release()
 
 
 def rlock(lock_name):
     def wrap(func):
         def inner(*args, **kwargs):
             # setdefault is atomic
-            lock = get_rlock(lock_name)
+            lock = generate_rlock(lock_name)
             # Too much output if we log this. However, it would be really
             # useful to have a debug mode that show us which lock is held
             # by which thread/method

@@ -15,6 +15,8 @@
 
 import copy
 
+import mock
+
 from aim import aim_manager
 from aim.api import resource
 from aim.common.hashtree import exceptions as exc
@@ -37,11 +39,6 @@ class TestStructuredNode(base.BaseTestCase):
         self.assertTrue(isinstance(node._children, tree.ChildrenList))
         self.assertTrue(isinstance(node.get_children(), tuple))
         self.assertEqual({'foo': True}, node.metadata)
-        self.assertEqual(
-            ('{"key": ["key"], "partial_hash": "partial_hash", '
-             '"full_hash": "partial_hash", "dummy": true, "error": false, '
-             '"_children": [], "metadata": {"foo": true}}'),
-            str(node))
 
     def test_set_child(self):
         # Test with default
@@ -432,7 +429,7 @@ class TestStructuredHashTree(base.BaseTestCase):
         self.assertEqual(data.root, data.find(('KeyA',)))
         # Not found
         self.assertIsNone(data.find(('KeyA', 'KeyB')))
-        # Multi Head reserach
+        # Multi Head search
         self.assertIsNone(data.find(('KeyZ', 'KeyB')))
 
     def test_compare_trees(self):
@@ -500,13 +497,15 @@ class TestStructuredHashTree(base.BaseTestCase):
         self.assertEqual({"add": [], "remove": []}, data.diff(data))
 
         # To obtain data from data2, ('keyA', 'keyC', 'keyD') needs to be added
-        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')], "remove": []},
-                         data.diff(data2))
+        self.assertEqual(
+            {"add": [('keyA', 'keyC', 'keyD')], "remove": []},
+            data.diff(data2))
 
         # To obtain data2 from data1, ('keyA', 'keyC', 'keyD') needs to be
         # removed
-        self.assertEqual({"add": [], "remove": [('keyA', 'keyC', 'keyD')]},
-                         data2.diff(data))
+        self.assertEqual(
+            {"add": [], "remove": [('keyA', 'keyC', 'keyD')]},
+            data2.diff(data))
 
         data2.add(('keyA', 'keyC', 'keyF'), **{})
         data2.add(('keyA',), **{'attr': 'somevalue'})
@@ -516,14 +515,18 @@ class TestStructuredHashTree(base.BaseTestCase):
         # remove ('keyA', 'keyC', 'keyF')
         # modify ('keyA', )
 
-        self.assertEqual({"add": [('keyA',), ('keyA', 'keyC', 'keyD')],
-                          "remove": [('keyA', 'keyC', 'keyF')]},
-                         data.diff(data2))
+        self.assertEqual(
+            {"add": [('keyA',),
+                     ('keyA', 'keyC', 'keyD')],
+             "remove": [('keyA', 'keyC', 'keyF')]},
+            data.diff(data2))
 
         # Opposite for going from data to data2
-        self.assertEqual({"add": [('keyA',), ('keyA', 'keyC', 'keyF')],
-                          "remove": [('keyA', 'keyC', 'keyD')]},
-                         data2.diff(data))
+        self.assertEqual(
+            {"add": [('keyA',),
+                     ('keyA', 'keyC', 'keyF')],
+             "remove": [('keyA', 'keyC', 'keyD')]},
+            data2.diff(data))
 
         # Data3 is a completely different tree
         data3 = tree.StructuredHashTree().include(
@@ -532,7 +535,8 @@ class TestStructuredHashTree(base.BaseTestCase):
 
         # The whole tree needs to be modified for going from data3 to data
         self.assertEqual({"add": [('keyA', 'keyB'),
-                                  ('keyA', 'keyC'), ('keyA', 'keyC', 'keyD')],
+                                  ('keyA', 'keyC'),
+                                  ('keyA', 'keyC', 'keyD')],
                           "remove": [('keyA1', 'keyB'),
                                      ('keyA1', 'keyC'),
                                      ('keyA1', 'keyC', 'keyD')]},
@@ -588,9 +592,11 @@ class TestStructuredHashTree(base.BaseTestCase):
         data.add(('keyA', 'keyC'), _error=True)
         data.add(('keyA', 'keyC', 'keyD'), foo='bar')
         # Child difference will be noticed
-        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')], "remove": []},
+        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')],
+                          "remove": []},
                          data.diff(data2))
-        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')], "remove": []},
+        self.assertEqual({"add": [('keyA', 'keyC', 'keyD')],
+                          "remove": []},
                          data2.diff(data))
         # Same goes for extra subtree
         data.add(('keyA', 'keyC', 'keyE'))
@@ -854,10 +860,14 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree.add(rsctx_key, **fvRsCtx_attr)
         exp_tree.add(subnet_key, **fvSubnet_attr)
         self.assertEqual(exp_tree, htree)
-        self.assertEqual({}, htree.find(bd_key).metadata)
-        self.assertEqual({'related': True},
-                         htree.find(rsctx_key).metadata)
-        self.assertEqual({}, htree.find(subnet_key).metadata)
+        self.assertEqual(
+            {"attributes": mock.ANY, "monitored": False},
+            htree.find(bd_key).metadata.to_dict())
+        self.assertEqual({'related': True, "attributes": mock.ANY,
+                          "monitored": False},
+                         htree.find(rsctx_key).metadata.to_dict())
+        self.assertEqual({"attributes": mock.ANY, "monitored": False},
+                         htree.find(subnet_key).metadata.to_dict())
 
         bd.name = 'bd2'
         subnet.bd_name = 'bd2'
@@ -882,10 +892,13 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                      **fvRsCtx_attr)
         self.assertEqual(exp_tree, htree)
         self.assertEqual(exp_tree, htree)
-        self.assertEqual({}, htree.find(bd_key).metadata)
-        self.assertEqual({'related': True},
-                         htree.find(rsctx_key).metadata)
-        self.assertEqual({}, htree.find(subnet_key).metadata)
+        self.assertEqual({"attributes": mock.ANY, "monitored": False},
+                         htree.find(bd_key).metadata.to_dict())
+        self.assertEqual(
+            {"attributes": mock.ANY, "monitored": False, 'related': True},
+            htree.find(rsctx_key).metadata.to_dict())
+        self.assertEqual({"attributes": mock.ANY, "monitored": False},
+                         htree.find(subnet_key).metadata.to_dict())
 
     def test_update_1(self):
         htree = tree.StructuredHashTree()

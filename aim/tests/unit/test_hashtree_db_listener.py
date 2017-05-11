@@ -184,9 +184,9 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # Modifying the EPG will make the difference visible
         epg.display_name = 'somethingelse'
         self.db_l.tt_maker.update(exp_tree, [epg])
-        self.assertEqual({'add': [('fvTenant|tn1', 'fvAp|ap', 'fvAEPg|epg')],
-                          'remove': []},
-                         exp_tree.diff(configured_tree))
+        self.assertEqual(
+            {'add': [('fvTenant|tn1', 'fvAp|ap', 'fvAEPg|epg')],
+             'remove': []}, exp_tree.diff(configured_tree))
         self.assertEqual({'add': [], 'remove': []},
                          exp_empty_tree.diff(empty_tree))
 

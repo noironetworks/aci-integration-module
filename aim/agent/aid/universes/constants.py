@@ -23,3 +23,5 @@ K8S_WATCHER_TREE_LOCK = 'k8s_watcher_trees'
 AID_OBSERVER_LOCK = 'aid_observer_lock'
 # Access ACI tree of a specific root
 ACI_TREE_LOCK_NAME_PREFIX = "root_aci_tree_lock-"
+# Access to aci backlog
+ACI_BACKLOG_LOCK_NAME_PREFIX = "backlog_aci_lock-"

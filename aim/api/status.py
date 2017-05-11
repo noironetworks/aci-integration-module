@@ -138,6 +138,12 @@ class AciFault(resource.ResourceBase, OperationalResource):
 
     db_attributes = t.db(('last_update_timestamp', t.string()))
 
+    def __eq__(self, other):
+        try:
+            return self.identity == other.identity
+        except AttributeError:
+            return False
+
     def __init__(self, **kwargs):
         super(AciFault, self).__init__(
             {'severity': self.SEV_INFO, 'lifecycle_status': self.LC_UNKNOWN,

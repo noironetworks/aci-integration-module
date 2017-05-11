@@ -21,16 +21,21 @@ import time
 from apicapi import apic_client
 from oslo_log import log as logging
 
+from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import errors
 from aim import aim_manager
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import context
+from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
 CREATE = 'create'
 DELETE = 'delete'
+CONFIG_UNIVERSE = 0
+OPER_UNIVERSE = 1
+MONITOR_UNIVERSE = 2
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -48,7 +53,7 @@ class BaseUniverse(object):
     """
 
     @abc.abstractmethod
-    def initialize(self, store, conf_mgr):
+    def initialize(self, store, conf_mgr, multiverse):
         """Observer initialization method.
 
         This method will be called before any other.
@@ -184,18 +189,6 @@ class AimUniverse(BaseUniverse):
         :param tenants: List of tenant identifiers
         :return:
         """
-    @abc.abstractmethod
-    def get_optimized_state(self, other_state):
-        """Get optimized state.
-
-        Given a state, return a subset of the current state containing only
-        changed tenants. This is useful for interaction with universes that
-        don't store in-memory state and are able to make less expensive calls
-        by knowing in advance the counterpart's state.
-
-        :param other_state: state object of another universe
-        :return:
-        """
 
     @abc.abstractmethod
     def cleanup_state(self, key):
@@ -204,6 +197,7 @@ class AimUniverse(BaseUniverse):
         :param key: tenant id
         :return:
         """
+
     @abc.abstractmethod
     def update_status_objects(self, my_state, other_universe, other_state,
                               raw_diff, transformed_diff):
@@ -221,12 +215,36 @@ class AimUniverse(BaseUniverse):
         :return:
         """
 
+    @abc.abstractmethod
+    def get_state_by_type(self, type):
+        """Get state by type
+
+        Given a universe type (Monitored/Operational/Config) return the
+        current state.
+        :param type:
+        :return:
+        """
+
+    @abc.abstractmethod
+    def get_relevant_state_for_read(self):
+        """Get relevant state for model read
+
+        Whenever we need to read resources from the current universe (see
+        get_resources) we need to look at all the relevant universes to
+        compose the full object. For example, an EPG can partly exist in the
+        Config universe as well as the Monitor universe, therefore we
+        need to look both places.
+        :return:
+        """
+
 
 class HashTreeStoredUniverse(AimUniverse):
     """Universe storing state in the form of a Hash Tree."""
 
-    def initialize(self, store, conf_mgr):
-        super(HashTreeStoredUniverse, self).initialize(store, conf_mgr)
+    def initialize(self, store, conf_mgr, multiverse):
+        super(HashTreeStoredUniverse, self).initialize(
+            store, conf_mgr, multiverse)
+        self.multiverse = multiverse
         self.context = context.AimContext(store=store)
         self.manager = aim_manager.AimManager()
         self.conf_manager = conf_mgr
@@ -253,7 +271,6 @@ class HashTreeStoredUniverse(AimUniverse):
         return aci_type, [x[x.find('|') + 1:] for x in key]
 
     def _split_key(self, key):
-        # Returns [['apicType', 'rn'], ['apicType1', 'rn1'] ...]
         return [k.split('|', 2) for k in key]
 
     def _keys_to_bare_aci_objects(self, keys):
@@ -337,6 +354,7 @@ class HashTreeStoredUniverse(AimUniverse):
         # Get AIM resources at the end to reduce the number of transactions
         result = {CREATE: other_universe.get_resources(differences[CREATE]),
                   DELETE: self.get_resources_for_delete(differences[DELETE])}
+
         # Set status objects properly
         self.update_status_objects(my_state, other_universe, other_state,
                                    differences, result)
@@ -353,16 +371,113 @@ class HashTreeStoredUniverse(AimUniverse):
         return self.get_resources_for_delete([resource_key])
 
     def get_resources_for_delete(self, resource_keys):
-        pass
+        return []
 
     def get_resource(self, resource_key):
         return self.get_resources([resource_key])
 
+    def get_resources(self, resource_keys, desired_state=None):
+        if resource_keys:
+            LOG.debug("Requesting resource keys in %s: %s",
+                      self.name, resource_keys)
+        # NOTE(ivar): state is a copy at the current iteration that was created
+        # through the observe() method.
+        desired_state = desired_state or self.get_relevant_state_for_read()
+        result = []
+        id_set = set()
+        monitored_set = set()
+        for key in resource_keys:
+            if key not in id_set:
+                attr = self._fill_node(key, desired_state)
+                if not attr:
+                    continue
+                monitored = attr.pop('monitored', None)
+                related = attr.pop('related', False)
+                attr = attr.get('attributes', {})
+                aci_object = self._keys_to_bare_aci_objects([key])[0]
+                aci_object.values()[0]['attributes'].update(attr)
+                dn = aci_object.values()[0]['attributes']['dn']
+                # Capture related objects
+                if desired_state:
+                    self._fill_related_nodes(resource_keys, key,
+                                             desired_state)
+                    if related:
+                        self._fill_parent_node(resource_keys, key,
+                                               desired_state)
+                result.append(aci_object)
+                if monitored:
+                    if related:
+                        try:
+                            monitored_set.add(
+                                converter.AciToAimModelConverter().convert(
+                                    [aci_object])[0].dn)
+                        except IndexError:
+                            pass
+                    else:
+                        monitored_set.add(dn)
+                id_set.add(key)
+        if resource_keys:
+            result = self._convert_get_resources_result(result, monitored_set)
+            LOG.debug("Result for keys %s\n in %s:\n %s" %
+                      (resource_keys, self.name, result))
+        return result
+
+    def _get_resources_for_delete(self, resource_keys, mon_uni, action):
+        if resource_keys:
+            LOG.debug("Requesting resource keys in %s for "
+                      "delete: %s" % (self.name, resource_keys))
+        result = []
+        for key in resource_keys:
+            aci_object = self._keys_to_bare_aci_objects([key])[0]
+            # If this object exists in the monitored tree it's transitioning
+            root = tree_manager.AimHashTreeMaker._extract_root_rn(key)
+            try:
+                node = mon_uni[root].find(key)
+            except KeyError:
+                node = None
+            action(result, aci_object, node)
+        if resource_keys:
+            LOG.debug("Result for keys %s\n in ACI Universe for delete:\n %s" %
+                      (resource_keys, result))
+        return result
+
+    def _fill_node(self, current_key, desired_state):
+        root = tree_manager.AimHashTreeMaker._extract_root_rn(current_key)
+        for state in desired_state:
+            try:
+                current_node = state[root].find(current_key)
+            except (IndexError, KeyError):
+                continue
+            if current_node and not current_node.dummy:
+                return current_node.metadata.to_dict()
+
+    def _fill_related_nodes(self, resource_keys, current_key, desired_state):
+        root = tree_manager.AimHashTreeMaker._extract_root_rn(current_key)
+        for state in desired_state:
+            try:
+                current_node = state[root].find(current_key)
+                if not current_node:
+                    continue
+            except (IndexError, KeyError):
+                continue
+            for child in current_node.get_children():
+                if child.metadata.get('related') and not child.dummy:
+                    resource_keys.append(child.key)
+
+    def _fill_parent_node(self, resource_keys, current_key, desired_state):
+        root = tree_manager.AimHashTreeMaker._extract_root_rn(current_key)
+        for state in desired_state:
+            try:
+                parent_node = state[root].find(current_key[:-1])
+                if not parent_node:
+                    continue
+            except (IndexError, KeyError):
+                continue
+            if not parent_node.dummy:
+                resource_keys.append(parent_node.key)
+
     def serve(self, tenants):
         pass
-
-    def get_optimized_state(self, other_state):
-        return self.state
 
     def cleanup_state(self, key):
         pass
@@ -415,6 +530,9 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _noop(self, *args, **kwargs):
         return
+
+    def _convert_get_resources_result(self, result, monitored_set):
+        return result
 
     @property
     def state(self):

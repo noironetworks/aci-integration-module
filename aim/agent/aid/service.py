@@ -67,23 +67,24 @@ class AID(object):
             self.k8s_watcher = k8s_watcher.K8sWatcher()
             self.k8s_watcher.run()
 
+        self.multiverse = []
         # Define multiverse pairs, First position is desired state
-        self.multiverse = [
+        self.multiverse += [
             # Configuration Universe (AIM to ACI)
             {DESIRED: aim_universe.AimDbUniverse().initialize(
-                api.get_store(), self.conf_manager),
+                api.get_store(), self.conf_manager, self.multiverse),
              CURRENT: aci_universe.AciUniverse().initialize(
-                 api.get_store(), self.conf_manager)},
+                 api.get_store(), self.conf_manager, self.multiverse)},
             # Operational Universe (ACI to AIM)
             {DESIRED: aci_universe.AciOperationalUniverse().initialize(
-                api.get_store(), self.conf_manager),
+                api.get_store(), self.conf_manager, self.multiverse),
              CURRENT: aim_universe.AimDbOperationalUniverse().initialize(
-                 api.get_store(), self.conf_manager)},
+                 api.get_store(), self.conf_manager, self.multiverse)},
             # Monitored Universe (ACI to AIM)
             {DESIRED: aci_universe.AciMonitoredUniverse().initialize(
-                api.get_store(), self.conf_manager),
+                api.get_store(), self.conf_manager, self.multiverse),
              CURRENT: aim_universe.AimDbMonitoredUniverse().initialize(
-                 api.get_store(), self.conf_manager)},
+                 api.get_store(), self.conf_manager, self.multiverse)},
         ]
         # delete_candidates contains tenants that are candidate for deletion.
         # when the consensus is reach by all the universe, the state will

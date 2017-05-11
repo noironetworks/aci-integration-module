@@ -443,9 +443,8 @@ class TestResourceOpsBase(object):
             # Deleting doesn't work because status is pending
             self.assertRaises(exc.InvalidMonitoredObjectDelete,
                               self.mgr.delete, self.ctx, res)
-            self.mgr.set_resource_sync_synced(self.ctx, res)
             # Now delete works
-            self.mgr.delete(self.ctx, res)
+            self.mgr.delete(self.ctx, res, force=True)
             self.assertIsNone(self.mgr.get(self.ctx, res))
 
 

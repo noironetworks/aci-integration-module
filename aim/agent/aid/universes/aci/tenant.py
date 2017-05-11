@@ -139,9 +139,10 @@ class AciTenantManager(utils.AIMThread):
 
     def __init__(self, tenant_name, apic_config, apic_session, ws_context,
                  creation_succeeded=None, creation_failed=None,
-                 aim_system_id=None, *args, **kwargs):
+                 aim_system_id=None, universe=None, *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
         LOG.info("Init manager for tenant %s" % tenant_name)
+        self.universe = universe
         self.apic_config = apic_config
         # Each tenant has its own sessions
         self.aci_session = apic_session
@@ -304,102 +305,116 @@ class AciTenantManager(utils.AIMThread):
         :param resources: a dictionary with "create" and "delete" resources
         :return:
         """
-        backlock = Queue.Queue()
-        while not self.object_backlog.empty():
-            requests = self.object_backlog.get()
-            # check if there's an event to squash
-            for op in ['create', 'delete']:
-                for i, req in enumerate(requests.get(op, [])):
-                    for j, new in enumerate(resources.get(op, [])):
-                        if op is 'create':
-                            req_dn = req.dn
-                            new_dn = new.dn
-                        else:
-                            # Delete items are in ACI format
-                            req_dn = req.values()[0]['attributes']['dn']
-                            new_dn = new.values()[0]['attributes']['dn']
-                        if req_dn == new_dn:
-                            # Replace old with new
-                            requests[op][i] = new
-                            break
-                    else:
-                        # No colliding item found
-                        continue
-                    # new can be removed from resources
-                    resources[op].pop(j)
-            backlock.put(requests)
-        if any(resources.values()):
-            backlock.put(resources)
-        self.object_backlog = backlock
+        try:
+            with utils.get_rlock(lcon.ACI_BACKLOG_LOCK_NAME_PREFIX +
+                                 self.tenant_name, blocking=False):
+                backlock = Queue.Queue()
+                while not self.object_backlog.empty():
+                    requests = self.object_backlog.get()
+                    # check if there's an event to squash
+                    for op in ['create', 'delete']:
+                        for i, req in enumerate(requests.get(op, [])):
+                            for j, new in enumerate(resources.get(op, [])):
+                                if op is 'create':
+                                    req_dn = req.dn
+                                    new_dn = new.dn
+                                else:
+                                    # Delete items are in ACI format
+                                    req_dn = req.values()[0][
+                                        'attributes']['dn']
+                                    new_dn = new.values()[0][
+                                        'attributes']['dn']
+                                if req_dn == new_dn:
+                                    # Replace old with new
+                                    requests[op][i] = new
+                                    break
+                            else:
+                                # No colliding item found
+                                continue
+                            # new can be removed from resources
+                            resources[op].pop(j)
+                    backlock.put(requests)
+                if any(resources.values()):
+                    backlock.put(resources)
+                self.object_backlog = backlock
+        except utils.LockNotAcquired:
+            # If changes need to be pushed, AID will do it on the next
+            # iteration
+            pass
 
     def _push_aim_resources(self):
-        while not self.object_backlog.empty():
-            request = self.object_backlog.get()
-            for method, aim_objects in request.iteritems():
-                # Method will be either "create" or "delete"
-                for aim_object in aim_objects:
-                    # get MO from ACI client, identify it via its DN parts and
-                    # push the new body
-                    LOG.debug('%s AIM object %s in APIC' % (method,
-                                                            aim_object))
-                    if method == base_universe.DELETE:
-                        to_push = [copy.deepcopy(aim_object)]
-                    else:
-                        if getattr(aim_object, 'monitored', False):
-                            # When pushing to APIC, treat monitored
-                            # objects as pre-existing
-                            aim_object.monitored = False
-                            aim_object.pre_existing = True
-                        to_push = self.to_aci_converter.convert([aim_object])
-                    # Set TAGs before pushing the request
-                    tags = []
-                    if method == base_universe.CREATE:
-                        # No need to deal with tags on deletion
-                        for obj in to_push:
-                            if not obj.keys()[0].startswith(TAG_KEY):
-                                dn = obj.values()[0]['attributes']['dn']
-                                dn += '/tag-%s' % self.tag_name
-                                tags.append({"tagInst__%s" % obj.keys()[0]:
-                                             {"attributes": {"dn": dn}}})
-                    LOG.debug("Pushing %s into APIC: %s" %
-                              (method, to_push + tags))
-                    # Multiple objects could result from a conversion, push
-                    # them in a single transaction
-                    dn_mgr = apic_client.DNManager()
-                    decompose = dn_mgr.aci_decompose_dn_guess
-                    try:
+        with utils.get_rlock(lcon.ACI_BACKLOG_LOCK_NAME_PREFIX +
+                             self.tenant_name):
+            while not self.object_backlog.empty():
+                request = self.object_backlog.get()
+                for method, aim_objects in request.iteritems():
+                    # Method will be either "create" or "delete"
+                    for aim_object in aim_objects:
+                        # get MO from ACI client, identify it via its DN parts
+                        # and push the new body
+                        LOG.debug('%s AIM object %s in APIC' % (
+                            method, repr(aim_object)))
+                        if method == base_universe.DELETE:
+                            to_push = [copy.deepcopy(aim_object)]
+                        else:
+                            if getattr(aim_object, 'monitored', False):
+                                # When pushing to APIC, treat monitored
+                                # objects as pre-existing
+                                aim_object.monitored = False
+                                aim_object.pre_existing = True
+                            to_push = self.to_aci_converter.convert(
+                                [aim_object])
+                        # Set TAGs before pushing the request
+                        tags = []
                         if method == base_universe.CREATE:
-                            with self.aci_session.transaction(
-                                    top_send=True) as trs:
+                            # No need to deal with tags on deletion
+                            for obj in to_push:
+                                if not obj.keys()[0].startswith(TAG_KEY):
+                                    dn = obj.values()[0]['attributes']['dn']
+                                    dn += '/tag-%s' % self.tag_name
+                                    tags.append({"tagInst__%s" % obj.keys()[0]:
+                                                 {"attributes": {"dn": dn}}})
+                        LOG.debug("Pushing %s into APIC: %s" %
+                                  (method, to_push + tags))
+                        # Multiple objects could result from a conversion, push
+                        # them in a single transaction
+                        dn_mgr = apic_client.DNManager()
+                        decompose = dn_mgr.aci_decompose_dn_guess
+                        try:
+                            if method == base_universe.CREATE:
+                                with self.aci_session.transaction(
+                                        top_send=True) as trs:
+                                    for obj in to_push + tags:
+                                        attr = obj.values()[0]['attributes']
+                                        mo, parents_rns = decompose(
+                                            attr.pop('dn'), obj.keys()[0])
+                                        rns = dn_mgr.filter_rns(parents_rns)
+                                        getattr(getattr(self.aci_session, mo),
+                                                method)(*rns, transaction=trs,
+                                                        **attr)
+                            else:
                                 for obj in to_push + tags:
                                     attr = obj.values()[0]['attributes']
-                                    mo, parents_rns = decompose(attr.pop('dn'),
-                                                                obj.keys()[0])
-                                    rns = dn_mgr.filter_rns(parents_rns)
-                                    getattr(getattr(self.aci_session, mo),
-                                            method)(
-                                                *rns, transaction=trs, **attr)
-                        else:
-                            for obj in to_push + tags:
-                                attr = obj.values()[0]['attributes']
-                                self.aci_session.DELETE(
-                                    '/mo/%s.json' % attr.pop('dn'))
-                        # Object creation was successful, change object state
-                        if method == base_universe.CREATE:
-                            self.creation_succeeded(aim_object)
-                    except Exception as e:
-                        LOG.debug(traceback.format_exc())
-                        LOG.error("An error has occurred during %s for "
-                                  "object %s: %s" % (method, aim_object,
-                                                     e.message))
-                        if method == base_universe.CREATE:
-                            err_type = self.error_handler.analyze_exception(e)
-                            # REVISIT(ivar): for now, treat UNKNOWN errors the
-                            # same way as OPERATION_TRANSIENT. Investigate a
-                            # way to understand when such errors might require
-                            # agent restart.
-                            self.creation_failed(aim_object, e.message,
-                                                 err_type)
+                                    self.aci_session.DELETE(
+                                        '/mo/%s.json' % attr.pop('dn'))
+                            # Object creation was successful, change object
+                            # state
+                            if method == base_universe.CREATE:
+                                self.creation_succeeded(aim_object)
+                        except Exception as e:
+                            LOG.debug(traceback.format_exc())
+                            LOG.error("An error has occurred during %s for "
+                                      "object %s: %s" % (method, aim_object,
+                                                         e.message))
+                            if method == base_universe.CREATE:
+                                err_type = (
+                                    self.error_handler.analyze_exception(e))
+                                # REVISIT(ivar): for now, treat UNKNOWN errors
+                                # the same way as OPERATION_TRANSIENT.
+                                # Investigate a way to understand when such
+                                # errors might require agent restart.
+                                self.creation_failed(aim_object, e.message,
+                                                     err_type)
 
     def _unsubscribe_tenant(self):
         LOG.info("Unsubscribing tenant websocket %s" % self.tenant_name)
@@ -432,16 +447,20 @@ class AciTenantManager(utils.AIMThread):
                 # objects, therefore we need to exclude events regarding those
                 # RS objects when we don't own them. One example is fvRsProv on
                 # external networks
-                if event.keys()[0] in ACI_TYPES_NOT_CONVERT_IF_MONITOR:
+                type = event.keys()[0]
+                if type in ACI_TYPES_NOT_CONVERT_IF_MONITOR:
                     # Check that the object is indeed correct looking at the
                     # parent
                     if self._check_parent_type(
                             event,
-                            ACI_TYPES_NOT_CONVERT_IF_MONITOR[event.keys()[0]]):
+                            ACI_TYPES_NOT_CONVERT_IF_MONITOR[type]):
                         if not self._is_owned(event):
                             # For an RS object like fvRsProv we check the
                             # parent ownership as well.
                             continue
+                if self.is_child_object(type) and self._is_deleting(event):
+                    # Can be excluded, we expect parent objects
+                    continue
 
                 if self._is_deleting(event):
                     dn = event.values()[0]['attributes']['dn']
@@ -493,24 +512,24 @@ class AciTenantManager(utils.AIMThread):
         :return:
         """
         start = time.time()
-        result = self.retrieve_aci_objects(events, self.to_aim_converter,
-                                           self.aci_session)
+        result = self.retrieve_aci_objects(events)
         LOG.debug('Filling procedure took %s for tenant %s' %
                   (time.time() - start, self.tenant.name))
         return result
 
-    @staticmethod
-    def retrieve_aci_objects(events, to_aim_converter, aci_session,
-                             get_all=False, include_tags=True):
-        visited = set()
-        result = []
+    def _get_full_state(self):
+        return [{self.tenant_name: x} for x in
+                [self._state, self._monitored_state, self._operational_state]]
+
+    def retrieve_aci_objects(self, events):
+        result = {}
 
         for event in events:
             resource = event.values()[0]
             res_type = event.keys()[0]
-            status = resource['attributes'].get(STATUS_FIELD)
+            status = (resource['attributes'].get(STATUS_FIELD) or '').lower()
             raw_dn = resource['attributes'].get('dn')
-            if res_type == TAG_KEY:
+            if self.is_child_object(res_type) and res_type != FAULT_KEY:
                 # We need to make sure to retrieve the parent object as well
                 try:
                     decomposed = (
@@ -518,14 +537,15 @@ class AciTenantManager(utils.AIMThread):
                             raw_dn, res_type))
                     parent_dn = apic_client.DNManager().build(
                         decomposed[1][:-1])
-                    if parent_dn not in visited:
+                    if parent_dn not in result:
                         events.append(
                             {decomposed[1][-2][0]:
                              {'attributes': {
                                  'dn': parent_dn,
-                                 'status': converter.MODIFIED_STATUS}}})
-                except apic_client.DNManager.InvalidNameFormat:
-                    LOG.debug("Tag with DN %s is not supported." % raw_dn)
+                                 'status': converter.MODIFIED_STATUS,
+                                 '_avoid_print_not_found': True}}})
+                except (apic_client.DNManager.InvalidNameFormat, KeyError):
+                    LOG.debug("Object with DN %s is not supported." % raw_dn)
                     continue
             if res_type == FAULT_KEY:
                 # Make sure we support the parent object
@@ -535,76 +555,43 @@ class AciTenantManager(utils.AIMThread):
                 except apic_client.DNManager.InvalidNameFormat:
                     LOG.debug("Fault with DN %s is not supported." % raw_dn)
                     continue
-            if status == converter.DELETED_STATUS and (
-                    not AciTenantManager.is_child_object(res_type) or
-                    res_type == TAG_KEY):
-                if raw_dn not in visited:
-                    result.append(event)
-                    visited.add(raw_dn)
-            elif get_all or status or res_type in OPERATIONAL_LIST:
-                try:
-                    # Use the parent type and DN for related objects (like RS)
-                    # Event is an ACI resource
-                    LOG.debug("Retrieving ACI resource: %s", event)
-                    aim_resources = to_aim_converter.convert([event])
-                    for aim_res in aim_resources:
-                        dn = aim_res.dn
-                        res_type = aim_res._aci_mo_name
-                        if dn in visited:
-                            continue
-                        query_targets = set([res_type])
-                        if include_tags:
-                            query_targets.add(TAG_KEY)
-                        kargs = {'rsp_prop_include': 'config-only',
-                                 'query_target': 'subtree'}
-                        # See if there's any extra object to be retrieved
-                        for filler in converter.reverse_resource_map.get(
-                                type(aim_res), []):
-                            if ('resource' in filler and filler['resource'] in
-                                    get_children_mos(aci_session,
-                                                     aim_res.root)):
-                                query_targets.add(filler['resource'])
-                        self_get = False
-                        if not dn.startswith('topology'):
-                            kargs['target_subtree_class'] = ','.join(
-                                query_targets)
-                        else:
-                            self_get = True
-                        # Operational state need full configuration
-                        if event.keys()[0] in OPERATIONAL_LIST:
-                            kargs.pop('rsp_prop_include')
-                        # TODO(amitbose) temporary workaround for ACI bug,
-                        # remove when ACI is fixed
-                        kargs.pop('rsp_prop_include', None)
-                        # TODO(ivar): 'mo/' suffix should be added by APICAPI
-                        data = []
-                        if self_get:
-                            data.extend(aci_session.get_data('mo/' + dn))
-                        data.extend(aci_session.get_data('mo/' + dn, **kargs))
-                        if not data:
-                            LOG.warn("Resource %s not found", dn)
-                            # The object doesn't exist anymore, a delete event
-                            # is expected.
-                            continue
-                        for item in data:
-                            if item.values()[0][
-                                    'attributes']['dn'] not in visited:
-                                result.append(item)
-                                visited.add(
-                                    item.values()[0]['attributes']['dn'])
-                        visited.add(dn)
-                except apic_exc.ApicResponseNotOk as e:
-                    # The object doesn't exist anymore, a delete event
-                    # is expected.
-                    if str(e.err_code) == '404':
-                        LOG.warn("Resource %s not found", dn)
-                    else:
-                        LOG.error(e.message)
-                        raise
-            if not status:
-                if raw_dn not in visited:
-                    result.append(event)
-        return result
+            if res_type == TAG_KEY:
+                # Add to the result and go ahead to the next object
+                result[raw_dn] = event
+                continue
+            if status == converter.DELETED_STATUS:
+                # Add to the result but keep evaluating
+                result[raw_dn] = event
+            if status == converter.MODIFIED_STATUS:
+                event_attrs = copy.deepcopy(event.values()[0]['attributes'])
+                event_attrs.pop(STATUS_FIELD)
+                apnf = event_attrs.pop('_avoid_print_not_found', False)
+                if raw_dn in result:
+                    # Update with changes
+                    result[raw_dn].values()[0]['attributes'].update(
+                        event_attrs)
+                key = tree_manager.AimHashTreeMaker._dn_to_key(res_type,
+                                                               raw_dn)
+                data = []
+                if key:
+                    # Search within the TenantManager state, which is the most
+                    # up to date.
+                    data = self.universe.get_resources(
+                        [key], desired_state=self._get_full_state())
+                if not data and not apnf:
+                    LOG.debug("Resource %s not found or not supported", raw_dn)
+                for item in data:
+                    dn = item.values()[0]['attributes']['dn']
+                    if dn not in result:
+                        result[dn] = item
+                        if dn == raw_dn:
+                            result[raw_dn].values()[0]['attributes'].update(
+                                event_attrs)
+            if not status or status == converter.CREATED_STATUS:
+                result[raw_dn] = event
+        LOG.debug("Result for retrieving ACI resources: %s\n %s" %
+                  (events, result))
+        return result.values()
 
     @staticmethod
     def flat_events(events):
