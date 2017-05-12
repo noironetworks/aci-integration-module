@@ -196,6 +196,15 @@ def upgrade():
             ['svc_aim_id'], ['aim_vmm_inj_services.aim_id']))
 
     op.create_table(
+        'aim_vmm_inj_service_endpoints',
+        sa.Column('svc_aim_id', sa.Integer, nullable=False),
+        sa.Column('ip', sa.String(64)),
+        sa.Column('pod_name', sa.String(64)),
+        sa.PrimaryKeyConstraint('svc_aim_id', 'ip', 'pod_name'),
+        sa.ForeignKeyConstraint(
+            ['svc_aim_id'], ['aim_vmm_inj_services.aim_id']))
+
+    op.create_table(
         'aim_vmm_inj_cont_groups',
         sa.Column('aim_id', sa.Integer, autoincrement=True),
         sa.Column('domain_type', sa.String(64), nullable=False),

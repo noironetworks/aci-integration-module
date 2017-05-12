@@ -225,6 +225,10 @@ vmmInjectedSvcPort_converter = utils.list_dict(
                    'converter': port,
                    'default': '0'}, },
     ['port', 'protocol', 'target_port'])
+vmmInjectedSvcEp_converter = utils.list_dict(
+    'endpoints',
+    {'pod_name': {'other': 'contGrpName'}},
+    ['pod_name'])
 infraRsVlanNs_vmm_converter = utils.dn_decomposer(['vlan_pool_name',
                                                    'vlan_pool_type'],
                                                   'fvnsVlanInstP')
@@ -539,13 +543,17 @@ resource_map = {
     }],
     'vmmInjectedSvc': [{
         'resource': resource.VmmInjectedService,
-        'skip': ['service_ports'],
+        'skip': ['service_ports', 'endpoints'],
         'exceptions': {'type': {'other': 'service_type'},
                        'lbIp': {'other': 'load_balancer_ip'}},
     }],
     'vmmInjectedSvcPort': [{
         'resource': resource.VmmInjectedService,
         'converter': vmmInjectedSvcPort_converter,
+    }],
+    'vmmInjectedSvcEp': [{
+        'resource': resource.VmmInjectedService,
+        'converter': vmmInjectedSvcEp_converter,
     }],
     'vmmInjectedHost': [{
         'resource': resource.VmmInjectedHost,

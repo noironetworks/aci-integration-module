@@ -1414,11 +1414,14 @@ class TestAciToAimConverterVmmInjService(TestAciToAimConverterBase,
     resource_type = resource.VmmInjectedService
     reverse_map_output = [
         {'resource': 'vmmInjectedSvc',
-         'skip': ['servicePorts'],
+         'skip': ['servicePorts', 'endpoints'],
          'exceptions': {'service_type': {'other': 'type'},
                         'load_balancer_ip': {'other': 'lbIp'}}},
         {'resource': 'vmmInjectedSvcPort',
          'converter': converter.vmmInjectedSvcPort_converter,
+         'exceptions': {}},
+        {'resource': 'vmmInjectedSvcEp',
+         'converter': converter.vmmInjectedSvcEp_converter,
          'exceptions': {}}]
     sample_input = [[_aci_obj('vmmInjectedSvc',
                               dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
@@ -1440,7 +1443,15 @@ class TestAciToAimConverterVmmInjService(TestAciToAimConverterBase,
                               port='56',
                               protocol='udp',
                               targetPort='2056',
-                              nodePort='http')],
+                              nodePort='http'),
+                     _aci_obj('vmmInjectedSvcEp',
+                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                  'injcont/ns-[ns1]/svc-[svc1]/ep-foo'),
+                              contGrpName='foo'),
+                     _aci_obj('vmmInjectedSvcEp',
+                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                                  'injcont/ns-[ns1]/svc-[svc1]/ep-bar'),
+                              contGrpName='bar')],
                     _aci_obj('vmmInjectedSvc',
                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
                                  'injcont/ns-[ns2]/svc-[svc2]'),
@@ -1455,7 +1466,9 @@ class TestAciToAimConverterVmmInjService(TestAciToAimConverterBase,
             service_ports=[{'port': 'https', 'protocol': 'tcp',
                             'target_port': 'INT_HTTP'},
                            {'port': '56', 'protocol': 'udp',
-                            'target_port': '2056', 'node_port': 'http'}]),
+                            'target_port': '2056', 'node_port': 'http'}],
+            endpoints=[{'pod_name': 'foo'},
+                       {'pod_name': 'bar'}]),
         resource.VmmInjectedService(
             domain_type='Kubernetes', domain_name='k8s',
             controller_name='cluster1', namespace_name='ns2', name='svc2',
@@ -3004,7 +3017,9 @@ class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
                            {'port': '56',
                             'protocol': 'udp',
                             'target_port': '2056',
-                            'node_port': '80'}]),
+                            'node_port': '80'}],
+            endpoints=[{'ip': '1.2.3.4', 'pod_name': 'foo'},
+                       {'ip': '1.2.3.5', 'pod_name': 'bar'}]),
     ]
 
     sample_output = [
@@ -3039,7 +3054,15 @@ class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
                   port='56',
                   protocol='udp',
                   targetPort='2056',
-                  nodePort='http')]
+                  nodePort='http'),
+         _aci_obj('vmmInjectedSvcEp',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/svc-[svc1]/ep-foo'),
+                  contGrpName='foo'),
+         _aci_obj('vmmInjectedSvcEp',
+                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                      'injcont/ns-[ns1]/svc-[svc1]/ep-bar'),
+                  contGrpName='bar')]
     ]
 
 

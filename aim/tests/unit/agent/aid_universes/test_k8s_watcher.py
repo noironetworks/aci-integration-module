@@ -163,3 +163,107 @@ class TestK8SWatcher(base.TestAimDBBase):
         # delete
         ev['type'] = 'DELETED'
         self.assertEqual(set(['tn-t1']), watcher._process_event(ev))
+
+    @base.requires(['k8s'])
+    def test_endpoints_event(self):
+        watcher = k8s_watcher.K8sWatcher()
+        store = self.ctx.store
+
+        ns = resource.VmmInjectedNamespace(
+            domain_type='Kubernetes',
+            domain_name='kubernetes',
+            controller_name='kube-cluster',
+            name='ns-%s' % self.test_id)
+        svc = resource.VmmInjectedService(
+            domain_type=ns.domain_type,
+            domain_name=ns.domain_name,
+            controller_name=ns.controller_name,
+            namespace_name=ns.name,
+            name='svc1',
+            service_ports=[{'port': '23', 'protocol': 'tcp',
+                            'target_port': '45'}],
+            endpoints=[{'ip': '1.2.3.4', 'pod_name': 'foo'},
+                       {'ip': '2.1.3.4', 'pod_name': 'bar'}])
+
+        svc_db_obj = store.make_db_obj(svc)
+        ep_db_obj = svc_db_obj.endpoints
+        ep_db_obj['subsets'][0]['ports'] = [{'port': 80}]
+
+        ev_obj = {'kind': ep_db_obj.kind,
+                  'apiVersion': ep_db_obj.api_version}
+        ev_obj.update(ep_db_obj)
+        ev = {'type': 'ADDED', 'object': ev_obj}
+
+        # event with no Service object
+        self.assertIsNone(watcher._parse_event(ev))
+
+        def _verify_event_processing(exp_svc):
+            res = watcher._parse_event(ev)
+            self.assertEqual('modified', res['event_type'])
+            self.assertEqual(resource.VmmInjectedService,
+                             type(res['resource']))
+            for attr in ['name', 'namespace_name', 'endpoints']:
+                self.assertEqual(getattr(exp_svc, attr),
+                                 getattr(res['resource'], attr))
+
+            aff_ten = watcher._process_event(ev)
+            self.assertEqual(set(['vmmp-Kubernetes']), aff_ten)
+            cfg_tree = watcher.trees['config']['vmmp-Kubernetes']
+            ht_key = (watcher.tt_builder.tt_maker
+                      ._build_hash_tree_key(exp_svc))
+            ht_children = [x.key
+                           for x in cfg_tree.find(ht_key).get_children()
+                           if 'vmmInjectedSvcEp|' in x.key[-1]]
+            self.assertEqual(len(exp_svc.endpoints), len(ht_children))
+            for e in exp_svc.endpoints:
+                child_key = ht_key + ('vmmInjectedSvcEp|%s' % e['pod_name'],)
+                self.assertTrue(child_key in ht_children,
+                                child_key)
+
+        # create Service and Endpoints, send event
+        self.mgr.create(self.ctx, ns)
+        self.mgr.create(self.ctx, svc)
+        store.klient.create(type(ep_db_obj),
+                            ep_db_obj['metadata']['namespace'],
+                            ep_db_obj)
+        _verify_event_processing(svc)
+
+        # update Endpoints, send event
+        ep_db_obj['subsets'][0]['addresses'] = (
+            ep_db_obj['subsets'][0]['addresses'][:-1])
+        store.klient.replace(type(ep_db_obj),
+                             ep_db_obj['metadata']['name'],
+                             ep_db_obj['metadata']['namespace'],
+                             ep_db_obj)
+        svc.endpoints = svc.endpoints[:-1]
+        ev['type'] = 'MODIFIED'
+        _verify_event_processing(svc)
+
+        # delete Endpoints, send event
+        store.klient.delete(type(ep_db_obj),
+                            ep_db_obj['metadata']['name'],
+                            ep_db_obj['metadata']['namespace'],
+                            {})
+        ev['type'] = 'DELETED'
+        svc.endpoints = []
+        _verify_event_processing(svc)
+
+    @base.requires(['k8s'])
+    def test_endpoints_event_filter(self):
+        watcher = k8s_watcher.K8sWatcher()
+        watcher._renew_klient_watch()
+
+        thd = 1
+        watcher._observe_thread_state[thd] = {'watch_stop': False}
+
+        self.assertTrue(watcher.q.empty())
+        ev = {'type': 'MODIFIED',
+              'object': {'kind': 'Endpoints',
+                         'metadata': {}}}
+        stream_mock = mock.Mock(return_value=[ev])
+
+        with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
+            for n in ['kube-controller-manager', 'kube-scheduler']:
+                ev['object']['metadata']['name'] = n
+                watcher._observe_objects(api_v1.Endpoints, 1)
+                self.assertTrue(watcher.q.empty())
