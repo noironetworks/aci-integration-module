@@ -126,7 +126,8 @@ class AimManager(object):
         with context.store.begin(subtransactions=True):
             old_db_obj = None
             if overwrite:
-                old_db_obj = self._query_db_obj(context.store, resource)
+                old_db_obj = self._query_db_obj(context.store, resource,
+                                                for_update=True)
                 if old_db_obj:
                     old_monitored = getattr(old_db_obj, 'monitored', None)
                     new_monitored = getattr(resource, 'monitored', None)
@@ -156,7 +157,8 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         with context.store.begin(subtransactions=True):
-            db_obj = self._query_db_obj(context.store, resource)
+            db_obj = self._query_db_obj(context.store, resource,
+                                        for_update=True)
             if db_obj:
                 old_monitored = getattr(db_obj, 'monitored', None)
                 new_monitored = update_attr_val.get('monitored')
@@ -188,7 +190,8 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         with context.store.begin(subtransactions=True):
-            db_obj = self._query_db_obj(context.store, resource)
+            db_obj = self._query_db_obj(context.store, resource,
+                                        for_update=True)
             if db_obj:
                 if isinstance(resource, api_res.AciResourceBase):
                     status = self.get_status(context, resource)
@@ -214,7 +217,7 @@ class AimManager(object):
                 context.store.delete(db_obj)
                 self._add_commit_hook(context.store)
 
-    def get(self, context, resource):
+    def get(self, context, resource, for_update=False):
         """Get AIM resource from the database.
 
         Values of identity attributes of parameter 'resource' are used
@@ -225,18 +228,19 @@ class AimManager(object):
         otherwise.
         """
         self._validate_resource_class(resource)
-        db_obj = self._query_db_obj(context.store, resource)
+        db_obj = self._query_db_obj(context.store, resource,
+                                    for_update=for_update)
         return context.store.make_resource(
             type(resource), db_obj) if db_obj else None
 
-    def get_by_id(self, context, resource_class, aim_id):
+    def get_by_id(self, context, resource_class, aim_id, for_update=False):
         self._validate_resource_class(resource_class)
-        db_obj = self._query_db(context.store,
-                                resource_class, aim_id=aim_id)
+        db_obj = self._query_db(context.store, resource_class,
+                                for_update=for_update, aim_id=aim_id)
         return context.store.make_resource(
             resource_class, db_obj[0]) if db_obj else None
 
-    def find(self, context, resource_class, **kwargs):
+    def find(self, context, resource_class, for_update=False, **kwargs):
         """Find AIM resources from the database that match specified criteria.
 
         Parameter 'resource_class' indicates the type of resource to
@@ -248,13 +252,13 @@ class AimManager(object):
         attr_val = {k: v for k, v in kwargs.iteritems()
                     if k in resource_class.attributes()}
         result = []
-        for obj in self._query_db(context.store,
-                                  resource_class, **attr_val):
+        for obj in self._query_db(context.store, resource_class,
+                                  for_update=for_update, **attr_val):
             result.append(
                 context.store.make_resource(resource_class, obj))
         return result
 
-    def get_status(self, context, resource):
+    def get_status(self, context, resource, for_update=False):
         """Get status of an AIM resource, if any.
 
         Values of identity attributes of parameter 'resource' are used
@@ -268,7 +272,7 @@ class AimManager(object):
                 if res_type and res_id is not None:
                     status = self.get(context, api_status.AciStatus(
                         resource_type=res_type, resource_id=res_id,
-                        resource_root=resource.root))
+                        resource_root=resource.root), for_update=for_update)
                     if not status:
                         # Create one with default values
                         # NOTE(ivar): Sometimes we need the status of an object
@@ -306,7 +310,7 @@ class AimManager(object):
             return False
         with context.store.begin(subtransactions=True):
             self._validate_resource_class(resource)
-            status = self.get_status(context, resource)
+            status = self.get_status(context, resource, for_update=True)
             exclude = exclude or []
             if status and status.sync_status not in exclude:
                 self.update(context, status, sync_status=sync_status,
@@ -380,15 +384,15 @@ class AimManager(object):
         if res_cls not in self.aim_resources:
             raise exc.UnknownResourceType(type=res_cls)
 
-    def _query_db(self, store, resource_class, **kwargs):
+    def _query_db(self, store, resource_class, for_update=False, **kwargs):
         db_cls = store.resource_to_db_type(resource_class)
-        return (store.query(db_cls, resource_class, **kwargs) if db_cls
-                else None)
+        return (store.query(db_cls, resource_class, lock_update=for_update,
+                            **kwargs) if db_cls else None)
 
-    def _query_db_obj(self, store, resource):
+    def _query_db_obj(self, store, resource, for_update=False):
         id_attr = store.extract_attributes(resource, "id")
         cls = type(resource)
-        objs = self._query_db(store, cls, **id_attr)
+        objs = self._query_db(store, cls, for_update=for_update, **id_attr)
         return objs[0] if objs else None
 
     def _add_commit_hook(self, store):
