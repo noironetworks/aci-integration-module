@@ -385,7 +385,7 @@ class K8sStore(AimStore):
             except api_v1.klient.ApiException as e:
                 if str(e.status) == '404':
                     # Object doesn't exist, create it.
-                    db_obj.pop('resourceVersion', None)
+                    db_obj.get('metadata', {}).pop('resourceVersion', None)
                     self.klient.create(k8s_klass, obj_ns, db_obj)
                     created = db_obj
                     break
