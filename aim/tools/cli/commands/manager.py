@@ -184,7 +184,7 @@ def get(klass):
         res = klass(**kwargs)
         res = manager.get(aim_ctx, res)
         if res:
-            stat = manager.get_status(aim_ctx, res)
+            stat = manager.get_status(aim_ctx, res, create_if_absent=False)
             print_resource(res, plain=plain)
             if stat:
                 print_resource(stat, plain=plain)

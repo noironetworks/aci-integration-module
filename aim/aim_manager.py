@@ -258,7 +258,8 @@ class AimManager(object):
                 context.store.make_resource(resource_class, obj))
         return result
 
-    def get_status(self, context, resource, for_update=False):
+    def get_status(self, context, resource, for_update=False,
+                   create_if_absent=True):
         """Get status of an AIM resource, if any.
 
         Values of identity attributes of parameter 'resource' are used
@@ -274,6 +275,8 @@ class AimManager(object):
                         resource_type=res_type, resource_id=res_id,
                         resource_root=resource.root), for_update=for_update)
                     if not status:
+                        if not create_if_absent:
+                            return
                         # Create one with default values
                         # NOTE(ivar): Sometimes we need the status of an object
                         # even if AID wasn't able to calculate it yet

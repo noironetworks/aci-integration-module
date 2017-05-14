@@ -128,8 +128,9 @@ class K8sWatcher(object):
                                         "unexpectedly: %s" % (name, e.message))
 
     def _pod_event_filter(self, event):
-        spec = event.get('object', {}).get('spec', {})
-        if (spec.get('hostNetwork') and
+        obj = event.get('object', {})
+        if (obj and obj.get('kind') == api_v1.Pod.kind and
+                obj.get('spec', {}).get('hostNetwork') and
                 event['type'].lower() != ACTION_DELETED):
             # Mark hostNetwork objects as deleted to clean them and any
             # related objects (e.g. Status) from the tree/backend.
@@ -355,6 +356,9 @@ class K8sWatcher(object):
         else:
             return affected_tenants
 
+        # special handling for some objects
+        self._process_pod_status_event(event)
+
         # push event into tree
         action = event['event_type']
         changes = {'added': [], 'deleted': []}
@@ -394,9 +398,30 @@ class K8sWatcher(object):
     def _cleanup_status(self, aim_res):
         if isinstance(aim_res, resource.AciResourceBase):
             LOG.debug("Cleanup status for AIM resource: %s" % aim_res)
-            status = self.mgr.get_status(self.ctx, aim_res)
+            status = self.mgr.get_status(self.ctx, aim_res,
+                                         create_if_absent=False)
             if status:
                 self.mgr.delete(self.ctx, status)
+
+    def _process_pod_status_event(self, parsed_event):
+        # Modify AciStatus events for Pods that must be hidden.
+        res = parsed_event['resource']
+        if (parsed_event['event_type'].lower() != ACTION_DELETED and
+                isinstance(res, status.AciStatus) and
+                res.parent_class == resource.VmmInjectedContGroup):
+            db_type = self.ctx.store.resource_to_db_type(
+                resource.VmmInjectedContGroup)
+            pod_db_obj = self.ctx.store.query(db_type,
+                                              resource.VmmInjectedContGroup,
+                                              aim_id=res.resource_id)
+            if pod_db_obj:
+                ev = {'type': ACTION_CREATED, 'object': pod_db_obj[0]}
+                self._pod_event_filter(ev)
+                if ev['type'].lower() == ACTION_DELETED:
+                    # Need to modify the status since the parent Pod object
+                    # is being hidden
+                    parsed_event['event_type'] = ACTION_DELETED.upper()
+                    return
 
     def _save_trees(self, affected_tenants):
         cfg_trees = []

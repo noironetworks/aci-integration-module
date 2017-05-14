@@ -27,6 +27,7 @@ import time
 from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
 from aim.api import resource
+from aim.api import status
 from aim.k8s import api_v1
 from aim.tests import base
 
@@ -108,22 +109,26 @@ class TestK8SWatcher(base.TestAimDBBase):
                          'spec': {'hostNetwork': True}}}
         ev_exp = copy.copy(ev)
         ev_exp['type'] = 'DELETED'
-        stream_mock = mock.Mock(return_value=[ev])
+        stream_mock = mock.Mock()
 
         with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
+            stream_mock.return_value = [copy.copy(ev)]
             watcher._observe_objects(api_v1.Pod, 1)
             self.assertEqual(ev_exp, watcher.q.get_nowait())
 
             ev['object']['spec']['hostNetwork'] = False
+            stream_mock.return_value = [copy.copy(ev)]
             watcher._observe_objects(api_v1.Pod, 1)
-            self.assertEqual(ev_exp, watcher.q.get_nowait())
+            self.assertEqual(ev, watcher.q.get_nowait())
 
             ev['object']['spec'].pop('hostNetwork', None)
+            stream_mock.return_value = [copy.copy(ev)]
             watcher._observe_objects(api_v1.Pod, 1)
-            self.assertEqual(ev_exp, watcher.q.get_nowait())
+            self.assertEqual(ev, watcher.q.get_nowait())
 
             ev['type'] = 'MODIFIED'
             ev['object']['spec']['hostNetwork'] = True
+            stream_mock.return_value = [copy.copy(ev)]
             watcher._observe_objects(api_v1.Pod, 1)
             self.assertEqual(ev_exp, watcher.q.get_nowait())
 
@@ -267,3 +272,69 @@ class TestK8SWatcher(base.TestAimDBBase):
                 ev['object']['metadata']['name'] = n
                 watcher._observe_objects(api_v1.Endpoints, 1)
                 self.assertTrue(watcher.q.empty())
+
+    @base.requires(['k8s'])
+    def test_process_pod_status_event(self):
+        watcher = k8s_watcher.K8sWatcher()
+        store = self.ctx.store
+
+        ns = resource.VmmInjectedNamespace(
+            domain_type='Kubernetes',
+            domain_name='kubernetes',
+            controller_name='kube-cluster',
+            name='ns-%s' % self.test_id)
+        pod = resource.VmmInjectedContGroup(
+            domain_type=ns.domain_type,
+            domain_name=ns.domain_name,
+            controller_name=ns.controller_name,
+            namespace_name=ns.name,
+            name='pod1')
+        pod_ht_key = watcher.tt_builder.tt_maker._build_hash_tree_key(pod)
+
+        self.mgr.create(self.ctx, ns)
+
+        pod_db_obj = store.make_db_obj(pod)
+        store.add(pod_db_obj)
+        pod_db_obj = store.query(api_v1.Pod, resource.VmmInjectedContGroup,
+                                 namespace_name=ns.name, name=pod.name)[0]
+
+        pod.name = 'hidden-pod1'
+        hidden_pod_ht_key = (
+            watcher.tt_builder.tt_maker._build_hash_tree_key(pod))
+        hidden_pod_db_obj = store.make_db_obj(pod)
+        hidden_pod_db_obj['spec']['hostNetwork'] = True
+        store.add(hidden_pod_db_obj)
+        hidden_pod_db_obj = store.query(api_v1.Pod,
+                                        resource.VmmInjectedContGroup,
+                                        namespace_name=ns.name,
+                                        name=pod.name)[0]
+
+        # test pod that is not hidden
+        stat = status.AciStatus(resource_type='VmmInjectedContGroup',
+                                resource_id=pod_db_obj.aim_id,
+                                resource_root=pod.root)
+        for t in ['ADDED', 'MODIFIED', 'DELETED']:
+            ev = {'event_type': t, 'resource': stat}
+            exp_ev = copy.copy(ev)
+
+            watcher._process_pod_status_event(ev)
+            self.assertEqual(exp_ev, ev)
+
+        # seed the hash-tree with the non-hidden pod
+        ev = {'type': 'ADDED', 'object': pod_db_obj}
+        watcher._process_event(ev)
+        cfg_tree = watcher.trees['config'][pod.root]
+        self.assertIsNotNone(cfg_tree.find(pod_ht_key))
+
+        # test pod that is hidden
+        stat.resource_id = hidden_pod_db_obj.aim_id
+        for t in ['ADDED', 'MODIFIED', 'DELETED']:
+            ev = {'event_type': t, 'resource': stat}
+            exp_ev = copy.copy(ev)
+            exp_ev['event_type'] = 'DELETED'
+            watcher._process_pod_status_event(ev)
+            self.assertEqual(exp_ev, ev)
+
+            ev2 = {'type': t, 'object': store.make_db_obj(stat)}
+            watcher._process_event(ev2)
+            self.assertIsNone(cfg_tree.find(hidden_pod_ht_key))
