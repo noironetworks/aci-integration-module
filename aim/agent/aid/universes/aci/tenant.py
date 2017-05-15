@@ -562,9 +562,12 @@ class AciTenantManager(utils.AIMThread):
                                     get_children_mos(aci_session,
                                                      aim_res.root)):
                                 query_targets.add(filler['resource'])
+                        self_get = False
                         if not dn.startswith('topology'):
                             kargs['target_subtree_class'] = ','.join(
                                 query_targets)
+                        else:
+                            self_get = True
                         # Operational state need full configuration
                         if event.keys()[0] in OPERATIONAL_LIST:
                             kargs.pop('rsp_prop_include')
@@ -572,7 +575,10 @@ class AciTenantManager(utils.AIMThread):
                         # remove when ACI is fixed
                         kargs.pop('rsp_prop_include', None)
                         # TODO(ivar): 'mo/' suffix should be added by APICAPI
-                        data = aci_session.get_data('mo/' + dn, **kargs)
+                        data = []
+                        if self_get:
+                            data.extend(aci_session.get_data('mo/' + dn))
+                        data.extend(aci_session.get_data('mo/' + dn, **kargs))
                         if not data:
                             LOG.warn("Resource %s not found", dn)
                             # The object doesn't exist anymore, a delete event
