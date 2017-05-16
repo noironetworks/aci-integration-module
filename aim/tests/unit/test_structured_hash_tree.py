@@ -937,3 +937,109 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
 
         self.maker.delete(htree, [bd2])
         self.assertFalse(htree.has_subtree())
+
+
+class TestTreeBuilder(base.TestAimDBBase):
+
+    def test_missing(self):
+        depl = resource.VmmInjectedDeployment(**{'display_name': '',
+                                                 'name': 'kubedns',
+                                                 'replicas': 1,
+                                                 'domain_name': 'kube',
+                                                 'controller_name': 'kube',
+                                                 'domain_type': 'Kubernetes',
+                                                 'guid': 'a',
+                                                 'namespace_name': 'k'})
+        ctrlr = resource.VMMController(**{'monitored': False,
+                                          'name': 'kube',
+                                          'domain_name': 'kube',
+                                          'domain_type': 'Kubernetes',
+                                          'host_or_ip': 'k8s-host',
+                                          'mode': 'k8s',
+                                          'scope': 'kubernetes',
+                                          'root_cont_name': 'k',
+                                          'display_name': ''})
+
+        updates = [depl, ctrlr, ctrlr]
+
+        mgr = aim_manager.AimManager()
+
+        tt_maker = tree_manager.AimHashTreeMaker()
+        tt_builder = tree_manager.HashTreeBuilder(mgr)
+        trees = {}
+
+        exp_key = tt_maker._build_hash_tree_key(depl)
+
+        for aim_res in updates:
+            key = tt_maker.get_root_key(aim_res)
+            if key and trees is not None:
+                cfg = trees.setdefault(tt_builder.CONFIG, {}).setdefault(
+                    key, tree.StructuredHashTree())
+                mo = trees.setdefault(tt_builder.MONITOR, {}).setdefault(
+                    key, tree.StructuredHashTree())
+                oper = trees.setdefault(tt_builder.OPER, {}).setdefault(
+                    key, tree.StructuredHashTree())
+
+                tt_builder.build([aim_res], [], [],
+                                 {tt_builder.CONFIG: {key: cfg},
+                                  tt_builder.MONITOR: {key: mo},
+                                  tt_builder.OPER: {key: oper}},
+                                 aim_ctx=self.ctx)
+
+            if not isinstance(aim_res, resource.VmmInjectedDeployment):
+                self.assertIsNotNone(cfg.find(exp_key),
+                                     'Resource %s' % aim_res)
+                self.assertIsNotNone(
+                    trees['config']['vmmp-Kubernetes'].find(exp_key),
+                    'Resource %s' % aim_res)
+
+    def test_deleted_node(self):
+        depl = resource.VmmInjectedDeployment(**{'display_name': '',
+                                                 'name': 'kubedns',
+                                                 'replicas': 1,
+                                                 'domain_name': 'kube',
+                                                 'controller_name': 'kube',
+                                                 'domain_type': 'Kubernetes',
+                                                 'guid': 'a',
+                                                 'namespace_name': 'k'})
+        ctrlr = resource.VMMController(**{'monitored': False,
+                                          'name': 'kube',
+                                          'domain_name': 'kube',
+                                          'domain_type': 'Kubernetes',
+                                          'host_or_ip': 'k8s-host',
+                                          'mode': 'k8s',
+                                          'scope': 'kubernetes',
+                                          'root_cont_name': 'k',
+                                          'display_name': ''})
+
+        updates = [depl, ctrlr]
+        mgr = aim_manager.AimManager()
+        tt_maker = tree_manager.AimHashTreeMaker()
+        tt_builder = tree_manager.HashTreeBuilder(mgr)
+        trees = {}
+        exp_key = tt_maker._build_hash_tree_key(depl)
+
+        def _build(key, added, deleted):
+            if key and trees is not None:
+                cfg = trees.setdefault(tt_builder.CONFIG, {}).setdefault(
+                    key, tree.StructuredHashTree())
+                mo = trees.setdefault(tt_builder.MONITOR, {}).setdefault(
+                    key, tree.StructuredHashTree())
+                oper = trees.setdefault(tt_builder.OPER, {}).setdefault(
+                    key, tree.StructuredHashTree())
+
+                tt_builder.build(added, [], deleted,
+                                 {tt_builder.CONFIG: {key: cfg},
+                                  tt_builder.MONITOR: {key: mo},
+                                  tt_builder.OPER: {key: oper}},
+                                 aim_ctx=self.ctx)
+
+        for aim_res in updates:
+            key = tt_maker.get_root_key(aim_res)
+            _build(key, [aim_res], [])
+
+        key = tt_maker.get_root_key(ctrlr)
+        if key and trees is not None:
+            _build(key, [], [ctrlr])
+
+        self.assertIsNotNone(trees['config']['vmmp-Kubernetes'].find(exp_key))

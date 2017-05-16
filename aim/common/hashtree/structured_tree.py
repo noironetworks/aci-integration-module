@@ -324,6 +324,7 @@ class StructuredHashTree(base.ComparableCollection):
         self._clear_stack_from_dummies(parents)
         if parents:
             self._recalculate_parents_stack(parents)
+        return node
 
     def find(self, key):
         return self._get_node_and_parent_stack(key)[0]
