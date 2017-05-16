@@ -317,6 +317,12 @@ class AimHashTreeMaker(object):
         root_split = root_key[0].split('|')
         return apic_client.DNManager().build([root_split]).split('/')[-1]
 
+    def _clean_related(self, tree, node):
+        for child in (node.get_children() if node else []):
+            if child.metadata.get('related'):
+                tree.clear(child.key)
+                self._clean_related(tree, child)
+
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
         is_error = getattr(aim_res, '_error', False)
@@ -329,9 +335,7 @@ class AimHashTreeMaker(object):
         # Remove "related" child-nodes
         aim_res_key = AimHashTreeMaker._build_hash_tree_key(aim_res)
         node = tree.find(aim_res_key) if aim_res_key else None
-        for child in (node.get_children() if node else []):
-            if child.metadata.get('related'):
-                tree.pop(child.key)
+        self._clean_related(tree, node)
 
         for obj in to_aci.convert([aim_res]):
             for mo, v in obj.iteritems():
@@ -373,7 +377,9 @@ class AimHashTreeMaker(object):
         for resource in deletes:
             key = self._build_hash_tree_key(resource)
             if key:
-                tree.pop(key)
+                tree.clear(key)
+                node = tree.find(key)
+                self._clean_related(tree, node)
         return tree
 
     def clear(self, tree, resources):
