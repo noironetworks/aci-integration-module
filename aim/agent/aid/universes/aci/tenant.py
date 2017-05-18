@@ -87,6 +87,9 @@ class Tenant(acitoolkit.Tenant):
                'subscription=yes'.format(self.name))
         if self.filtered_children:
             url += '&target-subtree-class=' + ','.join(self.filtered_children)
+        # TODO(amitbose) temporary workaround for ACI bug,
+        # remove when ACI is fixed
+        url = url.replace('&rsp-prop-include=config-only', '')
         return [url]
 
 
@@ -527,6 +530,9 @@ class AciTenantManager(gevent.Greenlet):
                         # Operational state need full configuration
                         if event.keys()[0] in OPERATIONAL_LIST:
                             kargs.pop('rsp_prop_include')
+                        # TODO(amitbose) temporary workaround for ACI bug,
+                        # remove when ACI is fixed
+                        kargs.pop('rsp_prop_include', None)
                         # TODO(ivar): 'mo/' suffix should be added by APICAPI
                         data = aci_session.get_data('mo/' + dn, **kargs)
                         if not data:
