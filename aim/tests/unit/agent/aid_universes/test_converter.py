@@ -1055,8 +1055,7 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
                           'rsdomAtt-[uni/phys-phys]',
-                    'tDn': 'uni/phys-phys',
-                    'classPref': 'useg'}}}, {
+                    'tDn': 'uni/phys-phys'}}}, {
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
