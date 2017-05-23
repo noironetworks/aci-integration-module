@@ -63,8 +63,8 @@ class K8sWatcher(object):
     from the Kubernetes REST API.
     """
 
-    def __init__(self, *args, **kwargs):
-        self.ctx = context.AimContext(store=api.get_store())
+    def __init__(self, ctx=None, *args, **kwargs):
+        self.ctx = ctx or context.AimContext(store=api.get_store())
         if 'streaming' not in self.ctx.store.features:
             # TODO(ivar) raise something meaningful
             raise Exception
@@ -229,10 +229,15 @@ class K8sWatcher(object):
 
     def _check_observers(self):
         exc = None
+        RESTART_TIME = 28 * 60
+        if not getattr(self, '_check_time', None):
+            self._check_time = time.time()
         for t in self._observe_thread_state:
             tstate = self._observe_thread_state[t]
             thd = tstate.get('thread')
-            if thd:
+            if time.time() - self._check_time > RESTART_TIME:
+                exc = K8SObserverStopped()
+            elif thd:
                 if tstate.get('watch_exception'):
                     exc = tstate.get('watch_exception')
                     LOG.info('Thread %s raised exception %s', thd, exc)
