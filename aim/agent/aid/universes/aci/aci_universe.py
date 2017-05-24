@@ -88,6 +88,10 @@ class WebSocketContext(object):
             self.apic_config.get_option_and_subscribe(
                 self._ws_config_callback, 'verify_ssl_certificate',
                 group='apic'))
+        self.cert_name = self.apic_config.get_option('certificate_name',
+                                                     group='apic')
+        self.private_key_file = self.apic_config.get_option('private_key_file',
+                                                            group='apic')
         protocol = 'https' if self.apic_use_ssl else 'http'
         self.ws_urls = collections.deque(
             ['%s://%s' % (protocol, host) for host in self.apic_hosts])
@@ -101,9 +105,11 @@ class WebSocketContext(object):
         LOG.debug('Establishing WS connection with parameters: %s',
                   [self.ws_urls[0], self.apic_username, self.apic_password,
                    self.verify_ssl_certificate])
+
         self.session = acitoolkit.Session(
             self.ws_urls[0], self.apic_username, self.apic_password,
-            verify_ssl=self.verify_ssl_certificate)
+            verify_ssl=self.verify_ssl_certificate, cert_name=self.cert_name,
+            key=self.private_key_file)
         resp = self.session.login()
         if not resp.ok:
             raise WebSocketSessionLoginFailed(code=resp.status_code,
