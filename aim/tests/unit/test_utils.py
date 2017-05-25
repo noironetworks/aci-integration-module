@@ -82,3 +82,11 @@ class TestUtils(base.TestAimDBBase):
         self.assertEqual(
             'vvxojw5rwlmq6abg3trx6nchbffez4lxfhalgidxlyhtlh3r4jwq',
             internal_utils.sanitize_name('test', 'a -', '-', '_'))
+
+    def test_decompose_dn(self):
+        dn = 'uni/tn-common/brc-p/subj-p/intmnl/rsfiltAtt-p'
+        type = 'vzRsFiltAtt'
+        self.assertEqual(
+            [('fvTenant', 'common'), ('vzBrCP', 'p'), ('vzSubj', 'p'),
+             ('vzInTerm', 'intmnl'), ('vzRsFiltAtt', 'p')],
+            internal_utils.decompose_dn(type, dn))

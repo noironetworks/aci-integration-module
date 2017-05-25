@@ -169,10 +169,11 @@ class FakeContext(object):
 
 def decompose_dn(mo_type, dn):
     try:
-        return apic_client.DNManager().aci_decompose_with_type(dn, mo_type)
+        return apic_client.DNManager().aci_decompose_dn_guess(dn, mo_type)[1]
     except (apic_client.DNManager.InvalidNameFormat,
-            apic_client.cexc.ApicManagedObjectNotSupported):
-        LOG.warning("Failed to transform DN %s to key for hash-tree", dn)
+            apic_client.cexc.ApicManagedObjectNotSupported, IndexError):
+        LOG.warning("Failed to transform DN %s to key for "
+                    "type %s" % (dn, mo_type))
         return
 
 
