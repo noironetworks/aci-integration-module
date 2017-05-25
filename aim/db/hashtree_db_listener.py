@@ -97,7 +97,7 @@ class HashTreeDbListener(object):
             tenants = self.aim_manager.find(aim_ctx, resource.Tenant,
                                             **filters)
             for t in tenants:
-                self.tt_mgr.delete_by_root_rn(aim_ctx, t.name)
+                self.tt_mgr.delete_by_root_rn(aim_ctx, t.root)
             # Retrieve objects
             for klass in self.aim_manager.aim_resources:
                 if issubclass(klass, resource.AciResourceBase):
