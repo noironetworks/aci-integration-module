@@ -13,12 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
-import eventlet
-# https://github.com/eventlet/eventlet/issues/401
-eventlet.sleep()
-eventlet.monkey_patch()
-
 import copy
 import mock
 from mock import patch
@@ -69,19 +63,22 @@ class TestK8SWatcher(base.TestAimDBBase):
         resp = mock.Mock(closed=False)
         list_mock = mock.Mock(return_value=resp)
         with patch.object(watcher.klient, 'list', new=list_mock):
-            watcher._observe_objects(api_v1.AciContainersObject, 1)
+            watcher._observe_objects(watcher.klient.watch.stream,
+                                     api_v1.AciContainersObject, 1)
 
             self.assertEqual(resp,
                              watcher._observe_thread_state[thd]['http_resp'])
 
             resp.closed = True
-            watcher._observe_objects(api_v1.AciContainersObject, 1)
+            watcher._observe_objects(watcher.klient.watch.stream,
+                                     api_v1.AciContainersObject, 1)
             ts = watcher._observe_thread_state[thd]['http_resp']
             self.assertEqual(True, ts.closed)
 
         stream_mock = mock.Mock(side_effect=Exception('FAKE ERROR'))
         with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
-            watcher._observe_objects(api_v1.AciContainersObject, 1)
+            watcher._observe_objects(watcher.klient.watch.stream,
+                                     api_v1.AciContainersObject, 1)
             exc = watcher._observe_thread_state[thd]['watch_exception']
             self.assertEqual(Exception, type(exc))
 
@@ -113,23 +110,27 @@ class TestK8SWatcher(base.TestAimDBBase):
 
         with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev_exp, watcher.q.get_nowait())
 
             ev['object']['spec']['hostNetwork'] = False
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev, watcher.q.get_nowait())
 
             ev['object']['spec'].pop('hostNetwork', None)
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev, watcher.q.get_nowait())
 
             ev['type'] = 'MODIFIED'
             ev['object']['spec']['hostNetwork'] = True
             stream_mock.return_value = [copy.copy(ev)]
-            watcher._observe_objects(api_v1.Pod, 1)
+            watcher._observe_objects(watcher.klient.watch.stream, api_v1.Pod,
+                                     1, None)
             self.assertEqual(ev_exp, watcher.q.get_nowait())
 
     @base.requires(['k8s'])
@@ -270,7 +271,8 @@ class TestK8SWatcher(base.TestAimDBBase):
         with patch.object(watcher.klient.watch, 'stream', new=stream_mock):
             for n in ['kube-controller-manager', 'kube-scheduler']:
                 ev['object']['metadata']['name'] = n
-                watcher._observe_objects(api_v1.Endpoints, 1)
+                watcher._observe_objects(watcher.klient.watch.stream,
+                                         api_v1.Endpoints, 1)
                 self.assertTrue(watcher.q.empty())
 
     @base.requires(['k8s'])
@@ -338,3 +340,13 @@ class TestK8SWatcher(base.TestAimDBBase):
             ev2 = {'type': t, 'object': store.make_db_obj(stat)}
             watcher._process_event(ev2)
             self.assertIsNone(cfg_tree.find(hidden_pod_ht_key))
+
+    @base.requires(['k8s'])
+    def test_check_observer_dies_timeout(self):
+        watcher = k8s_watcher.K8sWatcher(self.ctx)
+        watcher._observe_thread_state = {mock.Mock(): {}}
+        # doens't die
+        self.assertIsNone(watcher._check_observers())
+        watcher._check_time -= 30 * 60
+        # dies
+        self.assertIsNotNone(watcher._check_observers())

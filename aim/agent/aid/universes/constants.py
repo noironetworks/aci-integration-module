@@ -13,28 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from aim.agent.aid.event_services import polling
-from aim.agent.aid.event_services import rpc_service
-from aim.agent.aid import service
-from aim.tools.cli import debug_shell
-from aim.tools.cli import shell
 
+# Keep all the lock names/prefixes here stored in constants for an easier
+# lookup of who is using them.
 
-def aid():
-    service.main()
-
-
-def aimctl():
-    shell.run()
-
-
-def aimdebug():
-    debug_shell.run()
-
-
-def event_polling():
-    polling.main()
-
-
-def rpc():
-    rpc_service.main()
+# Access to the k8s watcher tree shared resource
+K8S_WATCHER_TREE_LOCK = 'k8s_watcher_trees'
+# Prevent AID from observing new state for all roots
+AID_OBSERVER_LOCK = 'aid_observer_lock'
+# Access ACI tree of a specific root
+ACI_TREE_LOCK_NAME_PREFIX = "root_aci_tree_lock-"

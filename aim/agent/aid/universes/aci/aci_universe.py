@@ -15,11 +15,11 @@
 
 import collections
 import json
+import time
 import traceback
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
-import eventlet
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
@@ -69,10 +69,11 @@ class WebSocketContext(object):
         self._spawn_monitors()
 
     def _spawn_monitors(self):
-        eventlet.spawn(self._thread_monitor, self.session.login_thread,
-                       'login_thread')
-        eventlet.spawn(self._thread_monitor, self.session.subscription_thread,
-                       'subscription_thread')
+        utils.spawn_thread(self._thread_monitor, self.session.login_thread,
+                           'login_thread')
+        utils.spawn_thread(
+            self._thread_monitor, self.session.subscription_thread,
+            'subscription_thread')
 
     def _reload_websocket_config(self):
         # Don't subscribe in this case
@@ -208,7 +209,7 @@ class WebSocketContext(object):
                 else:
                     LOG.debug("Thread %s is in good shape" % name)
                     retries = None
-                eventlet.sleep(self.monitor_sleep_time)
+                time.sleep(self.monitor_sleep_time)
                 # for testing purposes
                 self.monitor_runs -= 1
         except Exception as e:

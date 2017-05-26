@@ -212,6 +212,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                                           aim_resource.AciRoot) and monitored:
                                 # Monitored Universe doesn't delete Tenant
                                 # Resources
+                                LOG.info('%s skipping delete for object %s' %
+                                         (self.name, resource))
                                 continue
                             if monitored:
                                 # Only delete a resource if monitored

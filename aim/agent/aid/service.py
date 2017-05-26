@@ -18,13 +18,13 @@ import sys
 import time
 import traceback
 
-import eventlet
 from oslo_log import log as logging
 import semantic_version
 
 from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes import aim_universe
+from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
 from aim.api import resource
@@ -60,6 +60,12 @@ class AID(object):
         # DB session which can result in conflicts.
         # TODO(amitbose) Fix ConfigManager to not use cached AimContext
         self.conf_manager = aim_cfg.ConfigManager(aim_ctx, self.host)
+        self.k8s_watcher = None
+        self.single_aid = False
+        if conf.aim.aim_store == 'k8s':
+            self.single_aid = True
+            self.k8s_watcher = k8s_watcher.K8sWatcher()
+            self.k8s_watcher.run()
 
         # Define multiverse pairs, First position is desired state
         self.multiverse = [
@@ -103,16 +109,10 @@ class AID(object):
             self._change_report_interval, 'agent_report_interval', group='aim')
         self.squash_time = self.conf_manager.get_option_and_subscribe(
             self._change_squash_time, 'agent_event_squash_time', group='aim')
-        eventlet.spawn(self._heartbeat_loop)
+        self._spawn_heartbeat_loop()
         self.events = event_handler.EventHandler().initialize(
             self.conf_manager)
         self.max_down_time = 4 * self.report_interval
-        self.k8s_watcher = None
-        self.single_aid = False
-        if conf.aim.aim_store == 'k8s':
-            self.single_aid = True
-            self.k8s_watcher = k8s_watcher.K8sWatcher()
-            self.k8s_watcher.run()
 
     def daemon_loop(self):
         aim_ctx = context.AimContext(store=api.get_store())
@@ -170,9 +170,10 @@ class AID(object):
         # time for events to happen
 
         # Observe the two universes to fix their current state
-        for pair in self.multiverse:
-            pair[DESIRED].observe()
-            pair[CURRENT].observe()
+        with utils.get_rlock(lcon.AID_OBSERVER_LOCK):
+            for pair in self.multiverse:
+                pair[DESIRED].observe()
+                pair[CURRENT].observe()
 
         # Reconcile everything
         changes = False
@@ -192,12 +193,15 @@ class AID(object):
                                  (universe.name, tenant))
                         universe.cleanup_state(tenant)
 
+    def _spawn_heartbeat_loop(self):
+        utils.spawn_thread(self._heartbeat_loop)
+
     def _heartbeat_loop(self):
         aim_ctx = context.AimContext(store=api.get_store())
         while True:
             start = time.time()
             self._send_heartbeat(aim_ctx)
-            eventlet.sleep(
+            time.sleep(
                 max(0, self.report_interval - (time.time() - start)))
 
     def _send_heartbeat(self, aim_ctx):

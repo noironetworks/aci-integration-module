@@ -14,14 +14,13 @@
 #    under the License.
 
 import abc
-import greenlet
 import os
+import Queue as queue
 import six
 import socket
+import time
 import traceback
 
-import eventlet
-from eventlet import queue
 from oslo_log import log as logging
 
 from aim.common import utils
@@ -95,7 +94,7 @@ class EventHandler(EventHandlerBase):
         self.conf_manager = conf_manager
         self.listener = self._spawn_listener()
         EventHandler.q = queue.Queue()
-        eventlet.sleep(0)
+        time.sleep(0)
         return self
 
     def _connect(self):
@@ -114,7 +113,7 @@ class EventHandler(EventHandlerBase):
         self.sock.bind(self.us_path)
 
     def _spawn_listener(self):
-        return eventlet.spawn(self._listener)
+        return utils.spawn_thread(self._listener)
 
     def _listener(self):
         # Multiple event notifiers can connect to AID
@@ -125,9 +124,6 @@ class EventHandler(EventHandlerBase):
                 while True:
                     self._recv_loop()
                 self.recovery_retries = None
-            except greenlet.GreenletExit:
-                LOG.warn("Killed event listener thread")
-                return
             except Exception as e:
                 LOG.debug(traceback.format_exc())
                 LOG.error("An error as occurred in the event listener "
@@ -188,7 +184,7 @@ class EventSender(SenderBase):
             self.recovery_retries = None
             return self
         except Exception:
-            LOG.debug(traceback.format_exc())
+            LOG.error(traceback.format_exc())
             self.recovery_retries = utils.exponential_backoff(
                 SOCKET_RECONNECT_MAX_WAIT, tentative=self.recovery_retries)
 

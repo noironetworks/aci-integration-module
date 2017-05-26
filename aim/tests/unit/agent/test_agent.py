@@ -89,12 +89,17 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.stop_threads')
         self.stop_watcher_threads.start()
 
+        self.hb_loop = mock.patch(
+            'aim.agent.aid.service.AID._spawn_heartbeat_loop')
+        self.hb_loop.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
         self.addCleanup(self.events_thread.stop)
         self.addCleanup(self.watcher_threads.stop)
         self.addCleanup(self.stop_watcher_threads.stop)
+        self.addCleanup(self.hb_loop.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body_dict = self.old_post
@@ -334,8 +339,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # reconcile the state
         agent._daemon_loop(self.ctx)
 
-        for tenant in agent.current_universe.serving_tenants.values():
-            tenant._subscribe_tenant()
         # The ACI universe will not push the configuration unless explicitly
         # called
         self.assertFalse(

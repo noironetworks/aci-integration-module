@@ -103,7 +103,7 @@ class Connection(object):
         target = oslo_messaging.Target(
             topic=topic, server=aim_cfg.CONF.aim.aim_service_identifier)
         server = oslo_messaging.get_rpc_server(self.transport, target,
-                                               endpoints, executor='eventlet')
+                                               endpoints)
         self.servers.append(server)
 
     def consume_in_threads(self):
