@@ -55,3 +55,4 @@ def infra(ctx):
 def create(ctx):
     ctx.obj['apic_manager'].ensure_infra_created_on_apic()
     ctx.obj['apic_manager'].ensure_bgp_pod_policy_created_on_apic()
+    ctx.obj['apic_manager'].ensure_opflex_client_cert_validation_disabled()
