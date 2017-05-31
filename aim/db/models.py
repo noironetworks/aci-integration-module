@@ -708,12 +708,6 @@ class VmmInjectedNamespace(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'name') +
-        (sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name'],
-            ['aim_vmm_controllers.domain_type',
-             'aim_vmm_controllers.domain_name',
-             'aim_vmm_controllers.name'],
-            name='fk_inj_ns_vmm_controller'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_type = model_base.name_column(nullable=False)
@@ -874,12 +868,6 @@ class VmmInjectedHost(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'name') +
-        (sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name'],
-            ['aim_vmm_controllers.domain_type',
-             'aim_vmm_controllers.domain_name',
-             'aim_vmm_controllers.name'],
-            name='fk_inj_host_vmm_controller'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_type = model_base.name_column(nullable=False)

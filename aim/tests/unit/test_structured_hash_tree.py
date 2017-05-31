@@ -963,17 +963,12 @@ class TestTreeBuilder(base.TestAimDBBase):
                                                  'domain_type': 'Kubernetes',
                                                  'guid': 'a',
                                                  'namespace_name': 'k'})
-        ctrlr = resource.VMMController(**{'monitored': False,
-                                          'name': 'kube',
-                                          'domain_name': 'kube',
-                                          'domain_type': 'Kubernetes',
-                                          'host_or_ip': 'k8s-host',
-                                          'mode': 'k8s',
-                                          'scope': 'kubernetes',
-                                          'root_cont_name': 'k',
-                                          'display_name': ''})
-
-        updates = [depl, ctrlr, ctrlr]
+        ns = resource.VmmInjectedNamespace(**{'display_name': '',
+                                              'name': 'k',
+                                              'domain_name': 'kube',
+                                              'controller_name': 'kube',
+                                              'domain_type': 'Kubernetes'})
+        updates = [depl, ns, ns]
 
         mgr = aim_manager.AimManager()
 
@@ -1003,7 +998,7 @@ class TestTreeBuilder(base.TestAimDBBase):
                 self.assertIsNotNone(cfg.find(exp_key),
                                      'Resource %s' % aim_res)
                 self.assertIsNotNone(
-                    trees['config']['vmmp-Kubernetes'].find(exp_key),
+                    trees['config']['comp'].find(exp_key),
                     'Resource %s' % aim_res)
 
     def test_deleted_node(self):
@@ -1015,17 +1010,13 @@ class TestTreeBuilder(base.TestAimDBBase):
                                                  'domain_type': 'Kubernetes',
                                                  'guid': 'a',
                                                  'namespace_name': 'k'})
-        ctrlr = resource.VMMController(**{'monitored': False,
-                                          'name': 'kube',
-                                          'domain_name': 'kube',
-                                          'domain_type': 'Kubernetes',
-                                          'host_or_ip': 'k8s-host',
-                                          'mode': 'k8s',
-                                          'scope': 'kubernetes',
-                                          'root_cont_name': 'k',
-                                          'display_name': ''})
+        ns = resource.VmmInjectedNamespace(**{'display_name': '',
+                                              'name': 'k',
+                                              'domain_name': 'kube',
+                                              'controller_name': 'kube',
+                                              'domain_type': 'Kubernetes'})
 
-        updates = [depl, ctrlr]
+        updates = [depl, ns]
         mgr = aim_manager.AimManager()
         tt_maker = tree_manager.AimHashTreeMaker()
         tt_builder = tree_manager.HashTreeBuilder(mgr)
@@ -1051,8 +1042,8 @@ class TestTreeBuilder(base.TestAimDBBase):
             key = tt_maker.get_root_key(aim_res)
             _build(key, [aim_res], [])
 
-        key = tt_maker.get_root_key(ctrlr)
+        key = tt_maker.get_root_key(ns)
         if key and trees is not None:
-            _build(key, [], [ctrlr])
+            _build(key, [], [ns])
 
-        self.assertIsNotNone(trees['config']['vmmp-Kubernetes'].find(exp_key))
+        self.assertIsNotNone(trees['config']['comp'].find(exp_key))

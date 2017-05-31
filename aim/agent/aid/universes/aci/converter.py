@@ -527,10 +527,6 @@ resource_map = {
     'vmmCtrlrP': [{
         'resource': resource.VMMController,
     }],
-    'vmmInjectedCont': [{
-        'resource': resource.VMMController,
-        'to_resource': utils.no_op_to_resource,
-    }],
     'vmmInjectedNs': [{
         'resource': resource.VmmInjectedNamespace,
     }],
