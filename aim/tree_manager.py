@@ -326,6 +326,8 @@ class AimHashTreeMaker(object):
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
         is_error = getattr(aim_res, '_error', False)
+        is_monitored = (getattr(aim_res, 'monitored', False) or
+                        getattr(aim_res, 'pre_existing', False))
         pending = getattr(aim_res, '_pending', None)
         to_aci = converter.AimToAciModelConverter()
         aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
@@ -343,10 +345,12 @@ class AimHashTreeMaker(object):
                 dn = attr.pop('dn', None)
                 key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
                 if key:
+                    attr['_metadata'] = {'monitored': is_monitored,
+                                         'attributes': copy.copy(attr)}
                     if dn != aim_res_dn:
-                        attr.setdefault('_metadata', {})['related'] = True
+                        attr['_metadata']['related'] = True
                     if pending is not None:
-                        attr.setdefault('_metadata', {})['pending'] = pending
+                        attr['_metadata']['pending'] = pending
                     attr['_error'] = is_error
                     result[key] = attr
         return result
@@ -492,7 +496,7 @@ class HashTreeBuilder(object):
                                              oper: ([], [])})
                             updates_by_root[
                                 parent_key][oper][tree_index].append(parent)
-                    else:
+                    elif tree_index == 0:
                         # Parent doesn't exist for some reason, delete the
                         # status object
                         try:

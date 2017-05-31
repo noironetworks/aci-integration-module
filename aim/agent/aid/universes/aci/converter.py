@@ -32,6 +32,7 @@ LOG = logging.getLogger(__name__)
 DELETED_STATUS = "deleted"
 CLEARED_SEVERITY = "cleared"
 MODIFIED_STATUS = "modified"
+CREATED_STATUS = "created"
 
 
 # TODO(amitbose) Instead of aliasing, replace local references with the

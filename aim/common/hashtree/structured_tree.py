@@ -36,8 +36,8 @@ class StructuredTreeNode(object):
         'dummy',  # whether or not this node is dummy
         'error',  # When True, skip to compare children
         '_children',  # underlying nodes
-        'metadata'  # Additional "user" data dict, not used for
-                    # tree comparison
+        'metadata',  # Additional "user" data dict, not used for
+                     # tree comparison
     ]
 
     def __init__(self, key, partial_hash=None, full_hash=None, dummy=True,
@@ -79,12 +79,11 @@ class StructuredTreeNode(object):
         root = collections.OrderedDict(
             [('key', self.key), ('partial_hash', self.partial_hash),
              ('full_hash', self.full_hash), ('dummy', self.dummy),
-             ('error', self.error), ('_children', []),
-             ('metadata', {})])
+             ('error', self.error),
+             ('metadata', self.metadata.to_dict()),
+             ('_children', [])])
         for children in self.get_children():
             root['_children'].append(children.to_dict())
-        for item in self.metadata:
-            root['metadata'][item.key] = item.value
         return root
 
 
@@ -124,6 +123,9 @@ class KeyValueStore(base.OrderedList):
     def transform_value(self, value):
         return value.value
 
+    def to_dict(self):
+        return {x.key: x.value for x in self}
+
     def __cmp__(self, other):
         if isinstance(other, KeyValueStore):
             return super(KeyValueStore, self).__cmp__(other)
@@ -132,6 +134,12 @@ class KeyValueStore(base.OrderedList):
                 KeyValueStore().include([KeyValue(k, v) for k, v in
                                          other.iteritems()]))
         return False
+
+    def __str__(self):
+        return json.dumps(self.to_dict())
+
+    def __repr__(self):
+        return '%s(%s)' % (super(KeyValueStore, self).__repr__(), str(self))
 
 
 class StructuredHashTree(base.ComparableCollection):
@@ -217,16 +225,14 @@ class StructuredHashTree(base.ComparableCollection):
             # nothing to do
             return self
         has_metadata = '_metadata' in kwargs
-        metadata_dict = kwargs.pop('_metadata', None)
-        metadata = KeyValueStore()
-        for meta_key, value in (metadata_dict or {}).iteritems():
-            metadata.add(KeyValue(meta_key, value))
+        metadata_dict = kwargs.pop('_metadata', {})
+        metadata = KeyValueStore().include(
+            KeyValue(k, v) for k, v in (metadata_dict or {}).iteritems())
         error = kwargs.pop('_error', False)
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
             self.root = StructuredTreeNode(
-                (key[0],), self._hash_attributes(key=(key[0],)),
-                metadata=metadata, error=error)
+                (key[0],), self._hash_attributes(key=(key[0],)))
             self.root_key = self.root.key
         else:
             # With the first element of the key, verify that this is not an
@@ -398,7 +404,8 @@ class StructuredHashTree(base.ComparableCollection):
         # traverse the tree and returns all its keys
         if not root:
             return []
-        result = [root.key] if not (root.dummy or root.error) else []
+        result = [root.key] if not (
+            root.dummy or root.error) else []
         for node in root.get_children():
             result += self._get_subtree_keys(node)
         return result

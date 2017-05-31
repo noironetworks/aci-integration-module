@@ -34,9 +34,12 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
     def setUp(self, universe_klass=None):
         super(TestAciUniverseMixin, self).setUp()
         self._do_aci_mocks()
+        self.backend_state = {}
         self.universe = (universe_klass or
                          aci_universe.AciUniverse)().initialize(
-            self.store, aim_cfg.ConfigManager(self.ctx, 'h1'))
+            self.store, aim_cfg.ConfigManager(self.ctx, 'h1'), [])
+        self.universe.get_relevant_state_for_read = mock.Mock(
+            return_value=[self.backend_state])
         # Mock ACI tenant manager
         self.mock_start = mock.patch(
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.start')
@@ -179,7 +182,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
     def test_get_resource_fault(self):
         fault = self._get_example_aci_fault()
-        self._add_server_data([fault], self.universe, create_parents=True)
+        self._add_data_to_tree([fault], self.backend_state)
         key = ('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951')
         result = self.universe.get_resource(key)
         self.assertEqual(fault, result[0])
@@ -187,45 +190,47 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
     def test_get_resources(self):
         objs = [
             self._get_example_aci_fault(),
-            self._get_example_aci_bd(),
-            {'vzSubj': {'attributes': {'dn': 'uni/tn-t1/brc-c/subj-s'}}},
+            {'fvBD': {
+                'attributes': {'arpFlood': 'no',
+                               'dn': 'uni/tn-test-tenant/BD-test',
+                               'epMoveDetectMode': '',
+                               'ipLearning': 'yes',
+                               'limitIpLearnToSubnets': 'no',
+                               'nameAlias': '',
+                               'unicastRoute': 'yes',
+                               'unkMacUcastAct': 'proxy'}}},
+            {'fvRsCtx': {'attributes': {
+                'dn': 'uni/tn-test-tenant/BD-test/rsctx', 'tnFvCtxName': ''}}},
+            {'vzSubj': {'attributes': {'dn': 'uni/tn-t1/brc-c/subj-s',
+                                       'nameAlias': ''}}},
             {'vzInTerm': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/intmnl'}}},
             {'vzOutTerm': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl'}}},
             {'vzRsSubjFiltAtt': {'attributes': {
-                'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f'}}},
+                'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f',
+                'tnVzFilterName': 'f'}}},
             {'vzRsFiltAtt': {'attributes': {
-                'dn': 'uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-g'}}},
+                'dn': 'uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-g',
+                'tnVzFilterName': 'g'}}},
             {'vzRsFiltAtt': {'attributes': {
-                'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-h'}}}]
-        self._add_server_data(objs, self.universe, create_parents=True)
+                'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-h',
+                'tnVzFilterName': 'h'}}}]
+        self._add_data_to_tree(objs, self.backend_state)
         keys = [('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951'),
                 ('fvTenant|test-tenant', 'fvBD|test'),
                 ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzRsSubjFiltAtt|f'),
-                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
-                 'vzInTerm|intmnl', 'vzRsFiltAtt|g'),
-                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
-                 'vzOutTerm|outtmnl', 'vzRsFiltAtt|h'), ]
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzOutTerm|outtmnl'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzInTerm|intmnl',
+                 'vzRsFiltAtt|g'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzOutTerm|outtmnl',
+                 'vzRsFiltAtt|h'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s')]
         result = self.universe.get_resources(keys)
         self.assertEqual(sorted(objs), sorted(result))
 
-    def test_get_unsupported_faults(self):
-        objs = [
-            {'faultInst': {
-                'attributes': {'status': 'modified', 'domain': 'infra',
-                               'code': 'F0951', 'occur': '1',
-                               'subject': 'relation-resolution',
-                               'severity': 'cleared',
-                               'origSeverity': 'warning', 'rn': '',
-                               'childAction': '', 'type': 'config',
-                               'dn': 'uni/tn-prj_35e6d34e81a84091854ddf388d1e5'
-                                     '5d1/BD-net_c6e85f2a-eb05-44b6-9b04-c065'
-                                     '6d72a2b8/rsbdToEpRet/fault-F0951'}}}]
-        result = aci_tenant.AciTenantManager.retrieve_aci_objects(
-            objs, self.universe._aim_converter, self.universe.aci_session)
-        self.assertEqual([], result)
-
+    @base.requires(['skip'])
     def test_get_resources_for_delete(self):
         objs = [
             {'fvBD': {'attributes': {
@@ -237,11 +242,12 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             {'vzRsFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-h'}}}]
         keys = [('fvTenant|t1', 'fvBD|test'),
-                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s', 'vzRsSubjFiltAtt|f'),
+                ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
+                 'vzRsSubjFiltAtt|f'),
                 ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
                  'vzInTerm|intmnl', 'vzRsFiltAtt|g'),
                 ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
-                 'vzOutTerm|outtmnl', 'vzRsFiltAtt|h'), ]
+                 'vzOutTerm|outtmnl', 'vzRsFiltAtt|h')]
         result = self.universe.get_resources_for_delete(keys)
         self.assertEqual(sorted(objs), sorted(result))
         # Create a pending monitored object
@@ -253,6 +259,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.manager.create(self.ctx, monitored_bd)
         self.universe.manager.set_resource_sync_pending(self.ctx, monitored_bd)
 
+        self.universe.multiverse = []
         result = self.universe.get_resources_for_delete(
             [('fvTenant|tn1', 'fvBD|monitoredBD')])
         self.assertEqual(1, len(result))
@@ -348,7 +355,7 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
 
     def test_shared_served_tenants(self):
         operational = aci_universe.AciOperationalUniverse().initialize(
-            self.ctx, aim_cfg.ConfigManager(self.ctx, ''))
+            self.ctx, aim_cfg.ConfigManager(self.ctx, ''), [])
         tenant_list = ['tn%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
         self.assertIs(self.universe.serving_tenants,

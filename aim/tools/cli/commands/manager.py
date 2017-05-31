@@ -222,6 +222,9 @@ def load_domains(ctx, replace, enforce):
 
         vmms = config.create_vmdom_dictionary()
         physdoms = config.create_physdom_dictionary()
+        if vmms:
+            res = resource.VMMPolicy(type='OpenStack', monitored=True)
+            print_resource(manager.create(aim_ctx, res, overwrite=True))
         for vmm in vmms:
             res = resource.VMMDomain(type='OpenStack', name=vmm,
                                      monitored=True)
@@ -316,6 +319,9 @@ for res in aim_manager.AimManager._db_model_map:
     def plain_output(f):
         return click.option('--plain', '-p', default=False, is_flag=True)(f)
 
+    def force(f):
+        return click.option('--force', '-f', default=False, is_flag=True)(f)
+
     # runtime create commands
     name = convert(res.__name__)
     f = click.pass_context(create(res))
@@ -326,6 +332,7 @@ for res in aim_manager.AimManager._db_model_map:
     # runtime delete commands
     f = click.pass_context(delete(res))
     f = plain_output(f)
+    f = force(f)
     f = specify_id_attrs(f)
     manager.command(name=name + '-delete')(f)
 

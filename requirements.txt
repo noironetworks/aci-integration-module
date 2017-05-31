@@ -8,7 +8,6 @@ alembic
 -e git+https://github.com/noironetworks/acitoolkit.git@noiro-lite#egg=acitoolkit
 -e git+https://github.com/noironetworks/apicapi.git@master#egg=apicapi
 Click
-eventlet!=0.18.3,>=0.18.2 # MIT
 jsonschema  # MIT
 kubernetes
 oslo.concurrency

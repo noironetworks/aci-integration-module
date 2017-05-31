@@ -15,7 +15,6 @@
 
 from oslo_log import log as logging
 import sqlalchemy as sa
-from sqlalchemy import orm
 from sqlalchemy.sql.expression import func
 
 from aim.db import model_base
@@ -28,9 +27,7 @@ class Fault(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_faults'
     __table_args__ = ((sa.Index('idx_aim_faults_status_id', 'status_id'), ) +
                       model_base.to_tuple(model_base.Base.__table_args__))
-    status_id = sa.Column(sa.String(255), sa.ForeignKey('aim_statuses.id',
-                                                        ondelete='CASCADE'),
-                          nullable=False)
+    status_id = sa.Column(sa.String(255), nullable=False)
     fault_code = sa.Column(sa.String(25), nullable=False)
     severity = sa.Column(sa.String(25), nullable=False)
     description = sa.Column(sa.String(255), default='')
@@ -57,8 +54,3 @@ class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     sync_status = sa.Column(sa.String(50), nullable=True)
     sync_message = sa.Column(sa.TEXT, default='')
     health_score = sa.Column(sa.Integer, nullable=False)
-    faults = orm.relationship(Fault, backref='status')
-
-    def get_faults(self, session):
-        # Only return the faults' identifier
-        return [getattr(x, 'external_identifier') for x in self.faults or []]

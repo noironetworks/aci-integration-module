@@ -16,8 +16,6 @@
 import time
 import traceback
 
-import eventlet
-import greenlet
 from oslo_log import log as logging
 
 from aim.agent.aid.event_services import event_service_base
@@ -41,38 +39,31 @@ class Poller(event_service_base.EventServiceBase):
         self.recovery_retries = None
 
     def run(self):
-        t = eventlet.spawn(self._poll)
+        utils.spawn_thread(self._poll)
         try:
             while self.run_daemon_loop:
-                eventlet.sleep(1)
+                time.sleep(1)
         finally:
             LOG.info("Killing poller thread")
-            t.kill()
 
     def _poll(self):
-        try:
-            # Loop count is the equivalent of a True in normal usage, but it's
-            # useful for testing.
-            while self.loop_count > 0:
-                try:
-                    start_time = time.time()
-                    self._daemon_loop()
-                    utils.wait_for_next_cycle(
-                        start_time, self.polling_interval,
-                        LOG, readable_caller='Event Service Poller',
-                        notify_exceeding_timeout=False)
-                    self.loop_count -= 1
-                    self.recovery_retries = None
-                except greenlet.GreenletExit:
-                    raise
-                except Exception:
-                    LOG.error('A error occurred in polling agent.')
-                    LOG.error(traceback.format_exc())
-                    self.recovery_retries = utils.exponential_backoff(
-                        10, tentative=self.recovery_retries)
-        except greenlet.GreenletExit:
-            LOG.info("Poller thread is dead.")
-            return
+        # Loop count is the equivalent of a True in normal usage, but it's
+        # useful for testing.
+        while self.loop_count > 0:
+            try:
+                start_time = time.time()
+                self._daemon_loop()
+                utils.wait_for_next_cycle(
+                    start_time, self.polling_interval,
+                    LOG, readable_caller='Event Service Poller',
+                    notify_exceeding_timeout=False)
+                self.loop_count -= 1
+                self.recovery_retries = None
+            except Exception:
+                LOG.error('A error occurred in polling agent.')
+                LOG.error(traceback.format_exc())
+                self.recovery_retries = utils.exponential_backoff(
+                    10, tentative=self.recovery_retries)
 
     def _daemon_loop(self):
         self.sender.serve()

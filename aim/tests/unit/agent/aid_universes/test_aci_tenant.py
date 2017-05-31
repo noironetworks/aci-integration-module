@@ -17,7 +17,6 @@ import collections
 import copy
 
 from apicapi import apic_client
-import greenlet
 import json
 import mock
 
@@ -25,8 +24,10 @@ from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.api import resource as a_res
+from aim.common.hashtree import structured_tree
+from aim import config as aim_cfg
 from aim.tests import base
-
+from aim import tree_manager
 
 AMBIGUOUS_TYPES = [aci_tenant.TAG_KEY, aci_tenant.FAULT_KEY]
 
@@ -242,6 +243,26 @@ class TestAciClientMixin(object):
     def _remove_server_data(self, data, manager=None):
         self._manipulate_server_data(data, manager=manager, add=False)
 
+    def _add_data_to_tree(self, data, state):
+        aim_res = converter.AciToAimModelConverter().convert(data)
+        by_root = {}
+        for res in aim_res:
+            by_root.setdefault(res.root, []).append(res)
+        for root, updates in by_root.iteritems():
+            tree_manager.AimHashTreeMaker().update(
+                state.setdefault(root, structured_tree.StructuredHashTree()),
+                updates)
+
+    def _remove_data_from_tree(self, data, state):
+        aim_res = converter.AciToAimModelConverter().convert(data)
+        by_root = {}
+        for res in aim_res:
+            by_root.setdefault(res.root, []).append(res)
+        for root, updates in by_root.iteritems():
+            tree_manager.AimHashTreeMaker().delete(
+                state.setdefault(root, structured_tree.StructuredHashTree()),
+                updates)
+
     def _extract_rns(self, dn, mo):
         FIXED_RNS = ['rsctx', 'rsbd', 'intmnl', 'outtmnl']
         return [rn for rn in self.manager.dn_manager.aci_decompose(dn, mo)
@@ -394,10 +415,16 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def setUp(self):
         super(TestAciTenant, self).setUp()
         self._do_aci_mocks()
+        self.backend_state = {}
+        universe = aci_universe.AciUniverse().initialize(
+            self.store, aim_cfg.ConfigManager(self.ctx, 'h1'), [])
         self.manager = aci_tenant.AciTenantManager(
             'tn-tenant-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
-            aci_universe.get_websocket_context(self.cfg_manager))
+            aci_universe.get_websocket_context(self.cfg_manager),
+            universe=universe)
+        self.manager._get_full_state = mock.Mock(
+            return_value=[self.backend_state])
 
     def test_event_loop(self):
         old_name = self.manager.tenant_name
@@ -430,31 +457,6 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         manager.ws_context.has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
-        # Failure by GreenletExit
-        manager.ws_context.has_event = mock.Mock(
-            side_effect=greenlet.GreenletExit)
-        self.assertRaises(greenlet.GreenletExit, manager._main_loop)
-        # Upon GreenletExit, even run stops the loop
-        manager.run()
-        # Instance unsubscribe could rise an exception itself
-        with mock.patch('acitoolkit.acitoolkit.Session.unsubscribe',
-                        side_effect=Exception):
-            manager.run()
-
-    def test_squash_events(self):
-        double_events = [
-            {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-test-tenant/BD-test/rsctx",
-                "tnFvCtxName": "test"}}},
-            {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-test-tenant/BD-test/rsctx",
-                "tnFvCtxName": "test-2"}}}
-            ]
-        self.manager._subscribe_tenant()
-        self._set_events(double_events, create_parents=True)
-        res = self.manager.ws_context.get_event_data(self.manager.tenant.urls)
-        self.assertEqual(1, len(res))
-        self.assertEqual(double_events[1], res[0])
 
     def test_push_aim_resources(self):
         # Create some AIM resources
@@ -523,7 +525,22 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         events = self._init_event()
         events_copy = copy.deepcopy(events)
         events = self.manager._fill_events(events)
-        self.assertEqual(events, events_copy)
+        self.assertEqual(sorted(events), sorted(events_copy))
+
+    def test_get_unsupported_faults(self):
+        objs = [
+            {'faultInst': {
+                'attributes': {'status': 'modified', 'domain': 'infra',
+                               'code': 'F0951', 'occur': '1',
+                               'subject': 'relation-resolution',
+                               'severity': 'cleared',
+                               'origSeverity': 'warning', 'rn': '',
+                               'childAction': '', 'type': 'config',
+                               'dn': 'uni/tn-prj_35e6d34e81a84091854ddf388d1e5'
+                                     '5d1/BD-net_c6e85f2a-eb05-44b6-9b04-c065'
+                                     '6d72a2b8/rsbdToEpRet/fault-F0951'}}}]
+        result = self.manager.retrieve_aci_objects(objs)
+        self.assertEqual([], result)
 
     def test_fill_events(self):
         events = [
@@ -533,9 +550,15 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         ]
         complete = {"fvRsCtx": {"attributes": {
             "dn": "uni/tn-test-tenant/BD-test/rsctx",
-            "tnFvCtxName": "test", "extra": "something_important"}}}
-        parent_bd = self._get_example_aci_bd()
-        self._add_server_data([parent_bd, complete], create_parents=True)
+            "tnFvCtxName": "test"}}}
+        parent_bd = {
+            'fvBD': {
+                'attributes': {
+                    'arpFlood': 'no', 'dn': 'uni/tn-test-tenant/BD-test',
+                    'epMoveDetectMode': '', 'ipLearning': 'yes',
+                    'limitIpLearnToSubnets': 'no', 'nameAlias': '',
+                    'unicastRoute': 'yes', 'unkMacUcastAct': 'proxy'}}}
+        self._add_data_to_tree([parent_bd, complete], self.backend_state)
         events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted([complete, parent_bd]), sorted(events))
@@ -544,25 +567,13 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         events = [{"fvBD": {"attributes": {
             "arpFlood": "yes", "descr": "test",
             "dn": "uni/tn-test-tenant/BD-test", "status": "modified"}}}]
+        parent_bd['fvBD']['attributes'].update(events[0]['fvBD']['attributes'])
+        parent_bd['fvBD']['attributes'].pop('status')
         events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted([parent_bd, complete]), sorted(events))
 
     def test_fill_events_not_found(self):
-        events = [
-            {"fvRsCtx": {"attributes": {
-                "dn": "uni/tn-test-tenant/BD-test/rsctx",
-                "tnFvCtxName": "test", "status": "modified"}}},
-        ]
-        parent_bd = self._get_example_aci_bd()
-        # fvRsCtx is missing on server side
-        self._add_server_data([parent_bd], create_parents=True)
-        events = self.manager._filter_ownership(
-            self.manager._fill_events(events))
-        self.assertEqual([parent_bd], events)
-
-        self.manager.aci_session._data_stash = {}
-        self._add_server_data([], create_parents=True)
         events = [
             {"fvRsCtx": {"attributes": {
                 "dn": "uni/tn-test-tenant/BD-test/rsctx",
@@ -743,22 +754,28 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         events = [
             {'fvRsCtx': {
                 'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
-                               'tnFvCtxName': 'asasa', 'status': 'created'}}},
+                               'tnFvCtxName': 'asasa'}}},
             {'faultInst': {'attributes': {
                 'dn': 'uni/tn-ivar-wstest/BD-test/rsctx/fault-F0952',
                 'code': 'F0952'}}}
         ]
         complete = [
-            {'fvBD': {'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test'}}},
+            {'fvBD': {'attributes': {'arpFlood': 'yes',
+                                     'dn': 'uni/tn-ivar-wstest/BD-test',
+                                     'epMoveDetectMode': 'garp',
+                                     'ipLearning': 'yes',
+                                     'limitIpLearnToSubnets': 'no',
+                                     'nameAlias': '',
+                                     'unicastRoute': 'yes',
+                                     'unkMacUcastAct': 'proxy'}}},
             {'fvRsCtx': {
                 'attributes': {'dn': 'uni/tn-ivar-wstest/BD-test/rsctx',
                                'tnFvCtxName': 'asasa'}}},
             {'faultInst': {'attributes': {
              'dn': 'uni/tn-ivar-wstest/BD-test/rsctx/fault-F0952',
-             'ack': 'no', 'delegated': 'no',
-             'code': 'F0952', 'type': 'config'}}},
+             'code': 'F0952'}}},
         ]
-        self._add_server_data(complete, create_parents=True)
+        self._add_data_to_tree(complete, self.backend_state)
         events = self.manager._filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted(complete), sorted(events))

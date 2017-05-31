@@ -13,14 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import eventlet
-from eventlet import queue
+import Queue as queue
 import time
 import traceback
 
 from oslo_log import log as logging
 
 from aim.agent.aid import event_handler
+from aim.agent.aid.universes import constants as lcon
 from aim import aim_manager
 from aim.api import resource
 from aim.api import status
@@ -44,7 +44,6 @@ BUILDER_LOOP_MAX_RETRIES = 5
 MONITOR_LOOP_MAX_WAIT = 5
 MONITOR_LOOP_MAX_RETRIES = 5
 
-COLD_BUILD_TIME = 10
 WARM_BUILD_TIME = 0.2
 
 ACTION_CREATED = 'added'
@@ -64,8 +63,8 @@ class K8sWatcher(object):
     from the Kubernetes REST API.
     """
 
-    def __init__(self, *args, **kwargs):
-        self.ctx = context.AimContext(store=api.get_store())
+    def __init__(self, ctx=None, *args, **kwargs):
+        self.ctx = ctx or context.AimContext(store=api.get_store())
         if 'streaming' not in self.ctx.store.features:
             # TODO(ivar) raise something meaningful
             raise Exception
@@ -76,7 +75,6 @@ class K8sWatcher(object):
         self.klient = self.ctx.store.klient
         self.namespace = self.ctx.store.namespace
         self.trees = {}
-        self.warmup_time = COLD_BUILD_TIME
         self.q = queue.Queue()
         self.event_handler = event_handler.EventHandler
         self._stop = False
@@ -88,6 +86,7 @@ class K8sWatcher(object):
         self._k8s_types_to_observe = set([])
         self._k8s_aim_type_map = {}
         self._k8s_kinds = set([])
+        self._needs_init = True
 
         for aim_res in aim_manager.AimManager.aim_resources:
             if issubclass(aim_res, resource.AciResourceBase):
@@ -106,7 +105,8 @@ class K8sWatcher(object):
         threads = {'observer': self.observer_thread,
                    'persister': self.persistence_thread}
         for attr, thd in threads.iteritems():
-            setattr(self, attr, eventlet.spawn(thd))
+            thd = utils.spawn_thread(thd)
+            setattr(self, attr, thd)
 
     def stop_threads(self):
         self._stop = True
@@ -179,40 +179,78 @@ class K8sWatcher(object):
         if exc:
             for ts in self._observe_thread_state.values():
                 ts['watch_stop'] = True
-                ts['thread'].kill()
             if self.klient.watch:
                 self.klient.stop_watch()
             self._observe_thread_state = {}
+            self._needs_init = True
             raise exc
         time.sleep(MONITOR_LOOP_MAX_WAIT)
 
-    def _start_observers(self, types_to_observe):
-        self._reset_trees()
-        self._renew_klient_watch()
+    def _init_aim_k8s(self, types_to_observe):
+        if self._needs_init:
+            # NOTE(ivar): we need to lock the observer here to prevent it
+            # from reading empty or incomplete trees
+            # REVISIT(ivar): this is NOT gonna work for multi AID. In general,
+            # the whole K8S watcher cannot run as-is in a multi AID environment
+            with utils.get_rlock(lcon.AID_OBSERVER_LOCK):
+                self._reset_trees()
+                self._renew_klient_watch()
 
-        self._observe_thread_state = {}
+                self._version_by_type = {}
+                for typ in self._k8s_types_to_observe:
+                    self._init_stream_for_type(typ)
+                self._persistence_loop(save_on_empty=True)
+                LOG.info("Trees initialized")
+                self._needs_init = False
+
+    @utils.rlock(lcon.K8S_WATCHER_TREE_LOCK)
+    def _start_observers(self, types_to_observe):
+        self._init_aim_k8s(types_to_observe)
         for id, typ in enumerate(list(types_to_observe)):
             self._observe_thread_state[id] = dict(watch_stop=False)
-            thd = eventlet.spawn(self._observe_objects, typ, id)
+            thd = utils.spawn_thread(
+                self._observe_objects, self.klient.watch.stream, typ, id,
+                self._version_by_type.get(typ))
             self._observe_thread_state[id]['thread'] = thd
+
+    def _init_stream_for_type(self, k8s_type):
+
+        def wrapped_list(f, k8s_type, *args, **kwargs):
+            result = []
+            list = self.klient.list(k8s_type, namespace=kwargs['namespace'])
+            self._version_by_type[k8s_type] = list[
+                'metadata']['resourceVersion']
+            for item in list['items']:
+                result.append({'type': ACTION_CREATED,
+                               'raw_object': item,
+                               'object': item})
+            return result
+        self._observe_objects(wrapped_list, k8s_type, None, None)
 
     def _check_observers(self):
         exc = None
+        RESTART_TIME = 28 * 60
+        if not getattr(self, '_check_time', None):
+            self._check_time = time.time()
         for t in self._observe_thread_state:
             tstate = self._observe_thread_state[t]
-            thd = tstate['thread']
-            if tstate.get('watch_exception'):
-                exc = tstate.get('watch_exception')
-                LOG.info('Thread %s raised exception %s', thd, exc)
-                break
-            if tstate.get('http_resp') and tstate['http_resp'].closed:
-                LOG.info('HTTP response closed for thread %s', thd)
+            thd = tstate.get('thread')
+            if time.time() - self._check_time > RESTART_TIME:
                 exc = K8SObserverStopped()
                 break
-            if thd.dead:
-                LOG.info('Thread %s is not alive', thd)
-                exc = K8SObserverStopped()
-                break
+            elif thd:
+                if tstate.get('watch_exception'):
+                    exc = tstate.get('watch_exception')
+                    LOG.info('Thread %s raised exception %s', thd, exc)
+                    break
+                if tstate.get('http_resp') and tstate['http_resp'].closed:
+                    LOG.info('HTTP response closed for thread %s', thd)
+                    exc = K8SObserverStopped()
+                    break
+                if not thd.is_alive():
+                    LOG.info('Thread %s is not alive', thd)
+                    exc = K8SObserverStopped()
+                    break
         return exc
 
     def wrap_list_call(self, *args, **kwargs):
@@ -222,19 +260,19 @@ class K8sWatcher(object):
             tstate['http_resp'] = resp
         return resp
 
-    def _observe_objects(self, k8s_type, id):
+    def _observe_objects(self, func, k8s_type, id, resource_version=None):
         my_state = self._observe_thread_state.get(id, {})
         LOG.info('Start observing %s objects', k8s_type.kind)
         ev_filt = self._event_filters.get(k8s_type, lambda x: True)
-        if not my_state['watch_stop']:
+        if not my_state.get('watch_stop', False):
             try:
                 ns = (self.namespace
                       if k8s_type == api_v1.AciContainersObject else None)
-                for event in self.klient.watch.stream(
-                        self.wrap_list_call, k8s_type,
-                        _thread_state=my_state,
-                        namespace=ns):
-                    if my_state['watch_stop']:
+                kwargs = {'_thread_state': my_state, 'namespace': ns}
+                if resource_version is not None:
+                    kwargs['resource_version'] = resource_version
+                for event in func(self.wrap_list_call, k8s_type, **kwargs):
+                    if my_state.get('watch_stop', False):
                         LOG.debug('Stopping %s objects thread', k8s_type.kind)
                         break
                     ev_name = event.get('object',
@@ -263,7 +301,6 @@ class K8sWatcher(object):
         except queue.Empty:
             pass
         self.tt_mgr.delete_all(self.ctx)
-        self.warmup_time = COLD_BUILD_TIME
         self.trees = {}
 
     @utils.retry_loop(BUILDER_LOOP_MAX_WAIT, BUILDER_LOOP_MAX_RETRIES,
@@ -271,29 +308,33 @@ class K8sWatcher(object):
     def persistence_loop(self):
         self._persistence_loop()
 
-    def _persistence_loop(self):
+    @utils.rlock(lcon.K8S_WATCHER_TREE_LOCK)
+    def _persistence_loop(self, save_on_empty=False,
+                          warmup_wait=WARM_BUILD_TIME):
         if self._stop:
             LOG.info("Quitting k8s builder loop")
             raise utils.ThreadExit()
         first_event_time = None
-        warmup_wait = COLD_BUILD_TIME
         affected_tenants = set(self.affected_tenants)
-        while warmup_wait > 0:
+        squash_time = warmup_wait if not save_on_empty else float('inf')
+        while squash_time > 0:
             event = self._get_event(warmup_wait)
             if not first_event_time:
                 first_event_time = time.time()
-            warmup_wait = (first_event_time + self.warmup_time -
-                           time.time())
+            if not save_on_empty:
+                squash_time = (first_event_time + warmup_wait -
+                               time.time())
             if event:
                 LOG.debug('Got save event from queue')
                 affected_tenants |= self._process_event(event)
+            elif save_on_empty:
+                break
 
         if affected_tenants:
             LOG.info('Saving trees for tenants: %s', affected_tenants)
             try:
                 # Save procedure can be context switched at this point
                 self._save_trees(affected_tenants)
-                self.warmup_time = WARM_BUILD_TIME
                 self.affected_tenants = set()
             except Exception:
                 LOG.error(traceback.format_exc())
@@ -423,7 +464,7 @@ class K8sWatcher(object):
                     parsed_event['event_type'] = ACTION_DELETED.upper()
                     return
 
-    def _save_trees(self, affected_tenants):
+    def _get_trees_to_save(self, affected_tenants):
         cfg_trees = []
         oper_trees = []
         mon_trees = []
@@ -437,6 +478,11 @@ class K8sWatcher(object):
             tree = self.trees.get(self.tt_builder.OPER).get(tenant)
             if tree and tree.root_key:
                 oper_trees.append(tree)
+        return cfg_trees, oper_trees, mon_trees
+
+    def _save_trees(self, affected_tenants):
+        cfg_trees, oper_trees, mon_trees = self._get_trees_to_save(
+            affected_tenants)
 
         if cfg_trees:
             self.tt_mgr.update_bulk(self.ctx, cfg_trees)

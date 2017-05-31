@@ -13,11 +13,6 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import eventlet
-# https://github.com/eventlet/eventlet/issues/401
-eventlet.sleep()
-eventlet.monkey_patch()
-
 import logging  # noqa
 import os
 
@@ -135,8 +130,7 @@ def _k8s_post_create(self, created):
         w.klient.watch.stream = mock.Mock(return_value=[event])
         w._reset_trees = mock.Mock()
         w.q.put(event)
-        w.warmup_time = -1
-        w._persistence_loop()
+        w._persistence_loop(save_on_empty=True, warmup_wait=0)
 
 
 def _k8s_post_delete(self, deleted):
@@ -147,8 +141,7 @@ def _k8s_post_delete(self, deleted):
         w.klient.watch.stream = mock.Mock(return_value=[event])
         w._reset_trees = mock.Mock()
         w.q.put(event)
-        w.warmup_time = -1
-        w._persistence_loop()
+        w._persistence_loop(save_on_empty=True, warmup_wait=0)
 
 
 class TestAimDBBase(BaseTestCase):

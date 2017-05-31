@@ -15,18 +15,17 @@
 
 import collections
 import json
+import time
 import traceback
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
-import eventlet
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource
-from aim.api import status
 from aim.common import utils
 from aim import exceptions
 from aim import tree_manager
@@ -69,10 +68,11 @@ class WebSocketContext(object):
         self._spawn_monitors()
 
     def _spawn_monitors(self):
-        eventlet.spawn(self._thread_monitor, self.session.login_thread,
-                       'login_thread')
-        eventlet.spawn(self._thread_monitor, self.session.subscription_thread,
-                       'subscription_thread')
+        utils.spawn_thread(self._thread_monitor, self.session.login_thread,
+                           'login_thread')
+        utils.spawn_thread(
+            self._thread_monitor, self.session.subscription_thread,
+            'subscription_thread')
 
     def _reload_websocket_config(self):
         # Don't subscribe in this case
@@ -167,16 +167,7 @@ class WebSocketContext(object):
             # Aggregate similar events
             while self.session.has_events(url):
                 event = self.session.get_event(url)['imdata'][0]
-                event_klass = event.keys()[0]
-                event_dn = event[event_klass]['attributes']['dn']
-                for partial in result:
-                    if (event_klass == partial.keys()[0] and
-                            event_dn == partial[event_klass][
-                                'attributes']['dn']):
-                        partial.update(event)
-                        break
-                else:
-                    result.append(event)
+                result.append(event)
         return result
 
     def has_event(self, urls):
@@ -208,7 +199,7 @@ class WebSocketContext(object):
                 else:
                     LOG.debug("Thread %s is in good shape" % name)
                     retries = None
-                eventlet.sleep(self.monitor_sleep_time)
+                time.sleep(self.monitor_sleep_time)
                 # for testing purposes
                 self.monitor_runs -= 1
         except Exception as e:
@@ -232,8 +223,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
     from the ACI REST API.
     """
 
-    def initialize(self, store, conf_mgr):
-        super(AciUniverse, self).initialize(store, conf_mgr)
+    def initialize(self, store, conf_mgr, multiverse):
+        super(AciUniverse, self).initialize(store, conf_mgr, multiverse)
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
         # Initialize children MOS here so that it globally fails if there's
@@ -244,6 +235,21 @@ class AciUniverse(base.HashTreeStoredUniverse):
         self.aim_system_id = self.conf_manager.get_option('aim_system_id',
                                                           'aim')
         return self
+
+    def get_state_by_type(self, type):
+        try:
+            if type == base.CONFIG_UNIVERSE:
+                return self.multiverse[base.CONFIG_UNIVERSE]['current'].state
+            else:
+                return self.multiverse[type]['desired'].state
+        except IndexError:
+            LOG.warn('Requested universe type %s not found', type)
+            return self.state
+
+    def get_relevant_state_for_read(self):
+        return [self.get_state_by_type(base.CONFIG_UNIVERSE),
+                self.get_state_by_type(base.MONITOR_UNIVERSE),
+                self.get_state_by_type(base.OPER_UNIVERSE)]
 
     @property
     def name(self):
@@ -268,6 +274,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 self._state.pop(removed, None)
                 try:
                     serving_tenant_copy[removed].kill()
+                    serving_tenant_copy[removed]._unsubscribe_tenant()
                 except Exception:
                     LOG.error('Killing manager failed for tenant %s' % removed)
                     continue
@@ -299,7 +306,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     serving_tenants[added] = aci_tenant.AciTenantManager(
                         added, self.conf_manager, self.aci_session,
                         self.ws_context, self.creation_succeeded,
-                        self.creation_failed, self.aim_system_id)
+                        self.creation_failed, self.aim_system_id, self)
+                    # A subscription might be leaking here
+                    serving_tenants[added]._unsubscribe_tenant()
                     serving_tenants[added].start()
         except Exception as e:
             LOG.error(traceback.format_exc())
@@ -311,10 +320,12 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def observe(self):
         # Copy state accumulated so far
         global serving_tenants
+        new_state = {}
         for tenant in serving_tenants:
             # Only copy state if the tenant is warm
             if serving_tenants[tenant].is_warm():
-                self._state[tenant] = self._get_state_copy(tenant)
+                new_state[tenant] = self._get_state_copy(tenant)
+        self._state = new_state
 
     def push_resources(self, resources):
         # Organize by tenant, and push into APIC
@@ -337,29 +348,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
             else:
                 serving_tenants[tenant].push_aim_resources(conf)
 
-    def _split_key(self, key):
-        return [k.split('|', 2) for k in key]
-
-    def get_resources(self, resource_keys):
-        result = []
-        for key in resource_keys:
-            fault_code = None
-            key_parts = self._split_key(key)
-            mo_type = key_parts[-1][0]
-            aci_object = {mo_type: {'attributes': {}}}
-            if mo_type == 'faultInst':
-                fault_code = key_parts[-1][1]
-                key_parts = key_parts[:-1]
-            dn = apic_client.DNManager().build(key_parts)
-            if fault_code:
-                dn += '/fault-%s' % fault_code
-                aci_object[mo_type]['attributes']['code'] = fault_code
-            aci_object[mo_type]['attributes']['dn'] = dn
-            result.append(aci_object)
-        return aci_tenant.AciTenantManager.retrieve_aci_objects(
-            result, self._aim_converter, self.aci_session, get_all=True,
-            include_tags=False)
-
     def _retrieve_tenant_rn(self, data):
         if isinstance(data, dict):
             if data.keys()[0] == 'tagInst':
@@ -379,37 +367,18 @@ class AciUniverse(base.HashTreeStoredUniverse):
             return tree_manager.AimHashTreeMaker().get_root_key(data)
 
     def get_resources_for_delete(self, resource_keys):
-        if resource_keys:
-            LOG.debug("Requesting resource keys in ACI Universe for "
-                      "delete: %s", resource_keys)
-        result = []
-        for key in resource_keys:
-            key_parts = self._split_key(key)
-            # Verify whether it's an object switching ownership
-            aim_klass = None
-            dn = apic_client.DNManager().build(key_parts)
-            aci_type = key_parts[-1][0]
-            for i in range(len(key_parts) - 1, -1, -1):
-                res_type = key_parts[i][0]
-                aim_klass = self.manager._res_by_aci_type.get(res_type)
-                if aim_klass:
-                    break
-            if aim_klass:
-                res_dn = apic_client.DNManager().build(key_parts[:i + 1])
-                res = self.manager.get(
-                    self.context, aim_klass.from_dn(res_dn))
-                if getattr(res, 'monitored', None):
-                    stat = self.manager.get_status(self.context, res)
-                    if (stat and
-                            stat.sync_status == status.AciStatus.SYNC_PENDING):
-                        # Monitored state transition -> Delete the TAG instead
-                        aci_type = 'tagInst'
-                        dn = dn + '/tag-' + self.aim_system_id
-            result.append({aci_type: {'attributes': {'dn': dn}}})
-        if resource_keys:
-            LOG.debug("Result for keys %s\n in ACI Universe for delete:\n %s" %
-                      (resource_keys, result))
-        return result
+        curr_mon = self.multiverse[base.MONITOR_UNIVERSE]['current'].state
+
+        def action(result, aci_object, node):
+            if node and not node.dummy:
+                # Monitored state transition -> Delete the TAG instead
+                aci_type = 'tagInst'
+                dn = aci_object.values()[0]['attributes'][
+                    'dn'] + '/tag-' + self.aim_system_id
+                result.append({aci_type: {'attributes': {'dn': dn}}})
+            else:
+                result.append(aci_object)
+        return self._get_resources_for_delete(resource_keys, curr_mon, action)
 
     def _get_state_copy(self, tenant):
         global serving_tenants

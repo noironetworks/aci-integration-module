@@ -89,12 +89,17 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.stop_threads')
         self.stop_watcher_threads.start()
 
+        self.hb_loop = mock.patch(
+            'aim.agent.aid.service.AID._spawn_heartbeat_loop')
+        self.hb_loop.start()
+
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
         self.addCleanup(self.events_thread.stop)
         self.addCleanup(self.watcher_threads.stop)
         self.addCleanup(self.stop_watcher_threads.stop)
+        self.addCleanup(self.hb_loop.stop)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body_dict = self.old_post
@@ -334,8 +339,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # reconcile the state
         agent._daemon_loop(self.ctx)
 
-        for tenant in agent.current_universe.serving_tenants.values():
-            tenant._subscribe_tenant()
         # The ACI universe will not push the configuration unless explicitly
         # called
         self.assertFalse(
@@ -819,8 +822,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn1.root])
         self._assert_reset_consistency()
         # Update ext_net to provide some contract
-        self.aim_manager.update(self.ctx, ext_net,
-                                provided_contract_names=['c1'])
+        ext_net = self.aim_manager.update(self.ctx, ext_net,
+                                          provided_contract_names=['c1'])
         # Reconcile
         agent._daemon_loop(self.ctx)
         self._observe_aci_events(current_config)
@@ -1054,6 +1057,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertTrue(epg.monitored)
         # Still keeping whatever contract we had, but monitored this time
         self.assertEqual(['c'], epg.provided_contract_names)
+        self._sync_and_verify(agent, current_config,
+                              [(desired_config, current_config),
+                               (desired_monitor, current_monitor)],
+                              tenants=[tn.root])
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
 
@@ -1174,6 +1181,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # specifically, the first iteration will delete the Tags from ACI
         # which then needs to send back an event in order for the Monitored
         # universe to eventually sync up.
+        agent._daemon_loop(self.ctx)
+        # Run reconciliation twice to make sure we don't depend on event
+        # ordering
         agent._daemon_loop(self.ctx)
         self._observe_aci_events(current_config)
         self._sync_and_verify(agent, current_config,
@@ -1536,7 +1546,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tenant_name=tenant_name, name='ap-name'))
         self._observe_aci_events(current_config)
         agent._daemon_loop(self.ctx)
-        self.assertEqual(aim_status.AciStatus.SYNC_NA,
+        self.assertEqual(aim_status.AciStatus.SYNC_PENDING,
                          self.aim_manager.get_status(self.ctx, tn).sync_status)
         self._observe_aci_events(current_config)
         agent._daemon_loop(self.ctx)
@@ -1566,6 +1576,32 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop(self.ctx)
         self.assertIsNone(self.aim_manager.get(self.ctx, f1))
 
+    def _verify_get_relevant_state(self, agent):
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_oper = agent.multiverse[1]['current']
+        desired_oper = agent.multiverse[1]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+
+        self.assertEqual([current_config.state, desired_monitor.state,
+                          desired_oper.state],
+                         current_config.get_relevant_state_for_read())
+        self.assertEqual([desired_config.state, current_monitor.state],
+                         desired_config.get_relevant_state_for_read())
+
+        self.assertEqual([current_oper.state],
+                         current_oper.get_relevant_state_for_read())
+        self.assertEqual([current_config.state, desired_monitor.state,
+                          desired_oper.state],
+                         desired_oper.get_relevant_state_for_read())
+
+        self.assertEqual([current_monitor.state, desired_config.state],
+                         current_monitor.get_relevant_state_for_read())
+        self.assertEqual([current_config.state, desired_monitor.state,
+                          desired_oper.state],
+                         desired_monitor.get_relevant_state_for_read())
+
     def _observe_aci_events(self, aci_universe):
         for tenant in aci_universe.serving_tenants.values():
             self._current_manager = tenant
@@ -1577,17 +1613,23 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             return json.dumps({x: y.root.to_dict() if y.root else {}
                                for x, y in universe.state.iteritems()},
                               indent=2)
+        desired.observe()
+        current.observe()
         # Because of the possible error nodes, we need to verify that the
         # diff is empty
         self.assertEqual(current.state.keys(), desired.state.keys(),
-                         'Not in sync:\n current\n: %s \n\n desired\n: %s' %
-                         (printable_state(current), printable_state(desired)))
+                         'Not in sync:\n current(%s)\n: %s \n\n '
+                         'desired(%s)\n: %s' %
+                         (current.name, printable_state(current), desired.name,
+                          printable_state(desired)))
         for tenant in (tenants or current.state):
             self.assertEqual(
                 {"add": [], "remove": []},
                 desired.state[tenant].diff(current.state[tenant]),
-                'Not in sync:\n current\n: %s \n\n desired\n: %s' %
-                (printable_state(current), printable_state(desired)))
+                'Not in sync:\n current(%s)\n: %s \n\n '
+                'desired(%s)\n: %s' %
+                (current.name, printable_state(current), desired.name,
+                 printable_state(desired)))
 
     def _assert_reset_consistency(self, tenant=None):
         ctx = mock.Mock()
@@ -1623,3 +1665,4 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         for couple in couples:
             self._assert_universe_sync(couple[0], couple[1], tenants=tenants)
         self._assert_reset_consistency()
+        self._verify_get_relevant_state(agent)
