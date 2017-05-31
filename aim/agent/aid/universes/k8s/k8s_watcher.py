@@ -237,6 +237,7 @@ class K8sWatcher(object):
             thd = tstate.get('thread')
             if time.time() - self._check_time > RESTART_TIME:
                 exc = K8SObserverStopped()
+                break
             elif thd:
                 if tstate.get('watch_exception'):
                     exc = tstate.get('watch_exception')
