@@ -1333,11 +1333,7 @@ def _setup_injected_object(test_obj, inj_klass, inj_attr, inj_name):
 
 class TestVmmInjectedNamespaceMixin(object):
     resource_class = resource.VmmInjectedNamespace
-    prereq_objects = [resource.VMMPolicy(type='Kubernetes'),
-                      resource.VMMDomain(type='Kubernetes', name='kubernetes'),
-                      resource.VMMController(domain_type='Kubernetes',
-                                             domain_name='kubernetes',
-                                             name='kube-cluster')]
+    prereq_objects = []
     test_identity_attributes = {'domain_type': 'Kubernetes',
                                 'domain_name': 'kubernetes',
                                 'controller_name': 'kube-cluster'}
@@ -1347,7 +1343,7 @@ class TestVmmInjectedNamespaceMixin(object):
     test_search_attributes = {}
     test_update_attributes = {'display_name': 'KUBE'}
     test_default_values = {}
-    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+    test_dn = ('comp/prov-Kubernetes/ctrlr-[kubernetes]-kube-cluster/injcont/'
                'ns-[{name}]')
     res_command = 'vmm-injected-namespace'
 
@@ -1359,11 +1355,6 @@ class TestVmmInjectedNamespaceMixin(object):
 class TestVmmInjectedDeploymentMixin(object):
     resource_class = resource.VmmInjectedDeployment
     prereq_objects = [
-        resource.VMMPolicy(type='Kubernetes'),
-        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
-        resource.VMMController(domain_type='Kubernetes',
-                               domain_name='kubernetes',
-                               name='kube-cluster'),
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
                                       controller_name='kube-cluster',
@@ -1381,7 +1372,7 @@ class TestVmmInjectedDeploymentMixin(object):
     test_update_attributes = {'replicas': 2,
                               'display_name': 'DEPL'}
     test_default_values = {'replicas': 0}
-    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+    test_dn = ('comp/prov-Kubernetes/ctrlr-[kubernetes]-kube-cluster/injcont/'
                'ns-[{namespace_name}]/depl-[depl1]')
     res_command = 'vmm-injected-deployment'
 
@@ -1393,11 +1384,6 @@ class TestVmmInjectedDeploymentMixin(object):
 class TestVmmInjectedReplicaSetMixin(object):
     resource_class = resource.VmmInjectedReplicaSet
     prereq_objects = [
-        resource.VMMPolicy(type='Kubernetes'),
-        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
-        resource.VMMController(domain_type='Kubernetes',
-                               domain_name='kubernetes',
-                               name='kube-cluster'),
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
                                       controller_name='kube-cluster',
@@ -1414,7 +1400,7 @@ class TestVmmInjectedReplicaSetMixin(object):
     test_search_attributes = {'name': 'repl1'}
     test_update_attributes = {'display_name': 'REPL'}
     test_default_values = {}
-    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+    test_dn = ('comp/prov-Kubernetes/ctrlr-[kubernetes]-kube-cluster/injcont/'
                'ns-[{namespace_name}]/rs-[repl1]')
     res_command = 'vmm-injected-replica-set'
 
@@ -1426,11 +1412,6 @@ class TestVmmInjectedReplicaSetMixin(object):
 class TestVmmInjectedServiceMixin(object):
     resource_class = resource.VmmInjectedService
     prereq_objects = [
-        resource.VMMPolicy(type='Kubernetes'),
-        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
-        resource.VMMController(domain_type='Kubernetes',
-                               domain_name='kubernetes',
-                               name='kube-cluster'),
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
                                       controller_name='kube-cluster',
@@ -1460,7 +1441,7 @@ class TestVmmInjectedServiceMixin(object):
                            'cluster_ip': '0.0.0.0',
                            'load_balancer_ip': '0.0.0.0',
                            'service_ports': []}
-    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+    test_dn = ('comp/prov-Kubernetes/ctrlr-[kubernetes]-kube-cluster/injcont/'
                'ns-[{namespace_name}]/svc-[svc1]')
     res_command = 'vmm-injected-service'
 
@@ -1477,11 +1458,7 @@ class TestVmmInjectedServiceMixin(object):
 
 class TestVmmInjectedHostMixin(object):
     resource_class = resource.VmmInjectedHost
-    prereq_objects = [resource.VMMPolicy(type='Kubernetes'),
-                      resource.VMMDomain(type='Kubernetes', name='kubernetes'),
-                      resource.VMMController(domain_type='Kubernetes',
-                                             domain_name='kubernetes',
-                                             name='kube-cluster'), ]
+    prereq_objects = []
     test_identity_attributes = {'domain_type': 'Kubernetes',
                                 'domain_name': 'kubernetes',
                                 'controller_name': 'kube-cluster'}
@@ -1494,7 +1471,7 @@ class TestVmmInjectedHostMixin(object):
     test_search_attributes = {'os': 'Ubuntu'}
     test_update_attributes = {'host_name': 'host2.local.lab'}
     test_default_values = {}
-    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+    test_dn = ('comp/prov-Kubernetes/ctrlr-[kubernetes]-kube-cluster/injcont/'
                'host-[{name}]')
     res_command = 'vmm-injected-host'
 
@@ -1506,11 +1483,6 @@ class TestVmmInjectedHostMixin(object):
 class TestVmmInjectedContGroupMixin(object):
     resource_class = resource.VmmInjectedContGroup
     prereq_objects = [
-        resource.VMMPolicy(type='Kubernetes'),
-        resource.VMMDomain(type='Kubernetes', name='kubernetes'),
-        resource.VMMController(domain_type='Kubernetes',
-                               domain_name='kubernetes',
-                               name='kube-cluster'),
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
                                       controller_name='kube-cluster',
@@ -1529,7 +1501,7 @@ class TestVmmInjectedContGroupMixin(object):
     test_search_attributes = {'name': 'pod1'}
     test_update_attributes = {'display_name': 'POD'}
     test_default_values = {'host_name': ''}
-    test_dn = ('uni/vmmp-Kubernetes/dom-kubernetes/ctrlr-kube-cluster/injcont/'
+    test_dn = ('comp/prov-Kubernetes/ctrlr-[kubernetes]-kube-cluster/injcont/'
                'ns-[{namespace_name}]/grp-[pod1]')
     res_command = 'vmm-injected-cont-group'
 

@@ -689,5 +689,8 @@ class AciTenantManager(utils.AIMThread):
 
     @staticmethod
     def is_child_object(type):
-        return type not in [x['resource']._aci_mo_name for x in
-                            converter.resource_map.get(type, [])]
+        if type == 'tagInst':
+            return True
+        aim_res = converter.resource_map.get(type, [])
+        return aim_res and type not in [x['resource']._aci_mo_name
+                                        for x in aim_res]

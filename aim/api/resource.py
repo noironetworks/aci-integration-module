@@ -888,7 +888,7 @@ class VmmInjectedNamespace(AciResourceBase):
         ('display_name', t.name))
 
     _aci_mo_name = 'vmmInjectedNs'
-    _tree_parent = VMMController
+    _tree_parent = None
 
     def __init__(self, **kwargs):
         super(VmmInjectedNamespace, self).__init__({}, **kwargs)
@@ -1004,7 +1004,7 @@ class VmmInjectedHost(AciResourceBase):
         ('os', t.string()))
 
     _aci_mo_name = 'vmmInjectedHost'
-    _tree_parent = VMMController
+    _tree_parent = None
 
     def __init__(self, **kwargs):
         super(VmmInjectedHost, self).__init__({'host_name': '',

@@ -116,8 +116,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # created Kubernetes objects can be handled
         k8s_ctrlr = {'vmmInjectedCont':
                      {'attributes':
-                      {'dn': ('uni/vmmp-Kubernetes/dom-kubernetes/'
-                              'ctrlr-kube-cluster/injcont')}}}
+                      {'dn': ('comp/prov-Kubernetes/'
+                              'ctrlr-[kubernetes]-kube-cluster/injcont')}}}
         self._set_events([k8s_ctrlr], manager=self._current_manager,
                          tag=False, create_parents=True)
         # Tagging is done by the tenant manager
@@ -1039,6 +1039,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Put back EPG into monitored state
         epg = self.aim_manager.update(self.ctx, epg, monitored=True)
         self.assertTrue(epg.monitored)
+        # agent._daemon_loop(self.ctx)
+        # self._observe_aci_events(current_config)
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)],
@@ -1566,8 +1568,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop(self.ctx)
         f1 = aim_status.AciFault(
             fault_code='F609007',
-            external_identifier='uni/vmmp-Kubernetes/dom-kubernetes/'
-                                'ctrlr-kubernetes/injcont/ns-[default]/'
+            external_identifier='comp/prov-Kubernetes/'
+                                'ctrlr-[kubernetes]-kubernetes/'
+                                'injcont/ns-[default]/'
                                 'svc-[frontend]/p-http-prot-tcp-t-80/'
                                 'fault-F609007')
         self.assertIsNotNone(self.aim_manager.create(self.ctx, f1))

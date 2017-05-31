@@ -70,13 +70,7 @@ def upgrade():
                             'name',
                             name='uniq_aim_vmm_inj_namespaces_identity'),
         sa.Index('idx_aim_vmm_inj_namespaces_identity',
-                 'domain_type', 'domain_name', 'controller_name', 'name'),
-        sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name'],
-            ['aim_vmm_controllers.domain_type',
-             'aim_vmm_controllers.domain_name',
-             'aim_vmm_controllers.name'],
-            name='fk_inj_ns_vmm_controller'))
+                 'domain_type', 'domain_name', 'controller_name', 'name'))
 
     op.create_table(
         'aim_vmm_inj_deployments',
@@ -175,13 +169,7 @@ def upgrade():
                             'name',
                             name='uniq_aim_vmm_inj_hosts_identity'),
         sa.Index('idx_aim_vmm_inj_hosts_identity',
-                 'domain_type', 'domain_name', 'controller_name', 'name'),
-        sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name'],
-            ['aim_vmm_controllers.domain_type',
-             'aim_vmm_controllers.domain_name',
-             'aim_vmm_controllers.name'],
-            name='fk_inj_host_vmm_controller'))
+                 'domain_type', 'domain_name', 'controller_name', 'name'))
 
     op.create_table(
         'aim_vmm_inj_service_ports',

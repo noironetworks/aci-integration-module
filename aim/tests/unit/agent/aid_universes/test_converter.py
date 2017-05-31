@@ -1300,10 +1300,7 @@ class TestAciToAimConverterVMMController(TestAciToAimConverterBase,
     resource_type = resource.VMMController
     reverse_map_output = [
         {'resource': 'vmmCtrlrP',
-         'exceptions': {}},
-        {'resource': 'vmmInjectedCont',
-         'exceptions': {},
-         'to_resource': conv_utils.no_op_to_resource}]
+         'exceptions': {}}]
     sample_input = [_aci_obj('vmmCtrlrP',
                              dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1',
                              nameAlias='CLSTR',
@@ -1314,10 +1311,7 @@ class TestAciToAimConverterVMMController(TestAciToAimConverterBase,
                     [_aci_obj('vmmCtrlrP',
                               dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cls2'),
                               nameAlias='',
-                              scope='iaas'),
-                     _aci_obj('vmmInjectedCont',
-                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cls2/'
-                                  'injcont'))]]
+                              scope='iaas')]]
     sample_output = [
         resource.VMMController(
             domain_type='Kubernetes', domain_name='k8s',
@@ -1337,10 +1331,10 @@ class TestAciToAimConverterVmmInjNamespace(TestAciToAimConverterBase,
         {'resource': 'vmmInjectedNs',
          'exceptions': {}}]
     sample_input = [_aci_obj('vmmInjectedNs',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns1]')),
                     _aci_obj('vmmInjectedNs',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns2]'),
                              nameAlias='N')]
 
@@ -1362,11 +1356,11 @@ class TestAciToAimConverterVmmInjDeployment(TestAciToAimConverterBase,
          'exceptions': {'replicas': {'converter': conv_utils.integer_str,
                                      'other': 'replicas'}}}]
     sample_input = [_aci_obj('vmmInjectedDepl',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns1]/depl-[depl1]'),
                              replicas='5'),
                     _aci_obj('vmmInjectedDepl',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns2]/depl-[depl2]'),
                              nameAlias='D')]
 
@@ -1389,11 +1383,11 @@ class TestAciToAimConverterVmmInjReplicaSet(TestAciToAimConverterBase,
         {'resource': 'vmmInjectedReplSet',
          'exceptions': {}}]
     sample_input = [_aci_obj('vmmInjectedReplSet',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns1]/rs-[set1]'),
                              deploymentName='depl1'),
                     _aci_obj('vmmInjectedReplSet',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns2]/rs-[set2]'),
                              nameAlias='RS')]
 
@@ -1424,20 +1418,20 @@ class TestAciToAimConverterVmmInjService(TestAciToAimConverterBase,
          'converter': converter.vmmInjectedSvcEp_converter,
          'exceptions': {}}]
     sample_input = [[_aci_obj('vmmInjectedSvc',
-                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                              dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                   'injcont/ns-[ns1]/svc-[svc1]'),
                               clusterIp='1.2.3.4',
                               type='loadBalancer',
                               lbIp='5.6.7.8'),
                      _aci_obj('vmmInjectedSvcPort',
-                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                              dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                   'injcont/ns-[ns1]/svc-[svc1]/'
                                   'p-https-prot-tcp-t-INT_HTTP'),
                               port='https',
                               protocol='tcp',
                               targetPort='INT_HTTP',),
                      _aci_obj('vmmInjectedSvcPort',
-                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                              dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                   'injcont/ns-[ns1]/svc-[svc1]/'
                                   'p-56-prot-udp-t-2056'),
                               port='56',
@@ -1445,15 +1439,15 @@ class TestAciToAimConverterVmmInjService(TestAciToAimConverterBase,
                               targetPort='2056',
                               nodePort='http'),
                      _aci_obj('vmmInjectedSvcEp',
-                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                              dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                   'injcont/ns-[ns1]/svc-[svc1]/ep-foo'),
                               contGrpName='foo'),
                      _aci_obj('vmmInjectedSvcEp',
-                              dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                              dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                   'injcont/ns-[ns1]/svc-[svc1]/ep-bar'),
                               contGrpName='bar')],
                     _aci_obj('vmmInjectedSvc',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns2]/svc-[svc2]'),
                              nameAlias='SVC')]
 
@@ -1485,13 +1479,13 @@ class TestAciToAimConverterVmmInjHost(TestAciToAimConverterBase,
         {'resource': 'vmmInjectedHost',
          'exceptions': {'kernel_version': {'other': 'kernelVer'}}}]
     sample_input = [_aci_obj('vmmInjectedHost',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/host-[host1]'),
                              os='Ubuntu',
                              kernelVer='4.0',
                              hostName='my.local.host'),
                     _aci_obj('vmmInjectedHost',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/host-[host2]'),
                              nameAlias='HOST')]
 
@@ -1514,13 +1508,13 @@ class TestAciToAimConverterVmmInjContGroup(TestAciToAimConverterBase,
         {'resource': 'vmmInjectedContGrp',
          'exceptions': {}}]
     sample_input = [_aci_obj('vmmInjectedContGrp',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns1]/grp-[pod1]'),
                              hostName='my.local.host',
                              computeNodeName='host1',
                              replicaSetName='rs1'),
                     _aci_obj('vmmInjectedContGrp',
-                             dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                             dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                                  'injcont/ns-[ns2]/grp-[pod2]'),
                              nameAlias='POD')]
 
@@ -2891,18 +2885,14 @@ class TestAimToAciConverterVMMController(TestAimToAciConverterBase,
                   scope='kubernetes',
                   mode='ovs',
                   rootContName='center1',
-                  hostOrIp='my.cluster.host'),
-         _aci_obj('vmmInjectedCont',
-                  dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/injcont')],
+                  hostOrIp='my.cluster.host')],
         [_aci_obj('vmmCtrlrP',
                   dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster2',
                   nameAlias='',
                   scope='iaas',
                   mode='k8s',
                   rootContName='cluster2',
-                  hostOrIp='cluster2'),
-         _aci_obj('vmmInjectedCont',
-                  dn='uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster2/injcont')]
+                  hostOrIp='cluster2')]
     ]
 
 
@@ -2922,11 +2912,11 @@ class TestAimToAciConverterVmmInjNamespace(TestAimToAciConverterBase,
 
     sample_output = [
         [_aci_obj('vmmInjectedNs',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]'),
                   nameAlias='NS1')],
         [_aci_obj('vmmInjectedNs',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns2]'),
                   nameAlias='')]
     ]
@@ -2949,13 +2939,13 @@ class TestAimToAciConverterVmmInjDeployment(TestAimToAciConverterBase,
 
     sample_output = [
         [_aci_obj('vmmInjectedDepl',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/depl-[depl1]'),
                   replicas='3',
                   guid='123',
                   nameAlias='DEP1')],
         [_aci_obj('vmmInjectedDepl',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/depl-[depl2]'),
                   replicas='0',
                   guid='',
@@ -2981,13 +2971,13 @@ class TestAimToAciConverterVmmInjReplicaSet(TestAimToAciConverterBase,
 
     sample_output = [
         [_aci_obj('vmmInjectedReplSet',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/rs-[set1]'),
                   nameAlias='RS1',
                   deploymentName='depl1',
                   guid='123')],
         [_aci_obj('vmmInjectedReplSet',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/rs-[set2]'),
                   nameAlias='',
                   deploymentName='',
@@ -3023,7 +3013,7 @@ class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
 
     sample_output = [
         [_aci_obj('vmmInjectedSvc',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/svc-[svc2]'),
                   nameAlias='',
                   type='clusterIp',
@@ -3031,7 +3021,7 @@ class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
                   clusterIp='0.0.0.0',
                   guid='')],
         [_aci_obj('vmmInjectedSvc',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/svc-[svc1]'),
                   clusterIp='1.2.3.4',
                   type='loadBalancer',
@@ -3039,7 +3029,7 @@ class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
                   guid='123',
                   nameAlias='SVC1',),
          _aci_obj('vmmInjectedSvcPort',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/svc-[svc1]/'
                       'p-https-prot-tcp-t-INT_HTTP'),
                   port='https',
@@ -3047,7 +3037,7 @@ class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
                   targetPort='INT_HTTP',
                   nodePort='unspecified'),
          _aci_obj('vmmInjectedSvcPort',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/svc-[svc1]/'
                       'p-56-prot-udp-t-2056'),
                   port='56',
@@ -3055,11 +3045,11 @@ class TestAimToAciConverterVmmInjService(TestAimToAciConverterBase,
                   targetPort='2056',
                   nodePort='http'),
          _aci_obj('vmmInjectedSvcEp',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/svc-[svc1]/ep-foo'),
                   contGrpName='foo'),
          _aci_obj('vmmInjectedSvcEp',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/svc-[svc1]/ep-bar'),
                   contGrpName='bar')]
     ]
@@ -3083,14 +3073,14 @@ class TestAimToAciConverterVmmInjHost(TestAimToAciConverterBase,
 
     sample_output = [
         [_aci_obj('vmmInjectedHost',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/host-[host1]'),
                   nameAlias='HOST1',
                   os='',
                   kernelVer='',
                   hostName='')],
         [_aci_obj('vmmInjectedHost',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/host-[host2]'),
                   nameAlias='',
                   os='RHEL',
@@ -3119,7 +3109,7 @@ class TestAimToAciConverterVmmInjContGroup(TestAimToAciConverterBase,
 
     sample_output = [
         [_aci_obj('vmmInjectedContGrp',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/grp-[pod1]'),
                   hostName='my.local.host',
                   computeNodeName='host1',
@@ -3127,7 +3117,7 @@ class TestAimToAciConverterVmmInjContGroup(TestAimToAciConverterBase,
                   nameAlias='POD1',
                   replicaSetName='rs1')],
         [_aci_obj('vmmInjectedContGrp',
-                  dn=('uni/vmmp-Kubernetes/dom-k8s/ctrlr-cluster1/'
+                  dn=('comp/prov-Kubernetes/ctrlr-[k8s]-cluster1/'
                       'injcont/ns-[ns1]/grp-[pod2]'),
                   hostName='',
                   computeNodeName='',
