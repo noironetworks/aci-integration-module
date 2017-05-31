@@ -70,6 +70,13 @@ class TestAimInfraManager(base.TestAimDBBase):
         hlinks = self.infra_mgr.get_switch_and_port_for_host(host)
         self.assertEqual(hlinks[0], (hlinks_mgr[0].switch_id,
                                      hlinks_mgr[0].module, hlinks_mgr[0].port))
+        # Verify overwrite
+        port2 = 3
+        self.infra_mgr.add_hostlink(
+            host2, ifname2, ifmac2, swid2, module2, port2, path2)
+        hlinks = self.infra_mgr.get_hostlinks_for_host(
+            'f6-compute-2.noiro.lab')
+        self.assertEqual('3', hlinks[0].port)
 
         self.infra_mgr.delete_hostlink(host, ifname)
         # Idempotent
