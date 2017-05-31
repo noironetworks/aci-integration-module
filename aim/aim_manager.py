@@ -196,7 +196,9 @@ class AimManager(object):
                                         for_update=True)
             if db_obj:
                 if isinstance(resource, api_res.AciResourceBase):
-                    status = self.get_status(context, resource)
+                    status = self.get_status(
+                        context, resource, for_update=True,
+                        create_if_absent=False)
                     if status and getattr(
                             db_obj, 'monitored', None) and not force:
                         if status.sync_status == status.SYNC_PENDING:
@@ -214,8 +216,6 @@ class AimManager(object):
                                                          monitored=True):
                         self.delete(context, child_res, force=force)
                     if status:
-                        for fault in status.faults:
-                            self.clear_fault(context, fault)
                         self.delete(context, status, force=force)
                 context.store.delete(db_obj)
                 self._add_commit_hook(context.store)
@@ -377,13 +377,7 @@ class AimManager(object):
 
     @utils.log
     def clear_fault(self, context, fault, **kwargs):
-        with context.store.begin(subtransactions=True):
-            db_fault = self._query_db(
-                context.store, api_status.AciFault,
-                external_identifier=fault.external_identifier)
-            if db_fault:
-                context.store.delete(db_fault[0])
-                self._add_commit_hook(context.store)
+        self.delete(context, fault)
 
     def _validate_resource_class(self, resource_or_class):
         res_cls = (resource_or_class if isinstance(resource_or_class, type)
