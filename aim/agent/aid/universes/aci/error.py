@@ -33,7 +33,7 @@ class APICErrorHandler(object):
 
     """
 
-    APIC_OBJECT_CRITICAL = set([122, 121, 120, 106, 801])
+    APIC_OBJECT_CRITICAL = set([122, 121, 120, 106, 801, 104])
     APIC_OBJECT_TRANSIENT = set([100, 102])
 
     def analyze_request_exception(self, e):
