@@ -61,18 +61,21 @@ class WebSocketContext(object):
     def __init__(self, apic_config):
         self.apic_config = apic_config
         self._reload_websocket_config()
-        self.establish_ws_session()
-        self.monitor_runs = float('inf')
+        self.monitor_runs = {'monitor_runs': float('inf')}
         self.monitor_sleep_time = 10
         self.monitor_max_backoff = 30
-        self._spawn_monitors()
+        self.establish_ws_session()
 
     def _spawn_monitors(self):
-        utils.spawn_thread(self._thread_monitor, self.session.login_thread,
-                           'login_thread')
+        # Stop currently running monitors
+        self.monitor_runs['monitor_runs'] = -1
+        self.monitor_runs = {'monitor_runs': float('inf')}
+        if self.apic_username and self.apic_password:
+            utils.spawn_thread(self._thread_monitor, self.session.login_thread,
+                               'login_thread', self.monitor_runs)
         utils.spawn_thread(
             self._thread_monitor, self.session.subscription_thread,
-            'subscription_thread')
+            'subscription_thread', self.monitor_runs)
 
     def _reload_websocket_config(self):
         # Don't subscribe in this case
@@ -97,11 +100,6 @@ class WebSocketContext(object):
             ['%s://%s' % (protocol, host) for host in self.apic_hosts])
 
     def establish_ws_session(self):
-        # REVISIT(ivar): acitoolkit is missing some features like certificate
-        # identification and multi controller support.
-        # A decision should be taken whether we want to add features to
-        # acitoolkit to at least support certificate identification, or if
-        # we want to implement the WS interface in APICAPI altogether
         LOG.debug('Establishing WS connection with parameters: %s',
                   [self.ws_urls[0], self.apic_username, self.apic_password,
                    self.verify_ssl_certificate])
@@ -114,6 +112,7 @@ class WebSocketContext(object):
         if not resp.ok:
             raise WebSocketSessionLoginFailed(code=resp.status_code,
                                               text=resp.text)
+        self._spawn_monitors()
 
     def _ws_config_callback(self, new_conf):
         # If any of the WS related configurations changed, reload fresh values
@@ -173,13 +172,13 @@ class WebSocketContext(object):
     def has_event(self, urls):
         return any(self.session.has_events(url) for url in urls)
 
-    def _thread_monitor(self, thread, name):
+    def _thread_monitor(self, thread, name, flag):
         # TODO(ivar): I could have used thread.join instead of this
         retries = None
         max_retries = len(self.ws_urls)
         LOG.debug("Monitoring thread %s" % name)
         try:
-            while self.monitor_runs:
+            while flag['monitor_runs']:
                 if not thread.isAlive():
                     if retries and retries.get() >= max_retries:
                         utils.perform_harakiri(
@@ -201,7 +200,7 @@ class WebSocketContext(object):
                     retries = None
                 time.sleep(self.monitor_sleep_time)
                 # for testing purposes
-                self.monitor_runs -= 1
+                flag['monitor_runs'] -= 1
         except Exception as e:
             msg = ("Unknown error in thread monitor "
                    "for %s: %s" % (name, e.message))
