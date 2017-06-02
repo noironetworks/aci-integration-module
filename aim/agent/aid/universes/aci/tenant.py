@@ -108,13 +108,17 @@ class Root(acitoolkit.BaseACIObject):
         rn = kwargs.pop('rn')
         super(Root, self).__init__(*args, **kwargs)
         try:
-            self.dn = apic_client.DNManager().get_rn_base(rn) + '/' + rn
+            rn_base = apic_client.DNManager().get_rn_base(rn)
+            if rn.startswith(rn_base):
+                self.dn = rn
+            else:
+                self.dn = rn_base + '/' + rn
         except KeyError:
             self.dn = apic_client.DN_BASE + 'rn'
         self.urls = self._get_instance_subscription_urls()
 
     def _get_instance_subscription_urls(self):
-        if self.dn.startswith('uni/'):
+        if not self.dn.startswith('topology'):
             url = ('/api/node/mo/{}.json?query-target=subtree&'
                    'rsp-prop-include=config-only&rsp-subtree-include=faults&'
                    'subscription=yes'.format(self.dn))
@@ -126,7 +130,7 @@ class Root(acitoolkit.BaseACIObject):
                 url += '&target-subtree-class=' + ','.join(
                     self.filtered_children)
             return [url]
-        elif self.dn.startswith('topology'):
+        else:
             urls = []
             for child in self.filtered_children:
                 urls.append(
