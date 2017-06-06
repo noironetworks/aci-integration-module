@@ -542,6 +542,17 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         result = self.manager.retrieve_aci_objects(objs)
         self.assertEqual([], result)
 
+    def test_get_fault_deletage(self):
+        objs = [
+            {'faultDelegate': {
+                'attributes': {'status': 'modified',
+                               'dn': 'uni/vmmp-OpenStack/dom-ostack/ctrlr-'
+                                     'ostack/fd-[topology/pod-1/node-301/s'
+                                     'ys/br-[eth1/33]/odev-167817343]-faul'
+                                     't-F1698'}}}]
+        result = self.manager.retrieve_aci_objects(objs)
+        self.assertEqual([], result)
+
     def test_fill_events(self):
         events = [
             {"fvRsCtx": {"attributes": {
