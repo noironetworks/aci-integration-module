@@ -75,23 +75,26 @@ def decompose_aci_dn(dn):
     if '-' in rn:
         rn = rn[:rn.find('-')]
     aci_type = apic_client.ManagedObjectClass.prefix_to_mos[rn]
-    # Now we can decompose the DN, remove the mo/ in front
     return dn_mgr.aci_decompose_dn_guess(dn, aci_type)[1]
 
 
-def mock_get_data(inst, dn, **kwargs):
+def mock_get_data(inst, dn, store=None, root_key=None, **kwargs):
     # Expected kwargs: query_target [subtree], target_subtree_class
-    try:
-        inst._data_stash
-    except Exception:
-        inst._data_stash = {}
+    if store is None:
+        try:
+            inst._data_stash
+        except Exception:
+            inst._data_stash = {}
+        store = inst._data_stash
 
     dn_mgr = apic_client.DNManager()
     # Decompose the DN, remove the mo/ in front
-    decomposed = decompose_aci_dn(dn[3:])
+    if dn.startswith('mo/'):
+        dn = dn[3:]
+    decomposed = decompose_aci_dn(dn)
     try:
         # Find the proper root node
-        curr = copy.deepcopy(inst._data_stash[decomposed[0][1]])[0]
+        curr = copy.deepcopy(store[root_key or decomposed[0][1]])[0]
         for index, part in enumerate(decomposed[1:]):
             # Look at the current's children and find the proper node.
             if part[0] in AMBIGUOUS_TYPES:
@@ -111,14 +114,17 @@ def mock_get_data(inst, dn, **kwargs):
         # Curr is the looked up node. Look at the query params to filter the
         # result
         query_target = kwargs.get('query_target', 'self')
+        add_faults = kwargs.get('query_target') == 'faults'
         if query_target == 'subtree':
             # Look at the target subtree class
-            target_subtree_class = kwargs.get(
-                'target_subtree_class', '').split(',')
+            target_subtree_class = kwargs.get('target_subtree_class')
             if not target_subtree_class:
                 # Return everything
                 return _flat_result(curr)
             else:
+                target_subtree_class = target_subtree_class.split(',')
+                if add_faults:
+                    target_subtree_class.append('faultInst')
                 # Only return the expected objects
                 return [x for x in _flat_result(curr) if
                         x.keys()[0] in target_subtree_class]
