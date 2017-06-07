@@ -501,11 +501,11 @@ class TestTenantMixin(object):
 
 
 class TestBridgeDomainMixin(object):
-    prereq_objects = [resource.Tenant(name='tenant1')]
+    prereq_objects = [resource.Tenant(name='tenant-1')]
     resource_class = resource.BridgeDomain
-    test_identity_attributes = {'tenant_name': 'tenant1',
+    test_identity_attributes = {'tenant_name': 'tenant-1',
                                 'name': 'net1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
+    test_required_attributes = {'tenant_name': 'tenant-1',
                                 'name': 'net1',
                                 'ip_learning': False}
     test_search_attributes = {'l2_unknown_unicast_mode': 'proxy'}
@@ -522,7 +522,7 @@ class TestBridgeDomainMixin(object):
                            'l2_unknown_unicast_mode': 'proxy',
                            'ep_move_detect_mode': 'garp',
                            'l3out_names': []}
-    test_dn = 'uni/tn-tenant1/BD-net1'
+    test_dn = 'uni/tn-tenant-1/BD-net1'
     res_command = 'bridge-domain'
 
 

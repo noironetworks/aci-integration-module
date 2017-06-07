@@ -427,8 +427,9 @@ class AimHashTreeMaker(object):
         :param tree:
         :return:
         """
-        mo = apic_client.ManagedObjectClass.prefix_to_mos[key.split('-')[0]]
-        dn = apic_client.DNManager().build([[mo, key.split('-')[-1]]])
+        splits = key.split('-', 1)
+        mo = apic_client.ManagedObjectClass.prefix_to_mos[splits[0]]
+        dn = apic_client.DNManager().build([[mo, splits[-1]]])
         return AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
 
 
