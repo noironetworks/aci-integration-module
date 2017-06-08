@@ -100,7 +100,7 @@ class AciStatus(resource.ResourceBase, OperationalResource):
         return self.resource_root
 
     def is_build(self):
-        return self.sync_status == self.SYNC_PENDING
+        return self.sync_status in [self.SYNC_PENDING, self.SYNC_NA]
 
     def is_error(self):
         return (self.sync_status == self.SYNC_FAILED or
