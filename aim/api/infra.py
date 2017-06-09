@@ -54,7 +54,7 @@ class OpflexDevice(resource.AciResourceBase):
         ('controller_name', t.string(64)))
 
     _aci_mo_name = 'opflexODev'
-    _tree_parent = None
+    _tree_parent = resource.Pod
 
     def __init__(self, **kwargs):
         super(OpflexDevice, self).__init__({'host_name': '',

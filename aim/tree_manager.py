@@ -179,7 +179,8 @@ class TreeManager(object):
 
     def _delete_if_exist(self, context, tree_type, root_rn):
         with context.store.begin(subtransactions=True):
-            obj = self._find_query(context, tree_type, root_rn=root_rn)
+            obj = self._find_query(context, tree_type, root_rn=root_rn,
+                                   lock_update=True)
             if obj:
                 context.store.delete(obj[0])
 

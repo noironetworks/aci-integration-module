@@ -86,24 +86,34 @@ class HashTreeDbListener(object):
             if udp_mon_trees:
                 self.tt_mgr.update_bulk(ctx, udp_mon_trees, tree=monitor)
 
-    def reset(self, store, tenant=None):
-        aim_ctx = utils.FakeContext(store=store)
+    def _delete_trees(self, aim_ctx, root=None):
+        with aim_ctx.store.begin(subtransactions=True):
+            # Delete existing trees
+            if root:
+                self.tt_mgr.delete_by_root_rn(aim_ctx, root)
+            else:
+                self.tt_mgr.delete_all(aim_ctx)
+
+    def _recreate_trees(self, aim_ctx, root=None):
         with aim_ctx.store.begin(subtransactions=True):
             created = []
+            cache = {}
             # Delete existing trees
-            filters = {}
-            if tenant:
-                filters['name'] = tenant
-            tenants = self.aim_manager.find(aim_ctx, resource.Tenant,
-                                            **filters)
-            for t in tenants:
-                self.tt_mgr.delete_by_root_rn(aim_ctx, t.root)
+            if root:
+                type, name = self.tt_mgr.root_key_funct(root)[0].split('|')
             # Retrieve objects
             for klass in self.aim_manager.aim_resources:
                 if issubclass(klass, resource.AciResourceBase):
                     filters = {}
-                    if tenant:
-                        filters[klass.tenant_ref_attribute] = tenant
+                    if root:
+                        if self._retrieve_class_root_type(
+                                klass, cache=cache) != type:
+                            # Not the right subtree
+                            continue
+                        # TODO(ivar): this is not going to work for the
+                        # topology objects. For now only full reset
+                        # has effect on that subtree
+                        filters[klass.root_ref_attribute()] = name
                     # Get all objects of that type
                     for obj in self.aim_manager.find(aim_ctx, klass,
                                                      **filters):
@@ -115,4 +125,22 @@ class HashTreeDbListener(object):
                             del stat.faults
                         created.append(obj)
             # Reset the trees
-            self.on_commit(store, created, [], [])
+            self.on_commit(aim_ctx.store, created, [], [])
+
+    def reset(self, store, root=None):
+        aim_ctx = utils.FakeContext(store=store)
+        with aim_ctx.store.begin(subtransactions=True):
+            self._delete_trees(aim_ctx, root=root)
+            self._recreate_trees(aim_ctx, root=root)
+
+    def _retrieve_class_root_type(self, klass, cache=None):
+        cache = cache if cache is not None else {}
+        if klass in cache:
+            return cache[klass]
+        stack = [klass]
+        while klass._tree_parent:
+            klass = klass._tree_parent
+            stack.append(klass)
+        for k in stack:
+            cache[k] = klass._aci_mo_name
+        return cache[klass]
