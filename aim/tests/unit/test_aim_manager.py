@@ -447,6 +447,12 @@ class TestResourceOpsBase(object):
             self.mgr.delete(self.ctx, res, force=True)
             self.assertIsNone(self.mgr.get(self.ctx, res))
 
+    def test_class_root_type(self):
+        if issubclass(self.resource_class, resource.AciResourceBase):
+            klass_type = hashtree_db_listener.HashTreeDbListener(
+                self.mgr)._retrieve_class_root_type(self.resource_class)
+            self.assertEqual(self.resource_root_type, klass_type)
+
 
 class TestAciResourceOpsBase(TestResourceOpsBase):
 
@@ -491,6 +497,7 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
 
 class TestTenantMixin(object):
     resource_class = resource.Tenant
+    resource_root_type = resource.Tenant._aci_mo_name
     test_identity_attributes = {'name': 'tenant1'}
     test_required_attributes = {'name': 'tenant1'}
     test_search_attributes = {'name': 'tenant1'}
@@ -503,6 +510,7 @@ class TestTenantMixin(object):
 class TestBridgeDomainMixin(object):
     prereq_objects = [resource.Tenant(name='tenant-1')]
     resource_class = resource.BridgeDomain
+    resource_root_type = resource.Tenant._aci_mo_name
     test_identity_attributes = {'tenant_name': 'tenant-1',
                                 'name': 'net1'}
     test_required_attributes = {'tenant_name': 'tenant-1',
@@ -548,6 +556,7 @@ class TestSubnetMixin(object):
         resource.BridgeDomain(tenant_name='tenant1', name='net1')]
     gw_ip = resource.Subnet.to_gw_ip_mask('192.168.10.1', 28)
     resource_class = resource.Subnet
+    resource_root_type = resource.Tenant._aci_mo_name
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'bd_name': 'net1',
                                 'gw_ip_mask': gw_ip}
@@ -565,6 +574,7 @@ class TestSubnetMixin(object):
 
 class TestVRFMixin(object):
     resource_class = resource.VRF
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'shared'}
@@ -582,6 +592,7 @@ class TestVRFMixin(object):
 
 class TestApplicationProfileMixin(object):
     resource_class = resource.ApplicationProfile
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'lab'}
@@ -596,6 +607,7 @@ class TestApplicationProfileMixin(object):
 
 class TestEndpointGroupMixin(object):
     resource_class = resource.EndpointGroup
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.Tenant(name='tenant1'),
         resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
@@ -644,6 +656,7 @@ class TestEndpointGroupMixin(object):
 
 class TestFilterMixin(object):
     resource_class = resource.Filter
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'filter1'}
@@ -658,6 +671,7 @@ class TestFilterMixin(object):
 
 class TestFilterEntryMixin(object):
     resource_class = resource.FilterEntry
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.Tenant(name='tenant1'),
         resource.Filter(tenant_name='tenant1', name='filter1')]
@@ -695,6 +709,7 @@ class TestFilterEntryMixin(object):
 
 class TestContractMixin(object):
     resource_class = resource.Contract
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'contract1'}
@@ -710,6 +725,7 @@ class TestContractMixin(object):
 
 class TestContractSubjectMixin(object):
     resource_class = resource.ContractSubject
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.Tenant(name='tenant1'),
         resource.Contract(tenant_name='tenant1', name='contract1')]
@@ -767,6 +783,7 @@ class TestEndpointMixin(object):
 
 class TestVMMDomainMixin(object):
     resource_class = resource.VMMDomain
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = [resource.VMMPolicy(type='OpenStack')]
     test_identity_attributes = {'type': 'OpenStack',
                                 'name': 'openstack',
@@ -797,6 +814,7 @@ class TestVMMDomainMixin(object):
 
 class TestPhysicalDomainMixin(object):
     resource_class = resource.PhysicalDomain
+    resource_root_type = resource.PhysicalDomain._aci_mo_name
     test_identity_attributes = {'name': 'phys'}
     test_required_attributes = {'name': 'phys'}
     test_search_attributes = {}
@@ -808,6 +826,7 @@ class TestPhysicalDomainMixin(object):
 
 class TestL3OutsideMixin(object):
     resource_class = resource.L3Outside
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'l3out1'}
@@ -824,6 +843,7 @@ class TestL3OutsideMixin(object):
 
 class TestExternalNetworkMixin(object):
     resource_class = resource.ExternalNetwork
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.Tenant(name='tenant1'),
         resource.L3Outside(tenant_name='tenant1', name='l3out1',
@@ -849,6 +869,7 @@ class TestExternalNetworkMixin(object):
 
 class TestExternalSubnetMixin(object):
     resource_class = resource.ExternalSubnet
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.Tenant(name='tenant1'),
         resource.L3Outside(tenant_name='tenant1', name='l3out1'),
@@ -909,6 +930,7 @@ class TestHostDomainMappingMixin(object):
 
 class TestSecurityGroupMixin(object):
     resource_class = resource.SecurityGroup
+    resource_root_type = resource.Tenant._aci_mo_name
     test_identity_attributes = {'tenant_name': 'tenant1', 'name': 'sg1'}
     test_required_attributes = {'tenant_name': 'tenant1', 'name': 'sg1'}
     test_search_attributes = {'display_name': 'sg-display'}
@@ -919,6 +941,7 @@ class TestSecurityGroupMixin(object):
 
 class TestSecurityGroupSubjectMixin(object):
     resource_class = resource.SecurityGroupSubject
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.SecurityGroup(tenant_name='tenant1', name='sg1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
@@ -935,6 +958,7 @@ class TestSecurityGroupSubjectMixin(object):
 
 class TestSecurityGroupRuleMixin(object):
     resource_class = resource.SecurityGroupRule
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.SecurityGroup(tenant_name='tenant1', name='sg1'),
         resource.SecurityGroupSubject(
@@ -972,6 +996,7 @@ class TestConfigurationMixin(object):
 
 class TestDeviceClusterMixin(object):
     resource_class = aim_service_graph.DeviceCluster
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'cl1'}
@@ -1001,6 +1026,7 @@ class TestDeviceClusterMixin(object):
 
 class TestDeviceClusterInterfaceMixin(object):
     resource_class = aim_service_graph.DeviceClusterInterface
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1'),
                       aim_service_graph.DeviceCluster(tenant_name='tenant1',
                                                       name='cl1')]
@@ -1023,6 +1049,7 @@ class TestDeviceClusterInterfaceMixin(object):
 
 class TestConcreteDeviceMixin(object):
     resource_class = aim_service_graph.ConcreteDevice
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1'),
                       aim_service_graph.DeviceCluster(tenant_name='tenant1',
                                                       name='cl1')]
@@ -1040,6 +1067,7 @@ class TestConcreteDeviceMixin(object):
 
 class TestConcreteDeviceInterfaceMixin(object):
     resource_class = aim_service_graph.ConcreteDeviceInterface
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1'),
                       aim_service_graph.DeviceCluster(tenant_name='tenant1',
                                                       name='cl1'),
@@ -1064,6 +1092,7 @@ class TestConcreteDeviceInterfaceMixin(object):
 
 class TestServiceGraphMixin(object):
     resource_class = aim_service_graph.ServiceGraph
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'gr1'}
@@ -1084,6 +1113,7 @@ class TestServiceGraphMixin(object):
 
 class TestServiceGraphNodeMixin(object):
     resource_class = aim_service_graph.ServiceGraphNode
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1'),
                       aim_service_graph.ServiceGraph(tenant_name='tenant1',
                                                      name='gr1')]
@@ -1114,6 +1144,7 @@ class TestServiceGraphNodeMixin(object):
 
 class TestServiceGraphConnectionMixin(object):
     resource_class = aim_service_graph.ServiceGraphConnection
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1'),
                       aim_service_graph.ServiceGraph(tenant_name='tenant1',
                                                      name='gr1')]
@@ -1144,6 +1175,7 @@ class TestServiceGraphConnectionMixin(object):
 
 class TestServiceRedirectPolicyMixin(object):
     resource_class = aim_service_graph.ServiceRedirectPolicy
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'name': 'srp1'}
@@ -1162,6 +1194,7 @@ class TestServiceRedirectPolicyMixin(object):
 
 class TestDeviceClusterContextMixin(object):
     resource_class = aim_service_graph.DeviceClusterContext
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'contract_name': 'c1',
@@ -1194,6 +1227,7 @@ class TestDeviceClusterContextMixin(object):
 
 class TestDeviceClusterInterfaceContextMixin(object):
     resource_class = aim_service_graph.DeviceClusterInterfaceContext
+    resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [resource.Tenant(name='tenant1'),
                       aim_service_graph.DeviceClusterContext(
                           tenant_name='tenant1',
@@ -1225,6 +1259,7 @@ class TestDeviceClusterInterfaceContextMixin(object):
 
 class TestOpflexDeviceMixin(object):
     resource_class = infra.OpflexDevice
+    resource_root_type = resource.Topology._aci_mo_name
     test_identity_attributes = {'pod_id': '1',
                                 'node_id': '301',
                                 'bridge_interface': 'eth1/33',
@@ -1266,6 +1301,7 @@ class TestOpflexDeviceMixin(object):
 
 class TestPodMixin(object):
     resource_class = resource.Pod
+    resource_root_type = resource.Topology._aci_mo_name
     test_identity_attributes = {'name': '1'}
     test_required_attributes = {'name': '1'}
     test_search_attributes = {}
@@ -1277,6 +1313,7 @@ class TestPodMixin(object):
 
 class TestTopologyMixin(object):
     resource_class = resource.Topology
+    resource_root_type = resource.Topology._aci_mo_name
     test_identity_attributes = {}
     test_required_attributes = {}
     test_search_attributes = {}
@@ -1288,6 +1325,7 @@ class TestTopologyMixin(object):
 
 class TestVMMControllerMixin(object):
     resource_class = resource.VMMController
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = [resource.VMMPolicy(type='OpenStack'),
                       resource.VMMDomain(type='OpenStack',
                                          name='openstack')]
@@ -1333,6 +1371,7 @@ def _setup_injected_object(test_obj, inj_klass, inj_attr, inj_name):
 
 class TestVmmInjectedNamespaceMixin(object):
     resource_class = resource.VmmInjectedNamespace
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = []
     test_identity_attributes = {'domain_type': 'Kubernetes',
                                 'domain_name': 'kubernetes',
@@ -1354,6 +1393,7 @@ class TestVmmInjectedNamespaceMixin(object):
 
 class TestVmmInjectedDeploymentMixin(object):
     resource_class = resource.VmmInjectedDeployment
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = [
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
@@ -1383,6 +1423,7 @@ class TestVmmInjectedDeploymentMixin(object):
 
 class TestVmmInjectedReplicaSetMixin(object):
     resource_class = resource.VmmInjectedReplicaSet
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = [
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
@@ -1411,6 +1452,7 @@ class TestVmmInjectedReplicaSetMixin(object):
 
 class TestVmmInjectedServiceMixin(object):
     resource_class = resource.VmmInjectedService
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = [
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',
@@ -1458,6 +1500,7 @@ class TestVmmInjectedServiceMixin(object):
 
 class TestVmmInjectedHostMixin(object):
     resource_class = resource.VmmInjectedHost
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = []
     test_identity_attributes = {'domain_type': 'Kubernetes',
                                 'domain_name': 'kubernetes',
@@ -1482,6 +1525,7 @@ class TestVmmInjectedHostMixin(object):
 
 class TestVmmInjectedContGroupMixin(object):
     resource_class = resource.VmmInjectedContGroup
+    resource_root_type = resource.VMMPolicy._aci_mo_name
     prereq_objects = [
         resource.VmmInjectedNamespace(domain_type='Kubernetes',
                                       domain_name='kubernetes',

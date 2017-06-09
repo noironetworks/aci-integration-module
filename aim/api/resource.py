@@ -89,7 +89,6 @@ class AciResourceBase(ResourceBase):
     * _tree_parent: Type of parent class in ACI tree structure
     * _aci_mo_name: ManagedObjectClass name of corresponding ACI object
     """
-    tenant_ref_attribute = 'tenant_name'
 
     UNSPECIFIED = t.UNSPECIFIED
 
@@ -135,6 +134,10 @@ class AciResourceBase(ResourceBase):
         else:
             return mo.rn()
 
+    @classmethod
+    def root_ref_attribute(cls):
+        return cls.identity_attributes.keys()[0]
+
 
 class AciRoot(AciResourceBase):
 
@@ -148,7 +151,6 @@ class Tenant(AciRoot):
 
     Identity attribute is RN for ACI tenant.
     """
-    tenant_ref_attribute = 'name'
 
     identity_attributes = t.identity(
         ('name', t.name))
@@ -545,8 +547,6 @@ class Endpoint(ResourceBase):
 
 class VMMPolicy(AciRoot):
 
-    tenant_ref_attribute = 'type'
-
     identity_attributes = t.identity(
         ('type', t.enum("VMWare", "OpenStack", "Kubernetes")))
     other_attributes = t.other(
@@ -565,8 +565,6 @@ class VMMDomain(AciResourceBase):
 
     Identity attributes: VMM type (eg. Openstack) and name
     """
-
-    tenant_ref_attribute = 'type'
 
     identity_attributes = t.identity(
         ('type', t.enum("VMWare", "OpenStack", "Kubernetes")),
@@ -613,8 +611,6 @@ class PhysicalDomain(AciRoot):
 
     Identity attributes: name
     """
-
-    tenant_ref_attribute = 'name'
 
     identity_attributes = t.identity(
         ('name', t.name))
@@ -803,7 +799,6 @@ class Configuration(ResourceBase):
 
 
 class Topology(AciRoot):
-    tenant_ref_attribute = 'name'
     identity_attributes = t.identity()
     other_attributes = t.other(
         ('name', t.name))
@@ -817,7 +812,6 @@ class Topology(AciRoot):
 
 class Pod(AciResourceBase):
 
-    tenant_ref_attribute = 'root'
     root = 'topology'
 
     identity_attributes = t.identity(
@@ -888,7 +882,7 @@ class VmmInjectedNamespace(AciResourceBase):
         ('display_name', t.name))
 
     _aci_mo_name = 'vmmInjectedNs'
-    _tree_parent = None
+    _tree_parent = VMMController
 
     def __init__(self, **kwargs):
         super(VmmInjectedNamespace, self).__init__({}, **kwargs)
@@ -1004,7 +998,7 @@ class VmmInjectedHost(AciResourceBase):
         ('os', t.string()))
 
     _aci_mo_name = 'vmmInjectedHost'
-    _tree_parent = None
+    _tree_parent = VMMController
 
     def __init__(self, **kwargs):
         super(VmmInjectedHost, self).__init__({'host_name': '',

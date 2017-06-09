@@ -33,9 +33,9 @@ from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
 from aim import config
 from aim import context
+from aim.db import hashtree_db_listener
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
-from aim.tools.cli.debug import hashtree as treecli
 from aim import tree_manager
 
 
@@ -1441,15 +1441,18 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             current_config.serving_tenants['vmmp-OpenStack'].aci_session,
             'mo/' + vmm.dn)
         self.assertIsNotNone(vmm)
-        phys = test_aci_tenant.mock_get_data(
+        physl = test_aci_tenant.mock_get_data(
             current_config.serving_tenants[phys.rn].aci_session,
             'mo/' + phys.dn)
-        self.assertIsNotNone(phys)
+        self.assertIsNotNone(physl)
         self.assertEqual('topology/pod-1', pod.dn)
         pod = test_aci_tenant.mock_get_data(
             current_config.serving_tenants[topology.rn].aci_session,
             'mo/' + pod.dn)
         self.assertIsNotNone(pod)
+        self._assert_reset_consistency()
+        self._assert_reset_consistency(vmmp.rn)
+        self._assert_reset_consistency(phys.rn)
 
     def test_non_rs_nested_objects(self):
         agent = self._create_agent()
@@ -1640,24 +1643,26 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # get current tree(s)
         filters = {}
         if tenant:
-            filters = {'name': tenant}
+            filters = {'root_rn': [tenant]}
         # for each tenant, save their trees
         old = self._get_aim_trees_by_tenant(filters)
-
+        self.assertNotEqual({}, old)
         # Now reset trees
-        treecli._reset(ctx, tenant)
-        # Check if they are still the same
+        listener = hashtree_db_listener.HashTreeDbListener(self.aim_manager)
+        listener._delete_trees(self.ctx, root=tenant)
         current = self._get_aim_trees_by_tenant(filters)
-        self.assertEqual(old, current)
+        self.assertEqual({}, current)
+        listener._recreate_trees(self.ctx, root=tenant)
+        # Check if they are still the same
+        new = self._get_aim_trees_by_tenant(filters)
+        self.assertEqual(old, new)
 
     def _get_aim_trees_by_tenant(self, filters):
-        tenants = self.aim_manager.find(self.ctx, resource.Tenant, **filters)
         result = {}
-        for tenant in tenants:
-            result[tenant.name] = {}
-            for type in tree_manager.SUPPORTED_TREES:
-                result[tenant.name][type] = (
-                    self.tt_mgr.get(self.ctx, tenant.rn, tree=type))
+        for type in tree_manager.SUPPORTED_TREES:
+            for t in self.tt_mgr.find(self.ctx, tree=type, **filters):
+                rn = tree_manager.AimHashTreeMaker._extract_root_rn(t.root_key)
+                result.setdefault(rn, {})[type] = tree
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples, tenants=None):
