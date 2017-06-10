@@ -15,7 +15,6 @@ Requires:	python-oslo-config >= 1.4.0
 Requires:	python-click >= 3.3
 Requires:       python-sqlalchemy
 Requires:       acitoolkit >= 0.3.2
-Requires:	python-gevent
 
 %description
 Library for programming ACI.

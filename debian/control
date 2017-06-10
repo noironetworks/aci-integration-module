@@ -11,6 +11,7 @@ Vcs-Browser: http://github.com/noironetworks/aci-integration-module
 Package: aci-integration-module
 Architecture: all
 Depends: python-click-cli (>=3.3) | python-click (>=6.2), python-oslo.config (>=1.4),
-         ${misc:Depends}, ${python:Depends}
+         ${misc:Depends}, alembic, acitoolkit, python-apicapi, python-click, python-jsonschema,
+         python-pbr, python-tabulate
 Description: Python library for programming ACI
  Library for programming ACI 
