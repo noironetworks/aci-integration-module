@@ -90,9 +90,9 @@ class HashTreeDbListener(object):
         with aim_ctx.store.begin(subtransactions=True):
             # Delete existing trees
             if root:
-                self.tt_mgr.delete_by_root_rn(aim_ctx, root)
+                self.tt_mgr.clean_by_root_rn(aim_ctx, root)
             else:
-                self.tt_mgr.delete_all(aim_ctx)
+                self.tt_mgr.clean_all(aim_ctx)
 
     def _recreate_trees(self, aim_ctx, root=None):
         with aim_ctx.store.begin(subtransactions=True):
