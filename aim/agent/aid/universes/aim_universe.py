@@ -24,6 +24,7 @@ from aim.agent.aid.universes import errors
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
 from aim import context
+from aim.db import hashtree_db_listener
 from aim import exceptions as aim_exc
 from aim import tree_manager
 
@@ -78,6 +79,12 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._state = new_state
 
     def observe(self):
+        # TODO(ivar): move this to a separate thread
+        hashtree_db_listener.HashTreeDbListener(
+            self.manager).catch_up_with_action_log(self.context.store,
+                                                   self._served_tenants)
+        # REVISIT(ivar): what if a root is marked as needs_reset? we could
+        # avoid syncing it altogether
         self._state.update(self.get_optimized_state(self.state))
 
     def get_optimized_state(self, other_state, tree=tree_manager.CONFIG_TREE):

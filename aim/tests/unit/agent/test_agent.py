@@ -29,6 +29,7 @@ from aim import aim_manager
 from aim.api import resource
 from aim.api import service_graph
 from aim.api import status as aim_status
+from aim.api import tree as aim_tree
 from aim.common.hashtree import structured_tree as tree
 from aim.common import utils
 from aim import config
@@ -53,7 +54,7 @@ def run_once_loop(agent):
 class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
-        super(TestAgent, self).setUp()
+        super(TestAgent, self).setUp(initialize_hooks=False)
         self.set_override('agent_down_time', 3600, 'aim')
         self.set_override('agent_polling_interval', 0, 'aim')
         self.set_override('aci_tenant_polling_yield', 0, 'aim')
@@ -100,6 +101,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.addCleanup(self.watcher_threads.stop)
         self.addCleanup(self.stop_watcher_threads.stop)
         self.addCleanup(self.hb_loop.stop)
+
+    def _first_serve(self, agent):
+        # Initialize tenants
+        agent._daemon_loop(self.ctx)
+        # Actually serve them
+        agent._daemon_loop(self.ctx)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body_dict = self.old_post
@@ -337,7 +344,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # ACI universe is empty right now, one cycle of the main loop will
         # reconcile the state
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
 
         # The ACI universe will not push the configuration unless explicitly
         # called
@@ -494,7 +501,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             name=tenant_name, dn='uni/tn-%s' % tenant_name, nameAlias='nice')
         self.aim_manager.create(self.ctx, tn1)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._set_events(
             [aci_tn], manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
@@ -582,7 +589,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create tenant in AIM to start serving it
         self.aim_manager.create(self.ctx, tn1)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         # we need this tenant to exist in ACI
         self._set_events(
             [aci_tn], manager=desired_monitor.serving_tenants[tn1.rn],
@@ -646,7 +653,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create tenant in AIM to start serving it
         self.aim_manager.create(self.ctx, tn1)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         # we need this tenant to exist in ACI
         self._set_events(
             [aci_tn, aci_bd],
@@ -701,7 +708,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create tenant in AIM to start serving it
         self.aim_manager.create(self.ctx, tn1)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._observe_aci_events(current_config)
         # Create a BD manually on this tenant
         aci_bd = self._get_example_aci_bd(
@@ -790,7 +797,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create tenant in AIM to start serving it
         self.aim_manager.create(self.ctx, tn1)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._observe_aci_events(current_config)
         # Create a BD manually on this tenant
         aci_l3o = self._get_example_aci_l3_out(
@@ -906,7 +913,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self.ctx, resource.Contract(
                 tenant_name=tenant_name, name='c2'))
         # Serve
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._observe_aci_events(current_config)
         # Reconcile
         agent._daemon_loop(self.ctx)
@@ -977,7 +984,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create tenant in AIM to start serving it
         self.aim_manager.create(self.ctx, tn)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._observe_aci_events(current_config)
         # Create some manual stuff
         aci_tn = self._get_example_aci_tenant(
@@ -1084,7 +1091,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tn = resource.Tenant(name=tenant_name, monitored=True)
         self.aim_manager.create(self.ctx, tn)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._observe_aci_events(current_config)
 
         # simulate pre-existing VRF, L3Out and ExternalNetwork
@@ -1220,7 +1227,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create tenant in AIM to start serving it
         self.aim_manager.create(self.ctx, tn)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._observe_aci_events(current_config)
         # Create some manual stuff
         aci_tn = self._get_example_aci_tenant(
@@ -1259,7 +1266,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create tenant in AIM to start serving it
         self.aim_manager.create(self.ctx, tn)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._observe_aci_events(current_config)
         # Create some manual stuff
         aci_tn = self._get_example_aci_tenant(
@@ -1323,7 +1330,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tn = resource.Tenant(name=tenant_name)
         tn = self.aim_manager.create(self.ctx, tn)
         # Serve tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         # Try to create the tenant in multiple iterations and test different
         # errors
         with mock.patch.object(utils, 'perform_harakiri') as harakiri:
@@ -1429,7 +1436,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         # Run loop for serving tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         pod_parent = {
             'fabricTopology': {'attributes': {'dn': 'topology'}}}
         self._set_events(
@@ -1469,7 +1476,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tn = resource.Tenant(name=tenant_name)
         tn = self.aim_manager.create(self.ctx, tn)
         # Serve tenant
-        agent._daemon_loop(self.ctx)
+        self._first_serve(agent)
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
                                (current_monitor, desired_monitor)],
@@ -1533,14 +1540,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tenant_name = 'test_monitored_objects_sync_state'
 
         current_config = agent.multiverse[0]['current']
-        desired_config = agent.multiverse[0]['desired']
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         tn = resource.Tenant(name=tenant_name, monitored=True)
         tn = self.aim_manager.create(self.ctx, tn)
-        tenants = agent._calculate_tenants(self.ctx)
-        current_config.serve(tenants)
-        desired_config.serve(tenants)
+        self._first_serve(agent)
         tenant = {
             'fvTenant': {
                 'attributes': {'dn': 'uni/tn-%s' % tenant_name,
@@ -1582,6 +1586,87 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(desired_oper)
         agent._daemon_loop(self.ctx)
         self.assertIsNone(self.aim_manager.get(self.ctx, f1))
+
+    def test_create_delete(self):
+        agent = self._create_agent()
+        tenant_name = 'test_non_rs_nested_objects'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name, monitored=True)
+        self.aim_manager.create(self.ctx, tn)
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name)
+        self._first_serve(agent)
+        self._set_events(
+            [aci_tn], manager=desired_monitor.serving_tenants[tn.rn],
+            tag=False)
+        self._observe_aci_events(current_config)
+        ctr = resource.Contract(
+            tenant_name=tenant_name,
+            name='rtr_fb8f33cf-fe9c-48a9-a7b2-aa35ac63f189')
+        sub = resource.ContractSubject(
+            tenant_name=tenant_name, contract_name=ctr.name,
+            name='route', bi_filters=['noirolab_AnyFilter'])
+        with self.ctx.store.begin(subtransactions=True):
+            self.aim_manager.create(self.ctx, ctr)
+            self.aim_manager.create(self.ctx, sub)
+        with self.ctx.store.begin(subtransactions=True):
+            self.aim_manager.delete(self.ctx, sub)
+            self.aim_manager.delete(self.ctx, ctr)
+        desired_config.observe()
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)],
+                              tenants=[tn.root])
+
+    def test_max_action_logs(self):
+        agent = self._create_agent()
+        tenant_name = 'test_non_rs_nested_objects'
+        tenant_name2 = tenant_name + '2'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name)
+        tn2 = resource.Tenant(name=tenant_name2)
+        self.aim_manager.create(self.ctx, tn)
+        self.aim_manager.create(self.ctx, tn2)
+        self._first_serve(agent)
+        original_max_value = hashtree_db_listener.MAX_EVENTS_PER_ROOT
+        try:
+            hashtree_db_listener.MAX_EVENTS_PER_ROOT = 0
+            for tenant in [tenant_name, tenant_name2]:
+                bd = resource.BridgeDomain(tenant_name=tenant, name='bd',
+                                           vrf_name='vrf')
+                vrf = resource.VRF(tenant_name=tenant, name='vrf')
+                self.aim_manager.create(self.ctx, bd)
+                self.aim_manager.create(self.ctx, vrf)
+            # Two reset logs exist
+            logs = self.aim_manager.find(self.ctx, aim_tree.ActionLog)
+            self.assertEqual(2, len(logs))
+            for log in logs:
+                self.assertEqual(log.action, aim_tree.ActionLog.RESET)
+            # Even so, syncing operations work properly through full reset
+            self._sync_and_verify(agent, current_config,
+                                  [(current_config, desired_config),
+                                   (current_monitor, desired_monitor)],
+                                  tenants=[tn.root])
+            dest = test_aci_tenant.mock_get_data(
+                current_config.serving_tenants[tn.rn].aci_session,
+                'mo/' + bd.dn)
+            self.assertIsNotNone(dest)
+        finally:
+            hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
 
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']

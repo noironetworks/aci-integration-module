@@ -13,16 +13,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 from aim.api import resource as api_res
 from aim.api import types as t
+from aim.common import utils
 
 
 class Tree(api_res.ResourceBase):
     identity_attributes = t.identity(
         ('root_rn', t.string(64))
     )
-    other_attributes = t.other()
+    other_attributes = t.other(
+        ('needs_reset', t.bool)
+    )
     db_attributes = t.db()
 
     def __init__(self, **kwargs):
@@ -53,3 +55,27 @@ class OperationalTree(TypeTreeBase, api_res.ResourceBase):
 
 class MonitoredTree(TypeTreeBase, api_res.ResourceBase):
     pass
+
+
+class ActionLog(api_res.ResourceBase):
+    CREATE = 'create'
+    DELETE = 'delete'
+    RESET = 'reset'
+
+    identity_attributes = t.identity(
+        ('uuid', t.string(64))
+    )
+    other_attributes = t.other(
+        ('action', t.enum(CREATE, DELETE, RESET)),
+        ('object_type', t.string(50)),
+        ('object_dict', t.string()),
+        ('root_rn', t.string(64)),
+    )
+    db_attributes = t.db(
+        ('timestamp', t.string()),
+        ('id', t.integer)
+    )
+
+    def __init__(self, **kwargs):
+        super(ActionLog, self).__init__({'uuid': utils.generate_uuid()},
+                                        **kwargs)

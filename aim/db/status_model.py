@@ -39,6 +39,23 @@ class Fault(model_base.Base, model_base.AttributeMixin):
     external_identifier = sa.Column(sa.String(255), nullable=False,
                                     primary_key=True)
 
+    def to_attr(self, session):
+        """Get resource attribute dictionary for a model object.
+
+        Child classes should override this method to specify a custom
+        mapping of model properties to resource attributes.
+        """
+        result = {}
+        for k in dir(self):
+            if (not k.startswith('_') and
+                    k not in getattr(self, '_exclude_to', []) and
+                    not callable(getattr(self, k))):
+                if k == 'last_update_timestamp':
+                    result[k] = str(self.get_attr(session, k))
+                else:
+                    result[k] = self.get_attr(session, k)
+        return result
+
 
 class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     """Represents agents running in aim deployments."""

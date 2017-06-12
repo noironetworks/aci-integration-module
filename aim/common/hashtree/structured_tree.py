@@ -203,7 +203,7 @@ class StructuredHashTree(base.ComparableCollection):
 
     @staticmethod
     def from_string(string, root_key=None):
-        to_dict = json.loads(string)
+        to_dict = utils.json_loads(string)
         return (StructuredHashTree(StructuredHashTree._build_tree(to_dict)) if
                 to_dict else StructuredHashTree(root_key=root_key))
 

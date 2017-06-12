@@ -16,6 +16,7 @@
 from oslo_log import log as logging
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.sql.expression import func
 
 from aim.db import model_base
 
@@ -41,6 +42,7 @@ class Tree(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_tenant_trees'
 
     root_rn = sa.Column(sa.String(64), primary_key=True, name='tenant_rn')
+    needs_reset = sa.Column(sa.Boolean, default=False)
     agents = orm.relationship(AgentToHashTreeAssociation,
                               backref='hash_trees',
                               cascade='all, delete-orphan',
@@ -64,3 +66,18 @@ class OperationalTree(model_base.Base, TypeTreeBase,
 
 class MonitoredTree(model_base.Base, TypeTreeBase, model_base.AttributeMixin):
     __tablename__ = 'aim_monitored_tenant_trees'
+
+
+class ActionLog(model_base.Base, model_base.AttributeMixin):
+    __tablename__ = 'aim_action_logs'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'uuid') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    id = sa.Column(sa.BigInteger().with_variant(sa.Integer(), 'sqlite'),
+                   primary_key=True)
+    uuid = sa.Column(sa.Integer)
+    root_rn = sa.Column(sa.String(64), nullable=False)
+    action = sa.Column(sa.String(25), nullable=False)
+    object_type = sa.Column(sa.String(50), nullable=False)
+    object_dict = sa.Column(sa.LargeBinary(length=2 ** 24), nullable=False)
+    timestamp = sa.Column(sa.TIMESTAMP, server_default=func.now())

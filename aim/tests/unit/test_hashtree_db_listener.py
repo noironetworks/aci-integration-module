@@ -41,6 +41,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # add
         tenant = 'tn-' + tenant
         self.db_l.on_commit(self.ctx.store, [resource], [], [])
+        self.db_l.catch_up_with_action_log(self.ctx.store)
 
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects)
@@ -49,6 +50,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # update
         resource.__dict__.update(**updates)
         self.db_l.on_commit(self.ctx.store, [], [resource], [])
+        self.db_l.catch_up_with_action_log(self.ctx.store)
 
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects_update)
@@ -56,6 +58,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
         # delete
         self.db_l.on_commit(self.ctx.store, [], [], [resource])
+        self.db_l.catch_up_with_action_log(self.ctx.store)
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree()
         self.assertEqual(exp_tree, db_tree)
@@ -250,8 +253,11 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                 bd_name='some')
             # Add Tenant and AP
             self.mgr.create(self.ctx, aim_res.Tenant(name=tn_name))
+            # Creating a tenant also cause a log to be created, and
+            # consequently a reconcile call
             exp_calls = [
-                mock.call(mock.ANY, 'serve', None)]
+                mock.call(mock.ANY, 'serve', None),
+                mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             self.mgr.create(self.ctx, tn)
             cast.reset_mock()
@@ -260,11 +266,16 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             # Create AP will create tenant, create EPG will modify it
             exp_calls = [
                 mock.call(mock.ANY, 'reconcile', None),
+                mock.call(mock.ANY, 'reconcile', None),
+                mock.call(mock.ANY, 'reconcile', None),
                 mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             cast.reset_mock()
             self.mgr.update(self.ctx, epg, bd_name='bd2')
-            cast.assert_called_once_with(mock.ANY, 'reconcile', None)
+            exp_calls = [
+                mock.call(mock.ANY, 'reconcile', None),
+                mock.call(mock.ANY, 'reconcile', None)]
+            self._check_call_list(exp_calls, cast)
             cast.reset_mock()
             self.tt_mgr.delete_by_root_rn(self.ctx, tn_rn)
             cast.assert_called_once_with(mock.ANY, 'serve', None)
@@ -298,8 +309,12 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                     self.mgr.create(self.ctx, ap1)
                     self.mgr.create(self.ctx, epg1)
                 self.assertEqual(0, cast.call_count)
-            # Only a single "serve" call is issued
-            cast.assert_called_once_with(mock.ANY, 'serve', None)
+            # Trees are now saved one at a time, so serve is called twice
+            exp_calls = [
+                mock.call(mock.ANY, 'serve', None),
+                mock.call(mock.ANY, 'serve', None),
+                mock.call(mock.ANY, 'reconcile', None)]
+            self._check_call_list(exp_calls, cast)
 
     def test_monitored_state_change(self):
         tn_name = 'test_monitored_state_change'
@@ -414,5 +429,6 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # to be created parentless in a first place.
         self.mgr.create(self.ctx, status)
         self.db_l.on_commit(self.ctx.store, [status], [], [])
+        self.db_l.catch_up_with_action_log(self.ctx.store)
         # status doesn't exist anymore
         self.assertIsNone(self.mgr.get(self.ctx, status))

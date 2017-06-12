@@ -144,11 +144,50 @@ def _k8s_post_delete(self, deleted):
         w._persistence_loop(save_on_empty=True, warmup_wait=0)
 
 
+def _add_commit_hook(self):
+    if not aim_store.sa_event.contains(self.db_session, 'before_flush',
+                                       self._before_session_commit):
+        aim_store.sa_event.listen(self.db_session, 'before_flush',
+                                  self._before_session_commit, self)
+    if not aim_store.sa_event.contains(self.db_session, 'after_flush',
+                                       self._after_session_flush):
+        aim_store.sa_event.listen(self.db_session, 'after_flush',
+                                  self._after_session_flush)
+    if not aim_store.sa_event.contains(
+            self.db_session, 'after_transaction_end',
+            self._after_transaction_end):
+        aim_store.sa_event.listen(self.db_session, 'after_transaction_end',
+                                  self._after_transaction_end)
+    # Mock sqlalchemy store to run a second postcommit hook
+    if not aim_store.sa_event.contains(
+            self.db_session, 'after_transaction_end',
+            self._after_transaction_end_2):
+        aim_store.sa_event.listen(self.db_session, 'after_transaction_end',
+                                  self._after_transaction_end_2)
+
+
+def _after_transaction_end_2(self, session, transaction):
+    try:
+        try:
+            if transaction.parent is not None:
+                return
+        except AttributeError:
+            if transaction._parent is not None:
+                return
+        session = api.get_session(autocommit=True, expire_on_commit=True,
+                                  use_slave=False)
+        store = aim_store.SqlAlchemyStore(session,
+                                          initialize_hooks=False)
+        self._hashtree_db_listener.catch_up_with_action_log(store)
+    except AttributeError:
+        pass
+
+
 class TestAimDBBase(BaseTestCase):
 
     _TABLES_ESTABLISHED = False
 
-    def setUp(self):
+    def setUp(self, initialize_hooks=True):
         super(TestAimDBBase, self).setUp()
         self.test_id = uuidutils.generate_uuid()
         aim_cfg.OPTION_SUBSCRIBER_MANAGER = None
@@ -171,6 +210,9 @@ class TestAimDBBase(BaseTestCase):
                             model_base.Base.metadata.sorted_tables):
                         conn.execute(table.delete())
             self.addCleanup(clear_tables)
+            aim_store.SqlAlchemyStore.add_commit_hook = _add_commit_hook
+            aim_store.SqlAlchemyStore._after_transaction_end_2 = (
+                _after_transaction_end_2)
         else:
             CONF.set_override('aim_store', 'k8s', 'aim')
             CONF.set_override('k8s_namespace', self.test_id, 'aim_k8s')
@@ -186,7 +228,8 @@ class TestAimDBBase(BaseTestCase):
             k8s_watcher_instance._renew_klient_watch = mock.Mock()
             self.addCleanup(self._cleanup_objects)
 
-        self.store = api.get_store(expire_on_commit=True)
+        self.store = api.get_store(expire_on_commit=True,
+                                   initialize_hooks=initialize_hooks)
         self.ctx = context.AimContext(store=self.store)
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
         self.tt_mgr = tree_manager.HashTreeManager()

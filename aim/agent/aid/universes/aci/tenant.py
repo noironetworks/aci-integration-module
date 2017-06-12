@@ -287,7 +287,8 @@ class AciTenantManager(utils.AIMThread):
                         structured_tree.StructuredHashTree())
                     self.tag_set = set()
                     break
-            LOG.debug("received events: %s", events)
+            LOG.debug("received events for root %s: %s" %
+                      (self.tenant_name, events))
             # Make events list flat
             self.flat_events(events)
             # Pull incomplete objects
@@ -495,8 +496,8 @@ class AciTenantManager(utils.AIMThread):
                     (upd_mon_trees, self._monitored_state, "monitored")]:
                 if upd:
                     modified = True
-                    LOG.debug("New %s tree for tenant %s" %
-                              (readable, self.tenant_name))
+                    LOG.debug("New %s tree for tenant %s: %s" %
+                              (readable, self.tenant_name, tree))
             if modified:
                 event_handler.EventHandler.reconcile()
 

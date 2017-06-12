@@ -51,13 +51,15 @@ def get_session(autocommit=True, expire_on_commit=True, use_slave=False):
                               use_slave=use_slave)
 
 
-def get_store(autocommit=True, expire_on_commit=True, use_slave=False):
+def get_store(autocommit=True, expire_on_commit=True, use_slave=False,
+              initialize_hooks=True):
     store = cfg.CONF.aim.aim_store
     if store == 'sql':
         db_session = get_session(
             autocommit=autocommit, expire_on_commit=expire_on_commit,
             use_slave=use_slave)
-        return aim_store.SqlAlchemyStore(db_session)
+        return aim_store.SqlAlchemyStore(
+            db_session, initialize_hooks=initialize_hooks)
     elif store == 'k8s':
         return aim_store.K8sStore(
             namespace=cfg.CONF.aim_k8s.k8s_namespace,
