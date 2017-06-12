@@ -272,6 +272,8 @@ def sync_state_find(ctx, state, plain):
     for status in statuses:
         aim_res = manager.get_by_id(
             aim_ctx, status.parent_class, status.resource_id)
+        if not aim_res:
+            continue
         name = convert(aim_res.__class__.__name__)
         identity = ','.join([getattr(aim_res, a, None)
                              for a in aim_res.identity_attributes])
