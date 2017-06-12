@@ -1651,7 +1651,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         listener = hashtree_db_listener.HashTreeDbListener(self.aim_manager)
         listener._delete_trees(self.ctx, root=tenant)
         current = self._get_aim_trees_by_tenant(filters)
-        self.assertEqual({}, current)
+        for trees in current.values():
+            for t in trees.values():
+                self.assertEqual('{}', str(t))
         listener._recreate_trees(self.ctx, root=tenant)
         # Check if they are still the same
         new = self._get_aim_trees_by_tenant(filters)
@@ -1662,7 +1664,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         for type in tree_manager.SUPPORTED_TREES:
             for t in self.tt_mgr.find(self.ctx, tree=type, **filters):
                 rn = tree_manager.AimHashTreeMaker._extract_root_rn(t.root_key)
-                result.setdefault(rn, {})[type] = tree
+                result.setdefault(rn, {})[type] = t
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples, tenants=None):

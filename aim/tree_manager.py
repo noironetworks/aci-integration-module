@@ -122,6 +122,28 @@ class TreeManager(object):
                 self._delete_if_exist(context, type, root_rn)
 
     @utils.log
+    def clean_by_root_rn(self, context, root_rn):
+        empty_tree = structured_tree.StructuredHashTree()
+        with context.store.begin(subtransactions=True):
+            for tree_type in SUPPORTED_TREES:
+                obj = self._find_query(context, tree_type, root_rn=root_rn,
+                                       lock_update=True)
+                if obj:
+                    obj[0].tree = str(empty_tree)
+                    context.store.add(obj[0])
+
+    @utils.log
+    def clean_all(self, context):
+        empty_tree = structured_tree.StructuredHashTree()
+        with context.store.begin(subtransactions=True):
+            for tree_type in SUPPORTED_TREES:
+                db_objs = self._find_query(context, tree_type,
+                                           lock_update=True)
+                for db_obj in db_objs:
+                    db_obj.tree = str(empty_tree)
+                    context.store.add(db_obj)
+
+    @utils.log
     def find(self, context, tree=CONFIG_TREE, **kwargs):
         result = self._find_query(context, tree, in_=kwargs)
         return [self.tree_klass.from_string(
