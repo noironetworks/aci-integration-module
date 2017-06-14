@@ -1453,6 +1453,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_reset_consistency()
         self._assert_reset_consistency(vmmp.rn)
         self._assert_reset_consistency(phys.rn)
+        self._assert_reset_consistency(topology.rn)
 
     def test_non_rs_nested_objects(self):
         agent = self._create_agent()

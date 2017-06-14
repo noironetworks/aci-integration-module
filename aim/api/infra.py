@@ -40,6 +40,7 @@ class HostLink(resource.ResourceBase):
 
 class OpflexDevice(resource.AciResourceBase):
     """Information about Opflex device reported by ACI. Read-only."""
+    root = 'topology'
 
     identity_attributes = t.identity(
         ('pod_id', t.id),

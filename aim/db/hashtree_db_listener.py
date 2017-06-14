@@ -23,6 +23,8 @@ from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
+# Not really rootless, they just miss the root reference attributes
+ROOTLESS_TYPES = ['fabricTopology']
 
 
 class HashTreeDbListener(object):
@@ -110,10 +112,8 @@ class HashTreeDbListener(object):
                                 klass, cache=cache) != type:
                             # Not the right subtree
                             continue
-                        # TODO(ivar): this is not going to work for the
-                        # topology objects. For now only full reset
-                        # has effect on that subtree
-                        filters[klass.root_ref_attribute()] = name
+                        if type not in ROOTLESS_TYPES:
+                            filters[klass.root_ref_attribute()] = name
                     # Get all objects of that type
                     for obj in self.aim_manager.find(aim_ctx, klass,
                                                      **filters):
