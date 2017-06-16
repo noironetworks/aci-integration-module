@@ -85,19 +85,19 @@ class HostLinkManager(object):
 
     def get_switches(self):
         res = self.get_hostlinks()
-        return list(set([x.switch_id for x in res]))
+        return list(set([(x.switch_id,) for x in res]))
 
     def get_modules_for_switch(self, swid):
         db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
         res = self.aim_context.store.query(db_type, infra.HostLink,
                                            switch_id=swid)
-        return list(set([x.module for x in res]))
+        return list(set([(x.module,) for x in res]))
 
     def get_ports_for_switch_module(self, swid, module):
         db_type = self.aim_context.store.resource_to_db_type(infra.HostLink)
         res = self.aim_context.store.query(db_type, infra.HostLink,
                                            switch_id=swid, module=module)
-        return list(set([x.port for x in res]))
+        return list(set([(x.port,) for x in res]))
 
     def get_switch_and_port_for_host(self, host):
         res = self.get_hostlinks_for_host(host)

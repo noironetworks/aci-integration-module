@@ -62,10 +62,10 @@ class TestAimInfraManager(base.TestAimDBBase):
         self.assertEqual(hlinks[0].path, hlinks_mgr[0].path)
 
         hlinks = self.infra_mgr.get_modules_for_switch(swid)
-        self.assertEqual(hlinks[0], hlinks_mgr[0].module)
+        self.assertEqual(hlinks[0], (hlinks_mgr[0].module,))
 
         hlinks = self.infra_mgr.get_ports_for_switch_module(swid, module)
-        self.assertEqual(hlinks[0], hlinks_mgr[0].port)
+        self.assertEqual(hlinks[0], (hlinks_mgr[0].port,))
 
         hlinks = self.infra_mgr.get_switch_and_port_for_host(host)
         self.assertEqual(hlinks[0], (hlinks_mgr[0].switch_id,
