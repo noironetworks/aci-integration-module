@@ -1743,6 +1743,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         listener._recreate_trees(self.ctx, root=tenant)
         # Check if they are still the same
         new = self._get_aim_trees_by_tenant(filters)
+        new.pop('comp', None)
         self.assertEqual(old, new)
 
     def _get_aim_trees_by_tenant(self, filters):

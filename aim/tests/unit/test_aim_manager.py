@@ -1596,6 +1596,7 @@ class TestActionLog(TestActionLogMixin, TestResourceOpsBase,
         self.catchup_logs.start()
         self.addCleanup(self.catchup_logs.stop)
 
+    @base.requires(['sql'])
     def test_increasing_id(self):
         for i in range(1, 11):
             # New UUID every time
