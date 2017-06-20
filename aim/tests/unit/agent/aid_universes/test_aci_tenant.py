@@ -15,6 +15,7 @@
 
 import collections
 import copy
+import time
 
 from apicapi import apic_client
 import json
@@ -457,6 +458,30 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         manager.ws_context.has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
+
+    def test_tenant_reset(self):
+        manager = aci_tenant.AciTenantManager(
+            'tenant-1', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager))
+        manager.polling_yield = 0
+        self.assertIsNone(getattr(manager, 'scheduled_reset', None))
+        min = time.time() + (aci_tenant.RESET_INTERVAL -
+                             aci_tenant.INTERVAL_DEVIATION)
+        max = time.time() + (aci_tenant.RESET_INTERVAL +
+                             aci_tenant.INTERVAL_DEVIATION)
+        manager._unsubscribe_tenant = mock.Mock()
+        manager.num_loop_runs = 1
+        manager._main_loop()
+        self.assertTrue(min < manager.scheduled_reset < max)
+        manager.scheduled_reset = 0
+        # We don't want subscribe tenant to screw up the reset time
+        manager._subscribe_tenant = mock.Mock()
+        self.assertEqual(0, manager._unsubscribe_tenant.call_count)
+        manager.num_loop_runs = 1
+        # Exception is raised here
+        manager._main_loop()
+        self.assertEqual(1, manager._unsubscribe_tenant.call_count)
 
     def test_push_aim_resources(self):
         # Create some AIM resources

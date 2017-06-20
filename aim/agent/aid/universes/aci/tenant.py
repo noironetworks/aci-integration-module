@@ -15,6 +15,7 @@
 
 import copy
 import Queue
+import random
 import time
 import traceback
 
@@ -44,6 +45,12 @@ CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
 TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev', 'fabricTopology']
 CHILDREN_MOS_UNI = None
 CHILDREN_MOS_TOPOLOGY = None
+RESET_INTERVAL = 3600
+INTERVAL_DEVIATION = 600
+
+
+class ScheduledReset(Exception):
+    pass
 
 
 def get_children_mos(apic_session, root):
@@ -180,6 +187,8 @@ class AciTenantManager(utils.AIMThread):
         self.recovery_retries = None
         self.max_retries = 5
         self.error_handler = error.APICAPIErrorHandler()
+        # For testing purposes
+        self.num_loop_runs = float('inf')
         # Initialize tenant tree
 
     def _reset_object_backlock(self):
@@ -239,8 +248,10 @@ class AciTenantManager(utils.AIMThread):
             LOG.debug("Starting event loop for tenant %s" % self.tenant_name)
             last_time = 0
             epsilon = 0.5
-            while not self._stop:
+            while not self._stop and self.num_loop_runs > 0:
                 start = time.time()
+                if start > self.scheduled_reset:
+                    raise ScheduledReset()
                 self._event_loop()
                 curr_time = time.time() - start
                 if abs(curr_time - last_time) > epsilon:
@@ -252,7 +263,11 @@ class AciTenantManager(utils.AIMThread):
                 if not last_time:
                     last_time = curr_time
                 # Successfull run
+                self.num_loop_runs -= 1
                 self.recovery_retries = None
+        except ScheduledReset:
+            LOG.info("Scheduled tree reset for root %s" % self.tenant_name)
+            self._unsubscribe_tenant()
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, e.message))
@@ -429,6 +444,8 @@ class AciTenantManager(utils.AIMThread):
 
     def _subscribe_tenant(self):
         self.ws_context.subscribe(self.tenant.urls)
+        self.scheduled_reset = time.time() + RESET_INTERVAL + random.randrange(
+            -INTERVAL_DEVIATION, INTERVAL_DEVIATION)
         self._event_loop()
         self._warm = True
 
