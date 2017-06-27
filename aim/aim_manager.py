@@ -21,6 +21,7 @@ from aim.api import infra as api_infra
 from aim.api import resource as api_res
 from aim.api import service_graph as api_service_graph
 from aim.api import status as api_status
+from aim.api import tree as api_tree
 from aim.common import utils
 from aim import exceptions as exc
 
@@ -97,7 +98,8 @@ class AimManager(object):
                      api_res.VmmInjectedReplicaSet,
                      api_res.VmmInjectedService,
                      api_res.VmmInjectedHost,
-                     api_res.VmmInjectedContGroup, }
+                     api_res.VmmInjectedContGroup,
+                     api_tree.ActionLog}
 
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}
@@ -220,6 +222,21 @@ class AimManager(object):
                 context.store.delete(db_obj)
                 self._add_commit_hook(context.store)
 
+    @utils.log
+    def delete_all(self, context, resource_class, for_update=False, **kwargs):
+        """Delete many AIM resources from the database that match criteria.
+
+        Parameter 'resource_class' indicates the type of resource to
+        look for. Matching criteria are specified as keyword-arguments.
+        Only equality matches are supported.
+        Returns a list of resources that match.
+        """
+        self._validate_resource_class(resource_class)
+        attr_val = {k: v for k, v in kwargs.iteritems()
+                    if k in resource_class.attributes() +
+                    ['in_', 'notin_', 'order_by']}
+        return self._delete_db(context.store, resource_class, **attr_val)
+
     def get(self, context, resource, for_update=False):
         """Get AIM resource from the database.
 
@@ -253,13 +270,21 @@ class AimManager(object):
         """
         self._validate_resource_class(resource_class)
         attr_val = {k: v for k, v in kwargs.iteritems()
-                    if k in resource_class.attributes()}
+                    if k in resource_class.attributes() +
+                    ['in_', 'notin_', 'order_by']}
         result = []
         for obj in self._query_db(context.store, resource_class,
                                   for_update=for_update, **attr_val):
             result.append(
                 context.store.make_resource(resource_class, obj))
         return result
+
+    def count(self, context, resource_class, **kwargs):
+        self._validate_resource_class(resource_class)
+        attr_val = {k: v for k, v in kwargs.iteritems()
+                    if k in resource_class.attributes() +
+                    ['in_', 'notin_', 'order_by']}
+        return self._count_db(context.store, resource_class, **attr_val)
 
     def get_status(self, context, resource, for_update=False,
                    create_if_absent=True):
@@ -389,6 +414,16 @@ class AimManager(object):
         db_cls = store.resource_to_db_type(resource_class)
         return (store.query(db_cls, resource_class, lock_update=for_update,
                             **kwargs) if db_cls else None)
+
+    def _count_db(self, store, resource_class, **kwargs):
+        db_cls = store.resource_to_db_type(resource_class)
+        return (store.count(db_cls, resource_class, **kwargs)
+                if db_cls else None)
+
+    def _delete_db(self, store, resource_class, **kwargs):
+        db_cls = store.resource_to_db_type(resource_class)
+        return (store.delete_all(db_cls, resource_class, **kwargs)
+                if db_cls else None)
 
     def _query_db_obj(self, store, resource, for_update=False):
         id_attr = store.extract_attributes(resource, "id")

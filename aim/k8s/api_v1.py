@@ -15,7 +15,6 @@
 
 import ast
 import copy
-import json
 from six import iteritems
 
 from aim.api import types
@@ -560,7 +559,7 @@ class AciContainersV1(object):
             _request_timeout=params.get('_request_timeout'))
         if result and isinstance(result, str):
             try:
-                return json.loads(
+                return utils.json_loads(
                     result.replace(": u'", "'").replace("'", '"'))
             except ValueError:
                 try:

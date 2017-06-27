@@ -86,6 +86,11 @@ class TreeManager(object):
                             tree=str(empty_tree),
                             root_full_hash=empty_tree.root_full_hash or 'none')
 
+    def get_base_tree(self, context, root_rn, lock_update=False):
+        db_objs = self._find_query(context, ROOT_TREE, lock_update=lock_update,
+                                   in_={'root_rn': [root_rn]})
+        return db_objs[0] if db_objs else None
+
     @utils.log
     def delete_bulk(self, context, hash_trees):
         self._add_commit_hook(context)
@@ -106,16 +111,15 @@ class TreeManager(object):
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
 
-    @utils.log
-    def update(self, context, hash_tree):
-        return self.update_bulk(context, [hash_tree])
+    def update(self, context, hash_tree, tree=CONFIG_TREE):
+        return self.update_bulk(context, [hash_tree], tree=tree)
 
-    @utils.log
     def delete(self, context, hash_tree):
         return self.delete_bulk(context, [hash_tree])
 
     @utils.log
     def delete_by_root_rn(self, context, root_rn):
+        self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
             self._delete_if_exist(context, ROOT_TREE, root_rn)
             for type in SUPPORTED_TREES:
@@ -173,6 +177,26 @@ class TreeManager(object):
     @utils.log
     def get_roots(self, context):
         return [x.root_rn for x in self._find_query(context, ROOT_TREE)]
+
+    @utils.log
+    def set_needs_reset_by_root_rn(self, context, root_rn, needs_reset=True):
+        db_obj = self._find_query(context, ROOT_TREE, lock_update=True,
+                                  root_rn=root_rn)
+        if db_obj:
+            db_obj[0].needs_reset = needs_reset
+            context.store.add(db_obj[0])
+
+    def retrieve_uninitialized_roots(self, context):
+        # Only works with sql store
+        if 'sql' in context.store.features:
+            db_session = context.store.db_session
+            sq = db_session.query(
+                tree_model.Tree.root_rn).distinct().subquery()
+            all = db_session.query(tree_model.ActionLog.root_rn).filter(
+                tree_model.ActionLog.root_rn.notin_(sq)).distinct().all()
+            return [x.root_rn for x in all]
+        else:
+            return []
 
     def register_update_listener(self, func):
         """Register callback for update to AIM tree objects.
@@ -232,18 +256,16 @@ class TreeManager(object):
         if context.store.supports_hooks:
             session = context.store.db_session
             if not sa_event.contains(session, 'after_flush',
-                                     self._after_session_flush):
+                                     self._after_tree_session_flush):
                 sa_event.listen(session, 'after_flush',
-                                self._after_session_flush)
+                                self._after_tree_session_flush)
             if not sa_event.contains(session, 'after_transaction_end',
-                                     self._after_transaction_end):
+                                     self._after_tree_transaction_end):
                 sa_event.listen(session, 'after_transaction_end',
-                                self._after_transaction_end)
+                                self._after_tree_transaction_end)
 
-    def _after_session_flush(self, session, _):
+    def _after_tree_session_flush(self, session, _):
         # Stash tree modifications
-        LOG.debug("Invoking after session flush on tree manager for session "
-                  "%s" % session)
         added = set([x.root_rn for x in session.new
                      if isinstance(x, tree_model.TypeTreeBase)])
         updated = set([x.root_rn for x in session.dirty
@@ -251,15 +273,15 @@ class TreeManager(object):
         deleted = set([x.root_rn for x in session.deleted
                        if isinstance(x, tree_model.TypeTreeBase)])
         try:
-            session._aim_stash
+            session._aim_tree_stash
         except AttributeError:
-            session._aim_stash = {'added': set(), 'updated': set(),
-                                  'deleted': set()}
-        session._aim_stash['added'] |= added
-        session._aim_stash['updated'] |= updated
-        session._aim_stash['deleted'] |= deleted
+            session._aim_tree_stash = {'added': set(), 'updated': set(),
+                                       'deleted': set()}
+        session._aim_tree_stash['added'] |= added
+        session._aim_tree_stash['updated'] |= updated
+        session._aim_tree_stash['deleted'] |= deleted
 
-    def _after_transaction_end(self, session, transaction):
+    def _after_tree_transaction_end(self, session, transaction):
         # Check if outermost transaction
         try:
             if transaction.parent is not None:
@@ -268,14 +290,11 @@ class TreeManager(object):
             # sqlalchemy 1.0.11 and below
             if transaction._parent is not None:
                 return
-        LOG.debug("Invoking after transaction commit on tree manager for "
-                  "session %s" % session)
         try:
-            added = session._aim_stash['added']
-            updated = session._aim_stash['updated']
-            deleted = session._aim_stash['deleted']
+            added = session._aim_tree_stash['added']
+            updated = session._aim_tree_stash['updated']
+            deleted = session._aim_tree_stash['deleted']
         except AttributeError:
-            LOG.debug("_aim_stash disappeared in postcommit tree operation")
             return
         for func in self._after_commit_listeners[:]:
             LOG.debug("Invoking after transaction commit hook %s with "
@@ -287,7 +306,7 @@ class TreeManager(object):
                 LOG.debug(traceback.format_exc())
                 LOG.error("An error occurred during tree manager postcommit "
                           "execution: %s" % ex.message)
-        del session._aim_stash
+        del session._aim_tree_stash
 
 
 class AimHashTreeMaker(object):
@@ -332,7 +351,7 @@ class AimHashTreeMaker(object):
     @staticmethod
     def _dn_to_key(mo_type, dn):
         type_and_dn = utils.decompose_dn(mo_type, dn)
-        return tuple(['|'.join(x)
+        return tuple([str('|'.join(x))
                       for x in type_and_dn]) if type_and_dn else None
 
     @staticmethod
@@ -366,7 +385,7 @@ class AimHashTreeMaker(object):
             for mo, v in obj.iteritems():
                 attr = v.get('attributes', {})
                 dn = attr.pop('dn', None)
-                key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
+                key = AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
                 if key:
                     attr['_metadata'] = {'monitored': is_monitored,
                                          'attributes': copy.copy(attr)}
@@ -421,7 +440,7 @@ class AimHashTreeMaker(object):
             for mo, v in obj.iteritems():
                 attr = v.get('attributes', {})
                 dn = attr.pop('dn', None)
-                key = AimHashTreeMaker._dn_to_key(mo, dn) if dn else None
+                key = AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
                 if key:
                     tree.clear(key)
         return tree
@@ -482,7 +501,7 @@ class HashTreeBuilder(object):
         eg: {'config': {'tn1': <root hashtree>}}
         :return: tree updates
         """
-
+        LOG.debug('Builder called with %s %s %s' % (added, updated, deleted))
         # Segregate updates by root
         updates_by_root = {}
         all_updates = [added, updated, deleted]

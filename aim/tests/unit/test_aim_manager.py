@@ -34,6 +34,7 @@ from aim.api import resource as aim_res
 from aim.api import schema
 from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
+from aim.api import tree as api_tree
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import config  # noqa
@@ -159,6 +160,8 @@ class TestResourceOpsBase(object):
         r1 = self.mgr.create(self.ctx, res)
         for k, v in creation_attributes.iteritems():
             self.assertEqual(v, getattr_canonical(r1, k))
+        self.assertEqual(len(self.mgr.find(self.ctx, resource)),
+                         self.mgr.count(self.ctx, resource))
         # Verify get
         r1 = self.mgr.get(self.ctx, res)
         for k, v in creation_attributes.iteritems():
@@ -209,7 +212,8 @@ class TestResourceOpsBase(object):
         # TODO(ivar): Avoid config creation form AIM resources
         if not isinstance(res, aim_res.Configuration):
             self.assertNotIn(res, self.mgr.find(self.ctx, resource))
-
+        self.assertEqual(len(self.mgr.find(self.ctx, resource)),
+                         self.mgr.count(self.ctx, resource))
         # Test update nonexisting object
         r4 = self.mgr.update(self.ctx, res, **{})
         self.assertIsNone(r4)
@@ -356,7 +360,7 @@ class TestResourceOpsBase(object):
 
         # Add fault with same code
         fault_2 = aim_status.AciFault(
-            fault_code='412', external_identifier=res.dn + '/foo',
+            fault_code='412', external_identifier=res.dn + '/fault-412',
             severity=aim_status.AciFault.SEV_MAJOR)
         self.mgr.set_fault(self.ctx, res, fault_2)
         status = self.mgr.get_status(self.ctx, res)
@@ -400,7 +404,9 @@ class TestResourceOpsBase(object):
             self.test_default_values,
             self.test_dn)
 
-    @base.requires(['hooks'])
+    # REVISIT(ivar): now that the listeners are all mocked this test
+    # doesn't look very helpful
+    @base.requires(['skip'])
     def test_hooks(self):
         self._create_prerequisite_objects()
         self._test_commit_hook(
@@ -1554,6 +1560,21 @@ class TestVmmInjectedContGroupMixin(object):
                                'namespace_name', self.test_id)
 
 
+class TestActionLogMixin(object):
+    resource_class = api_tree.ActionLog
+    test_identity_attributes = {}
+    test_required_attributes = {'root_rn': 'tn-common',
+                                'action': 'create',
+                                'object_type': 'BridgeDomain',
+                                'object_dict': ('{"tenant_name": "common", '
+                                                '"name": "ciao"}')
+                                }
+    test_search_attributes = {'root_rn': 'tn-common'}
+    test_update_attributes = {'action': 'delete'}
+    test_default_values = {}
+    res_command = 'action-log'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -1563,6 +1584,63 @@ class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 class TestBridgeDomain(TestBridgeDomainMixin, TestAciResourceOpsBase,
                        base.TestAimDBBase):
     pass
+
+
+class TestActionLog(TestActionLogMixin, TestResourceOpsBase,
+                    base.TestAimDBBase):
+    def setUp(self):
+        super(TestActionLog, self).setUp()
+        self.catchup_logs = mock.patch(
+            'aim.db.hashtree_db_listener.HashTreeDbListener.'
+            'catch_up_with_action_log')
+        self.catchup_logs.start()
+        self.addCleanup(self.catchup_logs.stop)
+
+    @base.requires(['sql'])
+    def test_increasing_id(self):
+        for i in range(1, 11):
+            # New UUID every time
+            action = api_tree.ActionLog(
+                root_rn='tenant', action='create', object_type='Tenant',
+                object_dict='{"name": "tenant"}')
+            obj = self.mgr.create(self.ctx, action)
+            self.assertEqual(i, obj.id)
+        for i in range(1, 11):
+            # New UUID every time
+            action = api_tree.ActionLog(
+                root_rn='tenant1', action='create', object_type='Tenant',
+                object_dict='{"name": "tenant"}')
+            self.mgr.create(self.ctx, action)
+        action = api_tree.ActionLog(
+            root_rn='tenant', action='reset', object_type='Tenant',
+            object_dict='{"name": "tenant"}')
+        obj = self.mgr.create(self.ctx, action)
+        self.assertEqual(21, self.mgr.count(self.ctx, api_tree.ActionLog))
+        self.assertEqual(10, self.mgr.count(self.ctx, api_tree.ActionLog,
+                                            in_={'root_rn': ['tenant1']}))
+        self.assertEqual('reset', obj.action)
+        ordered = self.mgr.find(
+            self.ctx, api_tree.ActionLog,
+            in_={'root_rn': ['tenant', 'tenant1']}, order_by=['root_rn', 'id'])
+        prev = ordered[0]
+        self.assertEqual(1, prev.id)
+        for obj in ordered[1:11]:
+            self.assertEqual('tenant', obj.root_rn)
+            self.assertTrue(prev.id < obj.id)
+            prev = obj
+        prev = ordered[11]
+        for obj in ordered[12:]:
+            self.assertEqual('tenant1', obj.root_rn)
+            self.assertTrue(prev.id < obj.id)
+            prev = obj
+        self.mgr.delete_all(self.ctx, api_tree.ActionLog, root_rn='tenant1')
+        self.assertEqual(0, self.mgr.count(self.ctx, api_tree.ActionLog,
+                                           in_={'root_rn': ['tenant1']}))
+        self.mgr.delete_all(self.ctx, api_tree.ActionLog,
+                            notin_={'root_rn': ['tenant1']})
+        self.assertEqual(0, self.mgr.count(self.ctx, api_tree.ActionLog))
+        # Non existent doesn't raise
+        self.mgr.delete_all(self.ctx, api_tree.ActionLog, root_rn='tenant1')
 
 
 class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):

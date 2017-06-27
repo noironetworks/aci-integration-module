@@ -19,6 +19,7 @@ from oslo_log import log as logging
 from sqlalchemy import event as sa_event
 from sqlalchemy.sql.expression import func
 
+from aim.agent.aid.event_services import rpc
 from aim import aim_manager
 from aim.api import infra as api_infra
 from aim.api import resource as api_res
@@ -49,6 +50,7 @@ class AimStore(object):
 
     _features = []
     _update_listeners = {}
+    _postcommit_listeners = {}
 
     def __init__(self):
         pass
@@ -91,8 +93,18 @@ class AimStore(object):
         pass
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
-              lock_update=False, **filters):
+              order_by=None, lock_update=False, **filters):
         # Return list of objects that match specified criteria
+        pass
+
+    def count(self, db_obj_type, resource_klass, in_=None, notin_=None,
+              **filters):
+        # Return count of objects that match specified criteria
+        pass
+
+    def delete_all(self, db_obj_type, resource_klass, in_=None, notin_=None,
+                   **filters):
+        # Delete all objects that match specified criteria
         pass
 
     def add_commit_hook(self):
@@ -138,6 +150,14 @@ class AimStore(object):
         """Remove callback for update to AIM objects."""
         self._update_listeners.pop(name, None)
 
+    def register_postcommit_listener(self, name, func):
+        if name not in self._postcommit_listeners:
+            self._postcommit_listeners[name] = func
+
+    def unregister_postcommit_listener(self, name):
+        """Remove callback for update to AIM objects."""
+        self._postcommit_listeners.pop(name, None)
+
     def extract_attributes(self, resource, attr_type=None):
         val = {}
         if not attr_type or attr_type == "id":
@@ -162,7 +182,7 @@ class AimStore(object):
 
 class SqlAlchemyStore(AimStore):
 
-    _features = ['foreign_keys', 'timestamp', 'hooks']
+    _features = ['foreign_keys', 'timestamp', 'hooks', 'sql']
 
     # Dict mapping AIM resources to DB model objects
     db_model_map = {api_res.BridgeDomain: models.BridgeDomain,
@@ -227,7 +247,8 @@ class SqlAlchemyStore(AimStore):
                         models.VmmInjectedReplicaSet),
                     api_res.VmmInjectedService: models.VmmInjectedService,
                     api_res.VmmInjectedHost: models.VmmInjectedHost,
-                    api_res.VmmInjectedContGroup: models.VmmInjectedContGroup}
+                    api_res.VmmInjectedContGroup: models.VmmInjectedContGroup,
+                    api_tree.ActionLog: tree_model.ActionLog}
 
     resource_map = {}
     for k, v in db_model_map.iteritems():
@@ -236,12 +257,18 @@ class SqlAlchemyStore(AimStore):
     def __init__(self, db_session, initialize_hooks=True):
         super(SqlAlchemyStore, self).__init__()
         self.db_session = db_session
+        self.initialize_hooks = initialize_hooks
         if initialize_hooks:
-            self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
-                aim_manager.AimManager())
-            self.register_update_listener(
-                'hashtree_db_listener_on_commit',
-                self._hashtree_db_listener.on_commit)
+            self._initialize_hooks()
+
+    def _initialize_hooks(self):
+        self._hashtree_db_listener = ht_db_l.HashTreeDbListener(
+            aim_manager.AimManager())
+        self.register_update_listener('hashtree_db_listener_on_commit',
+                                      self._hashtree_db_listener.on_commit)
+        self.register_postcommit_listener(
+            'tree_creation_postcommit',
+            rpc.AIDEventRpcApi().tree_creation_postcommit)
 
     @property
     def name(self):
@@ -270,8 +297,8 @@ class SqlAlchemyStore(AimStore):
     def delete(self, db_obj):
         self.db_session.delete(db_obj)
 
-    def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
-              lock_update=False, **filters):
+    def _query(self, db_obj_type, resource_klass, in_=None, notin_=None,
+               order_by=None, lock_update=False, **filters):
         query = self.db_session.query(db_obj_type)
         for k, v in (in_ or {}).iteritems():
             query = query.filter(getattr(db_obj_type, k).in_(v))
@@ -280,15 +307,48 @@ class SqlAlchemyStore(AimStore):
                 [(x or '') for x in v]))
         if filters:
             query = query.filter_by(**filters)
+        if order_by:
+            if isinstance(order_by, list):
+                args = [getattr(db_obj_type, x) for x in order_by]
+            else:
+                args = [getattr(db_obj_type, order_by)]
+            query = query.order_by(*args)
         if lock_update:
             query = query.with_lockmode('update')
-        return query.all()
+        return query
+
+    def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
+              order_by=None, lock_update=False, **filters):
+
+        return self._query(db_obj_type, resource_klass, in_=in_, notin_=notin_,
+                           order_by=order_by, lock_update=lock_update,
+                           **filters).all()
+
+    def count(self, db_obj_type, resource_klass, in_=None, notin_=None,
+              **filters):
+
+        return self._query(db_obj_type, resource_klass, in_=in_, notin_=notin_,
+                           **filters).count()
+
+    def delete_all(self, db_obj_type, resource_klass, in_=None, notin_=None,
+                   **filters):
+        return self._query(db_obj_type, resource_klass, in_=in_, notin_=notin_,
+                           **filters).delete(synchronize_session='fetch')
 
     def add_commit_hook(self):
         if not sa_event.contains(self.db_session, 'before_flush',
                                  self._before_session_commit):
             sa_event.listen(self.db_session, 'before_flush',
                             self._before_session_commit, self)
+        if not sa_event.contains(
+                self.db_session, 'after_transaction_end',
+                self._after_transaction_end):
+            sa_event.listen(self.db_session, 'after_transaction_end',
+                            self._after_transaction_end)
+        if not sa_event.contains(self.db_session, 'after_flush',
+                                 self._after_session_flush):
+            sa_event.listen(self.db_session, 'after_flush',
+                            self._after_session_flush)
 
     def from_attr(self, db_obj, resource_klass, attribute_dict):
         db_obj.from_attr(self.db_session, attribute_dict)
@@ -316,6 +376,46 @@ class SqlAlchemyStore(AimStore):
                       "%d update(s), %d delete(s)",
                       f.__name__, len(added), len(updated), len(deleted))
             f(store, added, updated, deleted)
+
+    def _after_session_flush(self, session, _):
+        # Stash log changes
+        added = set([x.root_rn for x in session.new
+                     if isinstance(x, tree_model.ActionLog)])
+        updated = set([x.root_rn for x in session.dirty
+                       if isinstance(x, tree_model.ActionLog)])
+        try:
+            session._aim_stash
+        except AttributeError:
+            session._aim_stash = {'added': set(), 'updated': set(),
+                                  'deleted': set()}
+        session._aim_stash['added'] |= added
+        session._aim_stash['updated'] |= updated
+
+    @staticmethod
+    def _after_transaction_end(session, transaction):
+        # Check if outermost transaction
+        try:
+            if transaction.parent is not None:
+                return
+        except AttributeError:
+            # sqlalchemy 1.0.11 and below
+            if transaction._parent is not None:
+                return
+        try:
+            added = session._aim_stash['added']
+            updated = session._aim_stash['updated']
+        except AttributeError:
+            return
+        for f in copy.copy(SqlAlchemyStore._postcommit_listeners).values():
+            LOG.debug("Invoking after transaction commit hook %s with "
+                      "%d add(s), %d update(s))",
+                      f.__name__, len(added), len(updated))
+            try:
+                f(session, [], updated | added, [])
+            except Exception as ex:
+                LOG.error("An error occurred during aim manager postcommit "
+                          "execution: %s" % ex.message)
+        del session._aim_stash
 
 
 class K8sStore(AimStore):
@@ -421,7 +521,7 @@ class K8sStore(AimStore):
         self._post_delete(deleted)
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
-              lock_update=False, **filters):
+              order_by=None, lock_update=False, **filters):
         def_ns = (self.namespace
                   if db_obj_type == api_v1.AciContainersObject else None)
 
@@ -496,7 +596,24 @@ class K8sStore(AimStore):
                             result.append(db_obj)
             else:
                 result.append(db_obj)
+        if order_by:
+            if isinstance(order_by, basestring):
+                order_by = [order_by]
+            result = sorted(result,
+                            key=lambda x: tuple([x[k] for k in order_by]))
         return result
+
+    def count(self, db_obj_type, resource_klass, in_=None, notin_=None,
+              **filters):
+        return len(
+            self.query(db_obj_type, resource_klass, in_=in_, notin_=notin_,
+                       **filters))
+
+    def delete_all(self, db_obj_type, resource_klass, in_=None, notin_=None,
+                   **filters):
+        for obj in self.query(db_obj_type, resource_klass, in_=in_,
+                              notin_=notin_, **filters):
+            self.delete(obj)
 
     def _post_create(self, created):
         # Can be patched in UTs to simulate Hashtree postcommit

@@ -14,7 +14,6 @@
 #    under the License.
 
 import collections
-import json
 import time
 import traceback
 
@@ -147,7 +146,7 @@ class WebSocketContext(object):
         resp = self._subscribe(urls)
         if resp is not None:
             if resp.ok:
-                return json.loads(resp.text)['imdata']
+                return utils.json_loads(resp.text)['imdata']
             else:
                 if resp.status_code == 405:
                     self.reconnect_ws_session()
