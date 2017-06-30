@@ -26,6 +26,7 @@ from aim.agent.aid import service
 from aim.agent.aid.universes.aci import aci_universe
 from aim.aim_lib import nat_strategy
 from aim import aim_manager
+from aim import aim_store
 from aim.api import resource
 from aim.api import service_graph
 from aim.api import status as aim_status
@@ -55,6 +56,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
         super(TestAgent, self).setUp(initialize_hooks=False)
+        try:
+            aim_store.SqlAlchemyStore.add_commit_hook = (
+                self.old_add_commit_hook)
+        except AttributeError:
+            pass
         self.set_override('agent_down_time', 3600, 'aim')
         self.set_override('agent_polling_interval', 0, 'aim')
         self.set_override('aci_tenant_polling_yield', 0, 'aim')
@@ -1652,7 +1658,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 self.aim_manager.create(self.ctx, bd)
                 self.aim_manager.create(self.ctx, vrf)
             # Two reset logs exist
-            logs = self.aim_manager.find(self.ctx, aim_tree.ActionLog)
+            logs = self.aim_manager.find(self.ctx, aim_tree.ActionLog,
+                                         action='reset')
             self.assertEqual(2, len(logs))
             for log in logs:
                 self.assertEqual(log.action, aim_tree.ActionLog.RESET)
@@ -1667,6 +1674,80 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self.assertIsNotNone(dest)
         finally:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
+
+    def test_divergence_reset(self):
+        agent = self._create_agent()
+        tenant_name = 'test_divergence_reset'
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        current_config.retry_cooldown = -1
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn)
+        self._first_serve(agent)
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)],
+                              tenants=[tn.root])
+        apic_client.ApicSession.post_body_dict = mock.Mock()
+        bd = resource.BridgeDomain(tenant_name=tenant_name, name='bd1')
+        self.aim_manager.create(self.ctx, bd)
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        # Universe not in sync
+        self.assertRaises(Exception,
+                          self._assert_universe_sync, desired_config,
+                          current_config)
+        self.assertEqual(1, len(current_config._action_cache['create']))
+        current_config.reset = mock.Mock()
+        desired_config.reset = mock.Mock()
+        current_config.push_resources = mock.Mock()
+        for x in range(current_config.reset_retry_limit):
+            current_config.push_resources.reset_mock()
+            agent._daemon_loop(self.ctx)
+            self.assertEqual(0, current_config.reset.call_count)
+            self.assertEqual(0, desired_config.reset.call_count)
+            current_config.push_resources.assert_called_once_with(
+                {'create': [bd], 'delete': []})
+
+        current_config.push_resources.reset_mock()
+        agent._daemon_loop(self.ctx)
+        current_config.reset.assert_called_once_with(set([tn.rn]))
+        desired_config.reset.assert_called_once_with(set([tn.rn]))
+        current_config.push_resources.assert_called_once_with(
+            {'create': [], 'delete': []})
+        # Still not in sync
+        self.assertRaises(Exception,
+                          self._assert_universe_sync, desired_config,
+                          current_config)
+        current_config.reset.reset_mock()
+        desired_config.reset.reset_mock()
+        # go for the purge
+        for x in range(current_config.reset_retry_limit,
+                       current_config.purge_retry_limit - 1):
+            current_config.push_resources.reset_mock()
+            agent._daemon_loop(self.ctx)
+            self.assertEqual(0, current_config.reset.call_count)
+            self.assertEqual(0, desired_config.reset.call_count)
+            current_config.push_resources.assert_called_once_with(
+                {'create': [bd], 'delete': []})
+        current_config.push_resources.reset_mock()
+        agent._daemon_loop(self.ctx)
+        self.assertEqual(0, current_config.reset.call_count)
+        self.assertEqual(0, desired_config.reset.call_count)
+        current_config.push_resources.assert_called_once_with(
+            {'create': [], 'delete': []})
+        # Now node should be in error state, thus the universes are in sync
+        self._assert_universe_sync(desired_config, current_config)
+        self._sync_and_verify(agent, current_config,
+                              [(current_config, desired_config),
+                               (current_monitor, desired_monitor)],
+                              tenants=[tn.root])
 
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']

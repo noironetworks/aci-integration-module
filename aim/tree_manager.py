@@ -359,6 +359,10 @@ class AimHashTreeMaker(object):
         root_split = root_key[0].split('|')
         return apic_client.DNManager().build([root_split]).split('/')[-1]
 
+    @staticmethod
+    def _extract_root_from_dn(dn):
+        return dn.split('/')[-1]
+
     def _clean_related(self, tree, node):
         for child in (node.get_children() if node else []):
             if child.metadata.get('related'):

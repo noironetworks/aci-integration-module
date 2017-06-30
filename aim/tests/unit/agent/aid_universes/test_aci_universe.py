@@ -347,6 +347,84 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.retry_cooldown = curr_cooldown
         self.universe.max_create_retry = curr_max_retries
 
+    def test_track_universe_actions(self):
+        # When AIM is the current state, created objects are in ACI form,
+        # deleted objects are in AIM form
+        old_cooldown = self.universe.retry_cooldown
+        reset_limit = self.universe.reset_retry_limit
+        purge_limit = self.universe.purge_retry_limit
+        self.assertEqual(2 * self.universe.max_create_retry, reset_limit)
+        self.assertEqual(2 * reset_limit, purge_limit)
+        self.assertTrue(self.universe.max_create_retry > 0)
+        self.universe.retry_cooldown = -1
+        actions = {
+            'create': [
+                resource.BridgeDomain(tenant_name='t1', name='b'),
+                resource.BridgeDomain(tenant_name='t1', name='b'),
+                resource.VRF(tenant_name='t2', name='c'),
+            ],
+            'delete': []
+        }
+        reset, purge = self.universe._track_universe_actions(actions)
+        self.assertEqual(set(), reset)
+        self.assertEqual([], purge)
+        # 2 roots
+        self.assertEqual(2, len(self.universe._action_cache['create']))
+        # BD counted only once
+        self.assertEqual(
+            0, self.universe._action_cache['create']['tn-t1'].values()[0][
+                'retries'])
+        ctrl = resource.VMMController(domain_type='OpenStack',
+                                      domain_name='os', name='ctrl')
+        actions = {
+            'create': [
+                resource.BridgeDomain(tenant_name='t1', name='b'),
+            ],
+            'delete': [
+                self._get_example_aci_object('vmmCtrlrP', ctrl.dn)
+            ]
+        }
+        reset, purge = self.universe._track_universe_actions(actions)
+        self.assertEqual(set(), reset)
+        self.assertEqual([], purge)
+        # Tenant t2 is off the hook
+        self.assertTrue('tn-t2' not in self.universe._action_cache['create'])
+        self.assertTrue('tn-t2' not in self.universe._action_cache['delete'])
+        # BD count increased
+        self.assertEqual(
+            1, self.universe._action_cache['create']['tn-t1'].values()[0][
+                'retries'])
+        self.assertEqual(
+            0, self.universe._action_cache['delete'][ctrl.root].values()[0][
+                'retries'])
+        # Retry the above until t1 needs reset
+        for _ in range(reset_limit - 1):
+            reset, purge = self.universe._track_universe_actions(actions)
+            self.assertEqual(set(), reset)
+            self.assertEqual([], purge)
+        reset, purge = self.universe._track_universe_actions(actions)
+        self.assertEqual({'tn-t1'}, reset)
+        self.assertEqual([], purge)
+        # with the next run, reset is not required for t1 anymore, but pure
+        # countdown starts
+        reset, purge = self.universe._track_universe_actions(actions)
+        self.assertEqual({ctrl.root}, reset)
+        self.assertEqual([], purge)
+        for _ in range(purge_limit - reset_limit - 2):
+            reset, purge = self.universe._track_universe_actions(actions)
+            self.assertEqual(set(), reset)
+            self.assertEqual([], purge)
+        reset, purge = self.universe._track_universe_actions(actions)
+        self.assertEqual(set(), reset)
+        self.assertEqual(1, len(purge))
+        self.assertEqual('create', purge[0][0])
+        self.assertEqual('uni/tn-t1/BD-b', purge[0][1].dn)
+        reset, purge = self.universe._track_universe_actions(actions)
+        self.assertEqual(set(), reset)
+        self.assertEqual(1, len(purge))
+        self.assertEqual(ctrl.dn, purge[0][1].dn)
+        self.universe.retry_cooldown = old_cooldown
+
 
 class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
 
@@ -363,6 +441,9 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
                       operational.serving_tenants)
         for key, value in self.universe.serving_tenants.iteritems():
             self.assertIs(operational.serving_tenants[key], value)
+
+    def test_track_universe_actions(self):
+        pass
 
 
 class TestAciOperationalUniverse(TestAciUniverseMixin, base.TestAimDBBase):

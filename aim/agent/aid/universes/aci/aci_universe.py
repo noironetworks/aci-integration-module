@@ -325,6 +325,13 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 new_state[tenant] = self._get_state_copy(tenant)
         self._state = new_state
 
+    def reset(self, tenants):
+        global serving_tenants
+        LOG.warn('Reset called for roots %s' % tenants)
+        for root in tenants:
+            if root in serving_tenants:
+                serving_tenants[root].scheduled_reset = -1
+
     def push_resources(self, resources):
         # Organize by tenant, and push into APIC
         global serving_tenants
@@ -405,8 +412,23 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 'signature_hash_type', group='apic'))
 
     def update_status_objects(self, my_state, other_state, other_universe,
-                              raw_diff, transformed_diff):
+                              raw_diff, transformed_diff, skip_roots=None):
         pass
+
+    def _action_items_to_aim_resources(self, actions, action):
+        if action == base.CREATE:
+            return actions[action]
+        else:
+            # it's in ACI format
+            return self._aim_converter.convert(actions[action])
+
+    def _get_resource_root(self, action, res):
+        if action == base.CREATE:
+            return res.root
+        else:
+            # it's in ACI format
+            return tree_manager.AimHashTreeMaker._extract_root_from_dn(
+                res.values()[0]['attributes']['dn'])
 
 
 class AciOperationalUniverse(AciUniverse):

@@ -79,13 +79,21 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._state = new_state
 
     def observe(self):
-        # TODO(ivar): move this to a separate thread
+        # TODO(ivar): move this to a separate thread and add scheduled reset
+        # mechanism
         hashtree_db_listener.HashTreeDbListener(
             self.manager).catch_up_with_action_log(self.context.store,
                                                    self._served_tenants)
         # REVISIT(ivar): what if a root is marked as needs_reset? we could
         # avoid syncing it altogether
         self._state.update(self.get_optimized_state(self.state))
+
+    def reset(self, tenants):
+        LOG.warn('Reset called for roots %s' % tenants)
+        for root in tenants:
+            hashtree_db_listener.HashTreeDbListener(
+                self.manager).tt_mgr.set_needs_reset_by_root_rn(
+                self.context, root)
 
     def get_optimized_state(self, other_state, tree=tree_manager.CONFIG_TREE):
         # TODO(ivar): make it tree-version based to reflect metadata changes
@@ -247,29 +255,47 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return parents
 
     def _set_sync_pending_state(self, transformed_diff, raw_diff,
-                                other_universe):
+                                other_universe, skip_roots=None):
+        skip_roots = skip_roots or []
         aim_add = transformed_diff[base.CREATE]
         # Set AIM differences to sync_pending
         for obj in aim_add:
-            self.manager.set_resource_sync_pending(self.context, obj)
+            if obj.root not in skip_roots:
+                self.manager.set_resource_sync_pending(self.context, obj)
 
-    def _set_synced_state(self, my_state, raw_diff):
+    def _set_synced_state(self, my_state, raw_diff, skip_roots=None):
+        skip_roots = skip_roots or []
         all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
         pending_nodes = []
         for root, tree in my_state.iteritems():
-            pending_nodes.extend(tree.find_by_metadata('pending', True))
-            pending_nodes.extend(tree.find_no_metadata('pending'))
+            if root not in skip_roots:
+                pending_nodes.extend(tree.find_by_metadata('pending', True))
+                pending_nodes.extend(tree.find_no_metadata('pending'))
         keys_to_sync = set(pending_nodes) - all_modified_keys
         aim_to_sync = self.get_resources(list(keys_to_sync))
         for obj in aim_to_sync:
             self.manager.set_resource_sync_synced(self.context, obj)
 
     def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff):
+                              raw_diff, transformed_diff, skip_roots=None):
         # AIM Config Universe is the desired state
         self._set_sync_pending_state(transformed_diff, raw_diff,
-                                     other_universe)
-        self._set_synced_state(my_state, raw_diff)
+                                     other_universe, skip_roots=skip_roots)
+        self._set_synced_state(my_state, raw_diff, skip_roots=skip_roots)
+
+    def _action_items_to_aim_resources(self, actions, action):
+        if action == base.DELETE:
+            return actions[action]
+        else:
+            return self._converter.convert(actions[action])
+
+    def _get_resource_root(self, action, res):
+        if action == base.DELETE:
+            return res.root
+        else:
+            # it's in ACI format
+            return tree_manager.AimHashTreeMaker._extract_root_from_dn(
+                res.values()[0]['attributes']['dn'])
 
 
 class AimDbOperationalUniverse(AimDbUniverse):
@@ -293,7 +319,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
                                always_vote_deletion=True)
 
     def update_status_objects(self, my_state, other_state, other_universe,
-                              raw_diff, transformed_diff):
+                              raw_diff, transformed_diff, skip_roots=None):
         pass
 
 
@@ -321,9 +347,10 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                                skip_dummy=True)
 
     def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff):
+                              raw_diff, transformed_diff, skip_roots=None):
         # AIM Monitored Universe is current state
         add_diff = {
             base.CREATE: self.get_resources(list(raw_diff[base.CREATE]))}
-        self._set_sync_pending_state(add_diff, raw_diff, other_universe)
-        self._set_synced_state(my_state, raw_diff)
+        self._set_sync_pending_state(add_diff, raw_diff, other_universe,
+                                     skip_roots=skip_roots)
+        self._set_synced_state(my_state, raw_diff, skip_roots=skip_roots)
