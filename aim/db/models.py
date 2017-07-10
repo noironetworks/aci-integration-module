@@ -22,7 +22,7 @@ from aim.db import model_base
 
 
 class Tenant(model_base.Base, model_base.HasDisplayName,
-             model_base.HasAimId,
+             model_base.HasAimId, model_base.HasDescription,
              model_base.AttributeMixin, model_base.IsMonitored,
              model_base.HasName):
     """DB model for Tenant."""

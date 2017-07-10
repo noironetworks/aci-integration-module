@@ -156,13 +156,15 @@ class Tenant(AciRoot):
         ('name', t.name))
     other_attributes = t.other(
         ('display_name', t.name),
-        ('monitored', t.bool))
+        ('monitored', t.bool),
+        ('descr', t.string()))
 
     _aci_mo_name = 'fvTenant'
     _tree_parent = None
 
     def __init__(self, **kwargs):
-        super(Tenant, self).__init__({'monitored': False}, **kwargs)
+        super(Tenant, self).__init__({'monitored': False, 'descr': ''},
+                                     **kwargs)
 
 
 class BridgeDomain(AciResourceBase):
