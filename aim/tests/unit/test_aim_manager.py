@@ -506,8 +506,8 @@ class TestTenantMixin(object):
     resource_root_type = resource.Tenant._aci_mo_name
     test_identity_attributes = {'name': 'tenant1'}
     test_required_attributes = {'name': 'tenant1'}
-    test_search_attributes = {'name': 'tenant1'}
-    test_update_attributes = {'display_name': 'pepsi'}
+    test_search_attributes = {'name': 'tenant1', 'descr': 'openstack_id'}
+    test_update_attributes = {'display_name': 'pepsi', 'descr': 'id2'}
     test_default_values = {}
     test_dn = 'uni/tn-tenant1'
     res_command = 'tenant'

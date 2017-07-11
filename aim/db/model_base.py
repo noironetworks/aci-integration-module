@@ -71,6 +71,11 @@ class HasDisplayName(object):
     display_name = sa.Column(sa.String(256), nullable=False, default='')
 
 
+class HasDescription(object):
+    """Add to subclasses that have a description."""
+    descr = sa.Column(sa.String(128), nullable=False, default='')
+
+
 class HasTenantName(object):
     """Add to subclasses that reference a tenant."""
     tenant_name = name_column(nullable=False)

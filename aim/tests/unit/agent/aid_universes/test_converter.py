@@ -284,10 +284,10 @@ class TestAciToAimConverterTenant(TestAciToAimConverterBase,
                            'resource': 'fvTenant'}]
     sample_input = [base.TestAimDBBase._get_example_aci_tenant(nameAlias='tt'),
                     base.TestAimDBBase._get_example_aci_tenant(
-                        dn='uni/tn-test-tenant1')]
+                        dn='uni/tn-test-tenant1', descr='my description')]
     sample_output = [
         resource.Tenant(name='test-tenant', display_name='tt'),
-        resource.Tenant(name='test-tenant1')]
+        resource.Tenant(name='test-tenant1', descr='my description')]
 
 
 class TestAciToAimConverterAppProfile(TestAciToAimConverterBase,
@@ -1729,14 +1729,16 @@ class TestAimToAciConverterTenant(TestAimToAciConverterBase,
                                   base.TestAimDBBase):
     sample_input = [base.TestAimDBBase._get_example_aim_tenant(),
                     base.TestAimDBBase._get_example_aim_tenant(
-                        name='test1', display_name='alias')]
+                        name='test1', display_name='alias', descr='2')]
     sample_output = [
         [{
             "fvTenant": {
-                "attributes": {"dn": "uni/tn-test-tenant", "nameAlias": ""}}}],
+                "attributes": {"dn": "uni/tn-test-tenant", "nameAlias": "",
+                               "descr": ""}}}],
         [{
             "fvTenant": {
-                "attributes": {"dn": "uni/tn-test1", "nameAlias": "alias"}}}]]
+                "attributes": {"dn": "uni/tn-test1", "nameAlias": "alias",
+                               "descr": "2"}}}]]
 
 
 class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
