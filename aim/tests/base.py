@@ -210,7 +210,14 @@ class TestAimDBBase(BaseTestCase):
                             model_base.Base.metadata.sorted_tables):
                         conn.execute(table.delete())
             self.addCleanup(clear_tables)
+            self.old_add_commit_hook = (
+                aim_store.SqlAlchemyStore.add_commit_hook)
             aim_store.SqlAlchemyStore.add_commit_hook = _add_commit_hook
+
+            def restore_commit_hook():
+                aim_store.SqlAlchemyStore.add_commit_hook = (
+                    self.old_add_commit_hook)
+            self.addCleanup(restore_commit_hook)
             aim_store.SqlAlchemyStore._after_transaction_end_2 = (
                 _after_transaction_end_2)
         else:
@@ -263,6 +270,12 @@ class TestAimDBBase(BaseTestCase):
                 if str(e.status) != '420':
                     LOG.warning("Error while cleaning %s %s: %s",
                                 obj.kind, obj['metadata']['name'], e)
+
+    @classmethod
+    def _get_example_aci_object(cls, type, dn, **kwargs):
+        attr = {'dn': dn}
+        attr.update(kwargs)
+        return {type: {'attributes': attr}}
 
     @classmethod
     def _get_example_aim_bd(cls, **kwargs):

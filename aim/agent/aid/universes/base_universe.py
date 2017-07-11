@@ -36,6 +36,8 @@ DELETE = 'delete'
 CONFIG_UNIVERSE = 0
 OPER_UNIVERSE = 1
 MONITOR_UNIVERSE = 2
+ACTION_RESET = 'reset'
+ACTION_PURGE = 'purge'
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -200,7 +202,7 @@ class AimUniverse(BaseUniverse):
 
     @abc.abstractmethod
     def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff):
+                              raw_diff, transformed_diff, skip_roots=None):
         """Update status objects
 
         Given the current state of the system, update the proper status objects
@@ -256,13 +258,15 @@ class HashTreeStoredUniverse(AimUniverse):
         # passed
         self.retry_cooldown = self.conf_manager.get_option(
             'retry_cooldown', 'aim')
+        self.reset_retry_limit = 2 * self.max_create_retry
+        self.purge_retry_limit = 2 * self.reset_retry_limit
         self.error_handlers = {
             errors.OPERATION_TRANSIENT: self._retry_until_max,
             errors.UNKNOWN: self._retry_until_max,
             errors.OPERATION_CRITICAL: self._surrender_operation,
             errors.SYSTEM_CRITICAL: self._fail_agent,
         }
-
+        self._action_cache = {}
         return self
 
     def _dissect_key(self, key):
@@ -355,11 +359,43 @@ class HashTreeStoredUniverse(AimUniverse):
         result = {CREATE: other_universe.get_resources(differences[CREATE]),
                   DELETE: self.get_resources_for_delete(differences[DELETE])}
 
+        reset, purge = self._track_universe_actions(result)
+        LOG.debug('Action cache for %s: %s' % (self.name, self._action_cache))
+        # Schedule root reset
+        if reset:
+            self.reset(reset)
+            other_universe.reset(reset)
+        stop_sync = set()
+        for action, res in purge:
+            # It's no use to set error state for resetting roots
+            if res.root not in reset:
+                if action == CREATE:
+                    self.creation_failed(
+                        res, reason='Divergence detected on this object.',
+                        error=errors.OPERATION_CRITICAL)
+                if action == DELETE:
+                    self.deletion_failed(
+                        res, reason='Divergence detected on this object.',
+                        error=errors.OPERATION_CRITICAL)
+                stop_sync.add(res.root)
+        # Don't synchronize resetting roots or purge objects
+        stop_sync |= reset
+        if stop_sync:
+            for method in CREATE, DELETE:
+                differences[method] = [
+                    x for x in differences[method] if
+                    tree_manager.AimHashTreeMaker._extract_root_rn(x)
+                    not in stop_sync]
+                result[method] = [
+                    x for x in result[method] if
+                    self._get_resource_root(method, x) not in stop_sync]
+
         # Set status objects properly
         self.update_status_objects(my_state, other_universe, other_state,
-                                   differences, result)
+                                   differences, result, skip_roots=stop_sync)
         other_universe.update_status_objects(other_state, self, my_state,
-                                             differences, result)
+                                             differences, result,
+                                             skip_roots=stop_sync)
         # Reconciliation method for pushing changes
         self.push_resources(result)
         return diff
@@ -533,6 +569,49 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _convert_get_resources_result(self, result, monitored_set):
         return result
+
+    def _track_universe_actions(self, actions):
+        """Track Universe Actions.
+
+        Keep track of what the universe has been doing in the past few
+        iterations. Keeping count of any operation repeated over time and
+        decreasing count of actions that are not happening in this iteration.
+        :param actions: dictionary in the form {'create': [..], 'delete': [..]}
+        :return:
+        """
+        cache = {}
+        curr_time = time.time()
+        reset = set()
+        purge = []
+        for action in [CREATE, DELETE]:
+            for res in self._action_items_to_aim_resources(actions, action):
+                # Same resource created twice in the same iteration is
+                # increased only once
+                root = res.root
+                new = (cache.setdefault(action, {}).
+                       setdefault(root, {}).
+                       setdefault(res.hash, {'limit': self.reset_retry_limit,
+                                             'res': res, 'retries': 0,
+                                             'action': ACTION_RESET,
+                                             'last': curr_time}))
+                # Retrieve current object situation if any
+                curr = self._action_cache.get(action, {}).get(root, {}).get(
+                    res.hash, {})
+                if curr:
+                    new.update(curr)
+                    if curr_time - curr['last'] >= self.retry_cooldown:
+                        new['retries'] += 1
+                        new['last'] = curr_time
+                if new['retries'] > new['limit']:
+                    if new['action'] == ACTION_RESET:
+                        reset.add(root)
+                        new['limit'] = self.purge_retry_limit
+                        new['action'] = ACTION_PURGE
+                    else:
+                        new['limit'] += 5
+                        purge.append((action, res))
+        self._action_cache = cache
+        return reset, purge
 
     @property
     def state(self):
