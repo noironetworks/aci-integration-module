@@ -444,8 +444,18 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         # Mock response and login
         with mock.patch('acitoolkit.acitoolkit.Session.login',
                         return_value=FakeResponse(ok=False)):
-            self.assertRaises(aci_universe.WebSocketSessionLoginFailed,
-                              self.manager.ws_context.establish_ws_session)
+            with mock.patch('aim.common.utils.perform_harakiri') as hara:
+                self.set_override(
+                    'apic_hosts', ['1.1.1.1', '2.2.2.2', '3.3.3.3'], 'apic')
+                self.manager.ws_context.establish_ws_session(max_retries=1)
+                self.assertEqual(1, hara.call_count)
+                self.assertEqual(['https://2.2.2.2', 'https://3.3.3.3',
+                                  'https://1.1.1.1'],
+                                 list(self.manager.ws_context.ws_urls))
+                self.manager.ws_context.establish_ws_session(max_retries=1)
+                self.assertEqual(['https://3.3.3.3', 'https://1.1.1.1',
+                                  'https://2.2.2.2'],
+                                 list(self.manager.ws_context.ws_urls))
 
     def test_is_dead(self):
         self.assertFalse(self.manager.is_dead())
