@@ -59,7 +59,8 @@ class WebSocketContext(object):
 
     def __init__(self, apic_config):
         self.apic_config = apic_config
-        self._reload_websocket_config()
+        self.session = None
+        self.ws_urls = collections.deque()
         self.monitor_runs = {'monitor_runs': float('inf')}
         self.monitor_sleep_time = 10
         self.monitor_max_backoff = 30
@@ -95,23 +96,37 @@ class WebSocketContext(object):
         self.private_key_file = self.apic_config.get_option('private_key_file',
                                                             group='apic')
         protocol = 'https' if self.apic_use_ssl else 'http'
-        self.ws_urls = collections.deque(
+        ws_urls = collections.deque(
             ['%s://%s' % (protocol, host) for host in self.apic_hosts])
+        if set(ws_urls) != set(self.ws_urls):
+            self.ws_urls = ws_urls
 
-    def establish_ws_session(self):
-        LOG.debug('Establishing WS connection with parameters: %s',
-                  [self.ws_urls[0], self.apic_username, self.apic_password,
-                   self.verify_ssl_certificate])
-
-        self.session = acitoolkit.Session(
-            self.ws_urls[0], self.apic_username, self.apic_password,
-            verify_ssl=self.verify_ssl_certificate, cert_name=self.cert_name,
-            key=self.private_key_file)
-        resp = self.session.login()
-        if not resp.ok:
-            raise WebSocketSessionLoginFailed(code=resp.status_code,
-                                              text=resp.text)
-        self._spawn_monitors()
+    def establish_ws_session(self, max_retries=None):
+        retries = 0
+        self._reload_websocket_config()
+        max_retries = max_retries or 2 * len(self.ws_urls)
+        while retries < max_retries:
+            if self.session and self.session.session:
+                self.session.close()
+            LOG.info('Establishing WS connection with parameters: %s',
+                     [self.ws_urls[0], self.apic_username, self.apic_password,
+                      self.verify_ssl_certificate])
+            self.session = acitoolkit.Session(
+                self.ws_urls[0], self.apic_username, self.apic_password,
+                verify_ssl=self.verify_ssl_certificate,
+                cert_name=self.cert_name, key=self.private_key_file)
+            resp = self.session.login()
+            if not resp.ok:
+                LOG.debug('Websocket connection failed: %s' % resp.text)
+                self.ws_urls.rotate(-1)
+                LOG.info('Rotating websocket URL, using: %s' % self.ws_urls[0])
+                retries += 1
+                continue
+            LOG.info('Websocket connection succeeded.')
+            self._spawn_monitors()
+            return self.session
+        utils.perform_harakiri(LOG, "Cannot establish WS connection after %s "
+                                    "retries." % retries)
 
     def _ws_config_callback(self, new_conf):
         # If any of the WS related configurations changed, reload fresh values
@@ -120,15 +135,7 @@ class WebSocketContext(object):
             LOG.debug("New APIC remote configuration, restarting web socket "
                       "session.")
             # Log out WS
-            self.reconnect_ws_session()
-
-    def reconnect_ws_session(self):
-        # Log out WS
-        if self.session.session:
-            self.session.close()
-        self._reload_websocket_config()
-        self.ws_urls.rotate()
-        self.establish_ws_session()
+            self.establish_ws_session()
 
     def _subscribe(self, urls, extension=''):
         """Subscribe to the urls if not subscribed yet."""
@@ -149,7 +156,7 @@ class WebSocketContext(object):
                 return utils.json_loads(resp.text)['imdata']
             else:
                 if resp.status_code == 405:
-                    self.reconnect_ws_session()
+                    self.establish_ws_session()
                 raise WebSocketSubscriptionFailed(urls=urls,
                                                   code=resp.status_code,
                                                   text=resp.text)
@@ -186,7 +193,7 @@ class WebSocketContext(object):
                         retries = utils.exponential_backoff(
                             self.monitor_max_backoff, tentative=retries)
                         try:
-                            self.reconnect_ws_session()
+                            self.establish_ws_session()
                         except Exception as e:
                             LOG.debug(
                                 "Monitor for thread %s tried to reconnect web "
