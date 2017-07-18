@@ -85,7 +85,7 @@ class DeviceClusterInterfaceConcreteIfs(model_base.Base):
     dci_aim_id = sa.Column(sa.Integer,
                            sa.ForeignKey('aim_device_cluster_ifs.aim_id'),
                            primary_key=True)
-    interface = model_base.name_column(primary_key=True)
+    interface = model_base.dn_column(primary_key=True)
 
 
 class DeviceClusterInterface(model_base.Base, model_base.HasAimId,
