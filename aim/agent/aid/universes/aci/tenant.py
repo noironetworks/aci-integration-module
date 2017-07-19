@@ -574,7 +574,8 @@ class AciTenantManager(utils.AIMThread):
                 try:
                     apic_client.DNManager().aci_decompose_dn_guess(raw_dn,
                                                                    res_type)
-                except apic_client.DNManager.InvalidNameFormat:
+                    utils.retrieve_fault_parent(raw_dn, converter.resource_map)
+                except (apic_client.DNManager.InvalidNameFormat, KeyError):
                     LOG.debug("Fault with DN %s is not supported." % raw_dn)
                     continue
             if res_type == TAG_KEY:
