@@ -635,7 +635,8 @@ class AciTenantManager(utils.AIMThread):
                             child.keys()[0]]
                     except KeyError:
                         # We don't manage this object type
-                        LOG.warn("Unmanaged object type: %s" % child.keys()[0])
+                        LOG.debug(
+                            "Unmanaged object type: %s" % child.keys()[0])
                         continue
 
                     attrs['dn'] = (

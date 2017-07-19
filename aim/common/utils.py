@@ -173,8 +173,10 @@ def decompose_dn(mo_type, dn):
         return apic_client.DNManager().aci_decompose_dn_guess(dn, mo_type)[1]
     except (apic_client.DNManager.InvalidNameFormat, KeyError,
             apic_client.cexc.ApicManagedObjectNotSupported, IndexError):
-        LOG.warning("Failed to transform DN %s to key for "
-                    "type %s" % (dn, mo_type))
+        log_ = LOG.warning
+        if mo_type == 'faultDelegate':
+            log_ = LOG.debug
+        log_("Failed to transform DN %s to key for type %s" % (dn, mo_type))
         return
 
 
