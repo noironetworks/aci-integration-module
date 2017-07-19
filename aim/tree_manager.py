@@ -135,6 +135,11 @@ class TreeManager(object):
                 if obj:
                     obj[0].tree = str(empty_tree)
                     context.store.add(obj[0])
+            obj = self._find_query(context, ROOT_TREE, root_rn=root_rn,
+                                   lock_update=True)
+            if obj:
+                obj[0].needs_reset = False
+                context.store.add(obj[0])
 
     @utils.log
     def clean_all(self, context):
@@ -146,6 +151,10 @@ class TreeManager(object):
                 for db_obj in db_objs:
                     db_obj.tree = str(empty_tree)
                     context.store.add(db_obj)
+            db_objs = self._find_query(context, ROOT_TREE, lock_update=True)
+            for db_obj in db_objs:
+                db_obj.needs_reset = False
+                context.store.add(db_obj)
 
     @utils.log
     def find(self, context, tree=CONFIG_TREE, **kwargs):

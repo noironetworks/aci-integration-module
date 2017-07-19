@@ -1672,6 +1672,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 current_config.serving_tenants[tn.rn].aci_session,
                 'mo/' + bd.dn)
             self.assertIsNotNone(dest)
+            # The tree needs_reset attribute should be set to False
+            for tenant in [tenant_name, tenant_name2]:
+                base_tree = self.tt_mgr.get_base_tree(self.ctx, 'tn-' + tenant)
+                self.assertFalse(base_tree.needs_reset)
         finally:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
 

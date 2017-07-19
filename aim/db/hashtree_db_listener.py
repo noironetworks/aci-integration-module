@@ -25,7 +25,7 @@ from aim.common.hashtree import structured_tree as htree
 from aim.common import utils
 from aim import tree_manager
 
-MAX_EVENTS_PER_ROOT = 1000
+MAX_EVENTS_PER_ROOT = 10000
 LOG = logging.getLogger(__name__)
 # Not really rootless, they just miss the root reference attributes
 ROOTLESS_TYPES = ['fabricTopology']
