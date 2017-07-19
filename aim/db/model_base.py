@@ -14,6 +14,7 @@
 #    under the License.
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import mysql
 from sqlalchemy.ext import declarative
 
 from aim.common import utils
@@ -32,6 +33,10 @@ def uniq_column(table, *args, **kwargs):
 
 def name_column(**kwargs):
     return sa.Column(sa.String(64), **kwargs)
+
+
+def dn_column(**kwargs):
+    return sa.Column(mysql.VARCHAR(512, charset='latin1'), **kwargs)
 
 
 class AimBase(object):
