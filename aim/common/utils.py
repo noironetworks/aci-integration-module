@@ -34,6 +34,7 @@ from oslo_log import log as logging
 LOG = logging.getLogger(__name__)
 AIM_LOCK_PREFIX = 'aim_lock'
 OPENSTACK_VMM_TYPE = 'OpenStack'
+ACI_FAULT = 'faultInst'
 
 
 def log(method):
@@ -178,6 +179,29 @@ def decompose_dn(mo_type, dn):
             log_ = LOG.debug
         log_("Failed to transform DN %s to key for type %s" % (dn, mo_type))
         return
+
+
+def retrieve_fault_parent(fault_dn, resource_map):
+    # external is the DN of the ACI resource
+    dn_mgr = apic_client.DNManager()
+    mos_rns = dn_mgr.aci_decompose_with_type(fault_dn, ACI_FAULT)[:-1]
+    rns = dn_mgr.filter_rns(mos_rns)
+    conv_info = None
+    step = -1
+    while conv_info is None or len(conv_info) > 1:
+        aci_klass = mos_rns[step][0]
+        conv_info = resource_map[aci_klass]
+        step -= 1
+    conv_info = conv_info[0]
+    klasses = [conv_info['resource']]
+    if conv_info.get('alt_resource'):
+        klasses.append(conv_info['alt_resource'])
+    parents = []
+    for klass in klasses:
+        a_obj = klass(**{y: rns[x]
+                         for x, y in enumerate(klass.identity_attributes)})
+        parents.append(a_obj)
+    return parents
 
 
 class ThreadKillTimeout(Exception):

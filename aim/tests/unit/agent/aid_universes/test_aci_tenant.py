@@ -565,7 +565,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def test_get_unsupported_faults(self):
         objs = [
             {'faultInst': {
-                'attributes': {'status': 'modified', 'domain': 'infra',
+                'attributes': {'domain': 'infra',
                                'code': 'F0951', 'occur': '1',
                                'subject': 'relation-resolution',
                                'severity': 'cleared',
@@ -574,6 +574,18 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                                'dn': 'uni/tn-prj_35e6d34e81a84091854ddf388d1e5'
                                      '5d1/BD-net_c6e85f2a-eb05-44b6-9b04-c065'
                                      '6d72a2b8/rsbdToEpRet/fault-F0951'}}}]
+        result = self.manager.retrieve_aci_objects(objs)
+        self.assertEqual([], result)
+        objs = [
+            {'faultInst': {
+                'attributes': {'domain': 'infra',
+                               'code': 'F1123', 'occur': '1',
+                               'subject': 'relation-resolution',
+                               'severity': 'cleared',
+                               'origSeverity': 'warning', 'rn': '',
+                               'childAction': '', 'type': 'config',
+                               'dn': 'uni/tn-common/cif-any-ip/rsif/'
+                                     'fault-F1123'}}}]
         result = self.manager.retrieve_aci_objects(objs)
         self.assertEqual([], result)
 

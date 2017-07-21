@@ -452,16 +452,22 @@ class TestAimDbUniverseBase(object):
                                  'rscons-service__default_frontend/'
                                  'fault-F0967'))
         self.assertTrue(
-            isinstance(self.universe._retrieve_fault_parent(ext_net)[0],
-                       resource.ExternalNetwork))
+            isinstance(
+                aim_universe.utils.retrieve_fault_parent(
+                    ext_net.external_identifier,
+                    aim_universe.converter.resource_map)[0],
+                resource.ExternalNetwork))
         epg = aim_status.AciFault(
             fault_code='F0967',
             external_identifier=('uni/tn-common/ap-ap1/epg-epg1/'
                                  'rscons-service__default_frontend/'
                                  'fault-F0967'))
         self.assertTrue(
-            isinstance(self.universe._retrieve_fault_parent(epg)[0],
-                       resource.EndpointGroup))
+            isinstance(
+                aim_universe.utils.retrieve_fault_parent(
+                    epg.external_identifier,
+                    aim_universe.converter.resource_map)[0],
+                resource.EndpointGroup))
 
 
 class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):

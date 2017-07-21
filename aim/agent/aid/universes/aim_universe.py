@@ -15,7 +15,6 @@
 
 import traceback
 
-from apicapi import apic_client
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
@@ -23,6 +22,7 @@ from aim.agent.aid.universes import base_universe as base
 from aim.agent.aid.universes import errors
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
+from aim.common import utils
 from aim import context
 from aim.db import hashtree_db_listener
 from aim import exceptions as aim_exc
@@ -30,7 +30,6 @@ from aim import tree_manager
 
 
 LOG = logging.getLogger(__name__)
-ACI_FAULT = 'faultInst'
 
 
 class AimDbUniverse(base.HashTreeStoredUniverse):
@@ -160,7 +159,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     if isinstance(resource, aim_status.AciFault):
                         # Retrieve fault's parent and set/unset the fault
                         if method == 'create':
-                            parents = self._retrieve_fault_parent(resource)
+                            parents = utils.retrieve_fault_parent(
+                                resource.external_identifier,
+                                converter.resource_map)
                             for parent in parents:
                                 if self.manager.get_status(self.context,
                                                            parent):
@@ -230,29 +231,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         self.deletion_failed(resource)
                 else:
                     self._monitored_state_update_failures = 0
-
-    def _retrieve_fault_parent(self, fault):
-        external = fault.external_identifier
-        # external is the DN of the ACI resource
-        dn_mgr = apic_client.DNManager()
-        mos_rns = dn_mgr.aci_decompose_with_type(external, ACI_FAULT)[:-1]
-        rns = dn_mgr.filter_rns(mos_rns)
-        conv_info = None
-        step = -1
-        while conv_info is None or len(conv_info) > 1:
-            aci_klass = mos_rns[step][0]
-            conv_info = converter.resource_map[aci_klass]
-            step -= 1
-        conv_info = conv_info[0]
-        klasses = [conv_info['resource']]
-        if conv_info.get('alt_resource'):
-            klasses.append(conv_info['alt_resource'])
-        parents = []
-        for klass in klasses:
-            a_obj = klass(**{y: rns[x]
-                             for x, y in enumerate(klass.identity_attributes)})
-            parents.append(a_obj)
-        return parents
 
     def _set_sync_pending_state(self, transformed_diff, raw_diff,
                                 other_universe, skip_roots=None):
