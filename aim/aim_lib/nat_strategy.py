@@ -563,11 +563,14 @@ class NoNatStrategy(NatStrategyMixin):
             self.mgr.update(ctx, nat_bd, vrf_name=vrf.name)
             self.mgr.update(ctx, l3out, vrf_name=vrf.name)
 
-            self.mgr.update(
-                ctx, external_network,
-                **{k: getattr(external_network, k)
-                   for k in ['provided_contract_names',
-                             'consumed_contract_names']})
+            contract = self._get_nat_contract(ctx, l3out)
+            prov = set(external_network.provided_contract_names +
+                       [contract.name])
+            cons = set(external_network.consumed_contract_names +
+                       [contract.name])
+            self.mgr.update(ctx, external_network,
+                            provided_contract_names=prov,
+                            consumed_contract_names=cons)
 
     def disconnect_vrf(self, ctx, external_network, vrf):
         """Remove external connectivity for VRF.

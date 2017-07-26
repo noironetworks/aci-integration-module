@@ -656,9 +656,11 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                 tenant_name='t1', l3out_name='o1',
                 name='inet1', display_name='INET1',
                 provided_contract_names=(
-                    ['p1_vrf1', 'p2_vrf1'] if connected else ['EXT-o1']),
+                    ['EXT-o1', 'p1_vrf1', 'p2_vrf1']
+                    if connected else ['EXT-o1']),
                 consumed_contract_names=(
-                    ['c1_vrf1', 'c2_vrf1'] if connected else ['EXT-o1'])),
+                    ['EXT-o1', 'c1_vrf1', 'c2_vrf1']
+                    if connected else ['EXT-o1'])),
             'nat_bd': a_res.BridgeDomain(
                 tenant_name='t1', name='EXT-o1',
                 display_name='EXT-OUT',
@@ -681,9 +683,11 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                 tenant_name='t2', l3out_name='o2',
                 name='inet2', display_name='INET2',
                 provided_contract_names=(
-                    ['p3_vrf1', 'p4_vrf1'] if connected else ['EXT-o2']),
+                    ['EXT-o2', 'p3_vrf1', 'p4_vrf1']
+                    if connected else ['EXT-o2']),
                 consumed_contract_names=(
-                    ['c3_vrf1', 'c4_vrf1'] if connected else ['EXT-o2'])),
+                    ['EXT-o2', 'c3_vrf1', 'c4_vrf1']
+                    if connected else ['EXT-o2'])),
             'nat_bd': a_res.BridgeDomain(
                 tenant_name='t2', name='EXT-o2',
                 display_name='EXT-OUT2',
@@ -712,8 +716,8 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             bd1.l3out_names = []
             l3out.vrf_name = 'vrf2'
             nat_bd.vrf_name = 'vrf2'
-            ext_net.provided_contract_names = ['p1_vrf2', 'p2_vrf2']
-            ext_net.consumed_contract_names = ['c1_vrf2', 'c2_vrf2']
+            ext_net.provided_contract_names = ['EXT-o1', 'p1_vrf2', 'p2_vrf2']
+            ext_net.consumed_contract_names = ['EXT-o1', 'c1_vrf2', 'c2_vrf2']
             self._verify(present=objs.values() + l3out_objs + [bd1, bd2])
         elif stage == 'stage4':
             bd1.l3out_names = []
@@ -734,12 +738,12 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         objs = objs.values()
 
         e2 = copy.deepcopy(e1)
-        e2.provided_contract_names = ['arp', 'p2_vrf1']
-        e2.consumed_contract_names = ['arp', 'c2_vrf1']
+        e2.provided_contract_names = ['EXT-o1', 'arp', 'p2_vrf1']
+        e2.consumed_contract_names = ['EXT-o1', 'arp', 'c2_vrf1']
 
         e3 = copy.deepcopy(e1)
-        e3.provided_contract_names = []
-        e3.consumed_contract_names = []
+        e3.provided_contract_names = ['EXT-o1']
+        e3.consumed_contract_names = ['EXT-o1']
 
         if stage == 'stage1':
             self._verify(present=objs + [e1])
@@ -789,8 +793,10 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             objs = self._get_vrf_1_ext_net_1_objects()
             objs['l3out'].vrf_name = 'vrf2'
             objs['nat_bd'].vrf_name = 'vrf2'
-            objs['ext_net'].provided_contract_names = ['p1_vrf2', 'p2_vrf2']
-            objs['ext_net'].consumed_contract_names = ['c1_vrf2', 'c2_vrf2']
+            objs['ext_net'].provided_contract_names = ['EXT-o1', 'p1_vrf2',
+                                                       'p2_vrf2']
+            objs['ext_net'].consumed_contract_names = ['EXT-o1', 'c1_vrf2',
+                                                       'c2_vrf2']
             self._verify(present=objs.values())
         elif stage == 'stage2':
             objs = self._get_vrf_1_ext_net_1_objects(connected=False)
