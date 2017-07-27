@@ -19,7 +19,6 @@ from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe as base
-from aim.agent.aid.universes import errors
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
 from aim.common import utils
@@ -215,9 +214,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 except aim_exc.InvalidMonitoredStateUpdate as e:
                     msg = ("Failed to %s object %s in AIM: %s." %
                            (method, resource, e.message))
-                    LOG.error(msg)
-                    self.creation_failed(resource, reason=e.message,
-                                         error=errors.OPERATION_CRITICAL)
+                    LOG.warn(msg)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, e.message))
