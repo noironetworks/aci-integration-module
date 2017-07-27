@@ -206,7 +206,7 @@ class AID(object):
                 max(0, self.report_interval - (time.time() - start)))
 
     def _send_heartbeat(self, aim_ctx):
-        LOG.debug("Sending Heartbeat for agent %s" % self.agent_id)
+        LOG.info("Sending Heartbeat for agent %s" % self.agent_id)
         self.agent.beat_count += 1
         self.agent = self.manager.create(aim_ctx, self.agent,
                                          overwrite=True)

@@ -280,8 +280,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 try:
                     serving_tenant_copy[removed].kill()
                     serving_tenant_copy[removed]._unsubscribe_tenant()
-                except Exception:
-                    LOG.error('Killing manager failed for tenant %s' % removed)
+                except Exception as e:
+                    LOG.debug(traceback.format_exc())
+                    LOG.error('Killing manager failed for tenant %s: %s' %
+                              (removed, e.message))
                     continue
             for added in tenants:
                 if added in serving_tenant_copy:
