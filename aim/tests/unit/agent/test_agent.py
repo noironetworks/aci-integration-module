@@ -20,7 +20,6 @@ import time
 from apicapi import apic_client
 from apicapi import exceptions as aexc
 import mock
-from oslo_db import exception
 
 from aim.agent.aid import service
 from aim.agent.aid.universes.aci import aci_universe
@@ -578,64 +577,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn1.root])
         self._assert_reset_consistency(tn1.rn)
 
-    @base.requires(['foreign_keys'])
-    def test_monitored_tree_fk_semantics(self):
-        agent = self._create_agent()
-
-        current_config = agent.multiverse[0]['current']
-        desired_monitor = agent.multiverse[2]['desired']
-        tenant_name = 'test_monitored_tree_fk_semantics'
-        apic_client.ApicSession.post_body_dict = (
-            self._mock_current_manager_post)
-        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
-        # start by managing a single monitored tenant
-        tn1 = resource.Tenant(name=tenant_name, monitored=True)
-        aci_tn = self._get_example_aci_tenant(
-            name=tenant_name, dn='uni/tn-%s' % tenant_name)
-        # Create tenant in AIM to start serving it
-        self.aim_manager.create(self.ctx, tn1)
-        # Run loop for serving tenant
-        self._first_serve(agent)
-        # we need this tenant to exist in ACI
-        self._set_events(
-            [aci_tn], manager=desired_monitor.serving_tenants[tn1.rn],
-            tag=False)
-        # Observe ACI events
-        self._observe_aci_events(current_config)
-        # Create a managed BD
-        bd1 = resource.BridgeDomain(name='bd1', tenant_name=tenant_name)
-        self.aim_manager.create(self.ctx, bd1)
-        # Make BD appear on ACI
-        agent._daemon_loop(self.ctx)
-        self._observe_aci_events(current_config)
-        # Create a monitored subnet in the BD
-        aci_sub = self._get_example_aci_subnet(
-            dn='uni/tn-%s/BD-bd1/subnet-[10.10.10.1/28]' % tenant_name)
-        self._set_events(
-            [aci_sub], manager=desired_monitor.serving_tenants[tn1.rn],
-            tag=False)
-        # Observe the event
-        self._observe_aci_events(current_config)
-        # Reconcile
-        agent._daemon_loop(self.ctx)
-        # Monitored sub is created
-        aim_sub = resource.Subnet(tenant_name=tenant_name, bd_name='bd1',
-                                  gw_ip_mask='10.10.10.1/28')
-        aim_sub = self.aim_manager.get(self.ctx, aim_sub)
-        # Create a managed sub
-        aim_sub2 = resource.Subnet(tenant_name=tenant_name, bd_name='bd1',
-                                   gw_ip_mask='10.10.11.1/28')
-        aim_sub2 = self.aim_manager.create(self.ctx, aim_sub2)
-        self.assertTrue(aim_sub.monitored)
-        self.assertFalse(aim_sub2.monitored)
-        # deleting the BD from aim fails because of FK
-        self.assertRaises(exception.DBReferenceError, self.aim_manager.delete,
-                          self.ctx, bd1)
-        # now delete managed sub
-        self.aim_manager.delete(self.ctx, aim_sub2)
-        # Deleting BD will now work
-        self.aim_manager.delete(self.ctx, bd1)
-
     def test_monitored_tree_serve_semantics(self):
         agent = self._create_agent()
 
@@ -760,16 +701,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe
         self._observe_aci_events(current_config)
         agent._daemon_loop(self.ctx)
-        # Verify sync status of BD
-        if self.ctx.store.supports_foreign_keys:
-            bd = self.aim_manager.get(self.ctx, bd)
-            bd_status = self.aim_manager.get_status(self.ctx, bd)
-            self.assertEqual(aim_status.AciStatus.SYNC_FAILED,
-                             bd_status.sync_status)
-            self.assertNotEqual('', bd_status.sync_message)
-        else:
-            self.assertIsNone(self.aim_manager.get(self.ctx, bd))
-        # Same for subnet
+        self.assertIsNone(self.aim_manager.get(self.ctx, bd))
         sub = self.aim_manager.get(self.ctx, sub)
         sub_status = self.aim_manager.get_status(self.ctx, sub)
         self.assertEqual(aim_status.AciStatus.SYNC_FAILED,

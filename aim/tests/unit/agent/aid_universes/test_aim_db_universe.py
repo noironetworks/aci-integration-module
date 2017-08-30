@@ -276,8 +276,6 @@ class TestAimDbUniverseBase(object):
         ap_aim = resource.ApplicationProfile(tenant_name='t1', name='a1')
         epg = self._get_example_aci_epg(
             dn='uni/tn-t1/ap-a1/epg-test')
-        epg_aim = resource.EndpointGroup(
-            tenant_name='t1', app_profile_name='a1', name='test')
         fault = self._get_example_aci_fault(
             dn='uni/tn-t1/ap-a1/epg-test/fault-951')
         faul_aim = aim_status.AciFault(
@@ -337,23 +335,6 @@ class TestAimDbUniverseBase(object):
             aim_mgr.delete(self.ctx, managed_epg)
         else:
             self.assertIsNone(res)
-        if self.ctx.store.supports_foreign_keys:
-            res = aim_mgr.get(self.ctx, ap_aim)
-            self.assertIsNotNone(res)
-
-            # Second time around, AP deletion  with monitored child works
-            epg_aim = aim_mgr.get(self.ctx, epg_aim)
-            self.universe.push_resources({'create': [],
-                                          'delete': [ap_aim, epg_aim]})
-            res = aim_mgr.get(self.ctx, ap_aim)
-            if epg_aim.monitored:
-                self.assertIsNone(res)
-            else:
-                self.assertIsNotNone(res)
-                self.universe.push_resources({'create': [],
-                                              'delete': [ap_aim]})
-                res = aim_mgr.get(self.ctx, ap_aim)
-                self.assertIsNone(res)
 
     def test_push_resources_service_graph(self):
         aim_mgr = aim_manager.AimManager()

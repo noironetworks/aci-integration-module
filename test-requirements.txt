@@ -7,6 +7,7 @@
 
 hacking<0.11,>=0.10.0
 
+cherrypy
 coverage>=3.6
 # Needed by apicapi
 MySQL-Python

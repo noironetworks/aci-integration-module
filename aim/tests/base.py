@@ -514,3 +514,15 @@ class TestAimDBBase(BaseTestCase):
         }
         example_rsprov['fvRsProv']['attributes'].update(kwargs)
         return example_rsprov
+
+    @classmethod
+    def generate_aim_object(cls, aim_type, **kwargs):
+        """Generate AIM object with random identity attributes.
+
+        Identity attributes will be considered as strings, which could be
+        schema-invalid. kwargs can be passed to fix that.
+        """
+        res_dict = {x: utils.generate_uuid()
+                    for x in aim_type.identity_attributes.keys()}
+        res_dict.update(kwargs)
+        return aim_type(**res_dict)

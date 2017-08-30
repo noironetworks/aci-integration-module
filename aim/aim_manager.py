@@ -237,7 +237,7 @@ class AimManager(object):
                     ['in_', 'notin_', 'order_by']}
         return self._delete_db(context.store, resource_class, **attr_val)
 
-    def get(self, context, resource, for_update=False):
+    def get(self, context, resource, for_update=False, include_aim_id=False):
         """Get AIM resource from the database.
 
         Values of identity attributes of parameter 'resource' are used
@@ -251,16 +251,20 @@ class AimManager(object):
         db_obj = self._query_db_obj(context.store, resource,
                                     for_update=for_update)
         return context.store.make_resource(
-            type(resource), db_obj) if db_obj else None
+            type(resource), db_obj,
+            include_aim_id=include_aim_id) if db_obj else None
 
-    def get_by_id(self, context, resource_class, aim_id, for_update=False):
+    def get_by_id(self, context, resource_class, aim_id, for_update=False,
+                  include_aim_id=False):
         self._validate_resource_class(resource_class)
         db_obj = self._query_db(context.store, resource_class,
                                 for_update=for_update, aim_id=aim_id)
         return context.store.make_resource(
-            resource_class, db_obj[0]) if db_obj else None
+            resource_class, db_obj[0],
+            include_aim_id=include_aim_id) if db_obj else None
 
-    def find(self, context, resource_class, for_update=False, **kwargs):
+    def find(self, context, resource_class, for_update=False,
+             include_aim_id=False, **kwargs):
         """Find AIM resources from the database that match specified criteria.
 
         Parameter 'resource_class' indicates the type of resource to
@@ -276,7 +280,8 @@ class AimManager(object):
         for obj in self._query_db(context.store, resource_class,
                                   for_update=for_update, **attr_val):
             result.append(
-                context.store.make_resource(resource_class, obj))
+                context.store.make_resource(resource_class, obj,
+                                            include_aim_id=include_aim_id))
         return result
 
     def count(self, context, resource_class, **kwargs):
@@ -437,7 +442,8 @@ class AimManager(object):
     def _get_status_params(self, context, resource):
         res_type = type(resource).__name__
         # Try to avoid BD call
-        inj_id = getattr(resource, '_injected_aim_id', None)
+        inj_id = getattr(resource, '_injected_aim_id',
+                         getattr(resource, '_aim_id', None))
         if inj_id:
             return res_type, inj_id
         db_obj = self._query_db_obj(context.store, resource)

@@ -52,9 +52,6 @@ class BridgeDomain(model_base.Base, model_base.HasAimId,
     __tablename__ = 'aim_bridge_domains'
     __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
                                              'name') +
-                      (sa.ForeignKeyConstraint(
-                          ['tenant_name'], ['aim_tenants.name'],
-                          name='fk_db_tn'),) +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
     vrf_name = model_base.name_column()
@@ -96,10 +93,6 @@ class Subnet(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name', 'bd_name',
                                'gw_ip_mask') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'bd_name'],
-            ['aim_bridge_domains.tenant_name', 'aim_bridge_domains.name'],
-            name='fk_bd'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     bd_name = model_base.name_column(nullable=False)
@@ -117,9 +110,6 @@ class VRF(model_base.Base, model_base.HasAimId,
     __tablename__ = 'aim_vrfs'
     __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
                                              'name') +
-                      (sa.ForeignKeyConstraint(
-                          ['tenant_name'], ['aim_tenants.name'],
-                          name='fk_vrf_tn'),) +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
     policy_enforcement_pref = sa.Column(sa.String(16))
@@ -135,9 +125,6 @@ class ApplicationProfile(model_base.Base, model_base.HasAimId,
     __tablename__ = 'aim_app_profiles'
     __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
                                              'name') +
-                      (sa.ForeignKeyConstraint(
-                          ['tenant_name'], ['aim_tenants.name'],
-                          name='fk_ap_tn'),) +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
 
@@ -267,10 +254,6 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name',
                                'app_profile_name', 'name') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'app_profile_name'],
-            ['aim_app_profiles.tenant_name', 'aim_app_profiles.name'],
-            name='fk_app_profile'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     app_profile_name = model_base.name_column(nullable=False)
@@ -348,9 +331,6 @@ class Filter(model_base.Base, model_base.HasAimId,
     __tablename__ = 'aim_filters'
     __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
                                              'name') +
-                      (sa.ForeignKeyConstraint(
-                          ['tenant_name'], ['aim_tenants.name'],
-                          name='fk_flt_tn'),) +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
 
@@ -364,10 +344,6 @@ class FilterEntry(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name', 'filter_name',
                                'name') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'filter_name'],
-            ['aim_filters.tenant_name', 'aim_filters.name'],
-            name='fk_filter'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     filter_name = model_base.name_column(nullable=False)
@@ -395,9 +371,6 @@ class Contract(model_base.Base, model_base.HasAimId,
     __tablename__ = 'aim_contracts'
     __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
                                              'name') +
-                      (sa.ForeignKeyConstraint(
-                          ['tenant_name'], ['aim_tenants.name'],
-                          name='fk_brc_tn'),) +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
     scope = sa.Column(sa.String(24))
@@ -424,10 +397,6 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
                                'name') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'contract_name'],
-            ['aim_contracts.tenant_name', 'aim_contracts.name'],
-            name='fk_contract'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     contract_name = model_base.name_column(nullable=False)
@@ -480,12 +449,6 @@ class Endpoint(model_base.Base, model_base.HasDisplayName,
 
     __tablename__ = 'aim_endpoints'
     __table_args__ = (
-        (sa.ForeignKeyConstraint(
-            ['epg_tenant_name', 'epg_app_profile_name', 'epg_name'],
-            ['aim_endpoint_groups.tenant_name',
-             'aim_endpoint_groups.app_profile_name',
-             'aim_endpoint_groups.name'],
-            name='fk_epg'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     uuid = sa.Column(sa.String(36), primary_key=True)
@@ -503,9 +466,6 @@ class L3Outside(model_base.Base, model_base.HasAimId,
     __tablename__ = 'aim_l3outsides'
     __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
                                              'name') +
-                      (sa.ForeignKeyConstraint(
-                          ['tenant_name'], ['aim_tenants.name'],
-                          name='fk_l3o_tn'),) +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
     vrf_name = model_base.name_column()
@@ -533,10 +493,6 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
                                'name') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'l3out_name'],
-            ['aim_l3outsides.tenant_name', 'aim_l3outsides.name'],
-            name='fk_l3out'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     l3out_name = model_base.name_column(nullable=False)
@@ -560,12 +516,6 @@ class ExternalSubnet(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
                                'external_network_name', 'cidr') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'l3out_name', 'external_network_name'],
-            ['aim_external_networks.tenant_name',
-             'aim_external_networks.l3out_name',
-             'aim_external_networks.name'],
-            name='fk_ext_net'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     l3out_name = model_base.name_column(nullable=False)
@@ -595,10 +545,6 @@ class SecurityGroupSubject(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name',
                                'security_group_name', 'name') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'security_group_name'],
-            ['aim_security_groups.tenant_name', 'aim_security_groups.name'],
-            name='fk_security_group'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     security_group_name = model_base.name_column(nullable=False)
@@ -624,13 +570,6 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
         model_base.uniq_column(__tablename__, 'tenant_name',
                                'security_group_name',
                                'security_group_subject_name', 'name') +
-        (sa.ForeignKeyConstraint(
-            ['tenant_name', 'security_group_name',
-             'security_group_subject_name'],
-            ['aim_security_group_subjects.tenant_name',
-             'aim_security_group_subjects.security_group_name',
-             'aim_security_group_subjects.name'],
-            name='fk_security_group_rule'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
     security_group_name = model_base.name_column(nullable=False)
     security_group_subject_name = model_base.name_column(nullable=False)
@@ -684,10 +623,6 @@ class VMMController(model_base.Base, model_base.HasDisplayName,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'name') +
-        (sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name'],
-            ['aim_vmm_domains.type', 'aim_vmm_domains.name'],
-            name='fk_vmm_controller_vmm_domain'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_name = model_base.name_column(nullable=False)
@@ -723,14 +658,6 @@ class VmmInjectedDeployment(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'namespace_name', 'name') +
-        (sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name',
-             'namespace_name'],
-            ['aim_vmm_inj_namespaces.domain_type',
-             'aim_vmm_inj_namespaces.domain_name',
-             'aim_vmm_inj_namespaces.controller_name',
-             'aim_vmm_inj_namespaces.name'],
-            name='fk_inj_depl_inj_ns'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_type = model_base.name_column(nullable=False)
@@ -750,14 +677,6 @@ class VmmInjectedReplicaSet(model_base.Base, model_base.HasAimId,
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'namespace_name',
                                'name') +
-        (sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name',
-             'namespace_name'],
-            ['aim_vmm_inj_namespaces.domain_type',
-             'aim_vmm_inj_namespaces.domain_name',
-             'aim_vmm_inj_namespaces.controller_name',
-             'aim_vmm_inj_namespaces.name'],
-            name='fk_inj_repl_set_inj_ns'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_type = model_base.name_column(nullable=False)
@@ -799,14 +718,6 @@ class VmmInjectedService(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'namespace_name', 'name') +
-        (sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name',
-             'namespace_name'],
-            ['aim_vmm_inj_namespaces.domain_type',
-             'aim_vmm_inj_namespaces.domain_name',
-             'aim_vmm_inj_namespaces.controller_name',
-             'aim_vmm_inj_namespaces.name'],
-            name='fk_inj_service_inj_ns'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_type = model_base.name_column(nullable=False)
@@ -887,14 +798,6 @@ class VmmInjectedContGroup(model_base.Base, model_base.HasAimId,
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
                                'controller_name', 'namespace_name') +
-        (sa.ForeignKeyConstraint(
-            ['domain_type', 'domain_name', 'controller_name',
-             'namespace_name'],
-            ['aim_vmm_inj_namespaces.domain_type',
-             'aim_vmm_inj_namespaces.domain_name',
-             'aim_vmm_inj_namespaces.controller_name',
-             'aim_vmm_inj_namespaces.name'],
-            name='fk_inj_group_inj_ns'),) +
         model_base.to_tuple(model_base.Base.__table_args__))
 
     domain_type = model_base.name_column(nullable=False)

@@ -105,9 +105,23 @@ k8s_options = [
                     "by this AIM installation.")
 ]
 
+server_options = [
+    cfg.StrOpt('socket_file', default='',
+               help="Path to the socket file used to bind the server. By "
+                    "setting this to a non-empty value will make the server "
+                    "ignore the 'port' and 'binding_ip' options."),
+    cfg.IntOpt('port', default=8080,
+               help="Port number on which the server is bound. Gets "
+                    "overridden by the 'socket_file' option."),
+    cfg.StrOpt('binding_ip', default='127.0.0.1',
+               help="Address on which the server will listen, defaults to "
+                    "localhost. Gets overridden by the 'socket_file' option."),
+]
+
 cfg.CONF.register_opts(agent_opts, 'aim')
 cfg.CONF.register_opts(event_service_polling_opts, 'aim_event_service_polling')
 cfg.CONF.register_opts(k8s_options, 'aim_k8s')
+cfg.CONF.register_opts(server_options, 'aim_server')
 CONF = cfg.CONF
 
 

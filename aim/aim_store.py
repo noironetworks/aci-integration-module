@@ -118,10 +118,13 @@ class AimStore(object):
         # Construct attribute dictionary from DB object
         pass
 
-    def make_resource(self, cls, db_obj):
+    def make_resource(self, cls, db_obj, include_aim_id=False):
         attr_val = {k: v for k, v in self.to_attr(cls, db_obj).iteritems()
                     if k in cls.attributes()}
-        return cls(**attr_val)
+        res = cls(**attr_val)
+        if include_aim_id and hasattr(db_obj, 'aim_id'):
+            res._aim_id = db_obj.aim_id
+        return res
 
     def register_update_listener(self, name, func):
         """Register callback for update to AIM objects.

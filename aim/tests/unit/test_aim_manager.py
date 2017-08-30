@@ -353,6 +353,16 @@ class TestResourceOpsBase(object):
             self.mgr.get_by_id(self.ctx, status.parent_class,
                                'nope'))
         self.assertEqual(res, res_from_status)
+        # Get resource with aim_id included
+        res_with_id = self.mgr.get(self.ctx, res, include_aim_id=True)
+        self.assertEqual(res_with_id._aim_id, status.resource_id)
+        res_with_id = self.mgr.find(self.ctx, type(res),
+                                    include_aim_id=True)[0]
+        self.assertEqual(res_with_id._aim_id, status.resource_id)
+        res_with_id = self.mgr.get_by_id(self.ctx, status.parent_class,
+                                         status.resource_id,
+                                         include_aim_id=True)
+        self.assertEqual(res_with_id._aim_id, status.resource_id)
         new_timestamp = status.faults[0].last_update_timestamp
         if self.ctx.store.current_timestamp:
             self.assertTrue(new_timestamp > timestamp)
