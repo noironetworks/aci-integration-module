@@ -185,7 +185,7 @@ class AimManager(object):
                 new_monitored is not None and old_monitored != new_monitored)
 
     @utils.log
-    def delete(self, context, resource, force=False):
+    def delete(self, context, resource, force=False, cascade=False):
         """Delete AIM resource from the database.
 
         Only values of identity attributes of parameter 'resource' are
@@ -208,19 +208,16 @@ class AimManager(object):
                             # is pending, or ownership flip might fail
                             raise exc.InvalidMonitoredObjectDelete(
                                 object=resource)
-                    # Recursively delete monitored children
-                    # REVISIT(ivar): In a FK-free world, this would
-                    # not be necessary. The Monitored universe would take care
-                    # of deleting these parentless objects eventually. Have we
-                    # actually undermined the purpose of AIM by adding FK
-                    # constraints to the SQLAlchemy backend?
-                    for child_res in self._iter_children(context, resource,
-                                                         monitored=True):
-                        self.delete(context, child_res, force=force)
                     if status:
                         self.delete(context, status, force=force)
                 context.store.delete(db_obj)
                 self._add_commit_hook(context.store)
+            # When cascade is specified, delete the object's subtree even if
+            # the resource itself doesn't exist.
+            if cascade:
+                for child_res in self.get_subtree(context, resource):
+                    # Delete without cascade
+                    self.delete(context, child_res, force=force)
 
     @utils.log
     def delete_all(self, context, resource_class, for_update=False, **kwargs):
@@ -357,7 +354,8 @@ class AimManager(object):
     def set_resource_sync_synced(self, context, resource):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
-    def set_resource_sync_pending(self, context, resource, top=True):
+    def set_resource_sync_pending(self, context, resource, top=True,
+                                  cascade=True):
         # When a resource goes in pending state, propagate to both parent
         # and subtree
         with context.store.begin(subtransactions=True):
@@ -378,23 +376,25 @@ class AimManager(object):
                     self.set_resource_sync_pending(context,
                                                    parent_klass(**identity),
                                                    top=False)
-                for child_res in self._iter_children(context, resource):
-                    self.set_resource_sync_pending(context, child_res,
-                                                   top=False)
+                if cascade:
+                    for child_res in self.get_subtree(context, resource):
+                        self.set_resource_sync_pending(context, child_res,
+                                                       top=False,
+                                                       cascade=False)
 
-    def set_resource_sync_error(self, context, resource, message=''):
+    def set_resource_sync_error(self, context, resource, message='', top=True):
         with context.store.begin(subtransactions=True):
             # No need to set sync_error for resources already in that state
             if self._set_resource_sync(
                     context, resource, api_status.AciStatus.SYNC_FAILED,
                     message=message,
-                    exclude=[api_status.AciStatus.SYNC_FAILED]):
+                    exclude=[api_status.AciStatus.SYNC_FAILED]) and top:
                 # Set sync_error for the whole subtree
-                for child_res in self._iter_children(context, resource):
+                for child_res in self.get_subtree(context, resource):
                     self.set_resource_sync_error(
                         context, child_res,
                         message="Parent resource %s is "
-                                "in error state" % str(resource))
+                                "in error state" % str(resource), top=False)
 
     @utils.log
     def set_fault(self, context, resource, fault):
@@ -458,13 +458,19 @@ class AimManager(object):
             return None, None
         return res_type, res_id
 
-    def _iter_children(self, context, resource, **kwargs):
-        for child_klass in self._model_tree.get(
-                type(resource), []):
-            identity = {child_klass.identity_attributes.keys()[i]: v
-                        for i, v in enumerate(resource.identity)}
-            # Extra search attributes
-            identity.update(kwargs)
-            for child_res in self.find(context, child_klass,
-                                       **identity):
-                yield child_res
+    def get_subtree(self, context, resource):
+        return self._get_subtree(context, type(resource), *resource.identity)
+
+    def _get_subtree(self, context, klass, *identity, **kwargs):
+        subtree_resources = []
+
+        def get_subtree_klasses(klass):
+            for child_klass in self._model_tree.get(klass, []):
+                id = {child_klass.identity_attributes.keys()[i]: v
+                      for i, v in enumerate(identity)}
+                # Extra search attributes
+                id.update(kwargs)
+                subtree_resources.extend(self.find(context, child_klass, **id))
+                get_subtree_klasses(child_klass)
+        get_subtree_klasses(klass)
+        return subtree_resources

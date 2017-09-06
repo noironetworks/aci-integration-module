@@ -218,7 +218,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             # Changing sync status of the EPG will bring everything back
             self.mgr.set_resource_sync_pending(self.ctx, epg)
             epg = self.mgr.get(self.ctx, epg)
-            # All the objects are in synced state
+            # All the objects are in pending state
             for obj in [ap, epg2, epg]:
                 self.assertEqual(
                     aim_status.AciStatus.SYNC_PENDING,
