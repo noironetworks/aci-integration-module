@@ -114,15 +114,19 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
         try:
             dom_id = default_identity_converter(
                 {'dn': id[-1]}, 'vmmDomP', helper, to_aim=True)
-            res_dict['openstack_vmm_domain_names'] = [dom_id[-1]]
+            if dom_id[0] == aim_utils.OPENSTACK_VMM_TYPE:
+                res_dict['openstack_vmm_domain_names'] = [dom_id[-1]]
+            res_dict['vmm_domains'] = [{'type': dom_id[0], 'name': dom_id[1]}]
         except apic_client.DNManager.InvalidNameFormat:
             dom_id = default_identity_converter(
                 {'dn': id[-1]}, 'physDomP', helper, to_aim=True)
             res_dict['physical_domain_names'] = [dom_id[0]]
+            res_dict['physical_domains'] = [{'name': dom_id[0]}]
         result.append(default_to_resource(res_dict, helper, to_aim=True))
     else:
         # Converting an EndpointGroup into fvRsDomAtt objects
-        for phys in object_dict['physical_domain_names']:
+        for phys in set(object_dict['physical_domain_names'] + [
+                x['name'] for x in object_dict['physical_domains']]):
             # Get Physdom DN
             phys_dn = default_identity_converter(
                 resource.PhysicalDomain(name=phys).__dict__,
@@ -135,11 +139,13 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
                                           {'dn': dn,
                                            'tDn': phys_dn}}})
         # Convert OpenStack VMMs
-        for vmm in object_dict['openstack_vmm_domain_names']:
+        vmms_by_name = [(aim_utils.OPENSTACK_VMM_TYPE, x) for x in
+                        object_dict['openstack_vmm_domain_names']]
+        for vmm in set([(x['type'], x['name']) for x in
+                        object_dict['vmm_domains']] + vmms_by_name):
             # Get VMM DN
             vmm_dn = default_identity_converter(
-                resource.VMMDomain(
-                    type=aim_utils.OPENSTACK_VMM_TYPE, name=vmm).__dict__,
+                resource.VMMDomain(type=vmm[0], name=vmm[1]).__dict__,
                 resource.VMMDomain, helper, aci_mo_type='vmmDomP',
                 to_aim=False)[0]
             dn = default_identity_converter(
@@ -310,6 +316,8 @@ resource_map = {
                  'consumed_contract_names',
                  'openstack_vmm_domain_names',
                  'physical_domain_names',
+                 'physical_domains',
+                 'vmm_domains',
                  'static_paths'],
     }],
     'fvRsBd': [{

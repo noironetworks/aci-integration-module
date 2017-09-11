@@ -59,14 +59,20 @@ class TestManager(base.TestShell):
         self.assertIsNotNone(
             self.mgr.get(self.ctx, resource.VMMDomain(type='OpenStack',
                                                       name='ostack2')))
+        self.assertIsNotNone(
+            self.mgr.get(self.ctx, resource.VMMDomain(type='VMware',
+                                                      name='vmware')))
+        self.assertIsNotNone(
+            self.mgr.get(self.ctx, resource.VMMDomain(type='VMware',
+                                                      name='vmware2')))
         # EPGs are still empty
         pre_epg1 = self.mgr.get(self.ctx, pre_epg1)
         pre_epg2 = self.mgr.get(self.ctx, pre_epg2)
 
-        self.assertEqual([], pre_epg1.openstack_vmm_domain_names)
-        self.assertEqual([], pre_epg1.physical_domain_names)
-        self.assertEqual([], pre_epg2.openstack_vmm_domain_names)
-        self.assertEqual([], pre_epg2.physical_domain_names)
+        self.assertEqual([], pre_epg1.vmm_domains)
+        self.assertEqual([], pre_epg1.physical_domains)
+        self.assertEqual([], pre_epg2.vmm_domains)
+        self.assertEqual([], pre_epg2.physical_domains)
 
         # Delete one of them, and use the replace flag
         self.mgr.delete(self.ctx, resource.VMMDomain(type='OpenStack',
@@ -74,7 +80,7 @@ class TestManager(base.TestShell):
         self.run_command('manager load-domains --replace')
 
         # Now only 2 Domains each exist
-        self.assertEqual(2, len(self.mgr.find(self.ctx, resource.VMMDomain)))
+        self.assertEqual(4, len(self.mgr.find(self.ctx, resource.VMMDomain)))
         self.assertEqual(2, len(self.mgr.find(self.ctx,
                                               resource.PhysicalDomain)))
 
@@ -82,24 +88,38 @@ class TestManager(base.TestShell):
         pre_epg1 = self.mgr.get(self.ctx, pre_epg1)
         pre_epg2 = self.mgr.get(self.ctx, pre_epg2)
 
-        self.assertEqual([], pre_epg1.openstack_vmm_domain_names)
-        self.assertEqual([], pre_epg1.physical_domain_names)
-        self.assertEqual([], pre_epg2.openstack_vmm_domain_names)
-        self.assertEqual([], pre_epg2.physical_domain_names)
+        self.assertEqual([], pre_epg1.vmm_domains)
+        self.assertEqual([], pre_epg1.physical_domains)
+        self.assertEqual([], pre_epg2.vmm_domains)
+        self.assertEqual([], pre_epg2.physical_domains)
 
         # now update the current environment
         self.run_command('manager load-domains --replace --enforce')
         pre_epg1 = self.mgr.get(self.ctx, pre_epg1)
         pre_epg2 = self.mgr.get(self.ctx, pre_epg2)
 
-        self.assertEqual(set(['ostack', 'ostack2']),
-                         set(pre_epg1.openstack_vmm_domain_names))
-        self.assertEqual(set(['phys', 'phys2']),
-                         set(pre_epg1.physical_domain_names))
-        self.assertEqual(set(['ostack', 'ostack2']),
-                         set(pre_epg2.openstack_vmm_domain_names))
-        self.assertEqual(set(['phys2', 'phys']),
-                         set(pre_epg2.physical_domain_names))
+        def get_vmm(type, name):
+            return {'type': type, 'name': name}
+
+        def get_phys(name):
+            return {'name': name}
+
+        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
+                                 get_vmm('OpenStack', 'ostack2'),
+                                 get_vmm('VMware', 'vmware'),
+                                 get_vmm('VMware', 'vmware2')]),
+                         sorted(pre_epg1.vmm_domains))
+        self.assertEqual(sorted([get_phys('phys'),
+                                 get_phys('phys2')]),
+                         sorted(pre_epg1.physical_domains))
+        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
+                                 get_vmm('OpenStack', 'ostack2'),
+                                 get_vmm('VMware', 'vmware'),
+                                 get_vmm('VMware', 'vmware2')]),
+                         sorted(pre_epg2.vmm_domains))
+        self.assertEqual(sorted([get_phys('phys'),
+                                 get_phys('phys2')]),
+                         sorted(pre_epg2.physical_domains))
 
     def _parse_sync_find_output(self, result):
         res = result.output_bytes.split('\n')[1:-1]

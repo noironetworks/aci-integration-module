@@ -210,6 +210,7 @@ def describe(klass):
 def load_domains(ctx, replace, enforce):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
+    vmm_types = utils.KNOWN_VMM_TYPES
 
     with aim_ctx.store.begin(subtransactions=True):
         if replace:
@@ -223,29 +224,31 @@ def load_domains(ctx, replace, enforce):
         vmms = config.create_vmdom_dictionary()
         physdoms = config.create_physdom_dictionary()
         if vmms:
-            res = resource.VMMPolicy(type='OpenStack', monitored=True)
-            print_resource(manager.create(aim_ctx, res, overwrite=True))
-        for vmm in vmms:
-            res = resource.VMMDomain(type='OpenStack', name=vmm,
-                                     monitored=True)
-            print_resource(manager.create(aim_ctx, res, overwrite=True))
+            for type_ in vmm_types.values():
+                res = resource.VMMPolicy(type=type_, monitored=True)
+                print_resource(manager.create(aim_ctx, res, overwrite=True))
+            for vmm_name, cfg in vmms.iteritems():
+                res = resource.VMMDomain(
+                    type=vmm_types.get(
+                        cfg.get('apic_vmm_type', 'openstack').lower()),
+                    name=vmm_name, monitored=True)
+                print_resource(manager.create(aim_ctx, res, overwrite=True))
         for phys in physdoms:
             res = resource.PhysicalDomain(name=phys, monitored=True)
             print_resource(manager.create(aim_ctx, res, overwrite=True))
 
         if enforce:
-            # Update the existing EPGs with the new domain configuration
-            all_vmms = manager.find(aim_ctx, resource.VMMDomain)
-            all_physds = manager.find(aim_ctx, resource.PhysicalDomain)
-            os_vmm_names = [vmm.name for vmm in all_vmms
-                            if vmm.type == utils.OPENSTACK_VMM_TYPE]
-            phys_names = [phys.name for phys in all_physds]
+            # Update the existing EPGs with the domain configuration
+            all_vmms = [{'type': x.type, 'name': x.name}
+                        for x in manager.find(aim_ctx, resource.VMMDomain)]
+            all_physds = [{'name': x.name}
+                          for x in manager.find(aim_ctx,
+                                                resource.PhysicalDomain)]
             all_epgs = manager.find(aim_ctx, resource.EndpointGroup)
             for epg in all_epgs:
                 print_resource(
-                    manager.update(aim_ctx, epg,
-                                   openstack_vmm_domain_names=os_vmm_names,
-                                   physical_domain_names=phys_names))
+                    manager.update(aim_ctx, epg, vmm_domains=all_vmms,
+                                   physical_domains=all_physds))
 
 
 @manager.command(name='sync-state-find')

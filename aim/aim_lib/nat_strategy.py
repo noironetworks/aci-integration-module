@@ -421,16 +421,18 @@ class NatStrategyMixin(NatStrategy):
         bd.vrf_name = l3out.vrf_name
         ap, epg = self._get_nat_ap_epg(ctx, l3out)
         vm_doms = getattr(
-            self, 'vmm_domain_names',
-            [d.name for d in self.mgr.find(ctx, resource.VMMDomain)])
+            self, 'vmm_domains',
+            [{'type': d.type, 'name': d.name} for d in
+             self.mgr.find(ctx, resource.VMMDomain)])
         phy_doms = getattr(
-            self, 'physical_domain_names',
-            [d.name for d in self.mgr.find(ctx, resource.PhysicalDomain)])
+            self, 'physical_domains',
+            [{'name': d.name} for d in
+             self.mgr.find(ctx, resource.PhysicalDomain)])
         epg.bd_name = bd.name
         epg.provided_contract_names = [contract.name]
         epg.consumed_contract_names = [contract.name]
-        epg.openstack_vmm_domain_names = vm_doms
-        epg.physical_domain_names = phy_doms
+        epg.vmm_domains = vm_doms
+        epg.physical_domains = phy_doms
         return [fltr, entry, contract, subject, bd, ap, epg]
 
     def _create_nat_epg(self, ctx, l3out):

@@ -297,17 +297,38 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                                     lazy='joined')
 
     def from_attr(self, session, res_attr):
-        vmm_domains = self.vmm_domains[:]
-        physical_domains = self.physical_domains[:]
+        vmm_domains = [] if any(
+            x in res_attr for x in [
+                'openstack_vmm_domain_names',
+                'vmm_domains']) else self.vmm_domains[:]
+        physical_domains = [] if any(
+            x in res_attr for x in [
+                'physical_domain_names',
+                'physical_domains']) else self.physical_domains[:]
+        vmm_ids = set()
+        phys_ids = set()
 
-        if 'openstack_vmm_domain_names' in res_attr:
-            vmm_domains = []
-            for d in (res_attr.pop('openstack_vmm_domain_names', []) or []):
+        for d in (res_attr.pop('vmm_domains', []) or []):
+            vmm_name = d['name']
+            vmm_type = utils.KNOWN_VMM_TYPES.get(d['type'].lower(), d['type'])
+            vmm_domains.append(
+                EndpointGroupVMMDomain(vmm_name=vmm_name, vmm_type=vmm_type))
+            vmm_ids.add((vmm_type, vmm_name))
+
+        for d in (res_attr.pop('physical_domains', []) or []):
+            physical_domains.append(
+                EndpointGroupPhysicalDomain(physdom_name=d['name']))
+            phys_ids.add(d['name'])
+
+        for d in (res_attr.pop('openstack_vmm_domain_names', []) or []):
+            vmm_name = d
+            vmm_type = utils.OPENSTACK_VMM_TYPE
+            if (vmm_type, vmm_name) not in vmm_ids:
                 vmm_domains.append(EndpointGroupVMMDomain(
                     vmm_name=d, vmm_type=utils.OPENSTACK_VMM_TYPE))
-        if 'physical_domain_names' in res_attr:
-            physical_domains = []
-            for d in (res_attr.pop('physical_domain_names', []) or []):
+
+        for d in (res_attr.pop('physical_domain_names', []) or []):
+            if d not in phys_ids:
                 physical_domains.append(EndpointGroupPhysicalDomain(
                     physdom_name=d))
 
@@ -328,9 +349,16 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
     def to_attr(self, session):
         res_attr = super(EndpointGroup, self).to_attr(session)
         for d in res_attr.pop('vmm_domains', []):
-            res_attr.setdefault(
-                'openstack_vmm_domain_names', []).append(d.vmm_name)
+            res_attr.setdefault('vmm_domains', []).append(
+                {'type': d.vmm_type, 'name': d.vmm_name})
+            # NOTE(ivar): backward compatibility
+            if d.vmm_type == utils.OPENSTACK_VMM_TYPE:
+                res_attr.setdefault(
+                    'openstack_vmm_domain_names', []).append(d.vmm_name)
         for d in res_attr.pop('physical_domains', []):
+            res_attr.setdefault('physical_domains', []).append(
+                {'name': d.physdom_name})
+            # NOTE(ivar): backward compatibility
             res_attr.setdefault('physical_domain_names', []).append(
                 d.physdom_name)
         for p in res_attr.pop('static_paths', []):
