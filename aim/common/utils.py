@@ -34,6 +34,9 @@ from oslo_log import log as logging
 LOG = logging.getLogger(__name__)
 AIM_LOCK_PREFIX = 'aim_lock'
 OPENSTACK_VMM_TYPE = 'OpenStack'
+VMWARE_VMM_TYPE = 'VMware'
+KNOWN_VMM_TYPES = {'openstack': OPENSTACK_VMM_TYPE,
+                   'vmware': VMWARE_VMM_TYPE}
 ACI_FAULT = 'faultInst'
 
 

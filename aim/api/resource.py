@@ -367,6 +367,8 @@ class EndpointGroup(AciResourceBase):
         ('consumed_contract_names', t.list_of_names),
         ('openstack_vmm_domain_names', t.list_of_names),
         ('physical_domain_names', t.list_of_names),
+        ('vmm_domains', t.list_of_dicts(('type', t.name), ('name', t.name))),
+        ('physical_domains', t.list_of_dicts(('name', t.name))),
         ('static_paths', t.list_of_static_paths),
         ('monitored', t.bool))
 
@@ -382,6 +384,8 @@ class EndpointGroup(AciResourceBase):
                                              'consumed_contract_names': [],
                                              'openstack_vmm_domain_names': [],
                                              'physical_domain_names': [],
+                                             'vmm_domains': [],
+                                             'physical_domains': [],
                                              'policy_enforcement_pref':
                                              self.POLICY_UNENFORCED,
                                              'static_paths': [],

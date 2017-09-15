@@ -94,8 +94,15 @@ class TestNatStrategyBase(object):
                                 bd_name=name,
                                 provided_contract_names=[name],
                                 consumed_contract_names=[name],
+                                # NOTE(ivar): Need to keep both VMM
+                                # representations since a GET on the EPG
+                                # will also return the domain name list
+                                # for backward compatibility
                                 openstack_vmm_domain_names=['ostack'],
-                                physical_domain_names=['phys'])] +
+                                physical_domain_names=['phys'],
+                                vmm_domains=[{'type': 'OpenStack',
+                                              'name': 'ostack'}],
+                                physical_domains=[{'name': 'phys'}])] +
                 ([nat_vrf] if nat_vrf_name is None else []))
 
     @base.requires(['foreign_keys'])

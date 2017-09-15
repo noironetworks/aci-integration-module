@@ -652,7 +652,8 @@ class TestEndpointGroupMixin(object):
                                                  {'path': 'topology/pod-1/'
                                                           'paths-102/pathep-'
                                                           '[eth1/5]',
-                                                  'encap': 'vlan-5'}]}
+                                                  'encap': 'vlan-5'}],
+                                'physical_domains': [{'name': 'phys'}]}
     test_search_attributes = {'name': 'web'}
     test_update_attributes = {'bd_name': 'net1',
                               'policy_enforcement_pref':
@@ -1731,6 +1732,8 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
                          getattr_canonical(r0, 'provided_contract_names'))
         self.assertEqual(['openstack'],
                          getattr_canonical(r0, 'openstack_vmm_domain_names'))
+        self.assertEqual([{'type': 'OpenStack', 'name': 'openstack'}],
+                         getattr_canonical(r0, 'vmm_domains'))
 
         r1 = self.mgr.update(self.ctx, res, bd_name='net1')
         self.assertEqual('net1', r1.bd_name)
@@ -1740,13 +1743,15 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
                          getattr_canonical(r1, 'consumed_contract_names'))
 
         r2 = self.mgr.update(self.ctx, res, provided_contract_names=[],
-                             openstack_vmm_domain_names=[])
+                             vmm_domains=[])
         self.assertEqual('net1', r2.bd_name)
         self.assertEqual([], getattr_canonical(r2, 'provided_contract_names'))
         self.assertEqual(['c1', 'c2', 'k'],
                          getattr_canonical(r2, 'consumed_contract_names'))
         self.assertEqual([],
                          getattr_canonical(r2, 'openstack_vmm_domain_names'))
+        self.assertEqual([],
+                         getattr_canonical(r2, 'vmm_domains'))
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):

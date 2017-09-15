@@ -316,6 +316,8 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                   'consumedContractNames',
                   'openstackVmmDomainNames',
                   'physicalDomainNames',
+                  'physicalDomains',
+                  'vmmDomains',
                   'staticPaths']},
         {'resource': 'fvRsBd',
          'exceptions': {'bd_name': {'other': 'tnFvBDName'}, },
@@ -390,6 +392,11 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                                consumed_contract_names=['c1', 'k'],
                                openstack_vmm_domain_names=['op', 'op2'],
                                physical_domain_names=['phys'],
+                               vmm_domains=[{'type': 'OpenStack',
+                                             'name': 'op'},
+                                            {'type': 'OpenStack',
+                                             'name': 'op2'}],
+                               physical_domains=[{'name': 'phys'}],
                                static_paths=[{'path': 'topology/pod-1/paths'
                                                       '-202/pathep-[eth1/7]',
                                               'encap': 'vlan-33'},
@@ -1545,35 +1552,26 @@ class TestAimToAciConverterBase(object):
         return ([r.__dict__ for r in res] if isinstance(res, list)
                 else res.__dict__)
 
-    def _test_convert(self, example1, expected1, example2, expected2):
+    def _test_convert(self, example, expected):
 
-        result = self.converter.convert([example1])
+        to_convert = []
+        self.assertEqual(len(example), len(expected))
 
-        self.assertEqual(len(expected1), len(result),
-                         '\nExpected:\n%s\nResult:\n%s' % (
-                         pprint.pformat(expected1),
-                         pprint.pformat(result)))
-        for item in expected1:
-            self.assertTrue(item in result,
-                            '\nExpected:\n%s\nin Result:\n%s' % (
-                                pprint.pformat(item),
-                                pprint.pformat(result)))
-        # Convert another BD
-        result = self.converter.convert([example1, example2])
-        self.assertEqual(len(expected1) + len(expected2), len(result),
-                         '\nExpected:\n%s\nResult:\n%s' % (
-                         pprint.pformat(expected1 + expected2),
-                         pprint.pformat(result)))
-        for item in expected1:
-            self.assertTrue(item in result,
-                            '\nExpected:\n%s\nResult:\n%s' % (
-                                pprint.pformat(item),
-                                pprint.pformat(result)))
-        for item in expected2:
-            self.assertTrue(item in result,
-                            '\nExpected:\n%s\nResult:\n%s' % (
-                                pprint.pformat(item),
-                                pprint.pformat(result)))
+        for new in example:
+            to_convert.append(new)
+            expected_step = expected[:len(to_convert)]
+            result = self.converter.convert(to_convert)
+
+            self.assertEqual(sum(len(x) for x in expected_step), len(result),
+                             '\nExpected:\n%s\nResult:\n%s' % (
+                             pprint.pformat(expected_step),
+                             pprint.pformat(result)))
+            for items in expected_step:
+                for item in items:
+                    self.assertTrue(item in result,
+                                    '\nExpected:\n%s\nin Result:\n%s' % (
+                                        pprint.pformat(item),
+                                        pprint.pformat(result)))
 
     def _test_consistent_conversion(self, example_resource):
         to_aim_converter = converter.AciToAimModelConverter()
@@ -1613,8 +1611,7 @@ class TestAimToAciConverterBase(object):
                                      self.missing_ref_output)
 
     def test_convert(self):
-        self._test_convert(self.sample_input[0], self.sample_output[0],
-                           self.sample_input[1], self.sample_output[1])
+        self._test_convert(self.sample_input, self.sample_output)
 
 
 class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
@@ -1757,7 +1754,15 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                                       {'path': 'topology/pod-1/paths-102/'
                                                'pathep-[eth1/2]',
                                        'encap': 'vlan-39'}],
-                        display_name='alias')]
+                        display_name='alias'),
+                    base.TestAimDBBase._get_example_aim_epg(
+                        name='test-2',
+                        openstack_vmm_domain_names=['op'],
+                        physical_domain_names=['phys'],
+                        vmm_domains=[{'type': 'VMware', 'name': 'vmw'},
+                                     {'type': 'OpenStack', 'name': 'op'}],
+                        physical_domains=[{'name': 'phys1'}])
+                    ]
     sample_output = [
         [{
             "fvAEPg": {
@@ -1819,7 +1824,40 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                      dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
                         '[topology/pod-1/paths-102/pathep-[eth1/2]]',
                      tDn='topology/pod-1/paths-102/pathep-[eth1/2]',
-                     encap='vlan-39')]]
+                     encap='vlan-39')],
+        [{
+            "fvAEPg": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-2",
+                    "pcEnfPref": "unenforced", "nameAlias": ""}}}, {
+            "fvRsBd": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-2/rsbd",
+                    "tnFvBDName": "net1"}}}, {
+            'fvRsDomAtt': {
+                'attributes': {
+                    'dn': 'uni/tn-t1/ap-a1/epg-test-2/'
+                          'rsdomAtt-[uni/phys-phys]',
+                    'tDn': 'uni/phys-phys'}}}, {
+            'fvRsDomAtt': {
+                'attributes': {
+                    'dn': 'uni/tn-t1/ap-a1/epg-test-2/'
+                          'rsdomAtt-[uni/phys-phys1]',
+                    'tDn': 'uni/phys-phys1'}}}, {
+            'fvRsDomAtt': {
+                'attributes': {
+                    'dn': 'uni/tn-t1/ap-a1/epg-test-2/'
+                          'rsdomAtt-[uni/vmmp-OpenStack/dom-op]',
+                    'tDn': 'uni/vmmp-OpenStack/dom-op',
+                    'classPref': 'useg'}}}, {
+            'fvRsDomAtt': {
+                'attributes': {
+                    'dn': 'uni/tn-t1/ap-a1/epg-test-2/'
+                          'rsdomAtt-[uni/vmmp-VMware/dom-vmw]',
+                    'tDn': 'uni/vmmp-VMware/dom-vmw',
+                    'classPref': 'useg'}}}]
+
+    ]
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
     missing_ref_output = [{
         "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test",
@@ -2011,7 +2049,7 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                                               dn='uni/tn-common/out-l3o2',
                                               monitored=True,
                                               display_name='alias'),
-                    get_example_aim_l3outside(name='inet2')]
+                    get_example_aim_l3outside(name='inet3')]
     sample_output = [
         [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2', nameAlias=""),
          _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
@@ -2020,18 +2058,18 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                   dn='uni/tn-t1/out-inet2/rsl3DomAtt',
                   tDn='uni/foo')],
         [],
-        [_aci_obj('l3extOut', dn='uni/tn-common/out-l3o2', name='l3o2',
-                  nameAlias='alias'),
+        [_aci_obj('l3extOut', dn='uni/tn-common/out-l3o2', nameAlias='alias'),
          _aci_obj('l3extRsEctx', dn='uni/tn-common/out-l3o2/rsectx',
                   tnFvCtxName='shared'),
          _aci_obj('l3extRsL3DomAtt',
                   dn='uni/tn-common/out-l3o2/rsl3DomAtt',
-                  tDn='uni/tn-common/out-l3o2')],
-        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2', nameAlias=''),
-         _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
+                  tDn='uni/foo2')],
+        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet3', nameAlias=''),
+         _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet3/rsectx',
                   tnFvCtxName=''),
          _aci_obj('l3extRsL3DomAtt',
-                  dn='uni/tn-t1/out-inet2/rsl3DomAtt',
+                  dn='uni/tn-t1/out-inet3'
+                     '/rsl3DomAtt',
                   tDn='')]]
     missing_ref_input = get_example_aim_l3outside(vrf_name=None,
                                                   l3_domain_dn=None)
@@ -2096,10 +2134,10 @@ class TestAimToAciConverterExternalNetwork(TestAimToAciConverterBase,
          _aci_obj('fvRsCons__Ext',
                   dn='uni/tn-t1/out-l1/instP-inet1/rscons-c1',
                   tnVzBrCPName='c1')],
-        [_aci_obj('l3extInstP', dn='uni/tn-t1/out-l1/instP-inet2',
+        [_aci_obj('l3extInstP', dn='uni/tn-t1/out-l1/instP-inet1',
                   nameAlias=''),
          _aci_obj('l3extRsInstPToNatMappingEPg',
-                  dn=('uni/tn-t1/out-l1/instP-inet2/'
+                  dn=('uni/tn-t1/out-l1/instP-inet1/'
                       'rsInstPToNatMappingEPg'),
                   tDn='uni/foo')]]
     missing_ref_input = get_example_aim_external_network(nat_epg_dn=None)
