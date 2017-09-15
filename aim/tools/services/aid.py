@@ -16,20 +16,10 @@
 from aim.agent.aid.event_services import polling
 from aim.agent.aid.event_services import rpc_service
 from aim.agent.aid import service
-from aim.tools.cli import debug_shell
-from aim.tools.cli import shell
 
 
 def aid():
     service.main()
-
-
-def aimctl():
-    shell.run()
-
-
-def aimdebug():
-    debug_shell.run()
 
 
 def event_polling():

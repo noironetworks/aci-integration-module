@@ -140,6 +140,7 @@ class TestAciClientMixin(object):
 
     def _manipulate_server_data(self, data, manager=None, add=True, tag=True,
                                 create_parents=False):
+        removed = None
         manager = manager if manager is not None else self.manager
         try:
             manager.aci_session._data_stash
@@ -223,18 +224,20 @@ class TestAciClientMixin(object):
             # Update body
             if not add:
                 if child_index is not None:
-                    prev.pop(child_index)
+                    removed = prev.pop(child_index)
                     if prev is manager.aci_session._data_stash[
                             decomposed[0][1]]:
                         # Tenant is now empty
                         manager.aci_session._data_stash.pop(decomposed[0][1])
                 else:
                     # Root node
-                    manager.aci_session._data_stash.pop(decomposed[0][1])
+                    removed = manager.aci_session._data_stash.pop(
+                        decomposed[0][1])
             elif child_index is not None and not is_new:
                 children = prev[child_index].values()[0]['children']
                 prev[child_index].update(resource)
                 prev[child_index].values()[0]['children'] = children
+        return removed
 
     def _add_server_data(self, data, manager=None, tag=True,
                          create_parents=False):
@@ -242,7 +245,7 @@ class TestAciClientMixin(object):
                                      create_parents=create_parents)
 
     def _remove_server_data(self, data, manager=None):
-        self._manipulate_server_data(data, manager=manager, add=False)
+        return self._manipulate_server_data(data, manager=manager, add=False)
 
     def _add_data_to_tree(self, data, state):
         aim_res = converter.AciToAimModelConverter().convert(data)
@@ -350,17 +353,30 @@ class TestAciClientMixin(object):
         # Greenlets have their own weird way of calculating bool
         event_list_copy = copy.deepcopy(event_list)
         manager = manager if manager is not None else self.manager
-        manager.ws_context.session.subscription_thread._events.setdefault(
-            manager.tenant._get_instance_subscription_urls()[0], []).extend([
-                dict([('imdata', [x])]) for x in event_list])
         # Add events to server
         aci_tenant.AciTenantManager.flat_events(event_list_copy)
+        deleted_dns = set([x.values()[0]['attributes']['dn']
+                           for x in event_list_copy
+                           if x.values()[0]['attributes'].get('status') ==
+                           'deleted'])
         for event in event_list_copy:
             if event.values()[0]['attributes'].get('status') != 'deleted':
                 self._add_server_data([event], manager=manager, tag=tag,
                                       create_parents=create_parents)
             else:
-                self._remove_server_data([event], manager=manager)
+                removed = [self._remove_server_data([event], manager=manager)]
+                if removed[0]:
+                    aci_tenant.AciTenantManager.flat_events(removed)
+                    for item in removed:
+                        if (item.values()[0]['attributes']['dn'] not in
+                                deleted_dns):
+                            item.values()[0]['attributes']['status'] = (
+                                'deleted')
+                            event_list.append(item)
+
+        manager.ws_context.session.subscription_thread._events.setdefault(
+            manager.tenant._get_instance_subscription_urls()[0], []).extend([
+                dict([('imdata', [x])]) for x in event_list])
 
     def _do_aci_mocks(self):
         self.monitors = mock.patch(

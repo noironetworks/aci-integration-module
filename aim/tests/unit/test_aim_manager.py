@@ -353,6 +353,16 @@ class TestResourceOpsBase(object):
             self.mgr.get_by_id(self.ctx, status.parent_class,
                                'nope'))
         self.assertEqual(res, res_from_status)
+        # Get resource with aim_id included
+        res_with_id = self.mgr.get(self.ctx, res, include_aim_id=True)
+        self.assertEqual(res_with_id._aim_id, status.resource_id)
+        res_with_id = self.mgr.find(self.ctx, type(res),
+                                    include_aim_id=True)[0]
+        self.assertEqual(res_with_id._aim_id, status.resource_id)
+        res_with_id = self.mgr.get_by_id(self.ctx, status.parent_class,
+                                         status.resource_id,
+                                         include_aim_id=True)
+        self.assertEqual(res_with_id._aim_id, status.resource_id)
         new_timestamp = status.faults[0].last_update_timestamp
         if self.ctx.store.current_timestamp:
             self.assertTrue(new_timestamp > timestamp)
@@ -390,11 +400,13 @@ class TestResourceOpsBase(object):
             self.assertIsNone(status_db)
 
     def _create_prerequisite_objects(self):
+        prereq = []
         for obj in (self.prereq_objects or []):
-            self.mgr.create(self.ctx, obj)
+            prereq.append(self.mgr.create(self.ctx, obj))
+        return prereq
 
     def test_lifecycle(self):
-        self._create_prerequisite_objects()
+        prereq = self._create_prerequisite_objects()
         self._test_resource_ops(
             self.resource_class,
             self.test_identity_attributes,
@@ -403,6 +415,12 @@ class TestResourceOpsBase(object):
             self.test_update_attributes,
             self.test_default_values,
             self.test_dn)
+        if prereq:
+            if len(prereq) > 2:
+                self.mgr.delete(self.ctx, prereq[1])
+            self.mgr.delete(self.ctx, prereq[0], cascade=True)
+            for res in prereq:
+                self.assertIsNone(self.mgr.get(self.ctx, res))
 
     # REVISIT(ivar): now that the listeners are all mocked this test
     # doesn't look very helpful
@@ -616,10 +634,8 @@ class TestEndpointGroupMixin(object):
     resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
         resource.Tenant(name='tenant1'),
-        resource.ApplicationProfile(tenant_name='tenant1', name='lab'),
-        resource.VMMPolicy(type='OpenStack'),
-        resource.VMMDomain(type='OpenStack', name='openstack'),
-        resource.PhysicalDomain(name='phys')]
+        resource.ApplicationProfile(tenant_name='tenant1', name='lab')]
+
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'app_profile_name': 'lab',
                                 'name': 'web'}
@@ -1705,7 +1721,10 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
 
     def test_update_other_attributes(self):
         self._create_prerequisite_objects()
-
+        for res in [resource.VMMPolicy(type='OpenStack'),
+                    resource.VMMDomain(type='OpenStack', name='openstack'),
+                    resource.PhysicalDomain(name='phys')]:
+            self.mgr.create(self.ctx, res)
         res = resource.EndpointGroup(**self.test_required_attributes)
         r0 = self.mgr.create(self.ctx, res)
         self.assertEqual(['k', 'p1', 'p2'],

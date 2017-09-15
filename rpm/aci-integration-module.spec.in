@@ -31,6 +31,7 @@ rm -f requirements.txt
 install -p -D -m 0644 rpm/aim-aid.service %{buildroot}/%{_unitdir}/aim-aid.service
 install -p -D -m 0644 rpm/aim-event-service-polling.service %{buildroot}/%{_unitdir}/aim-event-service-polling.service
 install -p -D -m 0644 rpm/aim-event-service-rpc.service %{buildroot}/%{_unitdir}/aim-event-service-rpc.service
+install -p -D -m 0644 rpm/aim-http-server.service %{buildroot}/%{_unitdir}/aim-http-server.service
 mkdir -p $RPM_BUILD_ROOT/run/aid/events
 # Install logrotate
 install -p -D -m 0644 etc/logrotate.d/aim %{buildroot}%{_sysconfdir}/logrotate.d/aim
@@ -47,11 +48,13 @@ rm -rf %{buildroot}%{python2_sitelib}/aim/tests
 %{_bindir}/aim-aid
 %{_bindir}/aim-event-service-polling
 %{_bindir}/aim-event-service-rpc
+%{_bindir}/aim-http-server
 %config(noreplace) %{_sysconfdir}/aim/aim.conf
 %config(noreplace) %{_sysconfdir}/aim/aimctl.conf
 %{_unitdir}/aim-aid.service
 %{_unitdir}/aim-event-service-polling.service
 %{_unitdir}/aim-event-service-rpc.service
+%{_unitdir}/aim-http-server.service
 %dir /run/aid/events
 %config(noreplace) %{_sysconfdir}/logrotate.d/*
 
