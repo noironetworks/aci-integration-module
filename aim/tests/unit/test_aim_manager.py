@@ -653,7 +653,12 @@ class TestEndpointGroupMixin(object):
                                                           'paths-102/pathep-'
                                                           '[eth1/5]',
                                                   'encap': 'vlan-5'}],
-                                'physical_domains': [{'name': 'phys'}]}
+                                'physical_domains': [{'name': 'phys'}],
+                                'epg_contract_masters': [
+                                    {'app_profile_name': 'masterap1',
+                                     'name': 'masterepg1'},
+                                    {'app_profile_name': 'masterap2',
+                                     'name': 'masterepg2'}]}
     test_search_attributes = {'name': 'web'}
     test_update_attributes = {'bd_name': 'net1',
                               'policy_enforcement_pref':
@@ -664,7 +669,10 @@ class TestEndpointGroupMixin(object):
                               'static_paths': [{'path': ('topology/pod-1/'
                                                          'paths-101/pathep-'
                                                          '[eth1/2]'),
-                                                'encap': 'vlan-22'}]}
+                                                'encap': 'vlan-22'}],
+                              'epg_contract_masters': [
+                                  {'app_profile_name': 'masterap1',
+                                   'name': 'masterepg1'}]}
     test_default_values = {'bd_name': '',
                            'provided_contract_names': [],
                            'consumed_contract_names': [],
@@ -672,7 +680,8 @@ class TestEndpointGroupMixin(object):
                            'physical_domain_names': [],
                            'policy_enforcement_pref':
                            resource.EndpointGroup.POLICY_UNENFORCED,
-                           'static_paths': []}
+                           'static_paths': [],
+                           'epg_contract_masters': []}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
     res_command = 'endpoint-group'
 

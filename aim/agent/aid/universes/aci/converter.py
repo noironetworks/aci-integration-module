@@ -188,6 +188,43 @@ def fv_rs_path_att_converter(object_dict, otype, helper,
     return result
 
 
+def fv_rs_master_epg_converter(object_dict, otype, helper,
+                               source_identity_attributes,
+                               destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict.get('tDn'):
+            master_id = apic_client.DNManager().aci_decompose_with_type(
+                object_dict['tDn'], 'fvAEPg')
+            res_dict['epg_contract_masters'] = [
+                {'app_profile_name': master_id[1][1], 'name': master_id[2][1]}]
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        for p in object_dict['epg_contract_masters']:
+            if p.get('app_profile_name') and p.get('name'):
+                try:
+                    attr = [object_dict.get('tenant_name'),
+                            p.get('app_profile_name'), p.get('name')]
+                    path = apic_client.ManagedObjectClass('fvAEPg').dn(*attr)
+                except Exception as e:
+                    LOG.error('Failed to make DN for %s with %s: %s',
+                              helper['resource'], attr, e)
+                    raise
+                dn = default_identity_converter(
+                    object_dict, otype, helper, extra_attributes=[path],
+                    aci_mo_type=helper['resource'], to_aim=False)[0]
+                result.append({helper['resource']: {'attributes':
+                                                    {'dn': dn, 'tDn': path}}})
+    return result
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -318,7 +355,8 @@ resource_map = {
                  'physical_domain_names',
                  'physical_domains',
                  'vmm_domains',
-                 'static_paths'],
+                 'static_paths',
+                 'epg_contract_masters'],
     }],
     'fvRsBd': [{
         'resource': resource.EndpointGroup,
@@ -357,6 +395,10 @@ resource_map = {
     'fvRsDomAtt': [{
         'resource': resource.EndpointGroup,
         'converter': fv_rs_dom_att_converter,
+    }],
+    'fvRsSecInherited': [{
+        'resource': resource.EndpointGroup,
+        'converter': fv_rs_master_epg_converter,
     }],
     'vzFilter': [{
         'resource': resource.Filter,
