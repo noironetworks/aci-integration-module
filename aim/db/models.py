@@ -244,6 +244,18 @@ class EndpointGroupStaticPath(model_base.Base):
     encap = sa.Column(sa.String(24))
 
 
+class EndpointGroupContractMasters(model_base.Base):
+    """DB model for contract-masters configured for an EPG."""
+
+    __tablename__ = 'aim_endpoint_group_contract_masters'
+
+    epg_aim_id = sa.Column(sa.Integer,
+                           sa.ForeignKey('aim_endpoint_groups.aim_id'),
+                           primary_key=True)
+    app_profile_name = model_base.name_column(primary_key=True)
+    name = model_base.name_column(primary_key=True)
+
+
 class EndpointGroup(model_base.Base, model_base.HasAimId,
                     model_base.HasName, model_base.HasDisplayName,
                     model_base.HasTenantName,
@@ -278,6 +290,10 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                                     backref='epg',
                                     cascade='all, delete-orphan',
                                     lazy='joined')
+    epg_contract_masters = orm.relationship(EndpointGroupContractMasters,
+                                            backref='epg',
+                                            cascade='all, delete-orphan',
+                                            lazy='joined')
 
     def from_attr(self, session, res_attr):
         vmm_domains = [] if any(
@@ -326,6 +342,15 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                         path=p['path'], encap=p['encap']))
             self.static_paths = static_paths
 
+        if 'epg_contract_masters' in res_attr:
+            epg_contract_masters = []
+            for p in (res_attr.pop('epg_contract_masters', []) or []):
+                if p.get('app_profile_name') and p.get('name'):
+                    epg_contract_masters.append(EndpointGroupContractMasters(
+                        app_profile_name=p['app_profile_name'],
+                        name=p['name']))
+            self.epg_contract_masters = epg_contract_masters
+
         # map remaining attributes to model
         super(EndpointGroup, self).from_attr(session, res_attr)
 
@@ -347,6 +372,9 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
         for p in res_attr.pop('static_paths', []):
             res_attr.setdefault('static_paths', []).append(
                 {'path': p.path, 'encap': p.encap})
+        for p in res_attr.pop('epg_contract_masters', []):
+            res_attr.setdefault('epg_contract_masters', []).append(
+                {'app_profile_name': p.app_profile_name, 'name': p.name})
         return res_attr
 
 

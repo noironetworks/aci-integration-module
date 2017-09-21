@@ -318,7 +318,8 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                   'physicalDomainNames',
                   'physicalDomains',
                   'vmmDomains',
-                  'staticPaths']},
+                  'staticPaths',
+                  'epgContractMasters']},
         {'resource': 'fvRsBd',
          'exceptions': {'bd_name': {'other': 'tnFvBDName'}, },
          'to_resource': converter.default_to_resource_strict, },
@@ -333,7 +334,10 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
          'converter': converter.fv_rs_dom_att_converter, },
         {'resource': 'fvRsPathAtt',
          'exceptions': {},
-         'converter': converter.fv_rs_path_att_converter, }
+         'converter': converter.fv_rs_path_att_converter, },
+        {'resource': 'fvRsSecInherited',
+         'exceptions': {},
+         'converter': converter.fv_rs_master_epg_converter, }
     ]
     sample_input = [[base.TestAimDBBase._get_example_aci_epg(nameAlias='alia'),
                      {'fvRsBd':
@@ -378,6 +382,10 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                                  '[topology/pod-1/paths-102/pathep-[eth1/2]]',
                               tDn='topology/pod-1/paths-102/pathep-[eth1/2]',
                               encap='vlan-39'),
+                     _aci_obj('fvRsSecInherited',
+                              dn='uni/tn-t1/ap-a1/epg-test/rssecInherited-'
+                                 '[uni/tn-t1/ap-masterap1/epg-masterepg1]',
+                              tDn='uni/tn-t1/ap-masterap1/epg-masterepg1'),
                      ],
                     base.TestAimDBBase._get_example_aci_epg(
                         dn='uni/tn-t1/ap-a1/epg-test-1',
@@ -403,6 +411,9 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                                              {'path': 'topology/pod-1/paths'
                                                       '-102/pathep-[eth1/2]',
                                              'encap': 'vlan-39'}],
+                               epg_contract_masters=[
+                                   {'app_profile_name': 'masterap1',
+                                    'name': 'masterepg1'}],
                                display_name='alia'),
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
@@ -1748,6 +1759,10 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                         consumed_contract_names=['c1', 'k'],
                         openstack_vmm_domain_names=['op', 'op2'],
                         physical_domain_names=['phys'],
+                        epg_contract_masters=[{'app_profile_name': 'masterap1',
+                                               'name': 'masterepg1'},
+                                              {'app_profile_name': 'masterap2',
+                                               'name': 'masterepg2'}],
                         static_paths=[{'path': 'topology/pod-1/paths-202/'
                                                'pathep-[eth1/7]',
                                        'encap': 'vlan-33'},
@@ -1824,7 +1839,15 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                      dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
                         '[topology/pod-1/paths-102/pathep-[eth1/2]]',
                      tDn='topology/pod-1/paths-102/pathep-[eth1/2]',
-                     encap='vlan-39')],
+                     encap='vlan-39'),
+            _aci_obj('fvRsSecInherited',
+                     dn='uni/tn-t1/ap-a1/epg-test-1/rssecInherited-'
+                        '[uni/tn-t1/ap-masterap1/epg-masterepg1]',
+                     tDn='uni/tn-t1/ap-masterap1/epg-masterepg1'),
+            _aci_obj('fvRsSecInherited',
+                     dn='uni/tn-t1/ap-a1/epg-test-1/rssecInherited-'
+                        '[uni/tn-t1/ap-masterap2/epg-masterepg2]',
+                     tDn='uni/tn-t1/ap-masterap2/epg-masterepg2')],
         [{
             "fvAEPg": {
                 "attributes": {

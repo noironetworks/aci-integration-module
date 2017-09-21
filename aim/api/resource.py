@@ -370,6 +370,8 @@ class EndpointGroup(AciResourceBase):
         ('vmm_domains', t.list_of_dicts(('type', t.name), ('name', t.name))),
         ('physical_domains', t.list_of_dicts(('name', t.name))),
         ('static_paths', t.list_of_static_paths),
+        ('epg_contract_masters', t.list_of_dicts(('app_profile_name', t.name),
+                                                 ('name', t.name))),
         ('monitored', t.bool))
 
     _aci_mo_name = 'fvAEPg'
@@ -389,6 +391,7 @@ class EndpointGroup(AciResourceBase):
                                              'policy_enforcement_pref':
                                              self.POLICY_UNENFORCED,
                                              'static_paths': [],
+                                             'epg_contract_masters': [],
                                              'monitored': False},
                                             **kwargs)
 
