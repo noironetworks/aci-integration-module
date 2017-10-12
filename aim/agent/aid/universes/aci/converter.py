@@ -151,10 +151,14 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
             dn = default_identity_converter(
                 object_dict, otype, helper, extra_attributes=[vmm_dn],
                 aci_mo_type='fvRsDomAtt', to_aim=False)[0]
-            result.append({'fvRsDomAtt': {'attributes':
-                                          {'dn': dn,
-                                           'tDn': vmm_dn,
-                                           'classPref': 'useg'}}})
+            dom_ref = {'fvRsDomAtt': {'attributes': {'dn': dn,
+                                                     'tDn': vmm_dn,
+                                                     'classPref': 'useg',
+                                                     'instrImedcy': 'lazy'}}}
+            if vmm[0].lower() == aim_utils.VMWARE_VMM_TYPE.lower():
+                dom_ref['fvRsDomAtt']['attributes'][
+                    'instrImedcy'] = 'immediate'
+            result.append(dom_ref)
     return result
 
 

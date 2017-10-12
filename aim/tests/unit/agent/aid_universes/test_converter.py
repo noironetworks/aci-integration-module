@@ -1823,13 +1823,13 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
                           'rsdomAtt-[uni/vmmp-OpenStack/dom-op]',
                     'tDn': 'uni/vmmp-OpenStack/dom-op',
-                    'classPref': 'useg'}}}, {
+                    'classPref': 'useg', 'instrImedcy': 'lazy'}}}, {
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-1/'
                           'rsdomAtt-[uni/vmmp-OpenStack/dom-op2]',
                     'tDn': 'uni/vmmp-OpenStack/dom-op2',
-                    'classPref': 'useg'}}},
+                    'classPref': 'useg', 'instrImedcy': 'lazy'}}},
             _aci_obj('fvRsPathAtt',
                      dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
                         '[topology/pod-1/paths-202/pathep-[eth1/7]]',
@@ -1872,13 +1872,13 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                     'dn': 'uni/tn-t1/ap-a1/epg-test-2/'
                           'rsdomAtt-[uni/vmmp-OpenStack/dom-op]',
                     'tDn': 'uni/vmmp-OpenStack/dom-op',
-                    'classPref': 'useg'}}}, {
+                    'classPref': 'useg', 'instrImedcy': 'lazy'}}}, {
             'fvRsDomAtt': {
                 'attributes': {
                     'dn': 'uni/tn-t1/ap-a1/epg-test-2/'
                           'rsdomAtt-[uni/vmmp-VMware/dom-vmw]',
                     'tDn': 'uni/vmmp-VMware/dom-vmw',
-                    'classPref': 'useg'}}}]
+                    'classPref': 'useg', 'instrImedcy': 'immediate'}}}]
 
     ]
     missing_ref_input = base.TestAimDBBase._get_example_aim_epg(bd_name=None)
