@@ -960,6 +960,19 @@ class TestHostDomainMappingMixin(object):
     res_command = 'host-domain-mapping'
 
 
+class TestHostLinkNetworkLabelMixin(object):
+    resource_class = infra.HostLinkNetworkLabel
+    test_identity_attributes = {'host_name': 'host1.example.com',
+                                'network_label': 'physnet1',
+                                'interface_name': 'eth1'}
+    test_required_attributes = {}
+    test_search_attributes = {'host_name': 'host1.example.com',
+                              'network_label': 'physnet1'}
+    test_update_attributes = {}
+    test_default_values = {}
+    res_command = 'host-link-network-label'
+
+
 class TestSecurityGroupMixin(object):
     resource_class = resource.SecurityGroup
     resource_root_type = resource.Tenant._aci_mo_name
@@ -1823,6 +1836,11 @@ class TestHostLink(TestHostLinkMixin, TestAciResourceOpsBase,
 
 class TestHostDomainMapping(TestHostDomainMappingMixin, TestResourceOpsBase,
                             base.TestAimDBBase):
+    pass
+
+
+class TestHostLinkNetworkLabel(TestHostLinkNetworkLabelMixin,
+                               TestResourceOpsBase, base.TestAimDBBase):
     pass
 
 

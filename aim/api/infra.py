@@ -81,3 +81,16 @@ class HostDomainMapping(resource.ResourceBase):
         super(HostDomainMapping, self).__init__({'vmm_domain_name': '',
                                                  'physical_domain_name': ''},
                                                 **kwargs)
+
+
+class HostLinkNetworkLabel(resource.ResourceBase):
+    """A network label to host link"""
+
+    identity_attributes = t.identity(
+        ('host_name', t.string(128)),
+        ('network_label', t.string(64)),
+        ('interface_name', t.string(32)))
+    other_attributes = t.other()
+
+    def __init__(self, **kwargs):
+        super(HostLinkNetworkLabel, self).__init__({}, **kwargs)

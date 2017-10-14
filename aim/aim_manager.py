@@ -74,6 +74,7 @@ class AimManager(object):
                      api_res.ExternalSubnet,
                      api_infra.HostLink,
                      api_infra.HostDomainMapping,
+                     api_infra.HostLinkNetworkLabel,
                      api_res.SecurityGroup,
                      api_res.SecurityGroupSubject,
                      api_res.SecurityGroupRule,

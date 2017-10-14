@@ -131,3 +131,11 @@ class HostDomainMapping(model_base.Base, model_base.AttributeMixin):
 
     vmm_domain_name = sa.Column(sa.String(64))
     physical_domain_name = sa.Column(sa.String(64))
+
+
+class HostLinkNetworkLabel(model_base.Base, model_base.AttributeMixin):
+    __tablename__ = 'aim_host_link_network_label'
+
+    host_name = sa.Column(sa.String(128), primary_key=True)
+    network_label = sa.Column(sa.String(64), primary_key=True)
+    interface_name = sa.Column(sa.String(32), primary_key=True)
