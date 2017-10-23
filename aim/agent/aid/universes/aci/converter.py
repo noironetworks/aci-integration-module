@@ -27,6 +27,7 @@ from aim.api import resource
 from aim.api import status as aim_status
 from aim.api import types as t
 from aim.common import utils as aim_utils
+from aim import config as aim_cfg
 
 LOG = logging.getLogger(__name__)
 DELETED_STATUS = "deleted"
@@ -153,8 +154,10 @@ def fv_rs_dom_att_converter(object_dict, otype, helper,
                 aci_mo_type='fvRsDomAtt', to_aim=False)[0]
             dom_ref = {'fvRsDomAtt': {'attributes': {'dn': dn,
                                                      'tDn': vmm_dn,
-                                                     'classPref': 'useg',
                                                      'instrImedcy': 'lazy'}}}
+            if not aim_cfg.CONF.aim.disable_micro_segmentation:
+                dom_ref['fvRsDomAtt']['attributes'].update({'classPref':
+                                                            'useg'})
             if vmm[0].lower() == aim_utils.VMWARE_VMM_TYPE.lower():
                 dom_ref['fvRsDomAtt']['attributes'][
                     'instrImedcy'] = 'immediate'

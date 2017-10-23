@@ -23,6 +23,7 @@ from aim.api import infra as aim_infra
 from aim.api import resource
 from aim.api import service_graph as aim_service_graph
 from aim.api import status as aim_status
+from aim import config as aim_cfg
 from aim.tests import base
 
 
@@ -1886,6 +1887,17 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
         "fvAEPg": {"attributes": {"dn": "uni/tn-t1/ap-a1/epg-test",
                                   "pcEnfPref": "unenforced",
                                   "nameAlias": ""}}}]
+
+
+class TestAimToAciConverterEPGNoUseg(TestAimToAciConverterEPG):
+    def setUp(self):
+        super(TestAimToAciConverterEPGNoUseg, self).setUp()
+        for tll in self.sample_output:
+            for tla in tll:
+                if 'fvRsDomAtt' in tla:
+                    if 'classPref' in tla['fvRsDomAtt']['attributes']:
+                        del(tla['fvRsDomAtt']['attributes']['classPref'])
+        aim_cfg.CONF.set_override('disable_micro_segmentation', True, 'aim')
 
 
 class TestAimToAciConverterFault(TestAimToAciConverterBase,
