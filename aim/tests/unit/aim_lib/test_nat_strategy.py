@@ -265,6 +265,8 @@ class TestNatStrategyBase(object):
         ext_net.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
         ext_net.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
         self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        connected_vrfs = self.ns.read_vrfs(self.ctx, ext_net)
+        self.assertEqual(vrf1, connected_vrfs[0])
         self._check_connect_vrfs('stage1')
 
         # connect vrf_1 again - should be no-op
