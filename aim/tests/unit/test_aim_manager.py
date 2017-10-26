@@ -935,13 +935,17 @@ class TestHostLinkMixin(object):
                                 'port': 'bundle-201-1-33-and-202-1-33',
                                 'path': 'topology/pod-1/protpaths-201-202/'
                                         'pathep-[bundle-201-1-33-and-'
-                                        '202-1-33]'}
+                                        '202-1-33]',
+                                'pod_id': '1',
+                                'from_config': True}
     test_search_attributes = {'host_name': 'h0'}
     test_update_attributes = {'switch_id': '101',
                               'module': '1',
                               'port': '33',
                               'path': 'topology/pod-1/paths-101/pathep-'
-                                      '[eth1/33]'}
+                                      '[eth1/33]',
+                              'pod_id': '2',
+                              'from_config': False}
     test_default_values = {}
     res_command = 'host-link'
 
