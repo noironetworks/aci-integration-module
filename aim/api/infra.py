@@ -28,14 +28,18 @@ class HostLink(resource.ResourceBase):
         ('switch_id', t.string()),
         ('module', t.string()),
         ('port', t.string()),
-        ('path', t.string()))
+        ('path', t.string()),
+        ('pod_id', t.string()),
+        ('from_config', t.bool))
 
     def __init__(self, **kwargs):
         super(HostLink, self).__init__({'interface_mac': '',
                                         'switch_id': '',
                                         'module': '',
                                         'port': '',
-                                        'path': ''}, **kwargs)
+                                        'path': '',
+                                        'pod_id': '1',
+                                        'from_config': False}, **kwargs)
 
 
 class OpflexDevice(resource.AciResourceBase):

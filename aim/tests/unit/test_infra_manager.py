@@ -28,11 +28,11 @@ class TestAimInfraManager(base.TestAimDBBase):
         self.infra_mgr = infra_model.HostLinkManager(self.ctx, self.mgr)
 
     def test_infra_manager(self):
-        host, ifname, ifmac, swid, module, port, path = (
+        host, ifname, ifmac, swid, module, port, path, pod_id, from_config = (
             'f5-compute-2.noiro.lab', 'opflex1', 'd4:6d:50:dc:72:5f', 101,
-            1, 1, 'topology/pod-1/paths-101/pathep-[eth1/1]')
+            1, 1, 'topology/pod-2/paths-101/pathep-[eth1/1]', 2, True)
         self.infra_mgr.add_hostlink(host, ifname, ifmac, swid, module, port,
-                                    path)
+                                    path, pod_id, from_config)
         hlinks_mgr = self.mgr.find(self.ctx, infra.HostLink)
         self.assertEqual(1, len(hlinks_mgr))
 
@@ -43,11 +43,13 @@ class TestAimInfraManager(base.TestAimDBBase):
         self.assertEqual(1, len(hlinks))
         self.assertEqual(hlinks[0].path, hlinks_mgr[0].path)
 
-        host2, ifname2, ifmac2, swid2, module2, port2, path2 = (
+        (host2, ifname2, ifmac2, swid2, module2, port2, path2,
+         pod_id2, from_config2) = (
             'f6-compute-2.noiro.lab', 'opflex1', 'd4:6d:50:dc:72:55', 102,
-            2, 2, 'topology/pod-1/paths-102/pathep-[eth2/2]')
+            2, 2, 'topology/pod-1/paths-102/pathep-[eth2/2]', 1, False)
         self.infra_mgr.add_hostlink(
-            host2, ifname2, ifmac2, swid2, module2, port2, path2)
+            host2, ifname2, ifmac2, swid2, module2, port2, path2,
+            pod_id2, from_config2)
 
         hlinks = self.infra_mgr.get_hostlinks_for_host(
             'f5-compute-2.noiro.lab')
@@ -73,7 +75,8 @@ class TestAimInfraManager(base.TestAimDBBase):
         # Verify overwrite
         port2 = 3
         self.infra_mgr.add_hostlink(
-            host2, ifname2, ifmac2, swid2, module2, port2, path2)
+            host2, ifname2, ifmac2, swid2, module2, port2, path2,
+            pod_id2, from_config2)
         hlinks = self.infra_mgr.get_hostlinks_for_host(
             'f6-compute-2.noiro.lab')
         self.assertEqual('3', hlinks[0].port)
