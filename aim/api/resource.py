@@ -206,7 +206,7 @@ class BridgeDomain(AciResourceBase):
         super(BridgeDomain, self).__init__({'vrf_name': '',
                                             'enable_arp_flood': True,
                                             'enable_routing': True,
-                                            'limit_ip_learn_to_subnets': False,
+                                            'limit_ip_learn_to_subnets': True,
                                             'ip_learning': True,
                                             'l2_unknown_unicast_mode': 'proxy',
                                             'ep_move_detect_mode': 'garp',
