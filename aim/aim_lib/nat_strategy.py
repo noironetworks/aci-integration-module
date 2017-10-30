@@ -209,6 +209,14 @@ class NatStrategy(object):
         :param vrf: AIM VRF
         """
 
+    @abc.abstractmethod
+    def read_vrfs(self, ctx, external_network):
+        """Read external connectivity VRFs.
+
+        :param ctx: AIM context
+        :param external_network: AIM ExternalNetwork
+        """
+
 
 class NatStrategyMixin(NatStrategy):
     """Implements common functionality between different NAT strategies."""
@@ -364,8 +372,8 @@ class NatStrategyMixin(NatStrategy):
     def _get_nat_ap_epg(self, ctx, l3out):
         d_name = self._display_name(l3out)
         ap_name = getattr(self, 'app_profile_name', None) or l3out.name
-        ap_display_name = aim_utils.sanitize_display_name(
-            getattr(self, 'app_profile_name', None) or d_name)
+        ap_name = self._scope_name_if_common(l3out.tenant_name, ap_name)
+        ap_display_name = aim_utils.sanitize_display_name(ap_name or d_name)
         ap = resource.ApplicationProfile(
             tenant_name=l3out.tenant_name,
             name=ap_name,
@@ -379,33 +387,47 @@ class NatStrategyMixin(NatStrategy):
 
     def _get_nat_contract(self, ctx, l3out):
         d_name = self._display_name(l3out)
+        contract_name = self._scope_name_if_common(l3out.tenant_name,
+                                                   'EXT-%s' % l3out.name)
         return resource.Contract(
             tenant_name=l3out.tenant_name,
-            name='EXT-%s' % l3out.name,
-            display_name=aim_utils.sanitize_display_name('EXT-%s' % d_name))
+            name=contract_name,
+            display_name=self._scope_name_if_common(
+                l3out.tenant_name,
+                aim_utils.sanitize_display_name('EXT-%s' % d_name)))
 
     def _get_nat_bd(self, ctx, l3out):
         d_name = self._display_name(l3out)
+        bd_name = self._scope_name_if_common(l3out.tenant_name,
+                                             'EXT-%s' % l3out.name)
         return resource.BridgeDomain(
             tenant_name=l3out.tenant_name,
-            name='EXT-%s' % l3out.name,
-            display_name=aim_utils.sanitize_display_name('EXT-%s' % d_name),
+            name=bd_name,
+            display_name=self._scope_name_if_common(
+                l3out.tenant_name,
+                aim_utils.sanitize_display_name('EXT-%s' % d_name)),
             l3out_names=[l3out.name])
 
     def _get_nat_vrf(self, ctx, l3out):
         d_name = self._display_name(l3out)
+        vrf_name = self._scope_name_if_common(l3out.tenant_name,
+                                              'EXT-%s' % l3out.name)
         return resource.VRF(
             tenant_name=l3out.tenant_name,
-            name='EXT-%s' % l3out.name,
-            display_name=aim_utils.sanitize_display_name('EXT-%s' % d_name))
+            name=vrf_name,
+            display_name=self._scope_name_if_common(
+                l3out.tenant_name,
+                aim_utils.sanitize_display_name('EXT-%s' % d_name)))
 
     def _get_nat_objects(self, ctx, l3out):
         sani = aim_utils.sanitize_display_name
+        scope = self._scope_name_if_common
         d_name = self._display_name(l3out)
+        filter_name = scope(l3out.tenant_name, 'EXT-%s' % l3out.name)
         fltr = resource.Filter(
             tenant_name=l3out.tenant_name,
-            name='EXT-%s' % l3out.name,
-            display_name=sani('EXT-%s' % d_name))
+            name=filter_name,
+            display_name=sani(scope(l3out.tenant_name, 'EXT-%s' % d_name)))
         entry = resource.FilterEntry(
             tenant_name=fltr.tenant_name,
             filter_name=fltr.name,
@@ -487,6 +509,13 @@ class NatStrategyMixin(NatStrategy):
                              name=vrf_name)
         if vrfs:
             return vrfs[0]
+
+    def _scope_name_if_common(self, tenant_name, name):
+        if tenant_name == 'common':
+            scope = getattr(self, 'common_scope', None)
+            scope = scope + '_' if scope else ''
+            return aim_utils.sanitize_display_name(scope + name)
+        return name
 
 
 class NoNatStrategy(NatStrategyMixin):
@@ -600,6 +629,12 @@ class NoNatStrategy(NatStrategyMixin):
             self.mgr.update(ctx, external_network,
                             provided_contract_names=[contract.name],
                             consumed_contract_names=[contract.name])
+
+    def read_vrfs(self, ctx, external_network):
+        l3out = self.mgr.get(ctx,
+                             self._ext_net_to_l3out(external_network))
+        vrf = self._vrf_by_name(ctx, l3out.vrf_name, l3out.tenant_name)
+        return [vrf] if vrf else []
 
     def _get_bds_in_vrf_for_l3out(self, ctx, vrf, l3out):
         if vrf.tenant_name == 'common' and l3out.tenant_name == 'common':
@@ -727,6 +762,21 @@ class DistributedNatStrategy(NatStrategyMixin):
         """
         with ctx.store.begin(subtransactions=True):
             self._delete_shadow(ctx, external_network, vrf)
+
+    def read_vrfs(self, ctx, external_network):
+        l3out = self.mgr.get(ctx,
+                             self._ext_net_to_l3out(external_network))
+        result = []
+        for c in self.db.get_clones(ctx, l3out):
+            l3c = self.mgr.get(ctx, resource.L3Outside(tenant_name=c[0],
+                                                       name=c[1]))
+            if l3c:
+                vrf = self.mgr.get(
+                    ctx, resource.VRF(tenant_name=l3c.tenant_name,
+                                      name=l3c.vrf_name))
+                if vrf:
+                    result.append(vrf)
+        return result
 
     def _generate_l3out_name(self, l3outside, vrf):
         # Generate a name based on its relationship with VRF
