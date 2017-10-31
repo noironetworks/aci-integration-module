@@ -71,7 +71,9 @@ class TestAimInfraManager(base.TestAimDBBase):
 
         hlinks = self.infra_mgr.get_switch_and_port_for_host(host)
         self.assertEqual(hlinks[0], (hlinks_mgr[0].switch_id,
-                                     hlinks_mgr[0].module, hlinks_mgr[0].port))
+                                     hlinks_mgr[0].module, hlinks_mgr[0].port,
+                                     hlinks_mgr[0].interface_name,
+                                     hlinks_mgr[0].pod_id))
         # Verify overwrite
         port2 = 3
         self.infra_mgr.add_hostlink(

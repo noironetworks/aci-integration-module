@@ -44,7 +44,7 @@ class HostLinkManager(object):
         self.aim_manager = aim_manager
 
     def add_hostlink(self, host, ifname, ifmac, swid, module,
-                     port, path, pod_id=1, from_config=False):
+                     port, path, pod_id='1', from_config=False):
         link = infra.HostLink(
             host_name=host, interface_name=ifname,
             interface_mac=ifmac, switch_id=swid, module=module,
@@ -104,7 +104,8 @@ class HostLinkManager(object):
 
     def get_switch_and_port_for_host(self, host):
         res = self.get_hostlinks_for_host(host)
-        return list(set([(x.switch_id, x.module, x.port) for x in res]))
+        return list(set([(x.switch_id, x.module, x.port,
+                          x.interface_name, x.pod_id) for x in res]))
 
 
 class OpflexDevice(model_base.Base, model_base.AttributeMixin,
