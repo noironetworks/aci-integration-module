@@ -56,6 +56,10 @@ agent_opts = [
     cfg.BoolOpt('poll_config', default=False,
                 help=("Check whether to run the configuration poller or "
                       "not.")),
+    cfg.BoolOpt('disable_micro_segmentation', default=False,
+                help=("Set 'Allow Micro-Segmentation' flag to 'False' when "
+                      "associating VMM Domains with EPGs. This is needed "
+                      "when the hardware doesn't support this feature.")),
     cfg.StrOpt('aim_system_id', required=True, default='openstack_aid',
                help="Identifier of the AIM system used to mark object "
                     "ownership in ACI"),
