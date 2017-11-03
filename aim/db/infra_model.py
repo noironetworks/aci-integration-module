@@ -132,11 +132,9 @@ class HostDomainMapping(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_host_domain_mapping'
 
     host_name = sa.Column(sa.String(128), primary_key=True)
-    domain_name = sa.Column(sa.String(64), primary_key=True)
-    domain_type = sa.Column(sa.Enum('PhysDom',
-                                    'OpenStack',
-                                    'Kubernetes',
-                                    'VMware'), primary_key=True)
+
+    vmm_domain_name = sa.Column(sa.String(64))
+    physical_domain_name = sa.Column(sa.String(64))
 
 
 class HostLinkNetworkLabel(model_base.Base, model_base.AttributeMixin):
