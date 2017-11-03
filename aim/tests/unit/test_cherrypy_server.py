@@ -19,6 +19,7 @@ import mock
 import requests
 
 from aim import aim_manager
+from aim.api import infra as infra_res
 from aim.api import resource as api_res
 from aim.api import status as status_res
 from aim.api import tree as tree_res
@@ -82,6 +83,10 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
             tree_res.ActionLog,  # Never created by API
             api_res.Topology,  # Can create only 1
             api_res.Agent,  # Created only by AID
+            # REVISIT(tbachman): Instead of avaoiding classes
+            # with enum data types, we should introspect the
+            # object and create valid identifiers for the test
+            infra_res.HostDomainMapping,  # Avoiding enums for now
         }
         # For debugging purposes, only test one type
         test_only = {}
