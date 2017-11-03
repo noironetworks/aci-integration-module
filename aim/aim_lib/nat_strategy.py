@@ -406,6 +406,7 @@ class NatStrategyMixin(NatStrategy):
             display_name=self._scope_name_if_common(
                 l3out.tenant_name,
                 aim_utils.sanitize_display_name('EXT-%s' % d_name)),
+            limit_ip_learn_to_subnets=True,
             l3out_names=[l3out.name])
 
     def _get_nat_vrf(self, ctx, l3out):

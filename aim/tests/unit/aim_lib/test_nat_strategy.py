@@ -86,6 +86,7 @@ class TestNatStrategyBase(object):
             a_res.BridgeDomain(tenant_name='t1', name=name,
                                display_name=d_name,
                                vrf_name=nat_vrf_name or name,
+                               limit_ip_learn_to_subnets=True,
                                l3out_names=[l3out_name or 'o1']),
             a_res.ApplicationProfile(tenant_name='t1', name='myapp',
                                      display_name='myapp'),
@@ -259,6 +260,7 @@ class TestNatStrategyBase(object):
         if self.vrf1_tenant_name != self.bd1_tenant_name:
             self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
         bd1 = a_res.BridgeDomain(tenant_name=self.bd1_tenant_name, name='bd1',
+                                 limit_ip_learn_to_subnets=True,
                                  vrf_name='vrf1')
         self.mgr.create(self.ctx, vrf1)
         self.mgr.create(self.ctx, bd1)
@@ -277,6 +279,7 @@ class TestNatStrategyBase(object):
         vrf2 = a_res.VRF(tenant_name=self.vrf2_tenant_name, name='vrf2',
                          display_name='VRF2')
         bd2 = a_res.BridgeDomain(tenant_name=self.vrf2_tenant_name, name='bd2',
+                                 limit_ip_learn_to_subnets=True,
                                  vrf_name='vrf2')
         self.mgr.create(self.ctx, vrf2)
         self.mgr.create(self.ctx, bd2)
@@ -382,6 +385,7 @@ class TestNatStrategyBase(object):
         vrf1 = a_res.VRF(tenant_name=self.vrf1_tenant_name, name='vrf1',
                          display_name='VRF1')
         bd1 = a_res.BridgeDomain(tenant_name=self.vrf1_tenant_name, name='bd1',
+                                 limit_ip_learn_to_subnets=True,
                                  vrf_name='vrf1')
         self.mgr.create(self.ctx, vrf1)
         self.mgr.create(self.ctx, bd1)
@@ -674,6 +678,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                 tenant_name='t1', name='EXT-o1',
                 display_name='EXT-OUT',
                 vrf_name='vrf1' if connected else 'EXT-o1',
+                limit_ip_learn_to_subnets=True,
                 l3out_names=['o1']),
             'ext_sub_1': a_res.ExternalSubnet(
                 tenant_name='t1', l3out_name='o1',
@@ -701,6 +706,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                 tenant_name='t2', name='EXT-o2',
                 display_name='EXT-OUT2',
                 vrf_name='vrf1' if connected else 'EXT-o2',
+                limit_ip_learn_to_subnets=True,
                 l3out_names=['o2']),
             'ext_sub_1': a_res.ExternalSubnet(
                 tenant_name='t2', l3out_name='o2',
@@ -715,9 +721,11 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                       if not isinstance(o, a_res.BridgeDomain)]
         bd1 = a_res.BridgeDomain(tenant_name='t1', name='bd1',
                                  vrf_name='vrf1',
+                                 limit_ip_learn_to_subnets=True,
                                  l3out_names=['o1'])
         bd2 = a_res.BridgeDomain(tenant_name='t1', name='bd2',
                                  vrf_name='vrf2',
+                                 limit_ip_learn_to_subnets=True,
                                  l3out_names=['o1'])
         if stage == 'stage1':
             self._verify(present=objs.values() + l3out_objs + [bd1])
@@ -856,15 +864,20 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
 
         vrf = a_res.VRF(tenant_name='common', name='default')
         bd1_dept1 = a_res.BridgeDomain(tenant_name='dept1', name='bd1',
+                                       limit_ip_learn_to_subnets=True,
                                        vrf_name='default')
         bd2_dept1 = a_res.BridgeDomain(tenant_name='dept1', name='bd2',
+                                       limit_ip_learn_to_subnets=True,
                                        vrf_name='default')
         bd1_dept2 = a_res.BridgeDomain(tenant_name='dept2', name='bd1',
+                                       limit_ip_learn_to_subnets=True,
                                        vrf_name='default')
         vrf_dept2 = a_res.VRF(tenant_name='dept2', name='default')
         bd1_dept3 = a_res.BridgeDomain(tenant_name='dept3', name='bd1',
+                                       limit_ip_learn_to_subnets=True,
                                        vrf_name='default')
         bd2_dept3 = a_res.BridgeDomain(tenant_name='dept3', name='bd2',
+                                       limit_ip_learn_to_subnets=True,
                                        vrf_name='foo')
         for o in [vrf, bd1_dept1, bd2_dept1, bd1_dept2, vrf_dept2,
                   bd1_dept3, bd2_dept3]:
@@ -917,8 +930,10 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         self.mgr.create(self.ctx, a_res.Tenant(name='dept1'))
         vrf = a_res.VRF(tenant_name='dept1', name='default')
         bd1_dept1 = a_res.BridgeDomain(tenant_name='dept1', name='bd1',
+                                       limit_ip_learn_to_subnets=True,
                                        vrf_name='default')
         bd2_dept1 = a_res.BridgeDomain(tenant_name='dept1', name='bd2',
+                                       limit_ip_learn_to_subnets=True,
                                        vrf_name='foo')
         for o in [vrf, bd1_dept1, bd2_dept1]:
             self.mgr.create(self.ctx, o)
