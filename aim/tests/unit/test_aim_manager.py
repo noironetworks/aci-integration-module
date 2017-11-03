@@ -952,15 +952,15 @@ class TestHostLinkMixin(object):
 
 class TestHostDomainMappingMixin(object):
     resource_class = infra.HostDomainMapping
-    test_identity_attributes = {'host_name': 'host1.example.com',
-                                'domain_name': 'ostack1',
-                                'domain_type': 'OpenStack'}
+    test_identity_attributes = {'host_name': 'host1.example.com'}
     test_required_attributes = {'host_name': 'host1.example.com',
-                                'domain_name': 'ostack1',
-                                'domain_type': 'OpenStack'}
+                                'vmm_domain_name': 'ostack1',
+                                'physical_domain_name': 'physdom1'}
     test_search_attributes = {'host_name': 'host1.example.com'}
-    test_update_attributes = {}
-    test_default_values = {}
+    test_update_attributes = {'vmm_domain_name': 'ostack2',
+                              'physical_domain_name': 'physdom2'}
+    test_default_values = {'vmm_domain_name': '',
+                           'physical_domain_name': ''}
     res_command = 'host-domain-mapping'
 
 
