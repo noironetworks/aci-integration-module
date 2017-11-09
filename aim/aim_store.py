@@ -210,6 +210,8 @@ class SqlAlchemyStore(AimStore):
                     api_infra.HostLink: infra_model.HostLink,
                     api_infra.HostDomainMapping: (
                         infra_model.HostDomainMapping),
+                    api_infra.HostDomainMappingV2: (
+                        infra_model.HostDomainMappingV2),
                     api_infra.HostLinkNetworkLabel: (
                         infra_model.HostLinkNetworkLabel),
                     api_res.SecurityGroup: models.SecurityGroup,

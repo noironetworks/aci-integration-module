@@ -964,6 +964,20 @@ class TestHostDomainMappingMixin(object):
     res_command = 'host-domain-mapping'
 
 
+class TestHostDomainMappingV2Mixin(object):
+    resource_class = infra.HostDomainMappingV2
+    test_identity_attributes = {'host_name': 'host1.example.com',
+                                'domain_name': 'ostack1',
+                                'domain_type': 'OpenStack'}
+    test_required_attributes = {'host_name': 'host1.example.com',
+                                'domain_name': 'ostack1',
+                                'domain_type': 'OpenStack'}
+    test_search_attributes = {'host_name': 'host1.example.com'}
+    test_update_attributes = {}
+    test_default_values = {}
+    res_command = 'host-domain-mapping-v2'
+
+
 class TestHostLinkNetworkLabelMixin(object):
     resource_class = infra.HostLinkNetworkLabel
     test_identity_attributes = {'host_name': 'host1.example.com',
@@ -1840,6 +1854,11 @@ class TestHostLink(TestHostLinkMixin, TestAciResourceOpsBase,
 
 class TestHostDomainMapping(TestHostDomainMappingMixin, TestResourceOpsBase,
                             base.TestAimDBBase):
+    pass
+
+
+class TestHostDomainMappingV2(TestHostDomainMappingV2Mixin,
+                              TestResourceOpsBase, base.TestAimDBBase):
     pass
 
 
