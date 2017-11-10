@@ -418,6 +418,11 @@ class TestHostDomainMapping(test_aim_manager.TestHostDomainMappingMixin,
     pass
 
 
+class TestHostDomainMappingV2(test_aim_manager.TestHostDomainMappingV2Mixin,
+                              TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
 class TestHostLinkNetworkLabel(test_aim_manager.TestHostLinkNetworkLabelMixin,
                                TestManagerResourceOpsBase, base.TestShell):
     pass

@@ -87,6 +87,22 @@ class HostDomainMapping(resource.ResourceBase):
                                                 **kwargs)
 
 
+class HostDomainMappingV2(resource.ResourceBase):
+    """host to VMM and phys-dom mapping, version 2"""
+
+    identity_attributes = t.identity(
+        ('host_name', t.string(128)),
+        ('domain_name', t.string(64)),
+        ('domain_type', t.enum('PhysDom',
+                               'OpenStack',
+                               'Kubernetes',
+                               'VMware')))
+    other_attributes = t.other()
+
+    def __init__(self, **kwargs):
+        super(HostDomainMappingV2, self).__init__({}, **kwargs)
+
+
 class HostLinkNetworkLabel(resource.ResourceBase):
     """A network label to host link"""
 
