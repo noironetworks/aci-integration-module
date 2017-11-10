@@ -100,11 +100,15 @@ def get_children_mos(apic_session, root):
 OPERATIONAL_LIST = [FAULT_KEY]
 TENANT_FAILURE_MAX_WAIT = 60
 ACI_TYPES_NOT_CONVERT_IF_MONITOR = {}
+ACI_TYPES_SKIP_ON_MANAGES = {}
 for typ in converter.resource_map:
     if "__" not in typ:
         for resource in converter.resource_map[typ]:
             if resource.get('convert_monitored') is False:
                 ACI_TYPES_NOT_CONVERT_IF_MONITOR.setdefault(
+                    typ, []).append(resource['resource']._aci_mo_name)
+            if resource.get('skip_for_managed') is True:
+                ACI_TYPES_SKIP_ON_MANAGES.setdefault(
                     typ, []).append(resource['resource']._aci_mo_name)
 
 
@@ -480,6 +484,16 @@ class AciTenantManager(utils.AIMThread):
                             # For an RS object like fvRsProv we check the
                             # parent ownership as well.
                             continue
+                # Exclude from conversion those list RS objects that we want
+                # allow to be manually configured in ACI
+                if type in ACI_TYPES_SKIP_ON_MANAGES:
+                    if self._check_parent_type(
+                            event, ACI_TYPES_SKIP_ON_MANAGES[type]):
+                        # Check whether the event is owned, and whether its
+                        # parent is.
+                        if (not self._is_owned(event, check_parent=False) and
+                                self._is_owned(event)):
+                            continue
                 if self.is_child_object(type) and self._is_deleting(event):
                     # Can be excluded, we expect parent objects
                     continue
@@ -665,7 +679,7 @@ class AciTenantManager(utils.AIMThread):
                 self.tag_set.discard(event.values()[0]['attributes']['dn'])
         return managed
 
-    def _is_owned(self, aci_object):
+    def _is_owned(self, aci_object, check_parent=True):
         # An RS whose parent is owned is an owned object.
         dn = aci_object.values()[0]['attributes']['dn']
         type = aci_object.keys()[0]
@@ -675,7 +689,7 @@ class AciTenantManager(utils.AIMThread):
             return '/'.join(decomposed[:-1]) in self.tag_set
         else:
             owned = dn in self.tag_set
-            if not owned and self.is_child_object(type):
+            if not owned and self.is_child_object(type) and check_parent:
                 # Check for parent ownership
                 try:
                     decomposed = (

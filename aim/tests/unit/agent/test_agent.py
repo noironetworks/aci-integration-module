@@ -780,19 +780,19 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         prov = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn1.rn].aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1' % tenant_name)
-        self.assertIsNotNone(prov[0])
+        self.assertNotEqual([], prov[0])
         # Also its tag exists
         prov_tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn1.rn].aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1/'
             'tag-openstack_aid' % tenant_name)
-        self.assertIsNotNone(prov_tag[0])
+        self.assertNotEqual([], prov_tag[0])
         # Old contract still exists
         prov_def = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn1.rn].aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-default' %
             tenant_name)
-        self.assertIsNotNone(prov_def[0])
+        self.assertNotEqual([], prov_def[0])
         # Verify all tree converged
         self._assert_universe_sync(desired_monitor, current_monitor,
                                    tenants=[tn1.root])
@@ -902,10 +902,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_reset_consistency()
 
         # C2 RS is not to be found
-        self.assertRaises(
-            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
-            'mo/' + aci_contract_rs['fvRsProv']['attributes']['dn'])
+        self.assertEqual(
+            [{'fvRsProv': {
+                'attributes': {
+                    'dn': 'uni/tn-test_manual_rs/ap-app/epg-epg/rsprov-c2',
+                    'tnVzBrCPName': 'c2'}}}],
+            test_aci_tenant.mock_get_data(
+                desired_monitor.serving_tenants[tn.rn].aci_session,
+                'mo/' + aci_contract_rs['fvRsProv']['attributes']['dn']))
 
     def test_monitored_state_change(self):
         agent = self._create_agent()
@@ -970,11 +974,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + epg.dn + '/tag-openstack_aid')
-        self.assertIsNotNone(tag)
+        self.assertNotEqual([], tag)
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
-        self.assertIsNotNone(tag)
+        self.assertNotEqual([], tag)
         # Run an empty change on the EPG, bringing it to sync pending
         self.aim_manager.update(self.ctx, epg)
         self._sync_and_verify(agent, current_config,
@@ -1078,11 +1082,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/tag-openstack_aid')
-        self.assertIsNotNone(tag)
+        self.assertNotEqual([], tag)
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
-        self.assertIsNotNone(tag)
+        self.assertNotEqual([], tag)
 
         # Use l3out with VRF
         vrf1 = resource.VRF(tenant_name=tenant_name, name='foo')
@@ -1095,7 +1099,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
-        self.assertIsNotNone(tag)
+        self.assertNotEqual([], tag)
         ctxRs = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx')
@@ -1111,7 +1115,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx/tag-openstack_aid')
-        self.assertIsNotNone(tag)
+        self.assertNotEqual([], tag)
         ctxRs = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx')
@@ -1140,7 +1144,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         ctxRs = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + l3out.dn + '/rsectx')
-        self.assertIsNotNone(ctxRs)
+        self.assertNotEqual([], ctxRs)
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
             desired_monitor.serving_tenants[tn.rn].aci_session,
@@ -1240,7 +1244,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + ext_net.dn + '/rsprov-p1/tag-openstack_aid')
-        self.assertIsNotNone(tag)
+        self.assertNotEqual([], tag)
 
         self.aim_manager.update(self.ctx, ext_net,
                                 provided_contract_names=[])
@@ -1385,16 +1389,16 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         vmm = test_aci_tenant.mock_get_data(
             current_config.serving_tenants['vmmp-OpenStack'].aci_session,
             'mo/' + vmm.dn)
-        self.assertIsNotNone(vmm)
+        self.assertNotEqual([], vmm)
         physl = test_aci_tenant.mock_get_data(
             current_config.serving_tenants[phys.rn].aci_session,
             'mo/' + phys.dn)
-        self.assertIsNotNone(physl)
+        self.assertNotEqual([], physl)
         self.assertEqual('topology/pod-1', pod.dn)
         pod = test_aci_tenant.mock_get_data(
             current_config.serving_tenants[topology.rn].aci_session,
             'mo/' + pod.dn)
-        self.assertIsNotNone(pod)
+        self.assertNotEqual([], pod)
         self._assert_reset_consistency()
         self._assert_reset_consistency(vmmp.rn)
         self._assert_reset_consistency(phys.rn)
@@ -1448,7 +1452,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         dest = test_aci_tenant.mock_get_data(
             current_config.serving_tenants[tn.rn].aci_session,
             'mo/' + srp.dn + '/RedirectDest_ip-[1.1.1.1]')
-        self.assertIsNotNone(dest)
+        self.assertNotEqual([], dest)
         # Create one manually
         aci_dst = {
             'vnsRedirectDest': {
@@ -1603,7 +1607,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             dest = test_aci_tenant.mock_get_data(
                 current_config.serving_tenants[tn.rn].aci_session,
                 'mo/' + bd.dn)
-            self.assertIsNotNone(dest)
+            self.assertNotEqual([], dest)
             # The tree needs_reset attribute should be set to False
             for tenant in [tenant_name, tenant_name2]:
                 base_tree = self.tt_mgr.get_base_tree(self.ctx, 'tn-' + tenant)
@@ -1684,6 +1688,102 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(current_config, desired_config),
                                (current_monitor, desired_monitor)],
                               tenants=[tn.root])
+
+    def test_skip_for_managed(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        tenant_name = 'test_skip_for_managed'
+        current_monitor = agent.multiverse[2]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        # start by managing a single tenant (non-monitored)
+        tn1 = resource.Tenant(name=tenant_name, monitored=True)
+        aci_tn = self._get_example_aci_tenant(
+            name=tenant_name, dn='uni/tn-%s' % tenant_name, nameAlias='nice')
+        self.aim_manager.create(self.ctx, tn1)
+        # Run loop for serving tenant
+        self._first_serve(agent)
+        self._set_events(
+            [aci_tn], manager=desired_monitor.serving_tenants[tn1.rn],
+            tag=False)
+        self._observe_aci_events(current_config)
+        # Simulate pre existing EPG
+        aci_ap = self._get_example_aci_app_profile(
+            name='ap', dn='uni/tn-%s/ap-ap' % tenant_name)
+        aci_epg = self._get_example_aci_epg(
+            name='default', dn='uni/tn-%s/ap-ap/epg-default' % tenant_name)
+        aci_rsprov = self._get_example_provided_contract(
+            dn='uni/tn-%s/ap-ap/epg-default/rsprov-c' % tenant_name)
+        aci_rscons = self._get_example_consumed_contract(
+            dn='uni/tn-%s/ap-ap/epg-default/rscons-c' % tenant_name)
+        self._set_events(
+            [aci_ap, aci_epg, aci_rsprov, aci_rscons],
+            manager=desired_monitor.serving_tenants[tn1.rn],
+            tag=False)
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+
+        # Observe ACI events
+        self._observe_aci_events(current_config)
+
+        # Run the loop for reconciliation
+        agent._daemon_loop(self.ctx)
+
+        # Run loop again to set SYNCED state
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+
+        # A monitored EPG should now exist in AIM with its contracts
+        aim_epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
+            tenant_name=tenant_name, app_profile_name='ap', name='default'))
+        self.assertTrue(aim_epg.monitored)
+        self.assertEqual(['c'], aim_epg.provided_contract_names)
+        self.assertEqual(['c'], aim_epg.consumed_contract_names)
+
+        # Create managed EPG
+        self.aim_manager.create(
+            self.ctx, resource.EndpointGroup(tenant_name=tenant_name,
+                                             app_profile_name='ap',
+                                             name='default2'))
+        self._observe_aci_events(current_config)
+        # Run the loop for reconciliation
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        # Add contracts manually
+        aci_rsprov = self._get_example_provided_contract(
+            dn='uni/tn-%s/ap-ap/epg-default2/rsprov-c' % tenant_name)
+        aci_rscons = self._get_example_consumed_contract(
+            dn='uni/tn-%s/ap-ap/epg-default2/rscons-c' % tenant_name)
+        self._set_events([aci_rsprov, aci_rscons],
+                         manager=desired_monitor.serving_tenants[tn1.rn],
+                         tag=False)
+        self._observe_aci_events(current_config)
+        # Run the loop for reconciliation
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        # Contracts not in AIM, but still in ACI
+        aim_epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
+            tenant_name=tenant_name, app_profile_name='ap', name='default2'))
+        self.assertFalse(aim_epg.monitored)
+        self.assertEqual([], aim_epg.provided_contract_names)
+        self.assertEqual([], aim_epg.consumed_contract_names)
+        dest = test_aci_tenant.mock_get_data(
+            current_config.serving_tenants[tn1.rn].aci_session,
+            'mo/' + aci_rsprov['fvRsProv']['attributes']['dn'])
+        self.assertNotEqual([], dest)
+        dest = test_aci_tenant.mock_get_data(
+            current_config.serving_tenants[tn1.rn].aci_session,
+            'mo/' + aci_rscons['fvRsCons']['attributes']['dn'])
+        self.assertNotEqual([], dest)
+        self._assert_universe_sync(desired_monitor, current_monitor,
+                                   tenants=[tn1.root])
+        self._assert_reset_consistency(tn1.rn)
 
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
