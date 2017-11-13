@@ -516,6 +516,19 @@ class TestAimDBBase(BaseTestCase):
         return example_rsprov
 
     @classmethod
+    def _get_example_consumed_contract(cls, **kwargs):
+        example_rscons = {
+            "fvRsCons": {
+                "attributes": {
+                    "dn": "uni/tn-common/ap-ap/epg-epg/rscons-c",
+                    "tnVzBrCPName": "c"
+                }
+            }
+        }
+        example_rscons['fvRsCons']['attributes'].update(kwargs)
+        return example_rscons
+
+    @classmethod
     def generate_aim_object(cls, aim_type, **kwargs):
         """Generate AIM object with random identity attributes.
 
