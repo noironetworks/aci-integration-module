@@ -196,12 +196,13 @@ def get(klass):
 
 
 def describe(klass):
-    def _describe(ctx):
+    def _describe(ctx, **kwargs):
+        plain = kwargs.pop('plain', False)
         rows = [[set_type, ', '.join(getattr(klass, set_type))]
                 for set_type in [
                     'identity_attributes', 'other_attributes',
                     'db_attributes']]
-        click.echo(tabulate(rows, tablefmt='psql'))
+        click.echo(tabulate(rows, tablefmt='plain' if plain else 'psql'))
     return _describe
 
 
