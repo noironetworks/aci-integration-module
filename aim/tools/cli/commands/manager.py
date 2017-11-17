@@ -135,11 +135,13 @@ def create(klass):
 
 def delete(klass):
     def _delete(ctx, **kwargs):
+        force = kwargs.pop('force', False)
+        cascade = kwargs.pop('cascade', False)
         kwargs = filter_kwargs(klass, kwargs)
         manager = ctx.obj['manager']
         aim_ctx = ctx.obj['aim_ctx']
         res = klass(**kwargs)
-        manager.delete(aim_ctx, res)
+        manager.delete(aim_ctx, res, force=force, cascade=cascade)
     return _delete
 
 
@@ -327,6 +329,9 @@ for res in aim_manager.AimManager._db_model_map:
     def force(f):
         return click.option('--force', '-f', default=False, is_flag=True)(f)
 
+    def cascade(f):
+        return click.option('--cascade', '-C', default=False, is_flag=True)(f)
+
     # runtime create commands
     name = convert(res.__name__)
     f = click.pass_context(create(res))
@@ -338,6 +343,7 @@ for res in aim_manager.AimManager._db_model_map:
     f = click.pass_context(delete(res))
     f = plain_output(f)
     f = force(f)
+    f = cascade(f)
     f = specify_id_attrs(f)
     manager.command(name=name + '-delete')(f)
 
