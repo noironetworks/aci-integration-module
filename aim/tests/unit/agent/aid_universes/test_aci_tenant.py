@@ -439,7 +439,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             'tn-tenant-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
             aci_universe.get_websocket_context(self.cfg_manager),
-            universe=universe)
+            get_resources=universe.get_resources)
         self.manager._get_full_state = mock.Mock(
             return_value=[self.backend_state])
 

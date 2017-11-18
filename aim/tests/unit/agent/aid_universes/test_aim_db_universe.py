@@ -14,6 +14,7 @@
 #    under the License.
 
 import mock
+from oslo_db import exception as db_exc
 
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import aim_universe
@@ -449,6 +450,25 @@ class TestAimDbUniverseBase(object):
                     epg.external_identifier,
                     aim_universe.converter.resource_map)[0],
                 resource.EndpointGroup))
+
+    @base.requires(['sql'])
+    def test_session_rollback(self):
+        aim_mgr = aim_manager.AimManager()
+        aim_mgr.create(self.ctx, resource.Tenant(name='t1'))
+        ap = self._get_example_aci_app_profile(dn='uni/tn-t1/ap-a1')
+        self.universe.context.store.begin = mock.Mock(
+            side_effect=db_exc.DBError)
+        rollback = self.universe.context.store.db_session.rollback
+        self.called_count = 0
+
+        def rollback_count():
+            rollback()
+            self.called_count += 1
+
+        self.universe.context.store.db_session.rollback = rollback_count
+        self.universe.push_resources({'create': [ap], 'delete': []})
+        self.assertEqual(1, self.called_count)
+        del self.called_count
 
 
 class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
