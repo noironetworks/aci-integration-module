@@ -313,7 +313,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     serving_tenants[added] = aci_tenant.AciTenantManager(
                         added, self.conf_manager, self.aci_session,
                         self.ws_context, self.creation_succeeded,
-                        self.creation_failed, self.aim_system_id, self)
+                        self.creation_failed, self.aim_system_id,
+                        self.get_resources)
                     # A subscription might be leaking here
                     serving_tenants[added]._unsubscribe_tenant()
                     serving_tenants[added].start()

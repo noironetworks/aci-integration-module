@@ -154,10 +154,10 @@ class AciTenantManager(utils.AIMThread):
 
     def __init__(self, tenant_name, apic_config, apic_session, ws_context,
                  creation_succeeded=None, creation_failed=None,
-                 aim_system_id=None, universe=None, *args, **kwargs):
+                 aim_system_id=None, get_resources=None, *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
         LOG.info("Init manager for tenant %s" % tenant_name)
-        self.universe = universe
+        self.get_resources = get_resources
         self.apic_config = apic_config
         # Each tenant has its own sessions
         self.aci_session = apic_session
@@ -613,7 +613,7 @@ class AciTenantManager(utils.AIMThread):
                 if key:
                     # Search within the TenantManager state, which is the most
                     # up to date.
-                    data = self.universe.get_resources(
+                    data = self.get_resources(
                         [key], desired_state=self._get_full_state())
                 if not data and not apnf:
                     LOG.debug("Resource %s not found or not supported", raw_dn)

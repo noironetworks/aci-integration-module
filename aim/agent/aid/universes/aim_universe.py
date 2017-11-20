@@ -76,6 +76,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             new_state.setdefault(tenant, self._state.get(tenant))
         self._state = new_state
 
+    @base.fix_session_if_needed
     def observe(self):
         # TODO(ivar): move this to a separate thread and add scheduled reset
         # mechanism
@@ -86,6 +87,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # avoid syncing it altogether
         self._state.update(self.get_optimized_state(self.state))
 
+    @base.fix_session_if_needed
     def reset(self, tenants):
         LOG.warn('Reset called for roots %s' % tenants)
         for root in tenants:
@@ -108,9 +110,11 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # return self.tree_manager.find_changed(self.context, request,
         #                                       tree=tree)
 
+    @base.fix_session_if_needed
     def cleanup_state(self, key):
         self.tree_manager.delete_by_root_rn(self.context, key)
 
+    @base.fix_session_if_needed
     def _get_state(self, tree=tree_manager.CONFIG_TREE):
         return self.tree_manager.find_changed(
             self.context, dict([(x, None) for x in self._served_tenants]),
@@ -219,6 +223,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, e.message))
                     LOG.debug(traceback.format_exc())
+                    self.context.store.fix_session(e)
                     # REVISIT(ivar): can creation on the AIM side fail? If so,
                     # what can the universe do about it? We can't set sync
                     # status of non existing objects, neither we can remove
@@ -229,6 +234,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 else:
                     self._monitored_state_update_failures = 0
 
+    @base.fix_session_if_needed
     def _set_sync_pending_state(self, transformed_diff, raw_diff,
                                 other_universe, skip_roots=None):
         skip_roots = skip_roots or []
@@ -238,6 +244,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             if obj.root not in skip_roots:
                 self.manager.set_resource_sync_pending(self.context, obj)
 
+    @base.fix_session_if_needed
     def _set_synced_state(self, my_state, raw_diff, skip_roots=None):
         skip_roots = skip_roots or []
         all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])

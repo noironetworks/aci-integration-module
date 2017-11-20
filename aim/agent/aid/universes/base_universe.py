@@ -40,6 +40,16 @@ ACTION_RESET = 'reset'
 ACTION_PURGE = 'purge'
 
 
+def fix_session_if_needed(func):
+    def wrap(inst, *args, **kwargs):
+        try:
+            return func(inst, *args, **kwargs)
+        except Exception as e:
+            inst.context.store.fix_session(e)
+            raise e
+    return wrap
+
+
 @six.add_metaclass(abc.ABCMeta)
 class BaseUniverse(object):
     """Universe Base Class
@@ -535,6 +545,7 @@ class HashTreeStoredUniverse(AimUniverse):
         return self.error_handlers.get(error, self._noop)(
             aim_object, operation, reason)
 
+    @fix_session_if_needed
     def _retry_until_max(self, aim_object, operation, reason):
         aim_id = self._get_aim_object_identifier(aim_object)
         failures, last = self.failure_log.get(aim_id, (0, None))
@@ -550,6 +561,7 @@ class HashTreeStoredUniverse(AimUniverse):
                                                      message=reason)
                 self.failure_log.pop(aim_id, None)
 
+    @fix_session_if_needed
     def _surrender_operation(self, aim_object, operation, reason):
         aim_id = self._get_aim_object_identifier(aim_object)
         self.manager.set_resource_sync_error(self.context, aim_object,
