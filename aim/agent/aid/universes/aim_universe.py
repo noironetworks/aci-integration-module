@@ -336,3 +336,19 @@ class AimDbMonitoredUniverse(AimDbUniverse):
         self._set_sync_pending_state(add_diff, raw_diff, other_universe,
                                      skip_roots=skip_roots)
         self._set_synced_state(my_state, raw_diff, skip_roots=skip_roots)
+
+    def get_resources_for_delete(self, resource_keys):
+        des_mon = self.multiverse[base.MONITOR_UNIVERSE]['desired'].state
+
+        def action(result, aci_object, node):
+            key = tree_manager.AimHashTreeMaker._dn_to_key(
+                aci_object.keys()[0],
+                aci_object.values()[0]['attributes']['dn'])
+            if len(key) == 1:
+                LOG.debug('Skipping delete for monitored root object: %s '
+                          % aci_object)
+                return
+            if not node or node.dummy:
+                result.append(aci_object)
+        return self._converter.convert(
+            self._get_resources_for_delete(resource_keys, des_mon, action))

@@ -1785,6 +1785,32 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn1.root])
         self._assert_reset_consistency(tn1.rn)
 
+    def test_skip_monitored_root(self):
+        # Set retry to 1 to cause immediate creation surrender
+        agent = self._create_agent()
+        current_config = agent.multiverse[0]['current']
+
+        desired_monitor = agent.multiverse[2]['desired']
+        current_monitor = agent.multiverse[2]['current']
+
+        tenant_name = 'test_skip_monitored_root'
+        self.assertEqual({}, desired_monitor.aci_session._data_stash)
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+
+        tn1 = resource.Tenant(name=tenant_name, monitored=True)
+        # Create tenant in AIM to start observing it
+        self.aim_manager.create(self.ctx, tn1)
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        # Tenant still exists
+        self.assertIsNotNone(self.aim_manager.get(self.ctx, tn1))
+        # Action cache is empty
+        self.assertEqual({}, desired_monitor._action_cache)
+        self.assertEqual({}, current_monitor._action_cache)
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']
