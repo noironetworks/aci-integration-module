@@ -232,7 +232,7 @@ class StructuredHashTree(base.ComparableCollection):
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
             self.root = StructuredTreeNode(
-                (key[0],), self._hash_attributes(key=(key[0],)))
+                (key[0],), self._hash_attributes(key=(key[0],), _dummy=True))
             self.root_key = self.root.key
         else:
             # With the first element of the key, verify that this is not an
@@ -250,12 +250,14 @@ class StructuredHashTree(base.ComparableCollection):
             # Get child or set it with a placeholder if it doesn't exist
             node = node.set_child(
                 partial_key, StructuredTreeNode(
-                    partial_key, self._hash_attributes(key=partial_key)))
+                    partial_key, self._hash_attributes(key=partial_key,
+                                                       _dummy=True)))
             stack.append(node)
-        # Node is the last added element at this point
-        node.partial_hash = self._hash_attributes(key=key, **kwargs)
-        # When a node is explicitly added, it is not dummy anymore
+        # When a node is explicitly added, it is not dummy
         node.dummy = False
+        # Node is the last added element at this point
+        node.partial_hash = self._hash_attributes(key=key, _dummy=node.dummy,
+                                                  **kwargs)
         node.error = error
         if has_metadata:
             if metadata_dict is not None:
@@ -322,9 +324,9 @@ class StructuredHashTree(base.ComparableCollection):
         if not node:
             return
         # Make node dummy
-        node.partial_hash = self._hash_attributes(key=key)
-        node.full_hash = None
         node.dummy = True
+        node.partial_hash = self._hash_attributes(key=key, _dummy=node.dummy)
+        node.full_hash = None
         parents.append(node)
         # Cleanup parent list if node is a leaf
         self._clear_stack_from_dummies(parents)
@@ -360,7 +362,7 @@ class StructuredHashTree(base.ComparableCollection):
         return result
 
     def diff(self, other):
-        # TODO(ivar): exclude dummy nodes
+        # Calculates the set of operations needed to transform other into self
         if not self.root:
             return {"add": [], "remove": self._get_subtree_keys(other.root)}
         if not other.root:
@@ -376,25 +378,31 @@ class StructuredHashTree(base.ComparableCollection):
     def has_subtree(self):
         return self.root and len(self.root._children) > 0
 
-    def _diff_children(self, childrenl, childrenr, result):
-        for node in childrenr:
-            if childrenl.index(node.key) is None:
+    def _diff_children(self, selfchildren, otherchildren, result):
+        for othernode in otherchildren:
+            if selfchildren.index(othernode.key) is None:
                 # This subtree needs to be removed
-                LOG.debug("Extra subtree to remove: %s" % str(node))
-                result['remove'] += self._get_subtree_keys(node)
+                LOG.debug("Extra subtree to remove: %s" % str(othernode))
+                result['remove'] += self._get_subtree_keys(othernode)
             else:
                 # Common child
-                if childrenl[node.key].partial_hash != node.partial_hash:
-                    if not (node.error or childrenl[node.key].error):
-                        LOG.debug("Node %s out of sync" % str(node.key))
-                        # This node needs to be modified as well
-                        result['add'].append(node.key)
-                if childrenl[node.key].full_hash != node.full_hash:
+                selfnode = selfchildren[othernode.key]
+                if selfnode.partial_hash != othernode.partial_hash:
+                    # Only evaluate differences for non error nodes
+                    if not (othernode.error or selfnode.error):
+                        LOG.debug("Node %s out of sync" % str(othernode.key))
+                        if selfnode.dummy:
+                            # Needs to be removed on the other tree
+                            result['remove'].append(othernode.key)
+                        else:
+                            # Needs to be modified on the other tree
+                            result['add'].append(othernode.key)
+                if selfnode.full_hash != othernode.full_hash:
                     # Evaluate all their children
-                    self._diff_children(childrenl[node.key]._children,
-                                        node._children, result)
-        for node in childrenl:
-            if childrenr.index(node.key) is None:
+                    self._diff_children(selfnode._children,
+                                        othernode._children, result)
+        for node in selfchildren:
+            if otherchildren.index(node.key) is None:
                 # Whole subtree needs to be added
                 LOG.debug("Subtree missing: %s" % str(node))
                 result['add'] += self._get_subtree_keys(node)

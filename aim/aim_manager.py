@@ -131,6 +131,8 @@ class AimManager(object):
         self._validate_resource_class(resource)
         with context.store.begin(subtransactions=True):
             old_db_obj = None
+            old_monitored = None
+            new_monitored = None
             if overwrite:
                 old_db_obj = self._query_db_obj(context.store, resource,
                                                 for_update=True)
@@ -147,6 +149,14 @@ class AimManager(object):
             db_obj = old_db_obj or context.store.make_db_obj(resource)
             self._add_commit_hook(context.store)
             context.store.add(db_obj)
+            if self._should_set_pending(old_db_obj, old_monitored,
+                                        new_monitored):
+                # NOTE(ivar): we shouldn't change status in the AIM manager
+                # as this goes against the "AIM as a schema" principles.
+                # However, we need to do this at least for cases where
+                # we take ownership of the objects, which should be removed
+                # soon as it's causing most of our bugs.
+                self.set_resource_sync_pending(context, resource)
             return self.get(context, resource)
 
     @utils.log
@@ -179,12 +189,19 @@ class AimManager(object):
                     attr_val = {id_attr_0: getattr(resource, id_attr_0)}
                 context.store.from_attr(db_obj, type(resource), attr_val)
                 context.store.add(db_obj)
+                if self._should_set_pending(db_obj, old_monitored,
+                                            new_monitored):
+                    # NOTE(ivar): we shouldn't change status in the AIM manager
+                    # as this goes against the "AIM as a schema" principles.
+                    # However, we need to do this at least for cases where
+                    # we take ownership of the objects, which should be removed
+                    # soon as it's causing most of our bugs.
+                    self.set_resource_sync_pending(context, resource)
                 self._add_commit_hook(context.store)
                 return self.get(context, resource)
 
     def _should_set_pending(self, old_obj, old_monitored, new_monitored):
-        return (not old_obj or not old_monitored or
-                new_monitored is not None and old_monitored != new_monitored)
+        return old_obj and old_monitored is False and new_monitored is True
 
     @utils.log
     def delete(self, context, resource, force=False, cascade=False):

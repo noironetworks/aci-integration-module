@@ -1811,6 +1811,42 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual({}, desired_monitor._action_cache)
         self.assertEqual({}, current_monitor._action_cache)
 
+    def test_tenant_delete_behavior(self):
+        tenant_name = 'test_skip_for_managed'
+        self.set_override('max_operation_retry', 2, 'aim')
+        self.set_override('retry_cooldown', -1, 'aim')
+        agent = self._create_agent()
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        # start by managing a single tenant (non-monitored)
+        tn1 = resource.Tenant(name=tenant_name)
+        vrf = resource.VRF(tenant_name=tenant_name, name='vrf1')
+        self.aim_manager.create(self.ctx, tn1)
+        self.aim_manager.create(self.ctx, vrf)
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+
+        self.aim_manager.delete(self.ctx, tn1)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        # push config
+        self._observe_aci_events(current_config)
+        # Will be out of sync until VRF goes in error state
+        for _ in range(2):
+            self._observe_aci_events(current_config)
+            agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn1.root])
+        self.assertEqual(
+            aim_status.AciStatus.SYNC_FAILED,
+            self.aim_manager.get_status(self.ctx, vrf).sync_status)
+        self.assertIsNone(self.aim_manager.get(self.ctx, tn1))
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']
