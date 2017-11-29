@@ -509,6 +509,7 @@ class TestStructuredHashTree(base.BaseTestCase):
 
         data2.add(('keyA', 'keyC', 'keyF'), **{})
         data2.add(('keyA',), **{'attr': 'somevalue'})
+        data.add(('keyA',))
 
         # To obtain data from data2:
         # add ('keyA', 'keyC', 'keyD')
@@ -534,7 +535,8 @@ class TestStructuredHashTree(base.BaseTestCase):
              {'key': ('keyA1', 'keyC', 'keyD')}])
 
         # The whole tree needs to be modified for going from data3 to data
-        self.assertEqual({"add": [('keyA', 'keyB'),
+        self.assertEqual({"add": [('keyA',),
+                                  ('keyA', 'keyB'),
                                   ('keyA', 'keyC'),
                                   ('keyA', 'keyC', 'keyD')],
                           "remove": [('keyA1', 'keyB'),
@@ -607,6 +609,18 @@ class TestStructuredHashTree(base.BaseTestCase):
         self.assertEqual({"add": [('keyA', 'keyC', 'keyD')],
                           "remove": [('keyA', 'keyC', 'keyE')]},
                          data2.diff(data))
+
+    def test_dummy_diff(self):
+        data = tree.StructuredHashTree().include(
+            [{'key': ('keyA',)}, {'key': ('keyA', 'keyB')}])
+        # Same as data, with dummy root
+        data2 = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}])
+        self.assertEqual({"add": [], "remove": [('keyA',)]}, data2.diff(data))
+        self.assertEqual({"add": [('keyA',)], "remove": []}, data.diff(data2))
+        data2.add(('keyA', ))
+        self.assertEqual({"add": [], "remove": []}, data2.diff(data))
+        self.assertEqual({"add": [], "remove": []}, data.diff(data2))
 
 
 class TestHashTreeExceptions(base.BaseTestCase):
@@ -922,7 +936,12 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzRsSubjFiltAtt|f1'),
             tnVzFilterName='f1')
-        self.assertEqual(exp_tree, htree)
+        exp_tree = exp_tree.add(
+            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzInTerm|intmnl'))
+        exp_tree = exp_tree.add(
+            ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzOutTerm|outtmnl'))
+        self.assertEqual(exp_tree, htree,
+                         'differences: %s' % exp_tree.diff(htree))
 
     def test_delete(self):
         bd1 = self._get_example_aim_bd(tenant_name='t1', name='bd1')

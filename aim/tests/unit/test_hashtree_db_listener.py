@@ -358,7 +358,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                                    tree=tree_manager.CONFIG_TREE)
         mon_tree = self.tt_mgr.get(self.ctx, tn_rn,
                                    tree=tree_manager.MONITORED_TREE)
-        self.assertEqual(my_mon_tree, mon_tree)
+        self.assertEqual(my_mon_tree, mon_tree,
+                         'differences: %s' % my_mon_tree.diff(mon_tree))
         self.assertEqual(my_cfg_tree, cfg_tree)
         # Unset monitored to EPG as well
         self.mgr.update(self.ctx, epg, monitored=False)
