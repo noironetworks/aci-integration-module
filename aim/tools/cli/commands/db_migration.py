@@ -17,9 +17,12 @@ import os
 
 import click
 from oslo_db.sqlalchemy.migration_cli import manager
+import sqlalchemy as sa
 
+from aim.agent.aid.universes.aci import aci_universe
 from aim import aim_manager
 from aim.api import resource
+from aim import config
 from aim import context
 from aim.db import api
 from aim.db import hashtree_db_listener
@@ -40,6 +43,7 @@ def db_migration(ctx):
                         'alembic_repo_path': migrate_path}
     ctx.obj['manager'] = manager.MigrationManager(migration_config,
                                                   engine=api.get_engine())
+    config.setup_logging()
 
 
 @db_migration.command(name='version')
@@ -64,6 +68,8 @@ def upgrade(ctx, version):
     if not aim_mgr.get(aim_ctx, common_tenant):
         aim_mgr.create(aim_ctx, common_tenant)
 
+    fix_no_nat_l3out_ownership(aim_ctx)
+
     click.echo('Rebuilding hash-trees')
     # reset hash-trees to account for schema/converter changes
     listener = hashtree_db_listener.HashTreeDbListener(aim_mgr)
@@ -85,3 +91,38 @@ def stamp(ctx, revision):
 def revision(ctx, message, autogenerate):
     """Creates template for migration."""
     ctx.obj['manager'].revision(message=message, autogenerate=autogenerate)
+
+
+def fix_no_nat_l3out_ownership(aim_ctx):
+    """Relinquish ownership of no-NAT L3Outs in AIM and APIC."""
+    saved_l3out_table = sa.Table(
+        'aim_lib_save_l3out',
+        sa.MetaData(),
+        sa.Column('tenant_name', sa.String(), primary_key=True),
+        sa.Column('name', sa.String(), primary_key=True),
+        sa.Column('monitored', nullable=True),
+        sa.Column('vrf_name', nullable=True))
+    session = aim_ctx.store.db_session
+    bind = session.get_bind()
+    with session.begin(subtransactions=True):
+        if not saved_l3out_table.exists(bind=bind):
+            return
+        results = session.execute(
+            saved_l3out_table.select(saved_l3out_table.c.monitored.is_(True)))
+        click.echo("Fixing ownership of no-NAT L3Outs")
+        rows = results.fetchall()
+        if rows:
+            cfg_mgr = config.ConfigManager(aim_ctx)
+            system_id = cfg_mgr.get_option('aim_system_id', 'aim')
+            aim_mgr = aim_manager.AimManager()
+            apic = aci_universe.AciUniverse.establish_aci_session(cfg_mgr)
+            for row in rows:
+                l3out = resource.L3Outside(tenant_name=row['tenant_name'],
+                                           name=row['name'])
+                aim_mgr.update(aim_ctx, l3out, monitored=True)
+                tag_dn = "/mo/" + l3out.dn + "/tag-" + system_id
+                click.echo('Deleting AIM tag %s' % tag_dn)
+                apic.DELETE(tag_dn + ".json")
+    # drop the table after the transaction completes because databases
+    # like MySQL hold locks on the table
+    saved_l3out_table.drop(bind=bind)
