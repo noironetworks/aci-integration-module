@@ -155,7 +155,7 @@ class WebSocketContext(object):
             if resp.ok:
                 return utils.json_loads(resp.text)['imdata']
             else:
-                if resp.status_code == 405:
+                if resp.status_code in [405, 598]:
                     self.establish_ws_session()
                 raise WebSocketSubscriptionFailed(urls=urls,
                                                   code=resp.status_code,
