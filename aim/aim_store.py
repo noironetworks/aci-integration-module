@@ -209,6 +209,12 @@ class SqlAlchemyStore(AimStore):
                     api_res.VMMDomain: models.VMMDomain,
                     api_res.PhysicalDomain: models.PhysicalDomain,
                     api_res.L3Outside: models.L3Outside,
+                    api_res.L3OutNodeProfile: models.L3OutNodeProfile,
+                    api_res.L3OutNode: models.L3OutNode,
+                    api_res.L3OutStaticRoute: models.L3OutStaticRoute,
+                    api_res.L3OutInterfaceProfile: (
+                        models.L3OutInterfaceProfile),
+                    api_res.L3OutInterface: models.L3OutInterface,
                     api_res.ExternalNetwork: models.ExternalNetwork,
                     api_res.ExternalSubnet: models.ExternalSubnet,
                     api_infra.HostLink: infra_model.HostLink,

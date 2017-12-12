@@ -396,6 +396,36 @@ class TestL3Outside(test_aim_manager.TestL3OutsideMixin,
     pass
 
 
+class TestL3OutNodeProfile(test_aim_manager.TestL3OutNodeProfileMixin,
+                           TestManagerResourceOpsBase,
+                           base.TestShell):
+    pass
+
+
+class TestL3OutNode(test_aim_manager.TestL3OutNodeMixin,
+                    TestManagerResourceOpsBase,
+                    base.TestShell):
+    pass
+
+
+class TestL3OutStaticRoute(test_aim_manager.TestL3OutStaticRouteMixin,
+                           TestManagerResourceOpsBase,
+                           base.TestShell):
+    pass
+
+
+class TestL3OutInterfaceProfile(
+        test_aim_manager.TestL3OutInterfaceProfileMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestL3OutInterface(test_aim_manager.TestL3OutInterfaceMixin,
+                         TestManagerResourceOpsBase,
+                         base.TestShell):
+    pass
+
+
 class TestExternalNetwork(test_aim_manager.TestExternalNetworkMixin,
                           TestManagerResourceOpsBase,
                           base.TestShell):

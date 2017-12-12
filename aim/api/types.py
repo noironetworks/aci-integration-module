@@ -79,6 +79,29 @@ list_of_strings = {"type": "array", "items": string()}
 number = {"type": "number"}
 positive_number = {"type": "number", "minimum": 0}
 id = string(36)
+ipv4 = {
+    "type": "string",
+    "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$"}
+ipv6 = {
+    "type": "string",
+    "pattern": "^s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]"
+               "{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.("
+               "25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}("
+               "((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.("
+               "25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}("
+               "((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0"
+               "-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(("
+               "[0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f"
+               "]{1,4}){0,2}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|"
+               "1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]"
+               "{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]d|1dd|"
+               "[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f"
+               "]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,"
+               "4}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?"
+               "d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}"
+               "){0,5}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|["
+               "1-9]?d)){3}))|:)))(%.+)?s*$"}
+ip = {"type": "string", "oneOf": [ipv4, ipv6]}
 ipv4_cidr = {
     "type": "string",
     "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$"}
@@ -115,6 +138,15 @@ mac_address = {
     "pattern": "^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$"}
 static_path = {
     "type": "object",
-    "properties": {"encap": {"type": "string",
-                             "path": {"type": "string"}}}}
+    "properties": {"encap": {"type": "string"},
+                   "path": {"type": "string"}}}
 list_of_static_paths = {"type": "array", "items": static_path}
+ip_cidr_obj = {
+    "type": "object",
+    "properties": {"addr": ip_cidr}}
+list_of_ip_cidr_obj = {"type": "array", "items": ip_cidr_obj}
+next_hop = {
+    "type": "object",
+    "properties": {"addr": ip,
+                   "preference": {"type": "string"}}}
+list_of_next_hop = {"type": "array", "items": next_hop}

@@ -232,6 +232,147 @@ def fv_rs_master_epg_converter(object_dict, otype, helper,
                                                     {'dn': dn, 'tDn': path}}})
     return result
 
+
+def l3ext_next_hop_converter(object_dict, otype, helper,
+                             source_identity_attributes,
+                             destination_identity_attributes,
+                             to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if (object_dict.get('type') == 'prefix' and object_dict.get('nhAddr')
+                and object_dict.get('pref')):
+            res_dict['next_hop_list'] = [{'addr': object_dict['nhAddr'],
+                                          'preference': object_dict['pref']}]
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        for p in object_dict.get('next_hop_list'):
+            if p.get('addr') and p.get('preference'):
+                dn = default_identity_converter(
+                    object_dict, otype, helper, extra_attributes=[p['addr']],
+                    aci_mo_type=helper['resource'], to_aim=False)[0]
+                result.append({helper['resource']: {
+                    'attributes': {'dn': dn,
+                                   'nhAddr': p['addr'],
+                                   'pref': p['preference'],
+                                   'type': 'prefix'}}})
+    return result
+
+
+def l3ext_ip_converter(object_dict, otype, helper,
+                       source_identity_attributes,
+                       destination_identity_attributes,
+                       to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        is_vpc = False
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            aci_mo_type='l3extIp__Member',
+                                            to_aim=True)
+            is_vpc = True
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict.get('addr'):
+            if is_vpc:
+                if id[5] == 'A':
+                    res_dict['secondary_addr_a_list'] = [{'addr':
+                                                         object_dict['addr']}]
+                elif id[5] == 'B':
+                    res_dict['secondary_addr_b_list'] = [{'addr':
+                                                         object_dict['addr']}]
+            else:
+                res_dict['secondary_addr_a_list'] = [{'addr':
+                                                     object_dict['addr']}]
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        # always need the primary_addr_a
+        if not object_dict.get('primary_addr_a'):
+            return result
+        # vpc case
+        if object_dict.get('primary_addr_b'):
+            for p in object_dict.get('secondary_addr_a_list'):
+                if p.get('addr'):
+                    dn = default_identity_converter(
+                        object_dict, otype, helper,
+                        extra_attributes=['A', p['addr']],
+                        aci_mo_type='l3extIp__Member', to_aim=False)[0]
+                    result.append({'l3extIp__Member': {
+                        'attributes': {'dn': dn,
+                                       'addr': p['addr']}}})
+            for p in object_dict.get('secondary_addr_b_list'):
+                if p.get('addr'):
+                    dn = default_identity_converter(
+                        object_dict, otype, helper,
+                        extra_attributes=['B', p['addr']],
+                        aci_mo_type='l3extIp__Member', to_aim=False)[0]
+                    result.append({'l3extIp__Member': {
+                        'attributes': {'dn': dn,
+                                       'addr': p['addr']}}})
+        else:
+            for p in object_dict.get('secondary_addr_a_list'):
+                if p.get('addr'):
+                    dn = default_identity_converter(
+                        object_dict, otype, helper,
+                        extra_attributes=[p['addr']],
+                        aci_mo_type=helper['resource'], to_aim=False)[0]
+                    result.append({helper['resource']: {
+                        'attributes': {'dn': dn,
+                                       'addr': p['addr']}}})
+    return result
+
+
+def l3ext_member_converter(object_dict, otype, helper,
+                           source_identity_attributes,
+                           destination_identity_attributes,
+                           to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict.get('side') and object_dict.get('addr'):
+            if object_dict['side'] == 'A':
+                res_dict['primary_addr_a'] = object_dict['addr']
+            elif object_dict['side'] == 'B':
+                res_dict['primary_addr_b'] = object_dict['addr']
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        if (object_dict.get('primary_addr_a') and
+                object_dict.get('primary_addr_b')):
+            dn_a = default_identity_converter(
+                object_dict, otype, helper, extra_attributes=['A'],
+                aci_mo_type=helper['resource'], to_aim=False)[0]
+            result.append({helper['resource']: {
+                'attributes': {'dn': dn_a,
+                               'side': 'A',
+                               'addr': object_dict['primary_addr_a']}}})
+            dn_b = default_identity_converter(
+                object_dict, otype, helper, extra_attributes=['B'],
+                aci_mo_type=helper['resource'], to_aim=False)[0]
+            result.append({helper['resource']: {
+                'attributes': {'dn': dn_b,
+                               'side': 'B',
+                               'addr': object_dict['primary_addr_b']}}})
+    return result
+
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -501,6 +642,40 @@ resource_map = {
         'exceptions': {'tDn': {'other': 'l3_domain_dn'}},
         'to_resource': default_to_resource_strict,
     }],
+    'l3extLNodeP': [{
+        'resource': resource.L3OutNodeProfile,
+    }],
+    'l3extRsNodeL3OutAtt': [{
+        'resource': resource.L3OutNode,
+        'exceptions': {'rtrId': {'other': 'router_id'}}
+    }],
+    'ipRouteP': [{
+        'resource': resource.L3OutStaticRoute,
+        'exceptions': {'pref': {'other': 'preference'}},
+        'skip': ['next_hop_list'],
+    }],
+    'ipNexthopP': [{
+        'resource': resource.L3OutStaticRoute,
+        'converter': l3ext_next_hop_converter,
+    }],
+    'l3extLIfP': [{
+        'resource': resource.L3OutInterfaceProfile,
+    }],
+    'l3extRsPathL3OutAtt': [{
+        'resource': resource.L3OutInterface,
+        'exceptions': {'ifInstT': {'other': 'type'},
+                       'addr': {'other': 'primary_addr_a'}},
+        'skip': ['primary_addr_b', 'secondary_addr_a_list',
+                 'secondary_addr_b_list'],
+    }],
+    'l3extIp': [{
+        'resource': resource.L3OutInterface,
+        'converter': l3ext_ip_converter,
+    }],
+    'l3extMember': [{
+        'resource': resource.L3OutInterface,
+        'converter': l3ext_member_converter,
+    }],
     'l3extInstP': [{
         'resource': resource.ExternalNetwork,
         'skip': ['nat_epg_dn', 'provided_contract_names',
@@ -748,6 +923,7 @@ class AciToAimModelConverter(BaseConverter):
         :param converted_list:
         :return:
         """
+
         res_map = collections.OrderedDict()
         for res in converted_list:
             # Base for squashing is the Resource with all its defaults
