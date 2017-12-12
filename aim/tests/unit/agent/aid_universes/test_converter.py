@@ -745,6 +745,236 @@ class TestAciToAimConverterL3Outside(TestAciToAimConverterBase,
         resource.L3Outside(tenant_name='t1', name='inet2')]
 
 
+def get_example_aci_l3out_node_profile(**kwargs):
+    attr = {'name': 'inet1',
+            'dn': 'uni/tn-t1/out-o1/lnodep-np1'}
+    attr.update(**kwargs)
+    return _aci_obj('l3extLNodeP', **attr)
+
+
+class TestAciToAimConverterL3OutNodeProfile(TestAciToAimConverterBase,
+                                            base.TestAimDBBase):
+    resource_type = resource.L3OutNodeProfile
+    reverse_map_output = [
+        {'exceptions': {},
+         'resource': 'l3extLNodeP'}]
+    sample_input = [get_example_aci_l3out_node_profile(nameAlias='alias'),
+                    get_example_aci_l3out_node_profile(
+                        dn='uni/tn-t1/out-o2/lnodep-np2')]
+    sample_output = [
+        resource.L3OutNodeProfile(tenant_name='t1', l3out_name='o1',
+                                  name='np1', display_name='alias'),
+        resource.L3OutNodeProfile(tenant_name='t1', l3out_name='o2',
+                                  name='np2')]
+
+
+def get_example_l3out_aci_node(**kwargs):
+    attr = {'rtrId': '9.9.9.9',
+            'dn': 'uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
+                  '[topology/pod-1/node-101]'}
+    attr.update(**kwargs)
+    return _aci_obj('l3extRsNodeL3OutAtt', **attr)
+
+
+class TestAciToAimConverterL3OutNode(TestAciToAimConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.L3OutNode
+    reverse_map_output = [
+        {'resource': 'l3extRsNodeL3OutAtt',
+         'exceptions': {'router_id': {'other': 'rtrId'}}}]
+    sample_input = [get_example_l3out_aci_node(),
+                    get_example_l3out_aci_node(
+                        rtrId='8.8.8.8',
+                        dn='uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
+                           '[topology/pod-1/node-201]')]
+    sample_output = [
+        resource.L3OutNode(tenant_name='t1', l3out_name='o1',
+                           node_profile_name='np1',
+                           node_path='topology/pod-1/node-101',
+                           router_id='9.9.9.9'),
+        resource.L3OutNode(tenant_name='t1', l3out_name='o1',
+                           node_profile_name='np1',
+                           node_path='topology/pod-1/node-201',
+                           router_id='8.8.8.8')]
+
+
+def get_example_aci_l3out_static_route(**kwargs):
+    attr = {'pref': '1',
+            'dn': 'uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
+                  '[topology/pod-1/node-101]/rt-[1.1.1.0/24]'}
+    attr.update(**kwargs)
+    return _aci_obj('ipRouteP', **attr)
+
+
+class TestAciToAimConverterL3OutStaticRoute(TestAciToAimConverterBase,
+                                            base.TestAimDBBase):
+    resource_type = resource.L3OutStaticRoute
+    reverse_map_output = [
+        {'resource': 'ipRouteP',
+         'exceptions': {'preference': {'other': 'pref'}},
+         'skip': ['nextHopList']},
+        {'exceptions': {},
+         'resource': 'ipNexthopP',
+         'converter': converter.l3ext_next_hop_converter}]
+    sample_input = [get_example_aci_l3out_static_route(nameAlias='alias'),
+                    [get_example_aci_l3out_static_route(
+                        pref='2',
+                        dn='uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
+                           '[topology/pod-1/node-101]/rt-[2.2.2.0/24]'),
+                     _aci_obj('ipNexthopP',
+                              dn='uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
+                                 '[topology/pod-1/node-101]/rt-[2.2.2.0/24]/'
+                                 'nh-[2.2.2.251]',
+                              nhAddr='2.2.2.251',
+                              type='prefix',
+                              pref='1'),
+                     _aci_obj('ipNexthopP',
+                              dn='uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
+                                 '[topology/pod-1/node-101]/rt-[2.2.2.0/24]/'
+                                 'nh-[2.2.2.252]',
+                              nhAddr='2.2.2.252',
+                              type='prefix',
+                              pref='2')]]
+    sample_output = [
+        resource.L3OutStaticRoute(tenant_name='t1', l3out_name='o1',
+                                  node_profile_name='np1',
+                                  node_path='topology/pod-1/node-101',
+                                  cidr='1.1.1.0/24',
+                                  display_name='alias'),
+        resource.L3OutStaticRoute(tenant_name='t1', l3out_name='o1',
+                                  node_profile_name='np1',
+                                  node_path='topology/pod-1/node-101',
+                                  cidr='2.2.2.0/24',
+                                  preference='2',
+                                  next_hop_list=[{'addr': '2.2.2.251',
+                                                  'preference': '1'},
+                                                 {'addr': '2.2.2.252',
+                                                  'preference': '2'}])]
+
+
+def get_example_aci_l3out_interface_profile(**kwargs):
+    attr = {'name': 'inet1',
+            'dn': 'uni/tn-t1/out-l1/lnodep-np1/lifp-ip1'}
+    attr.update(**kwargs)
+    return _aci_obj('l3extLIfP', **attr)
+
+
+class TestAciToAimConverterInterfaceProfile(TestAciToAimConverterBase,
+                                            base.TestAimDBBase):
+    resource_type = resource.L3OutInterfaceProfile
+    reverse_map_output = [
+        {'exceptions': {},
+         'resource': 'l3extLIfP'}]
+    sample_input = [get_example_aci_l3out_interface_profile(nameAlias='name'),
+                    get_example_aci_l3out_interface_profile(
+                        dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip2')]
+    sample_output = [
+        resource.L3OutInterfaceProfile(tenant_name='t1', l3out_name='l1',
+                                       node_profile_name='np1', name='ip1',
+                                       display_name='name'),
+        resource.L3OutInterfaceProfile(tenant_name='t1', l3out_name='l1',
+                                       node_profile_name='np1', name='ip2')]
+
+
+def get_example_aci_l3out_interface(**kwargs):
+    attr = {'addr': '1.1.1.0/24',
+            'encap': 'vlan-1001',
+            'ifInstT': 'ext-svi',
+            'dn': 'uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
+                  '[topology/pod-1/paths-101/pathep-[eth1/1]]'}
+    attr.update(**kwargs)
+    return _aci_obj('l3extRsPathL3OutAtt', **attr)
+
+
+class TestAciToAimConverterL3OutInterface(TestAciToAimConverterBase,
+                                          base.TestAimDBBase):
+    resource_type = resource.L3OutInterface
+    reverse_map_output = [
+        {'exceptions': {'type': {'other': 'ifInstT'},
+                        'primary_addr_a': {'other': 'addr'}},
+         'resource': 'l3extRsPathL3OutAtt',
+         'skip': ['primaryAddrB', 'secondaryAddrAList',
+                  'secondaryAddrBList']},
+        {'exceptions': {},
+         'resource': 'l3extIp',
+         'converter': converter.l3ext_ip_converter},
+        {'exceptions': {},
+         'resource': 'l3extMember',
+         'converter': converter.l3ext_member_converter}]
+    sample_input = [[get_example_aci_l3out_interface(nameAlias='alias'),
+                     _aci_obj('l3extIp',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/1]]/addr-[1.1.1.2/24]',
+                              addr='1.1.1.2/24'),
+                     _aci_obj('l3extIp',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/1]]/addr-[1.1.1.3/24]',
+                              addr='1.1.1.3/24')],
+                    [get_example_aci_l3out_interface(
+                        addr='0.0.0.0',
+                        encap='vlan-1002',
+                        dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                           'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                           'pathep-[eth1/2]]'),
+                     _aci_obj('l3extMember',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/2]]/mem-A',
+                              side='A',
+                              addr='1.1.1.101/24'),
+                     _aci_obj('l3extIp',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/2]]/mem-A/addr-[1.1.1.11/24]',
+                              addr='1.1.1.11/24'),
+                     _aci_obj('l3extIp',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/2]]/mem-A/addr-[1.1.1.12/24]',
+                              addr='1.1.1.12/24'),
+                     _aci_obj('l3extMember',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/2]]/mem-B',
+                              side='B',
+                              addr='1.1.1.102/24'),
+                     _aci_obj('l3extIp',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/2]]/mem-B/addr-[1.1.1.13/24]',
+                              addr='1.1.1.13/24'),
+                     _aci_obj('l3extIp',
+                              dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/2]]/mem-B/addr-[1.1.1.14/24]',
+                              addr='1.1.1.14/24')]]
+    sample_output = [
+        resource.L3OutInterface(
+            tenant_name='t1', l3out_name='l1',
+            node_profile_name='np1', interface_profile_name='ip1',
+            interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
+            primary_addr_a='1.1.1.0/24',
+            secondary_addr_a_list=[{'addr': '1.1.1.2/24'},
+                                   {'addr': '1.1.1.3/24'}],
+            encap='vlan-1001',
+            type='ext-svi',
+            display_name='alias'),
+        resource.L3OutInterface(
+            tenant_name='t1', l3out_name='l1',
+            node_profile_name='np1', interface_profile_name='ip1',
+            interface_path='topology/pod-1/paths-101/pathep-[eth1/2]',
+            primary_addr_a='1.1.1.101/24',
+            secondary_addr_a_list=[{'addr': '1.1.1.11/24'},
+                                   {'addr': '1.1.1.12/24'}],
+            primary_addr_b='1.1.1.102/24',
+            secondary_addr_b_list=[{'addr': '1.1.1.13/24'},
+                                   {'addr': '1.1.1.14/24'}],
+            encap='vlan-1002',
+            type='ext-svi')]
+
+
 def get_example_aci_external_network(**kwargs):
     attr = {'name': 'inet1',
             'dn': 'uni/tn-t1/out-o1/instP-inet1'}
@@ -2110,6 +2340,257 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                                                   l3_domain_dn=None)
     missing_ref_output = [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet1',
                                    nameAlias='')]
+
+
+def get_example_aim_l3out_node_profile(**kwargs):
+    example = resource.L3OutNodeProfile(tenant_name='t1', l3out_name='l1',
+                                        name='np1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterL3OutNodeProfile(TestAimToAciConverterBase,
+                                            base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_l3out_node_profile(
+            name='np2',
+            display_name='alias'),
+        get_example_aim_l3out_node_profile(
+            pre_existing=True),
+        get_example_aim_l3out_node_profile(
+            monitored=True)]
+    sample_output = [
+        [_aci_obj('l3extLNodeP', dn='uni/tn-t1/out-l1/lnodep-np2',
+                  nameAlias='alias')],
+        [],
+        [_aci_obj('l3extLNodeP', dn='uni/tn-t1/out-l1/lnodep-np1',
+                  nameAlias='')]]
+    missing_ref_input = get_example_aim_l3out_node_profile()
+    missing_ref_output = [_aci_obj('l3extLNodeP',
+                                   dn='uni/tn-t1/out-l1/lnodep-np1',
+                                   nameAlias='')]
+
+
+def get_example_aim_l3out_node(**kwargs):
+    example = resource.L3OutNode(tenant_name='t1', l3out_name='l1',
+                                 node_profile_name='np1',
+                                 node_path='topology/pod-1/node-101',
+                                 router_id='9.9.9.9')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterL3OutNode(TestAimToAciConverterBase,
+                                     base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_l3out_node(
+            node_path='topology/pod-1/node-201',
+            router_id='8.8.8.8'),
+        get_example_aim_l3out_node(
+            pre_existing=True),
+        get_example_aim_l3out_node(
+            monitored=True)]
+    sample_output = [
+        [_aci_obj('l3extRsNodeL3OutAtt',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
+                     '[topology/pod-1/node-201]',
+                  rtrId='8.8.8.8')],
+        [],
+        [_aci_obj('l3extRsNodeL3OutAtt',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
+                     '[topology/pod-1/node-101]',
+                  rtrId='9.9.9.9')]]
+    missing_ref_input = get_example_aim_l3out_node()
+    missing_ref_output = [_aci_obj('l3extRsNodeL3OutAtt',
+                                   dn='uni/tn-t1/out-l1/lnodep-np1/'
+                                      'rsnodeL3OutAtt-'
+                                      '[topology/pod-1/node-101]',
+                                   rtrId='9.9.9.9')]
+
+
+def get_example_aim_l3out_static_route(**kwargs):
+    example = resource.L3OutStaticRoute(tenant_name='t1', l3out_name='l1',
+                                        node_profile_name='np1',
+                                        node_path='topology/pod-1/node-101',
+                                        cidr='1.1.1.0/24')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterL3OutStaticRoute(TestAimToAciConverterBase,
+                                            base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_l3out_static_route(
+            cidr='2.2.2.0/24',
+            preference='2',
+            display_name='alias',
+            next_hop_list=[{'addr': '2.2.2.251',
+                            'preference': '1'},
+                           {'addr': '2.2.2.252',
+                            'preference': '2'}]),
+        get_example_aim_l3out_static_route(
+            pre_existing=True),
+        get_example_aim_l3out_static_route(
+            monitored=True)]
+    sample_output = [
+        [_aci_obj('ipRouteP',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
+                     '[topology/pod-1/node-101]/rt-[2.2.2.0/24]',
+                  pref='2',
+                  nameAlias='alias'),
+         _aci_obj('ipNexthopP',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
+                     '[topology/pod-1/node-101]/rt-[2.2.2.0/24]/'
+                     'nh-[2.2.2.251]',
+                  nhAddr='2.2.2.251',
+                  type='prefix',
+                  pref='1'),
+         _aci_obj('ipNexthopP',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
+                     '[topology/pod-1/node-101]/rt-[2.2.2.0/24]/'
+                     'nh-[2.2.2.252]',
+                  nhAddr='2.2.2.252',
+                  type='prefix',
+                  pref='2')],
+        [],
+        [_aci_obj('ipRouteP',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
+                     '[topology/pod-1/node-101]/rt-[1.1.1.0/24]',
+                  pref='1',
+                  nameAlias='')]]
+    missing_ref_input = get_example_aim_l3out_static_route()
+    missing_ref_output = [_aci_obj('ipRouteP',
+                                   dn='uni/tn-t1/out-l1/lnodep-np1/'
+                                      'rsnodeL3OutAtt-'
+                                      '[topology/pod-1/node-101]/'
+                                      'rt-[1.1.1.0/24]',
+                                   pref='1',
+                                   nameAlias='')]
+
+
+def get_example_aim_l3out_interface_profile(**kwargs):
+    example = resource.L3OutInterfaceProfile(tenant_name='t1', l3out_name='l1',
+                                             node_profile_name='np1',
+                                             name='ip1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterL3OutInterfaceProfile(TestAimToAciConverterBase,
+                                                 base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_l3out_interface_profile(
+            name='ip2',
+            display_name='alias'),
+        get_example_aim_l3out_interface_profile(
+            pre_existing=True),
+        get_example_aim_l3out_interface_profile(
+            monitored=True)]
+    sample_output = [
+        [_aci_obj('l3extLIfP', dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip2',
+                  nameAlias='alias')],
+        [],
+        [_aci_obj('l3extLIfP', dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1',
+                  nameAlias='')]]
+    missing_ref_input = get_example_aim_l3out_interface_profile()
+    missing_ref_output = [_aci_obj('l3extLIfP',
+                                   dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1',
+                                   nameAlias='')]
+
+
+def get_example_aim_l3out_interface(**kwargs):
+    example = resource.L3OutInterface(
+        tenant_name='t1', l3out_name='l1',
+        node_profile_name='np1', interface_profile_name='ip1',
+        interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
+        primary_addr_a='1.1.1.1/24',
+        encap='vlan-1001',
+        type='ext-svi')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterL3OutInterface(TestAimToAciConverterBase,
+                                          base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_l3out_interface(
+            interface_path='topology/pod-1/paths-101/pathep-[eth1/2]',
+            secondary_addr_a_list=[{'addr': '1.1.1.2/24'},
+                                   {'addr': '1.1.1.3/24'}]),
+        get_example_aim_l3out_interface(
+            pre_existing=True),
+        get_example_aim_l3out_interface(
+            primary_addr_a='1.1.1.101/24',
+            secondary_addr_a_list=[{'addr': '1.1.1.11/24'},
+                                   {'addr': '1.1.1.12/24'}],
+            primary_addr_b='1.1.1.102/24',
+            secondary_addr_b_list=[{'addr': '1.1.1.13/24'},
+                                   {'addr': '1.1.1.14/24'}],
+            monitored=True)]
+    sample_output = [
+        [_aci_obj('l3extRsPathL3OutAtt',
+                  addr='1.1.1.1/24',
+                  encap='vlan-1001',
+                  ifInstT='ext-svi',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
+                     '[topology/pod-1/paths-101/pathep-[eth1/2]]'),
+         _aci_obj('l3extIp',
+                  addr='1.1.1.2/24',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/2]]/addr-[1.1.1.2/24]'),
+         _aci_obj('l3extIp',
+                  addr='1.1.1.3/24',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/2]]/addr-[1.1.1.3/24]')],
+        [],
+        [_aci_obj('l3extRsPathL3OutAtt',
+                  addr='1.1.1.101/24',
+                  encap='vlan-1001',
+                  ifInstT='ext-svi',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
+                     '[topology/pod-1/paths-101/pathep-[eth1/1]]'),
+         _aci_obj('l3extMember',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/mem-A',
+                  side='A',
+                  addr='1.1.1.101/24'),
+         _aci_obj('l3extIp__Member',
+                  addr='1.1.1.11/24',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/mem-A/addr-[1.1.1.11/24]'),
+         _aci_obj('l3extIp__Member',
+                  addr='1.1.1.12/24',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/mem-A/addr-[1.1.1.12/24]'),
+         _aci_obj('l3extMember',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/mem-B',
+                  side='B',
+                  addr='1.1.1.102/24'),
+         _aci_obj('l3extIp__Member',
+                  addr='1.1.1.13/24',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/mem-B/addr-[1.1.1.13/24]'),
+         _aci_obj('l3extIp__Member',
+                  addr='1.1.1.14/24',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/mem-B/addr-[1.1.1.14/24]')]]
+    missing_ref_input = get_example_aim_l3out_interface()
+    missing_ref_output = [_aci_obj('l3extRsPathL3OutAtt',
+                                   addr='1.1.1.1/24',
+                                   encap='vlan-1001',
+                                   ifInstT='ext-svi',
+                                   dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                                      'rspathL3OutAtt-[topology/pod-1'
+                                      '/paths-101/pathep-[eth1/1]]')]
 
 
 def get_example_aim_external_network(**kwargs):

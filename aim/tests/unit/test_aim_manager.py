@@ -873,6 +873,165 @@ class TestL3OutsideMixin(object):
     res_command = 'l3-outside'
 
 
+class TestL3OutNodeProfileMixin(object):
+    resource_class = resource.L3OutNodeProfile
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.L3Outside(tenant_name='tenant1', name='l3out1',
+                           vrf_name='ctx1', l3_domain_dn='uni/foo')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'name': 'np1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'name': 'np1'}
+    test_search_attributes = {'name': 'np1'}
+    test_update_attributes = {}
+    test_default_values = {}
+    test_dn = 'uni/tn-tenant1/out-l3out1/lnodep-np1'
+    res_command = 'l3-out-node-profile'
+
+
+class TestL3OutNodeMixin(object):
+    resource_class = resource.L3OutNode
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.L3Outside(tenant_name='tenant1', name='l3out1',
+                           vrf_name='ctx1', l3_domain_dn='uni/foo'),
+        resource.L3OutNodeProfile(tenant_name='tenant1', l3out_name='l3out1',
+                                  name='np1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'node_path': 'topology/pod-1/node-101'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'node_path': 'topology/pod-1/node-101',
+                                'router_id': '1.1.1.1'}
+    test_search_attributes = {'node_path': 'topology/pod-1/node-101'}
+    test_update_attributes = {'router_id': '2.1.1.1'}
+    test_default_values = {}
+    test_dn = ("uni/tn-tenant1/out-l3out1/lnodep-np1/rsnodeL3OutAtt-"
+               "[topology/pod-1/node-101]")
+    res_command = 'l3-out-node'
+
+
+class TestL3OutStaticRouteMixin(object):
+    resource_class = resource.L3OutStaticRoute
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.L3Outside(tenant_name='tenant1', name='l3out1',
+                           vrf_name='ctx1', l3_domain_dn='uni/foo'),
+        resource.L3OutNodeProfile(tenant_name='tenant1', l3out_name='l3out1',
+                                  name='np1'),
+        resource.L3OutNode(tenant_name='tenant1', l3out_name='l3out1',
+                           node_profile_name='np1',
+                           node_path='topology/pod-1/node-101',
+                           router_id='1.1.1.1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'node_path': 'topology/pod-1/node-101',
+                                'cidr': '1.1.1.0/24'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'node_path': 'topology/pod-1/node-101',
+                                'cidr': '1.1.1.0/24',
+                                'preference': '2',
+                                'next_hop_list':
+                                    [{'addr': '1.1.1.1',
+                                      'preference': '1'},
+                                     {'addr': '1.1.1.2',
+                                      'preference': '2'}]}
+    test_search_attributes = {'cidr': '1.1.1.0/24'}
+    test_update_attributes = {'preference': '3',
+                              'next_hop_list':
+                                  [{'addr': '1.1.1.3',
+                                    'preference': '1'},
+                                   {'addr': '1.1.1.4',
+                                    'preference': '2'}]}
+    test_default_values = {}
+    test_dn = ("uni/tn-tenant1/out-l3out1/lnodep-np1/rsnodeL3OutAtt-"
+               "[topology/pod-1/node-101]/rt-[1.1.1.0/24]")
+    res_command = 'l3-out-static-route'
+
+
+class TestL3OutInterfaceProfileMixin(object):
+    resource_class = resource.L3OutInterfaceProfile
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.L3Outside(tenant_name='tenant1', name='l3out1',
+                           vrf_name='ctx1', l3_domain_dn='uni/foo'),
+        resource.L3OutNodeProfile(tenant_name='tenant1', l3out_name='l3out1',
+                                  name='np1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'name': 'ip1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'name': 'ip1'}
+    test_search_attributes = {'name': 'ip1'}
+    test_update_attributes = {'display_name': 'IF'}
+    test_default_values = {}
+    test_dn = 'uni/tn-tenant1/out-l3out1/lnodep-np1/lifp-ip1'
+    res_command = 'l3-out-interface-profile'
+
+
+class TestL3OutInterfaceMixin(object):
+    resource_class = resource.L3OutInterface
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.L3Outside(tenant_name='tenant1', name='l3out1',
+                           vrf_name='ctx1', l3_domain_dn='uni/foo'),
+        resource.L3OutNodeProfile(tenant_name='tenant1', l3out_name='l3out1',
+                                  name='np1'),
+        resource.L3OutInterfaceProfile(tenant_name='tenant1',
+                                       l3out_name='l3out1',
+                                       node_profile_name='np1', name='if1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'interface_profile_name': 'if1',
+                                'interface_path': 'topology/pod-1/paths-'
+                                                  '101/pathep-[eth1/1]'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'l3out_name': 'l3out1',
+                                'node_profile_name': 'np1',
+                                'interface_profile_name': 'if1',
+                                'interface_path': 'topology/pod-1/paths-'
+                                                  '101/pathep-[eth1/1]',
+                                'primary_addr_a': '1.1.1.251/24',
+                                'primary_addr_b': '1.1.1.252/24',
+                                'secondary_addr_a_list':
+                                    [{'addr': '1.1.1.1/24'},
+                                     {'addr': '1.1.1.2/24'}],
+                                'secondary_addr_b_list':
+                                    [{'addr': '1.1.1.3/24'},
+                                     {'addr': '1.1.1.4/24'}],
+                                'encap': 'vlan-1001',
+                                'type': 'ext-svi'}
+    test_search_attributes = {'interface_path': 'topology/pod-1/paths-101'
+                                                '/pathep-[eth1/1]'}
+    test_update_attributes = {'encap': 'vlan-1002',
+                              'primary_addr_a': '0.0.0.0',
+                              'secondary_addr_a_list':
+                                  [{'addr': '1.1.1.5/24'},
+                                   {'addr': '1.1.1.6/24'}]}
+    test_default_values = {'type': 'ext-svi'}
+    test_dn = ('uni/tn-tenant1/out-l3out1/lnodep-np1/lifp-if1/rspathL3OutAtt-'
+               '[topology/pod-1/paths-101/pathep-[eth1/1]]')
+    res_command = 'l3-out-interface'
+
+
 class TestExternalNetworkMixin(object):
     resource_class = resource.ExternalNetwork
     resource_root_type = resource.Tenant._aci_mo_name
@@ -1829,6 +1988,31 @@ class TestPhysicalDomain(TestPhysicalDomainMixin, TestResourceOpsBase,
 
 class TestL3Outside(TestL3OutsideMixin, TestAciResourceOpsBase,
                     base.TestAimDBBase):
+    pass
+
+
+class TestL3OutNodeProfile(TestL3OutNodeProfileMixin, TestAciResourceOpsBase,
+                           base.TestAimDBBase):
+    pass
+
+
+class TestL3OutNode(TestL3OutNodeMixin, TestAciResourceOpsBase,
+                    base.TestAimDBBase):
+    pass
+
+
+class TestL3OutStaticRoute(TestL3OutStaticRouteMixin, TestAciResourceOpsBase,
+                           base.TestAimDBBase):
+    pass
+
+
+class TestL3OutInterfaceProfile(TestL3OutInterfaceProfileMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestL3OutInterface(TestL3OutInterfaceMixin, TestAciResourceOpsBase,
+                         base.TestAimDBBase):
     pass
 
 

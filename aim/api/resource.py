@@ -669,6 +669,135 @@ class L3Outside(AciResourceBase):
              'monitored': False}, **kwargs)
 
 
+class L3OutNodeProfile(AciResourceBase):
+    """Resource representing a logical node profile.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of node
+    profile.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'l3extLNodeP'
+    _tree_parent = L3Outside
+
+    def __init__(self, **kwargs):
+        super(L3OutNodeProfile, self).__init__(
+            {'monitored': False}, **kwargs)
+
+
+class L3OutNode(AciResourceBase):
+    """Resource representing a logical node.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of node
+    profile, node_path of the node.
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('node_profile_name', t.name),
+        ('node_path', t.string()))
+    other_attributes = t.other(
+        ('router_id', t.ipv4),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'l3extRsNodeL3OutAtt'
+    _tree_parent = L3OutNodeProfile
+
+    def __init__(self, **kwargs):
+        super(L3OutNode, self).__init__(
+            {'router_id': '', 'monitored': False}, **kwargs)
+
+
+class L3OutStaticRoute(AciResourceBase):
+    """Resource representing a static route.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of node
+    profile, node_path of the node, cidr of the static route.
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('node_profile_name', t.name),
+        ('node_path', t.string()),
+        ('cidr', t.ip_cidr))
+    other_attributes = t.other(
+        ('next_hop_list', t.list_of_next_hop),
+        ('preference', t.string()),
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'ipRouteP'
+    _tree_parent = L3OutNode
+
+    def __init__(self, **kwargs):
+        super(L3OutStaticRoute, self).__init__(
+            {'next_hop_list': [], 'preference': '1',
+             'monitored': False}, **kwargs)
+
+
+class L3OutInterfaceProfile(AciResourceBase):
+    """Resource representing a logical interface profile.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of node
+    profile, name of interface profile.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('node_profile_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'l3extLIfP'
+    _tree_parent = L3OutNodeProfile
+
+    def __init__(self, **kwargs):
+        super(L3OutInterfaceProfile, self).__init__(
+            {'monitored': False}, **kwargs)
+
+
+class L3OutInterface(AciResourceBase):
+    """Resource representing a logical interface.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of node
+    profile, name of interface profile, interface_path.
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('node_profile_name', t.name),
+        ('interface_profile_name', t.name),
+        ('interface_path', t.string()))
+    other_attributes = t.other(
+        ('primary_addr_a', t.ip_cidr),
+        ('secondary_addr_a_list', t.list_of_ip_cidr_obj),
+        ('primary_addr_b', t.ip_cidr),
+        ('secondary_addr_b_list', t.list_of_ip_cidr_obj),
+        ('encap', t.string()),
+        ('type', t.enum("ext-svi")),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'l3extRsPathL3OutAtt'
+    _tree_parent = L3OutInterfaceProfile
+
+    def __init__(self, **kwargs):
+        super(L3OutInterface, self).__init__(
+            {'primary_addr_a': '', 'secondary_addr_a_list': [],
+             'primary_addr_b': '', 'secondary_addr_b_list': [],
+             'encap': '', 'type': 'ext-svi',
+             'monitored': False}, **kwargs)
+
+
 class ExternalNetwork(AciResourceBase):
     """Resource representing an external network instance profile.
 

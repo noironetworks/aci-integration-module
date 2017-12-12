@@ -528,6 +528,200 @@ class L3Outside(model_base.Base, model_base.HasAimId,
     l3_domain_dn = sa.Column(sa.String(1024))
 
 
+class L3OutNodeProfile(model_base.Base, model_base.HasAimId,
+                       model_base.HasName, model_base.HasDisplayName,
+                       model_base.HasTenantName, model_base.AttributeMixin,
+                       model_base.IsMonitored):
+    """DB model for L3OutNodeProfile."""
+
+    __tablename__ = 'aim_l3out_node_profiles'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                               'name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    l3out_name = model_base.name_column(nullable=False)
+
+
+class L3OutNode(model_base.Base, model_base.HasAimId,
+                model_base.HasTenantName, model_base.AttributeMixin,
+                model_base.IsMonitored):
+    """DB model for L3OutNode."""
+
+    __tablename__ = 'aim_l3out_nodes'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                               'node_profile_name', 'node_path') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    l3out_name = model_base.name_column(nullable=False)
+    node_profile_name = model_base.name_column(nullable=False)
+    # Use VARCHAR with ASCII encoding to work-around MySQL limitations
+    # on the length of primary keys
+    node_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
+    router_id = sa.Column(sa.String(64), nullable=False)
+
+
+class L3OutNextHop(model_base.Base):
+    """DB model for next hops under a L3OutStaticRoute."""
+
+    __tablename__ = 'aim_l3out_next_hops'
+
+    static_route_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_l3out_static_routes.aim_id'),
+        primary_key=True)
+    addr = sa.Column(sa.String(64), primary_key=True)
+    preference = sa.Column(sa.String(16), nullable=False)
+
+
+class L3OutStaticRoute(model_base.Base, model_base.HasAimId,
+                       model_base.HasDisplayName,
+                       model_base.HasTenantName, model_base.AttributeMixin,
+                       model_base.IsMonitored):
+    """DB model for L3OutStaticRoute."""
+
+    __tablename__ = 'aim_l3out_static_routes'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                               'node_profile_name', 'node_path', 'cidr') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    l3out_name = model_base.name_column(nullable=False)
+    node_profile_name = model_base.name_column(nullable=False)
+    # Use VARCHAR with ASCII encoding to work-around MySQL limitations
+    # on the length of primary keys
+    node_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
+    cidr = sa.Column(sa.String(64), nullable=False)
+    preference = sa.Column(sa.String(16), nullable=False)
+    next_hop_list = orm.relationship(L3OutNextHop,
+                                     backref='static_route',
+                                     cascade='all, delete-orphan',
+                                     lazy='joined')
+
+    def from_attr(self, session, res_attr):
+        if 'next_hop_list' in res_attr:
+            next_hop_list = []
+            for p in (res_attr.pop('next_hop_list', []) or []):
+                if p.get('addr') and p.get('preference'):
+                    next_hop_list.append(L3OutNextHop(
+                        addr=p['addr'], preference=p['preference']))
+            self.next_hop_list = next_hop_list
+
+        # map remaining attributes to model
+        super(L3OutStaticRoute, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(L3OutStaticRoute, self).to_attr(session)
+        for p in res_attr.pop('next_hop_list', []):
+            res_attr.setdefault('next_hop_list', []).append(
+                {'addr': p.addr,
+                 'preference': p.preference})
+        return res_attr
+
+
+class L3OutInterfaceProfile(model_base.Base, model_base.HasAimId,
+                            model_base.HasName, model_base.HasDisplayName,
+                            model_base.HasTenantName,
+                            model_base.AttributeMixin,
+                            model_base.IsMonitored):
+    """DB model for L3OutInterfaceProfile."""
+
+    __tablename__ = 'aim_l3out_interface_profiles'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                               'node_profile_name', 'name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    l3out_name = model_base.name_column(nullable=False)
+    node_profile_name = model_base.name_column(nullable=False)
+
+
+class L3OutInterfaceSecondaryIpA(model_base.Base):
+    """DB model for secondary IPs under an Interface."""
+
+    __tablename__ = 'aim_l3out_interface_secondary_ip_a'
+
+    interface_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_l3out_interfaces.aim_id'),
+        primary_key=True)
+    addr = sa.Column(sa.String(64), primary_key=True)
+
+
+class L3OutInterfaceSecondaryIpB(model_base.Base):
+    """DB model for secondary IPs under an Interface."""
+
+    __tablename__ = 'aim_l3out_interface_secondary_ip_b'
+
+    interface_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_l3out_interfaces.aim_id'),
+        primary_key=True)
+    addr = sa.Column(sa.String(64), primary_key=True)
+
+
+class L3OutInterface(model_base.Base, model_base.HasAimId,
+                     model_base.HasTenantName, model_base.AttributeMixin,
+                     model_base.IsMonitored):
+    """DB model for L3OutInterface."""
+
+    __tablename__ = 'aim_l3out_interfaces'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                               'node_profile_name', 'interface_profile_name',
+                               'interface_path') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    l3out_name = model_base.name_column(nullable=False)
+    node_profile_name = model_base.name_column(nullable=False)
+    interface_profile_name = model_base.name_column(nullable=False)
+    # Use VARCHAR with ASCII encoding to work-around MySQL limitations
+    # on the length of primary keys
+    interface_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
+    encap = sa.Column(sa.String(24), nullable=False)
+    type = sa.Column(sa.String(16), nullable=False)
+    primary_addr_a = sa.Column(sa.String(64), nullable=False)
+    primary_addr_b = sa.Column(sa.String(64))
+    secondary_addr_a_list = orm.relationship(L3OutInterfaceSecondaryIpA,
+                                             backref='interface_a',
+                                             cascade='all, delete-orphan',
+                                             lazy='joined')
+    secondary_addr_b_list = orm.relationship(L3OutInterfaceSecondaryIpB,
+                                             backref='interface_b',
+                                             cascade='all, delete-orphan',
+                                             lazy='joined')
+
+    def from_attr(self, session, res_attr):
+        primary_addr_a = res_attr.get('primary_addr_a', '')
+        if primary_addr_a and 'secondary_addr_a_list' in res_attr:
+            addr_list = []
+            for p in (res_attr.pop('secondary_addr_a_list', []) or []):
+                if p.get('addr'):
+                    addr_list.append(
+                        L3OutInterfaceSecondaryIpA(addr=p['addr']))
+            self.secondary_addr_a_list = addr_list
+
+        primary_addr_b = res_attr.get('primary_addr_b', '')
+        if primary_addr_b and 'secondary_addr_b_list' in res_attr:
+            addr_list = []
+            for p in (res_attr.pop('secondary_addr_b_list', []) or []):
+                if p.get('addr'):
+                    addr_list.append(
+                        L3OutInterfaceSecondaryIpB(addr=p['addr']))
+            self.secondary_addr_b_list = addr_list
+
+        # map remaining attributes to model
+        super(L3OutInterface, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(L3OutInterface, self).to_attr(session)
+        for p in res_attr.pop('secondary_addr_a_list', []):
+            res_attr.setdefault('secondary_addr_a_list', []).append(
+                {'addr': p.addr})
+        for p in res_attr.pop('secondary_addr_b_list', []):
+            res_attr.setdefault('secondary_addr_b_list', []).append(
+                {'addr': p.addr})
+        return res_attr
+
+
 class ExternalNetworkContract(model_base.Base):
     """DB model for Contracts used by ExternalNetwork."""
     __tablename__ = 'aim_external_network_contracts'
