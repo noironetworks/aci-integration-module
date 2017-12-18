@@ -41,3 +41,7 @@ class MultipleRootTreeError(StructuredHashTreeException):
 
 class HashTreeNotFound(StructuredHashTreeException):
     message = "Hash Tree not found for roots %(root_rn)s"
+
+
+class HashTreeNotEmpty(StructuredHashTreeException):
+    message = "Hash Tree is not empty for roots %(root_rn)s"

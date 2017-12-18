@@ -183,7 +183,7 @@ class AimStore(object):
                        self.extract_attributes(resource))
         return obj
 
-    def fix_session(self, error):
+    def fix_session(self, error, force=False):
         pass
 
 
@@ -375,9 +375,10 @@ class SqlAlchemyStore(AimStore):
     def to_attr(self, resource_klass, db_obj):
         return db_obj.to_attr(self.db_session)
 
-    def fix_session(self, error):
-        LOG.debug("Rolling back session after %s", error.message)
-        if isinstance(error, db_exc.DBError):
+    def fix_session(self, error, force=False):
+        if error:
+            LOG.debug("Rolling back session after %s", error.message)
+        if force or isinstance(error, db_exc.DBError):
             try:
                 self.db_session.rollback()
             except Exception as e:

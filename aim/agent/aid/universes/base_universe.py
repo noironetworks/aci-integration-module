@@ -211,6 +211,34 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
+    def vote_deletion_candidates(self, other_universe, delete_candidates,
+                                 vetoes):
+        """Vote deletion candidates
+
+        Decide whether the cleanup process should be initiated for a specific
+        candidate.
+
+        :param other_universe
+        :param delete_candidates: set that each universe can use to
+               vote for tenant deletion.
+        :param
+        :return:
+        """
+
+    @abc.abstractmethod
+    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        """Finalize deletion candidates
+
+        After one reconciliation cycle, decide whether the tenant should be
+        completely deleted. Universes can only *remove* candidates at this
+        point from the list.
+
+        :param other_universe:
+        :param delete_candidates:
+        :return:
+        """
+
+    @abc.abstractmethod
     def update_status_objects(self, my_state, other_universe, other_state,
                               raw_diff, transformed_diff, skip_roots=None):
         """Update status objects
@@ -306,26 +334,28 @@ class HashTreeStoredUniverse(AimUniverse):
             aci_objects.append(aci_object)
         return aci_objects
 
+    def _mask_tenant_state(self, other_universe, delete_candidates):
+        for tenant in delete_candidates:
+            if tenant in other_universe.state:
+                other_universe.state[tenant] = (
+                    structured_tree.StructuredHashTree())
+
     def observe(self):
         pass
 
     def reconcile(self, other_universe, delete_candidates):
         return self._reconcile(other_universe, delete_candidates)
 
-    def _vote_tenant_for_deletion(self, other_universe, tenant,
-                                  delete_candidates):
-        votes = delete_candidates.setdefault(tenant, set())
-        votes.add(self)
+    def vote_deletion_candidates(self, other_universe, delete_candidates,
+                                 vetoes):
+        pass
 
-    def _reconcile(self, other_universe, delete_candidates,
-                   skip_dummy=False, always_vote_deletion=False):
+    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        pass
+
+    def _reconcile(self, other_universe, delete_candidates):
         # "self" is always the current state, "other" the desired
         my_state = self.state
-        # TODO(ivar): We used get_optimized_state method here. By doing that
-        # however, we can't identify what items need to be set in synced state
-        # to improve performance, get_optimized_state should return both
-        # different tenants and those with at least one hashtree node in
-        # pending state.
         other_state = other_universe.state
         differences = {CREATE: [], DELETE: []}
         for tenant in set(my_state.keys()) & set(other_state.keys()):
@@ -339,22 +369,6 @@ class HashTreeStoredUniverse(AimUniverse):
             if difference['add'] or difference['remove']:
                 LOG.info("Universes %s and %s have differences for tenant "
                          "%s" % (self.name, other_universe.name, tenant))
-        # Remove empty tenants
-        for tenant, tree in my_state.iteritems():
-            if always_vote_deletion or (
-                    skip_dummy and (not tree.root or tree.root.dummy)):
-                LOG.debug("%s voting for removal of tenant %s" %
-                          (self.name, tenant))
-                self._vote_tenant_for_deletion(other_universe, tenant,
-                                               delete_candidates)
-                continue
-            if not tree.root:  # A Tenant has no state
-                if tenant not in other_state or not other_state[tenant].root:
-                    self._vote_tenant_for_deletion(
-                        other_universe, tenant, delete_candidates)
-                else:
-                    # This universe disagrees on deletion
-                    delete_candidates.get(tenant, set()).discard(self)
 
         if not differences.get(CREATE) and not differences.get(DELETE):
             diff = False
