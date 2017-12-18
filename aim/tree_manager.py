@@ -118,12 +118,17 @@ class TreeManager(object):
         return self.delete_bulk(context, [hash_tree])
 
     @utils.log
-    def delete_by_root_rn(self, context, root_rn):
+    def delete_by_root_rn(self, context, root_rn, if_empty=False):
         self._add_commit_hook(context)
-        with context.store.begin(subtransactions=True):
-            self._delete_if_exist(context, ROOT_TREE, root_rn)
-            for type in SUPPORTED_TREES:
-                self._delete_if_exist(context, type, root_rn)
+        try:
+            with context.store.begin(subtransactions=True):
+                self._delete_if_exist(context, ROOT_TREE, root_rn)
+                for type in SUPPORTED_TREES:
+                    self._delete_if_exist(context, type, root_rn,
+                                          if_empty=if_empty)
+        except exc.HashTreeNotEmpty:
+            LOG.warning("Hashtree not empty for root %s, rolling "
+                        "back deletion." % root_rn)
 
     @utils.log
     def clean_by_root_rn(self, context, root_rn):
@@ -232,11 +237,17 @@ class TreeManager(object):
         """Remove callback for update to AIM objects."""
         self._after_commit_listeners.remove(func)
 
-    def _delete_if_exist(self, context, tree_type, root_rn):
+    def _delete_if_exist(self, context, tree_type, root_rn, if_empty=False):
         with context.store.begin(subtransactions=True):
             obj = self._find_query(context, tree_type, root_rn=root_rn,
                                    lock_update=True)
             if obj:
+                if if_empty:
+                    tree = self.tree_klass.from_string(
+                        str(obj[0].tree), self.root_key_funct(root_rn))
+                    if tree.root:
+                        # Raise a error to rollback any ongoing transaction
+                        raise exc.HashTreeNotEmpty(root_rn=root_rn)
                 context.store.delete(obj[0])
 
     def _create_if_not_exist(self, context, tree_type, root_rn, **kwargs):

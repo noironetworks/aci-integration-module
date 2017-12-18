@@ -335,8 +335,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                         vrf_name='vrf2', display_name='nice')
         self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
-        bd1_tn1_status = self.aim_manager.get_status(self.ctx, bd1_tn1)
-        bd1_tn2_status = self.aim_manager.get_status(self.ctx, bd1_tn2)
+        self.aim_manager.get_status(self.ctx, bd1_tn1)
+        self.aim_manager.get_status(self.ctx, bd1_tn2)
         self.aim_manager.set_fault(
             self.ctx, bd1_tn1, aim_status.AciFault(
                 fault_code='516',
@@ -628,9 +628,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._daemon_loop(self.ctx)
         # Delete the tenant on AIM, agents should stop watching it
         self.aim_manager.delete(self.ctx, tn1)
-        # This loop will have a consensus for deleting Tenant tn1
         agent._daemon_loop(self.ctx)
-        # Agent will not serve such tenant anymore
+        # Agent will delete remaining objects
+        agent._daemon_loop(self.ctx)
+        self.assertTrue(tn1.rn in desired_monitor.serving_tenants)
+        # Now deletion happens
         agent._daemon_loop(self.ctx)
         self.assertTrue(tn1.rn not in desired_monitor.serving_tenants)
 

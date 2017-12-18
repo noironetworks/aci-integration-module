@@ -265,8 +265,14 @@ class TestAimDbUniverseBase(object):
 
         aim_mgr.create(self.ctx, bd1)
         aim_mgr.set_fault(self.ctx, bd1, bd1_fault)
-        self.universe.cleanup_state('tn-t1')
+        self.assertRaises(Exception, self.universe.cleanup_state, 'tn-t1')
 
+        trees = tree_mgr.find(self.ctx, tree=tree_type)
+        # tenant still there, trees not empty.
+        self.assertEqual(1, len(trees))
+        aim_mgr.clear_fault(self.ctx, bd1_fault)
+        aim_mgr.delete(self.ctx, resource.Tenant(name='t1'), cascade=True)
+        self.universe.cleanup_state('tn-t1')
         trees = tree_mgr.find(self.ctx, tree=tree_type)
         self.assertEqual(0, len(trees))
 

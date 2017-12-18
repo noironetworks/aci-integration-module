@@ -98,21 +98,16 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def get_optimized_state(self, other_state, tree=tree_manager.CONFIG_TREE):
         # TODO(ivar): make it tree-version based to reflect metadata changes
         return self._get_state(tree=tree)
-        # request = {}
-        # for tenant in self._served_tenants:
-        #     request[tenant] = None
-        #     if tenant in other_state:
-        #         try:
-        #             request[tenant] = other_state[tenant].root_full_hash
-        #         except AttributeError:
-        #             # Empty tree
-        #             request[tenant] = None
-        # return self.tree_manager.find_changed(self.context, request,
-        #                                       tree=tree)
 
     @base.fix_session_if_needed
     def cleanup_state(self, key):
-        self.tree_manager.delete_by_root_rn(self.context, key)
+        # Only delete if state is still empty. Never remove a tenant if there
+        # are leftovers.
+        with self.context.store.begin(subtransactions=True):
+            # There could still be logs, but they will re-create the
+            # tenants in the next iteration.
+            self.tree_manager.delete_by_root_rn(self.context, key,
+                                                if_empty=True)
 
     @base.fix_session_if_needed
     def _get_state(self, tree=tree_manager.CONFIG_TREE):
@@ -128,6 +123,25 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         """
         # Returns state for all the tenants regardless
         return self._state
+
+    def vote_deletion_candidates(self, other_universe, delete_candidates,
+                                 vetoes):
+        # Deletion candidates will be decided solely by the AIM configuration
+        # universe.
+        my_state = self.state
+        for tenant, tree in my_state.iteritems():
+            if not tree.root and tenant not in vetoes:
+                # The desired state for this tentant is empty
+                delete_candidates.add(tenant)
+
+    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        other_state = other_universe.state
+        for tenant in list(delete_candidates):
+            # Remove tenants that have been emptied.
+            if tenant not in other_state or not other_state[tenant].root:
+                pass
+            else:
+                delete_candidates.discard(tenant)
 
     def _convert_get_resources_result(self, result, monitored_set):
         result = converter.AciToAimModelConverter().convert(result)
@@ -316,11 +330,23 @@ class AimDbOperationalUniverse(AimDbUniverse):
         return super(AimDbOperationalUniverse, self).get_optimized_state(
             other_state, tree=tree)
 
+    def vote_deletion_candidates(self, other_universe, delete_candidates,
+                                 vetoes):
+        pass
+
+    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        my_state = self.state
+        for tenant in list(delete_candidates):
+            # Remove tenants that have been emptied.
+            if tenant not in my_state or not my_state[tenant].root:
+                pass
+            else:
+                # AIM monitored DB still has stuff to delete
+                delete_candidates.discard(tenant)
+
     def reconcile(self, other_universe, delete_candidates):
-        # When the other universes are ok with deleting a Tenant, there's no
-        # reason for the Operational Universe to oppose that decision
-        return self._reconcile(other_universe, delete_candidates,
-                               always_vote_deletion=True)
+        self._mask_tenant_state(other_universe, delete_candidates)
+        return self._reconcile(other_universe, delete_candidates)
 
     def update_status_objects(self, my_state, other_state, other_universe,
                               raw_diff, transformed_diff, skip_roots=None):
@@ -344,11 +370,28 @@ class AimDbMonitoredUniverse(AimDbUniverse):
     def push_resources(self, resources):
         self._push_resources(resources, monitored=True)
 
+    def vote_deletion_candidates(self, other_universe, delete_candidates,
+                                 vetoes):
+        my_state = self.state
+        # Veto tenants with non-dummy roots
+        for tenant, tree in my_state.iteritems():
+            if tree.root and not tree.root.dummy:
+                delete_candidates.discard(tenant)
+                vetoes.add(tenant)
+
+    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        my_state = self.state
+        for tenant in list(delete_candidates):
+            # Remove tenants that have been emptied.
+            if tenant not in my_state or not my_state[tenant].root:
+                pass
+            else:
+                # AIM monitored DB still has stuff to delete
+                delete_candidates.discard(tenant)
+
     def reconcile(self, other_universe, delete_candidates):
-        # We want monitored universe to stop reconciling when the corresponding
-        # AIM tenant doesn't exist.
-        return self._reconcile(other_universe, delete_candidates,
-                               skip_dummy=True)
+        self._mask_tenant_state(other_universe, delete_candidates)
+        return self._reconcile(other_universe, delete_candidates)
 
     def update_status_objects(self, my_state, other_universe, other_state,
                               raw_diff, transformed_diff, skip_roots=None):

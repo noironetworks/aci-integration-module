@@ -86,11 +86,6 @@ class AID(object):
              CURRENT: aim_universe.AimDbMonitoredUniverse().initialize(
                  api.get_store(), self.conf_manager, self.multiverse)},
         ]
-        # delete_candidates contains tenants that are candidate for deletion.
-        # when the consensus is reach by all the universe, the state will
-        # be cleaned up by the reconcile action
-        self.delete_candidates = {}
-        self.consensus = len(self.multiverse)
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
         self.manager = aim_manager.AimManager()
@@ -155,10 +150,6 @@ class AID(object):
         if serve:
             LOG.info("Start serving cycle.")
             tenants = self._calculate_tenants(aim_ctx)
-            # Filter delete candidates with currently served tenants
-            self.delete_candidates = {k: v for k, v in
-                                      self.delete_candidates.iteritems()
-                                      if k in tenants}
             # Serve tenants
             for pair in self.multiverse:
                 pair[DESIRED].serve(tenants)
@@ -176,23 +167,35 @@ class AID(object):
                 pair[DESIRED].observe()
                 pair[CURRENT].observe()
 
+        delete_candidates = set()
+        vetoes = set()
+        for pair in self.multiverse:
+            pair[DESIRED].vote_deletion_candidates(
+                pair[CURRENT], delete_candidates, vetoes)
+            pair[CURRENT].vote_deletion_candidates(
+                pair[DESIRED], delete_candidates, vetoes)
         # Reconcile everything
         changes = False
         for pair in self.multiverse:
             changes |= pair[CURRENT].reconcile(pair[DESIRED],
-                                               self.delete_candidates)
+                                               delete_candidates)
         if not changes:
             LOG.info("Congratulations! your multiverse is nice and synced :)")
 
+        for pair in self.multiverse:
+            pair[DESIRED].finalize_deletion_candidates(pair[CURRENT],
+                                                       delete_candidates)
+            pair[CURRENT].finalize_deletion_candidates(pair[DESIRED],
+                                                       delete_candidates)
+
         # Delete tenants if there's consensus
-        for tenant, votes in self.delete_candidates.iteritems():
-            if len(votes) == self.consensus:
-                # All the universes agree on this tenant cleanup
-                for pair in self.multiverse:
-                    for universe in pair.values():
-                        LOG.info("%s removing tenant from AIM %s" %
-                                 (universe.name, tenant))
-                        universe.cleanup_state(tenant)
+        for tenant in delete_candidates:
+            # All the universes agree on this tenant cleanup
+            for pair in self.multiverse:
+                for universe in pair.values():
+                    LOG.info("%s removing tenant from AID %s" %
+                             (universe.name, tenant))
+                    universe.cleanup_state(tenant)
 
     def _spawn_heartbeat_loop(self):
         utils.spawn_thread(self._heartbeat_loop)
