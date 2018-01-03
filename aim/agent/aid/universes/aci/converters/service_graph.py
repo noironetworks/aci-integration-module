@@ -190,6 +190,8 @@ def service_graph_converter(object_dict, otype, helper,
 
 vnsRsALDevToPhysDomP_converter = utils.dn_decomposer(
     ['physical_domain_name'], 'physDomP')
+vnsRsALDevToDomP_converter = utils.dn_decomposer(
+    ['vmm_domain_type', 'vmm_domain_name'], 'vmmDomP')
 vnsRsCIfAttN_converter = utils.child_list('concrete_interfaces', 'tDn')
 vnsRsCIfPathAtt_converter = utils.child_list('path', 'tDn')
 vnsAbsFuncConn_converter = utils.child_list('connectors', 'name')
@@ -207,7 +209,8 @@ vnsRedirectDest_converter = utils.list_dict(
 resource_map = {
     'vnsLDevVip': [{
         'resource': service_graph.DeviceCluster,
-        'skip': ['physical_domain_name', 'encap', 'devices'],
+        'skip': ['physical_domain_name', 'encap', 'devices',
+                 'vmm_domain_name', 'vmm_domain_type'],
         'exceptions': {
             'managed': {'converter': utils.boolean},
             'devtype': {'other': 'device_type'},
@@ -219,6 +222,12 @@ resource_map = {
         'resource': service_graph.DeviceCluster,
         'exceptions': {'tDn': {'other': 'physical_domain_name',
                                'converter': vnsRsALDevToPhysDomP_converter}},
+        'to_resource': utils.default_to_resource_strict,
+    }],
+    'vnsRsALDevToDomP': [{
+        'resource': service_graph.DeviceCluster,
+        'exceptions': {'tDn': {'other': 'vmm_domain_name',
+                               'converter': vnsRsALDevToDomP_converter}},
         'to_resource': utils.default_to_resource_strict,
     }],
     'vnsLIf': [{

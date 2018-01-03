@@ -55,7 +55,9 @@ class TestAciToAimConverterBase(object):
         result = self.converter.convert(example1 + example2)
         self.assertEqual(len(expected1) + len(expected2), len(result))
         for item in expected1:
-            self.assertTrue(item in result)
+            self.assertTrue(item in result,
+                            'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                                          self._dump(result)))
         for item in expected2:
             self.assertTrue(
                 item in result,
@@ -1111,12 +1113,19 @@ class TestAciToAimConverterDeviceCluster(TestAciToAimConverterBase,
                                          base.TestAimDBBase):
     resource_type = aim_service_graph.DeviceCluster
     reverse_map_output = [
+        {'resource': 'vnsRsALDevToDomP',
+         'exceptions': {
+             'vmm_domain_name': {
+                 'converter': conv_service_graph.vnsRsALDevToDomP_converter,
+                 'other': 'tDn'}},
+         'to_resource': conv_utils.default_to_resource_strict},
         {'resource': 'vnsLDevVip',
          'exceptions': {'managed': {'converter': converter.boolean,
                                     'other': 'managed'},
                         'device_type': {'other': 'devtype'},
                         'service_type': {'other': 'svcType'}},
-         'skip': ['physicalDomainName', 'encap', 'devices'],
+         'skip': ['physicalDomainName', 'encap', 'devices', 'vmmDomainName',
+                  'vmmDomainType'],
          'converter': conv_service_graph.device_cluster_converter},
         {'resource': 'vnsRsALDevToPhysDomP',
          'exceptions':
@@ -1134,7 +1143,10 @@ class TestAciToAimConverterDeviceCluster(TestAciToAimConverterBase,
                               dn='uni/tn-t1/lDevVip-cl2',
                               managed='no',
                               devtype='VIRTUAL', svcType='ADC',
-                              contextAware='multi-Context')]]
+                              contextAware='multi-Context'),
+                     _aci_obj('vnsRsALDevToDomP',
+                              dn='uni/tn-t1/lDevVip-cl2/rsALDevToDomP',
+                              tDn='uni/vmmp-OpenStack/dom-test')]]
     sample_output = [
         aim_service_graph.DeviceCluster(
             tenant_name='t1', name='cl1', physical_domain_name='PHYS',
@@ -1142,7 +1154,8 @@ class TestAciToAimConverterDeviceCluster(TestAciToAimConverterBase,
         aim_service_graph.DeviceCluster(
             tenant_name='t1', name='cl2', managed=False,
             service_type='ADC', device_type='VIRTUAL',
-            context_aware='multi-Context', physical_domain_dn='')]
+            context_aware='multi-Context', physical_domain_name='',
+            vmm_domain_type='OpenStack', vmm_domain_name='test')]
 
 
 class TestAciToAimConverterDeviceClusterInterface(TestAciToAimConverterBase,
@@ -2782,7 +2795,9 @@ class TestAimToAciConverterDeviceCluster(TestAimToAciConverterBase,
     sample_input = [get_example_aim_device_cluster(
                     device_type='VIRTUAL',
                     service_type='ADC',
-                    context_aware='multi-Context'),
+                    context_aware='multi-Context',
+                    vmm_domain_type='VMWare',
+                    vmm_domain_name='vdom'),
                     get_example_aim_device_cluster(
                         name='cl2',
                         managed=False,
@@ -2802,7 +2817,10 @@ class TestAimToAciConverterDeviceCluster(TestAimToAciConverterBase,
                   nameAlias=''),
          _aci_obj('vnsRsALDevToPhysDomP',
                   dn='uni/tn-t1/lDevVip-cl1/rsALDevToPhysDomP',
-                  tDn='')],
+                  tDn=''),
+         _aci_obj('vnsRsALDevToDomP',
+                  dn='uni/tn-t1/lDevVip-cl1/rsALDevToDomP',
+                  tDn='uni/vmmp-VMWare/dom-vdom')],
         [_aci_obj('vnsLDevVip',
                   dn='uni/tn-t1/lDevVip-cl2',
                   devtype='PHYSICAL',
@@ -2844,7 +2862,10 @@ class TestAimToAciConverterDeviceCluster(TestAimToAciConverterBase,
          _aci_obj('vnsRsCIfPathAtt',
                   dn='uni/tn-t1/lDevVip-cl2/cDev-n2/cIf-[interface]/'
                      'rsCIfPathAtt',
-                  tDn='foo'), ]
+                  tDn='foo'),
+         _aci_obj('vnsRsALDevToDomP',
+                  dn='uni/tn-t1/lDevVip-cl2/rsALDevToDomP',
+                  tDn='')]
     ]
 
 
