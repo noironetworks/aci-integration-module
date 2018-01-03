@@ -647,7 +647,8 @@ resource_map = {
     }],
     'l3extRsNodeL3OutAtt': [{
         'resource': resource.L3OutNode,
-        'exceptions': {'rtrId': {'other': 'router_id'}}
+        'exceptions': {'rtrId': {'other': 'router_id'},
+                       'rtrIdLoopBack': {'other': 'router_id_loopback'}}
     }],
     'ipRouteP': [{
         'resource': resource.L3OutStaticRoute,

@@ -910,9 +910,11 @@ class TestL3OutNodeMixin(object):
                                 'l3out_name': 'l3out1',
                                 'node_profile_name': 'np1',
                                 'node_path': 'topology/pod-1/node-101',
-                                'router_id': '1.1.1.1'}
+                                'router_id': '1.1.1.1',
+                                'router_id_loopback': True}
     test_search_attributes = {'node_path': 'topology/pod-1/node-101'}
-    test_update_attributes = {'router_id': '2.1.1.1'}
+    test_update_attributes = {'router_id': '2.1.1.1',
+                              'router_id_loopback': False}
     test_default_values = {}
     test_dn = ("uni/tn-tenant1/out-l3out1/lnodep-np1/rsnodeL3OutAtt-"
                "[topology/pod-1/node-101]")

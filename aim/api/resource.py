@@ -705,6 +705,7 @@ class L3OutNode(AciResourceBase):
         ('node_path', t.string()))
     other_attributes = t.other(
         ('router_id', t.ipv4),
+        ('router_id_loopback', t.bool),
         ('monitored', t.bool))
 
     _aci_mo_name = 'l3extRsNodeL3OutAtt'
@@ -712,7 +713,8 @@ class L3OutNode(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(L3OutNode, self).__init__(
-            {'router_id': '', 'monitored': False}, **kwargs)
+            {'router_id': '', 'router_id_loopback': True,
+             'monitored': False}, **kwargs)
 
 
 class L3OutStaticRoute(AciResourceBase):

@@ -560,6 +560,7 @@ class L3OutNode(model_base.Base, model_base.HasAimId,
     # on the length of primary keys
     node_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
     router_id = sa.Column(sa.String(64), nullable=False)
+    router_id_loopback = sa.Column(sa.Boolean, nullable=False)
 
 
 class L3OutNextHop(model_base.Base):
