@@ -45,11 +45,7 @@ def upgrade():
         sa.UniqueConstraint('tenant_name', 'l3out_name', 'name',
                             name='uniq_aim_l3out_node_profile_identity'),
         sa.Index('idx_aim_l3out_node_profile_identity',
-                 'tenant_name', 'l3out_name', 'name'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name', 'l3out_name'],
-            ['aim_l3outsides.tenant_name', 'aim_l3outsides.name'],
-            name='fk_l3out_np_l3out'))
+                 'tenant_name', 'l3out_name', 'name'))
 
     op.create_table(
         'aim_l3out_nodes',
@@ -67,13 +63,7 @@ def upgrade():
                             name='uniq_aim_l3out_node_identity'),
         sa.Index('idx_aim_l3out_node_identity',
                  'tenant_name', 'l3out_name', 'node_profile_name',
-                 'node_path'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name', 'l3out_name', 'node_profile_name'],
-            ['aim_l3out_node_profiles.tenant_name',
-             'aim_l3out_node_profiles.l3out_name',
-             'aim_l3out_node_profiles.name'],
-            name='fk_l3out_node_pofile'))
+                 'node_path'))
 
     op.create_table(
         'aim_l3out_static_routes',
@@ -92,13 +82,7 @@ def upgrade():
                             name='uniq_aim_l3out_static_route_identity'),
         sa.Index('idx_aim_l3out_static_route_identity',
                  'tenant_name', 'l3out_name', 'node_profile_name',
-                 'node_path', 'cidr'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name', 'l3out_name', 'node_profile_name', 'node_path'],
-            ['aim_l3out_nodes.tenant_name', 'aim_l3out_nodes.l3out_name',
-             'aim_l3out_nodes.node_profile_name',
-             'aim_l3out_nodes.node_path'],
-            name='fk_l3out_node'))
+                 'node_path', 'cidr'))
 
     op.create_table(
         'aim_l3out_next_hops',
@@ -124,13 +108,7 @@ def upgrade():
                             name='uniq_aim_l3out_if_profile_identity'),
         sa.Index('idx_aim_l3out_if_profile_identity',
                  'tenant_name', 'l3out_name', 'node_profile_name',
-                 'name'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name', 'l3out_name', 'node_profile_name'],
-            ['aim_l3out_node_profiles.tenant_name',
-             'aim_l3out_node_profiles.l3out_name',
-             'aim_l3out_node_profiles.name'],
-            name='fk_l3out_if_node_pofile'))
+                 'name'))
 
     op.create_table(
         'aim_l3out_interfaces',
@@ -152,15 +130,7 @@ def upgrade():
                             name='uniq_aim_l3out_if_identity'),
         sa.Index('idx_aim_l3out_if_identity',
                  'tenant_name', 'l3out_name', 'node_profile_name',
-                 'interface_profile_name', 'interface_path'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name', 'l3out_name', 'node_profile_name',
-             'interface_profile_name'],
-            ['aim_l3out_interface_profiles.tenant_name',
-             'aim_l3out_interface_profiles.l3out_name',
-             'aim_l3out_interface_profiles.node_profile_name',
-             'aim_l3out_interface_profiles.name'],
-            name='fk_l3out_interface_profile'))
+                 'interface_profile_name', 'interface_path'))
 
     op.create_table(
         'aim_l3out_interface_secondary_ip_a',

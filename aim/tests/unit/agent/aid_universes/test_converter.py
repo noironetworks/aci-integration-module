@@ -772,7 +772,7 @@ class TestAciToAimConverterL3OutNodeProfile(TestAciToAimConverterBase,
 
 def get_example_l3out_aci_node(**kwargs):
     attr = {'rtrId': '9.9.9.9',
-            'rtrIdLoopBack': True,
+            'rtrIdLoopBack': 'yes',
             'dn': 'uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
                   '[topology/pod-1/node-101]'}
     attr.update(**kwargs)
@@ -785,11 +785,13 @@ class TestAciToAimConverterL3OutNode(TestAciToAimConverterBase,
     reverse_map_output = [
         {'resource': 'l3extRsNodeL3OutAtt',
          'exceptions': {'router_id': {'other': 'rtrId'},
-                        'router_id_loopback': {'other': 'rtrIdLoopBack'}}}]
+                        'router_id_loopback': {'other': 'rtrIdLoopBack',
+                                               'converter': converter.boolean}
+                        }}]
     sample_input = [get_example_l3out_aci_node(),
                     get_example_l3out_aci_node(
                         rtrId='8.8.8.8',
-                        rtrIdLoopBack=False,
+                        rtrIdLoopBack='no',
                         dn='uni/tn-t1/out-o1/lnodep-np1/rsnodeL3OutAtt-'
                            '[topology/pod-1/node-201]')]
     sample_output = [
@@ -2415,20 +2417,20 @@ class TestAimToAciConverterL3OutNode(TestAimToAciConverterBase,
                   dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
                      '[topology/pod-1/node-201]',
                   rtrId='8.8.8.8',
-                  rtrIdLoopBack=False)],
+                  rtrIdLoopBack='no')],
         [],
         [_aci_obj('l3extRsNodeL3OutAtt',
                   dn='uni/tn-t1/out-l1/lnodep-np1/rsnodeL3OutAtt-'
                      '[topology/pod-1/node-101]',
                   rtrId='9.9.9.9',
-                  rtrIdLoopBack=True)]]
+                  rtrIdLoopBack='yes')]]
     missing_ref_input = get_example_aim_l3out_node()
     missing_ref_output = [_aci_obj('l3extRsNodeL3OutAtt',
                                    dn='uni/tn-t1/out-l1/lnodep-np1/'
                                       'rsnodeL3OutAtt-'
                                       '[topology/pod-1/node-101]',
                                    rtrId='9.9.9.9',
-                                   rtrIdLoopBack=True)]
+                                   rtrIdLoopBack='yes')]
 
 
 def get_example_aim_l3out_static_route(**kwargs):
