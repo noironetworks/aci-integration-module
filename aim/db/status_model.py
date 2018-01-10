@@ -36,7 +36,7 @@ class Fault(model_base.Base, model_base.AttributeMixin):
                                       onupdate=func.now())
     # external_identifier is an ID used by external entities to easily
     # correlate the fault to the proper external object
-    external_identifier = sa.Column(sa.String(255), nullable=False,
+    external_identifier = sa.Column(sa.String(512), nullable=False,
                                     primary_key=True)
 
     def to_attr(self, session):
