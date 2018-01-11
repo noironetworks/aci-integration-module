@@ -722,15 +722,18 @@ class TestAciToAimConverterL3Outside(TestAciToAimConverterBase,
                                      base.TestAimDBBase):
     resource_type = resource.L3Outside
     reverse_map_output = [
-        {'exceptions': {},
-         'resource': 'l3extOut',
-         'skip': ['vrfName', 'l3DomainDn']},
+        {'resource': 'l3extOut',
+         'exceptions': {},
+         'skip': ['vrfName', 'l3DomainDn', 'bgpEnable']},
         {'resource': 'l3extRsEctx',
          'exceptions': {'vrf_name': {'other': 'tnFvCtxName'}, },
          'to_resource': converter.default_to_resource_strict},
         {'resource': 'l3extRsL3DomAtt',
          'exceptions': {'l3_domain_dn': {'other': 'tDn'}, },
-         'to_resource': converter.default_to_resource_strict}
+         'to_resource': converter.default_to_resource_strict},
+        {'converter': converter.bgp_extp_converter,
+         'exceptions': {},
+         'resource': 'bgpExtP'}
     ]
     sample_input = [[get_example_aci_l3outside(nameAlias='alias'),
                      _aci_obj('l3extRsEctx',
@@ -1053,8 +1056,9 @@ def get_example_aci_external_subnet(**kwargs):
 class TestAciToAimConverterExternalSubnet(TestAciToAimConverterBase,
                                           base.TestAimDBBase):
     resource_type = resource.ExternalSubnet
-    reverse_map_output = [{'exceptions': {},
-                           'resource': 'l3extSubnet'}]
+    reverse_map_output = [
+        {'exceptions': {}, 'resource': 'l3extSubnet'}
+    ]
     sample_input = [get_example_aci_external_subnet(),
                     get_example_aci_external_subnet(
                         dn=('uni/tn-t1/out-o2/instP-inet2/'
@@ -2327,6 +2331,15 @@ def get_example_aim_l3outside(**kwargs):
 
 class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                                      base.TestAimDBBase):
+    resource_type = resource.L3Outside
+    reverse_map_output = [
+        {'resource':'l3extOut',
+         'exceptions': {},
+         'skip': ['vrf_name', 'l3_domain_dn','bgpEnable']},
+        {'converter': converter.bgp_extp_converter,
+         'exceptions': {},
+         'resource': 'bgpExtP'}
+    ]
     sample_input = [get_example_aim_l3outside(name='inet2', vrf_name='l3p',
                                               l3_domain_dn='uni/foo'),
                     get_example_aim_l3outside(name='inet2', vrf_name='shared',
@@ -2341,7 +2354,7 @@ class TestAimToAciConverterL3Outside(TestAimToAciConverterBase,
                                               display_name='alias'),
                     get_example_aim_l3outside(name='inet3')]
     sample_output = [
-        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2', nameAlias=""),
+        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2', nameAlias=''),
          _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
                   tnFvCtxName='l3p'),
          _aci_obj('l3extRsL3DomAtt',
@@ -3717,3 +3730,232 @@ class TestAimToAciConverterVmmInjContGroup(TestAimToAciConverterBase,
                   nameAlias='',
                   replicaSetName='')]
     ]
+
+
+def get_example_aci_bgpextp(**kwargs):
+    attr = {'name': 'bgp',
+            'dn': 'uni/tn-t1/out-inet1/bgpExtP'}
+    attr.update(**kwargs)
+    return _aci_obj('bgpExtP', **attr)
+
+class TestAciToAimConverterBgpExtP(TestAciToAimConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.L3Outside
+    reverse_map_output = [
+        {'resource': 'l3extOut',
+         'exceptions': {},
+         'skip': ['vrfName', 'l3DomainDn', 'bgpEnable']},
+        {'resource': 'l3extRsEctx',
+         'exceptions': {'vrf_name': {'other': 'tnFvCtxName'}, },
+         'to_resource': converter.default_to_resource_strict},
+        {'resource': 'l3extRsL3DomAtt',
+         'exceptions': {'l3_domain_dn': {'other': 'tDn'}, },
+         'to_resource': converter.default_to_resource_strict},
+        {'converter': converter.bgp_extp_converter,
+         'exceptions': {},
+         'resource': 'bgpExtP'}
+    ]
+    sample_input = [[get_example_aci_bgpextp(nameAlias='alias'),
+                     _aci_obj('l3extOut',
+                              dn='uni/tn-t1/out-inet1'),
+                     ],
+                    get_example_aci_l3outside(dn='uni/tn-t1/out-inet2')]
+    sample_output = [
+        resource.L3Outside(tenant_name='t1', name='inet1',
+                           bgp_enable=True,
+                           display_name=''),
+        resource.L3Outside(tenant_name='t1', name='inet2', bgp_enable=False)]
+
+
+class TestAimToAciConverterBgpExtP(TestAimToAciConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.L3Outside
+    reverse_map_output = [
+        {'resource':'l3extOut',
+         'exceptions': {},
+         'skip': ['vrf_name', 'l3_domain_dn','bgpEnable']},
+        {'converter': converter.bgp_extp_converter,
+         'exceptions': {},
+         'resource': 'bgpExtP'}
+    ]
+    sample_input = [get_example_aim_l3outside(name='inet2', vrf_name='l3p',
+                                              l3_domain_dn='uni/foo', bgp_enable=True),
+                    get_example_aim_l3outside(name='inet3', vrf_name='shared',
+                                              l3_domain_dn='uni/foo',
+                                              bgp_enable=False)]
+    sample_output = [
+        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2', nameAlias=''),
+         _aci_obj('bgpExtP', dn='uni/tn-t1/out-inet2/bgpExtP'),
+         _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
+                  tnFvCtxName='l3p'),
+         _aci_obj('l3extRsL3DomAtt', dn='uni/tn-t1/out-inet2/rsl3DomAtt',
+                  tDn='uni/foo'),
+         ],
+        [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet2', nameAlias=''),
+         _aci_obj('l3extRsEctx', dn='uni/tn-t1/out-inet2/rsectx',
+                  tnFvCtxName='l3p'),
+         _aci_obj('l3extRsL3DomAtt', dn='uni/tn-t1/out-inet2/rsl3DomAtt',
+                  tDn='uni/foo'),
+        ]
+       ]
+    missing_ref_input = get_example_aim_l3outside(vrf_name=None,
+                                                  l3_domain_dn=None)
+    missing_ref_output = [_aci_obj('l3extOut', dn='uni/tn-t1/out-inet1',
+                                   nameAlias='')]
+
+def get_example_aci_bgpaspeerp(**kwargs) :
+    attr = {
+            'asn': 65000,
+            'dn': 'uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
+                  '[topology/pod-1/paths-101/pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as'}
+    attr.update(**kwargs)
+    return _aci_obj('bgpAsP__Peer', **attr)
+
+def get_example_aci_bgppeerp(**kwargs) :
+    attr = {
+            'addr': '1.1.1.0/24',
+            'dn': 'uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
+                  '[topology/pod-1/paths-101/pathep-[eth1/1]]/peerP-[1.1.1.0/24]'}
+    attr.update(**kwargs)
+    return _aci_obj('bgpPeerP', **attr)
+
+class TestAciToAimConverterBgpAsPPeer(TestAciToAimConverterBase,
+                                          base.TestAimDBBase):
+    resource_type = resource.BgpPeerP
+    reverse_map_output = [
+        {'resource': 'bgpLocalAsnP',
+         'exceptions': {},
+         'converter': converter.bgp_as_converter,
+         'skip': [ 'asn']
+         },
+        {'exceptions': {},
+         'resource': 'bgpPeerP',
+         'skip': ['asn', 'localAsn']},
+        {'converter': converter.bgp_as_converter,
+         'exceptions': {},
+         'resource': 'bgpAsP__Peer',
+         'skip': [ 'localAsn']}
+        ]
+    sample_input = [[get_example_aci_bgppeerp(),
+                     get_example_aci_bgpaspeerp()],
+                    [get_example_aci_bgppeerp(tenant_name='t2'),
+                     _aci_obj('bgpAsP__Peer',
+                              dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
+                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                                 'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as',
+                              asn=0)]]
+    sample_output = [
+        resource.BgpPeerP(
+            tenant_name='t1', l3out_name='l1',
+            node_profile_name='np1', interface_profile_name='ip1',
+            interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
+            addr='1.1.1.0/24',
+            asn=65000),
+        resource.BgpPeerP(
+            tenant_name='t2', l3out_name='l1',
+            node_profile_name='np1', interface_profile_name='ip1',
+            interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
+            addr='1.1.1.0/24',
+            asn=0),
+        ]
+
+def get_example_aim_bgppeerp(**kwargs):
+    example = resource.BgpPeerP(
+        tenant_name='t1', l3out_name='l1',
+        node_profile_name='np1', interface_profile_name='ip1',
+        interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
+        addr='1.1.1.0/24',
+        asn=65000,
+        localAsn=1)
+    example.__dict__.update(kwargs)
+    return example
+
+class TestAimToAciConverterBgpAsPPeer(TestAimToAciConverterBase,
+                                          base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_bgppeerp(),
+        get_example_aim_bgppeerp(tenant_name='t2',
+            asn=65001),
+        ]
+    sample_output = [
+        [_aci_obj('bgpPeerP',
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]'),
+         _aci_obj('bgpAsP__Peer',
+                  asn=65000,
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as'),
+         _aci_obj('bgpLocalAsnP',
+                  localAsn=1,
+                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/localasn')],
+        [_aci_obj('bgpPeerP',
+                  dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]'),
+         _aci_obj('bgpAsP__Peer',
+                  asn=65001,
+                  dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as'),
+         _aci_obj('bgpLocalAsnP',
+                  localAsn=1,
+                  dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
+                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/localasn')]]
+
+
+def get_example_aci_bgplocalasnp(**kwargs) :
+    attr = {
+            'localAsn': 1,
+            'dn': 'uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
+                  '[topology/pod-1/paths-101/pathep-[eth1/1]]/peerP-[1.1.1.0/24]/localasn'}
+    attr.update(**kwargs)
+    return _aci_obj('bgpLocalAsnP', **attr)
+
+
+class TestAciToAimConverterBgpLocalAsnP(TestAciToAimConverterBase,
+                                          base.TestAimDBBase):
+    resource_type = resource.BgpPeerP
+    reverse_map_output = [
+        {'resource': 'bgpLocalAsnP',
+         'exceptions': {},
+         'converter': converter.bgp_as_converter,
+         'skip': [ 'asn']
+        },
+    {'exceptions': {},
+     'resource': 'bgpPeerP',
+     'skip': ['asn', 'localAsn']},
+    {'converter': converter.bgp_as_converter,
+    'exceptions': {},
+    'resource': 'bgpAsP__Peer',
+     'skip': ['localAsn']}
+        ]
+    sample_input = [[get_example_aci_bgppeerp(),
+                     get_example_aci_bgplocalasnp()],
+                    [get_example_aci_bgppeerp(tenant_name='t2'),
+                     _aci_obj('bgpLocalAsnP',
+                     dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
+                    'rspathL3OutAtt-[topology/pod-1/paths-101/'
+                    'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/localasn',
+                     addr = '1.1.1.0/24',
+                     localAsn=20)]
+                    ]
+
+    sample_output = [
+        resource.BgpPeerP(
+            tenant_name='t1', l3out_name='l1',
+            node_profile_name='np1', interface_profile_name='ip1',
+            interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
+            addr='1.1.1.0/24',
+            localAsn=1),
+        resource.BgpPeerP(
+            tenant_name='t2', l3out_name='l1',
+            node_profile_name='np1', interface_profile_name='ip1',
+            interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
+            addr='1.1.1.0/24',
+            localAsn=20)
+        ]

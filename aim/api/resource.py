@@ -660,6 +660,7 @@ class L3Outside(AciResourceBase):
         ('display_name', t.name),
         ('vrf_name', t.name),
         ('l3_domain_dn', t.string()),
+        ('bgp_enable', t.bool),
         ('monitored', t.bool))
 
     _aci_mo_name = 'l3extOut'
@@ -668,6 +669,7 @@ class L3Outside(AciResourceBase):
     def __init__(self, **kwargs):
         super(L3Outside, self).__init__(
             {'vrf_name': '', 'l3_domain_dn': '',
+             'bgp_enable': False,
              'monitored': False}, **kwargs)
 
 
@@ -802,6 +804,33 @@ class L3OutInterface(AciResourceBase):
              'monitored': False}, **kwargs)
 
 
+class BgpPeerP(AciResourceBase):
+    """Resource representing a bgp peer prefix.
+
+    Identity attributes: name of ACI tenant, name of L3Out, name of node
+    profile, name of interface profile, interface_path, bgp peer prefix.
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('node_profile_name', t.name),
+        ('interface_profile_name', t.name),
+        ('interface_path', t.string()),
+        ('addr',t.ip_cidr))
+    other_attributes = t.other(
+        ('asn',t.positive_number),
+        ('localAsn',t.positive_number),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'bgpPeerP'
+    _tree_parent = L3OutInterface
+
+    def __init__(self, **kwargs):
+        super(BgpPeerP, self).__init__(
+            {'asn': 0, 'localAsn': 0,
+             'monitored': False}, **kwargs)
+
+
 class ExternalNetwork(AciResourceBase):
     """Resource representing an external network instance profile.
 
@@ -848,6 +877,8 @@ class ExternalSubnet(AciResourceBase):
         ('cidr', t.ip_cidr))
     other_attributes = t.other(
         ('display_name', t.name),
+        ('aggregate', t.string()),
+        ('scope', t.string()),
         ('monitored', t.bool))
 
     _aci_mo_name = 'l3extSubnet'
