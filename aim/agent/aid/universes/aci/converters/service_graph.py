@@ -227,7 +227,8 @@ resource_map = {
     'vnsRsALDevToDomP': [{
         'resource': service_graph.DeviceCluster,
         'exceptions': {'tDn': {'other': 'vmm_domain_name',
-                               'converter': vnsRsALDevToDomP_converter}},
+                               'converter': vnsRsALDevToDomP_converter,
+                               'skip_if_empty': True}},
         'to_resource': utils.default_to_resource_strict,
     }],
     'vnsLIf': [{
@@ -258,7 +259,8 @@ resource_map = {
     'vnsAbsGraph': [{
         'resource': service_graph.ServiceGraph,
         'converter': service_graph_converter,
-        'skip': ['linear_chain_nodes']
+        # TODO(ivar): temporarily disable nameAlias
+        'skip': ['linear_chain_nodes', 'display_name', 'name_alias']
     }],
     'vnsAbsNode': [{
         'resource': service_graph.ServiceGraphNode,
