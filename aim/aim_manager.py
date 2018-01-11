@@ -77,7 +77,7 @@ class AimManager(object):
                      api_res.L3OutInterface,
                      api_res.ExternalNetwork,
                      api_res.ExternalSubnet,
-                     api_res.BgpPeerP,
+                     api_res.L3OutInterfaceBgpPeerP,
                      api_infra.HostLink,
                      api_infra.HostDomainMapping,
                      api_infra.HostDomainMappingV2,

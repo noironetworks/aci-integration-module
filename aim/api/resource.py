@@ -804,7 +804,7 @@ class L3OutInterface(AciResourceBase):
              'monitored': False}, **kwargs)
 
 
-class BgpPeerP(AciResourceBase):
+class L3OutInterfaceBgpPeerP(AciResourceBase):
     """Resource representing a bgp peer prefix.
 
     Identity attributes: name of ACI tenant, name of L3Out, name of node
@@ -816,18 +816,18 @@ class BgpPeerP(AciResourceBase):
         ('node_profile_name', t.name),
         ('interface_profile_name', t.name),
         ('interface_path', t.string()),
-        ('addr',t.ip_cidr))
+        ('addr', t.ip_cidr))
     other_attributes = t.other(
-        ('asn',t.positive_number),
-        ('localAsn',t.positive_number),
+        ('asn', t.positive_number),
+        ('local_asn', t.positive_number),
         ('monitored', t.bool))
 
     _aci_mo_name = 'bgpPeerP'
     _tree_parent = L3OutInterface
 
     def __init__(self, **kwargs):
-        super(BgpPeerP, self).__init__(
-            {'asn': 0, 'localAsn': 0,
+        super(L3OutInterfaceBgpPeerP, self).__init__(
+            {'asn': 0, 'local_asn': 0,
              'monitored': False}, **kwargs)
 
 
@@ -885,7 +885,10 @@ class ExternalSubnet(AciResourceBase):
     _tree_parent = ExternalNetwork
 
     def __init__(self, **kwargs):
-        super(ExternalSubnet, self).__init__({'monitored': False}, **kwargs)
+        super(ExternalSubnet, self).__init__({'monitored': False,
+                                              'aggregate': "",
+                                              'scope': "import-security"},
+                                             **kwargs)
 
 
 class SecurityGroup(AciResourceBase):

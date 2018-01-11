@@ -527,7 +527,7 @@ class L3Outside(model_base.Base, model_base.HasAimId,
 
     vrf_name = model_base.name_column()
     l3_domain_dn = sa.Column(sa.String(1024))
-    bgp_enable = sa.Column(sa.Boolean)
+    bgp_enable = sa.Column(sa.Boolean, nullable=False)
 
 
 class L3OutNodeProfile(model_base.Base, model_base.HasAimId,
@@ -774,8 +774,8 @@ class ExternalSubnet(model_base.Base, model_base.HasAimId,
     l3out_name = model_base.name_column(nullable=False)
     external_network_name = model_base.name_column(nullable=False)
     cidr = sa.Column(sa.String(64), nullable=False)
-    aggregate = sa.Column(sa.String(64))
-    scope = sa.Column(sa.String(64))
+    aggregate = sa.Column(sa.String(64), nullable=False)
+    scope = sa.Column(sa.String(64), nullable=False)
 
 
 class SecurityGroup(model_base.Base, model_base.HasAimId,
@@ -998,7 +998,7 @@ class VmmInjectedService(model_base.Base, model_base.HasAimId,
             ports = []
             for p in (res_attr.pop('service_ports', []) or []):
                 if not (p.get('port') and p.get('target_port') and
-                            p.get('protocol')):
+                        p.get('protocol')):
                     continue
                 ports.append(VmmInjectedServicePort(**p))
             self.ports = ports
@@ -1065,20 +1065,21 @@ class VmmInjectedContGroup(model_base.Base, model_base.HasAimId,
     replica_set_name = model_base.name_column(nullable=False)
 
 
-class BgpPeerP(model_base.Base, model_base.HasAimId, model_base.HasTenantName,
-               model_base.AttributeMixin, model_base.IsMonitored):
+class L3OutInterfaceBgpPeerP(model_base.Base, model_base.HasAimId,
+                             model_base.HasTenantName,
+                             model_base.AttributeMixin,
+                             model_base.IsMonitored):
     """DB model for BgpPeerConnectivityProfile."""
     __tablename__ = 'aim_l3out_interface_bgp_peer_prefix'
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
-                                'node_profile_name', 'interface_profile_name',
+                               'node_profile_name', 'interface_profile_name',
                                'interface_path', 'addr') +
         model_base.to_tuple(model_base.Base.__table_args__))
     l3out_name = model_base.name_column(nullable=False)
     node_profile_name = model_base.name_column(nullable=False)
     interface_profile_name = model_base.name_column(nullable=False)
     interface_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
-    addr = sa.Column(sa.String(64),  nullable=False)
+    addr = sa.Column(sa.String(64), nullable=False)
     asn = sa.Column(sa.Integer)
-    localAsn = sa.Column(sa.Integer)
-
+    local_asn = sa.Column(sa.Integer)
