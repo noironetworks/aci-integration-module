@@ -522,6 +522,8 @@ class HashTreeBuilder(object):
         monitor = MONITORED_TREE
         oper = OPERATIONAL_TREE
         for idx in range(len(all_updates)):
+            # tree_index == 0 -> ADD
+            # tree_inder == 1 -> DELETE
             tree_index = 0 if idx < 2 else 1
             for res in all_updates[idx]:
                 if isinstance(res, aim_status.AciStatus) and aim_ctx:

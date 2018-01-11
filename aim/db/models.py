@@ -259,7 +259,8 @@ class EndpointGroupContractMasters(model_base.Base):
 class EndpointGroup(model_base.Base, model_base.HasAimId,
                     model_base.HasName, model_base.HasDisplayName,
                     model_base.HasTenantName,
-                    ContractRelationMixin, model_base.IsMonitored):
+                    ContractRelationMixin, model_base.IsMonitored,
+                    model_base.IsSynced):
     """DB model for EndpointGroup."""
 
     __tablename__ = 'aim_endpoint_groups'
