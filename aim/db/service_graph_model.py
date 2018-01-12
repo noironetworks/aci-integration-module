@@ -271,13 +271,17 @@ class ServiceGraphLinearChainNode(model_base.Base):
     """DB model for linear-chain nodes used by ServiceGraph."""
 
     __tablename__ = 'aim_service_graph_linear_chain_nodes'
-
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'sg_aim_id', 'name',
+                               'sequence_number') +
+        model_base.to_tuple(model_base.Base.__table_args__))
     sg_aim_id = sa.Column(sa.Integer,
                           sa.ForeignKey('aim_service_graphs.aim_id'),
                           primary_key=True)
     name = model_base.name_column(primary_key=True)
     device_cluster_name = model_base.name_column()
     device_cluster_tenant_name = model_base.name_column()
+    sequence_number = sa.Column(sa.Integer)
 
 
 class ServiceGraph(model_base.Base, model_base.HasAimId,
@@ -299,7 +303,8 @@ class ServiceGraph(model_base.Base, model_base.HasAimId,
     def from_attr(self, session, res_attr):
         if 'linear_chain_nodes' in res_attr:
             nodes = []
-            for n in (res_attr.pop('linear_chain_nodes', []) or []):
+            for i, n in enumerate((res_attr.pop('linear_chain_nodes', [])
+                                   or [])):
                 if not n.get('name'):
                     continue
                 nodes.append(
@@ -307,14 +312,16 @@ class ServiceGraph(model_base.Base, model_base.HasAimId,
                         name=n['name'],
                         device_cluster_name=n.get('device_cluster_name', None),
                         device_cluster_tenant_name=(
-                            n.get('device_cluster_tenant_name', None))))
+                            n.get('device_cluster_tenant_name', None)),
+                        sequence_number=i))
             self.linear_chain = nodes
         # map remaining attributes to model
         super(ServiceGraph, self).from_attr(session, res_attr)
 
     def to_attr(self, session):
         res_attr = super(ServiceGraph, self).to_attr(session)
-        for n in res_attr.pop('linear_chain', []):
+        for n in sorted(res_attr.pop('linear_chain', []),
+                        key=lambda x: x.sequence_number):
             d = {'name': n.name}
             if n.device_cluster_name is not None:
                 d['device_cluster_name'] = n.device_cluster_name

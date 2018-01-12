@@ -13,10 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Add sync flag to EndpointGroup
+"""Add sync flag to EndpointGroup and SG node counter
 
 Revision ID: bca1ef645fe1
-Revises: acebbacca3666
+Revises: 1e3fda0945f2
 Create Date: 2018-01-10 12:23:39.608507
 
 """
@@ -37,6 +37,14 @@ def upgrade():
         'aim_endpoint_groups',
         sa.Column('sync', sa.Boolean, server_default=sa.literal(True))
     )
+    op.add_column(
+        'aim_service_graph_linear_chain_nodes',
+        sa.Column('sequence_number', sa.Integer))
+    with op.batch_alter_table(
+            'aim_service_graph_linear_chain_nodes') as batch_op:
+        batch_op.create_unique_constraint(
+            "uniq_aim_service_graph_node_identity",
+            ["sg_aim_id", "name", "sequence_number"])
 
 
 def downgrade():

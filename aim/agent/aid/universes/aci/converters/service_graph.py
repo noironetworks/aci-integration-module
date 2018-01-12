@@ -156,7 +156,6 @@ def service_graph_converter(object_dict, otype, helper,
         ])
         lc_nodes = [n for n in object_dict['linear_chain_nodes']
                     if n.get('name')]
-        lc_nodes.sort(key=lambda x: x['name'])
 
         prev_conn = term_cons.values()[0]['attributes']['dn']
         cntr = 0
@@ -165,6 +164,7 @@ def service_graph_converter(object_dict, otype, helper,
             node = service_graph.ServiceGraphNode(
                 tenant_name=tn, service_graph_name=gr, name=fn['name'],
                 managed=False, routing_mode='Redirect',
+                sequence_number=str(cntr - 1),
                 connectors=['consumer', 'provider'])
             if fn.get('device_cluster_name'):
                 node.device_cluster_name = fn['device_cluster_name']

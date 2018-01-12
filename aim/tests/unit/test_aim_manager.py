@@ -2130,7 +2130,38 @@ class TestServiceGraphConnection(TestServiceGraphConnectionMixin,
 
 class TestServiceGraph(TestServiceGraphMixin,
                        TestAciResourceOpsBase, base.TestAimDBBase):
-    pass
+
+    def test_linear_nodes(self):
+        g = aim_service_graph.ServiceGraph(
+            tenant_name='t1', name='test',
+            linear_chain_nodes=[{'name': '0',
+                                 'device_cluster_name': '0',
+                                 'device_cluster_tenant_name': '0'},
+                                {'name': '1',
+                                 'device_cluster_name': '1',
+                                 'device_cluster_tenant_name': '1'},
+                                {'name': '2',
+                                 'device_cluster_name': '2',
+                                 'device_cluster_tenant_name': '2'}])
+        g_db = self.mgr.create(self.ctx, g)
+        self.assertEqual(g.linear_chain_nodes, g_db.linear_chain_nodes)
+        g_db = self.mgr.get(self.ctx, g)
+        self.assertEqual(g.linear_chain_nodes, g_db.linear_chain_nodes)
+        lcn = [{'name': '1',
+                'device_cluster_name': '1',
+                'device_cluster_tenant_name': '1'},
+               {'name': '2',
+                'device_cluster_name': '2',
+                'device_cluster_tenant_name': '2'},
+               {'name': '0',
+                'device_cluster_name': '0',
+                'device_cluster_tenant_name': '0'}]
+        g_db.linear_chain_nodes = lcn
+        g_db = self.mgr.create(self.ctx, g_db, overwrite=True)
+        self.assertNotEqual(g.linear_chain_nodes, g_db.linear_chain_nodes)
+        self.assertEqual(lcn, g_db.linear_chain_nodes)
+        g_db = self.mgr.get(self.ctx, g)
+        self.assertEqual(lcn, g_db.linear_chain_nodes)
 
 
 class TestServiceRedirectPolicy(TestServiceRedirectPolicyMixin,

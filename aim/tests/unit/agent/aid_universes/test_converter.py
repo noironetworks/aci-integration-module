@@ -1285,7 +1285,8 @@ class TestAciToAimConverterServiceGraphNode(TestAciToAimConverterBase,
     sample_input = [[_aci_obj('vnsAbsNode',
                               dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N1',
                               nameAlias='alias', managed='no',
-                              funcType='GoThrough', routingMode='Redirect'),
+                              funcType='GoThrough', routingMode='Redirect',
+                              sequenceNumber='1'),
                      _aci_obj('vnsAbsFuncConn',
                               dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/'
                                   'AbsFConn-c'),
@@ -1295,16 +1296,18 @@ class TestAciToAimConverterServiceGraphNode(TestAciToAimConverterBase,
                                   'rsNodeToLDev'),
                               tDn='uni/tn-common/lDevVip-cl1')],
                     _aci_obj('vnsAbsNode',
-                             dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2')]
+                             dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2',
+                             sequenceNumber='3')]
     sample_output = [
         aim_service_graph.ServiceGraphNode(
             tenant_name='t1', service_graph_name='gr1', name='N1',
             display_name='alias', managed=False, function_type='GoThrough',
             routing_mode='Redirect', connectors=['c'],
             device_cluster_tenant_name='common',
-            device_cluster_name='cl1'),
+            device_cluster_name='cl1', sequence_number='1'),
         aim_service_graph.ServiceGraphNode(
-            tenant_name='t1', service_graph_name='gr2', name='N2')]
+            tenant_name='t1', service_graph_name='gr2', name='N2',
+            sequence_number='3')]
 
 
 class TestAciToAimConverterServiceGraphConnection(TestAciToAimConverterBase,
@@ -2974,20 +2977,21 @@ class TestAimToAciConverterServiceGraphNode(TestAimToAciConverterBase,
                         function_type='GoThrough', managed=False,
                         routing_mode='Redirect', connectors=['c1'],
                         device_cluster_name='cl1',
-                        device_cluster_tenant_name='common')]
+                        device_cluster_tenant_name='common',
+                        sequence_number='3')]
 
     sample_output = [
         [_aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N0',
                   funcType='GoTo', managed='yes', nameAlias='N',
-                  routingMode='unspecified'),
+                  routingMode='unspecified', sequenceNumber='0'),
          _aci_obj('vnsRsNodeToLDev',
                   dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N0/rsNodeToLDev'),
                   tDn='')],
         [_aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N1',
                   funcType='GoThrough', managed='no', nameAlias='',
-                  routingMode='Redirect'),
+                  routingMode='Redirect', sequenceNumber='3'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/'
                       'AbsFConn-c1'),
@@ -3098,7 +3102,8 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
          _aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N0',
                   nameAlias='',
-                  managed='no', funcType='GoTo', routingMode='Redirect'),
+                  managed='no', funcType='GoTo', routingMode='Redirect',
+                  sequenceNumber='0'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N0/'
                       'AbsFConn-consumer'),
@@ -3112,7 +3117,7 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                   tDn=''),
          _aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N1',
-                  nameAlias='',
+                  nameAlias='', sequenceNumber='1',
                   managed='no', funcType='GoTo', routingMode='Redirect'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N1/'
@@ -3128,7 +3133,7 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                   tDn='uni/tn-t1/lDevVip-cl1'),
          _aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2',
-                  nameAlias='',
+                  nameAlias='', sequenceNumber='2',
                   managed='no', funcType='GoTo', routingMode='Redirect'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N2/'
