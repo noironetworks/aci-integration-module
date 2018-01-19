@@ -372,7 +372,8 @@ class EndpointGroup(AciResourceBase):
         ('static_paths', t.list_of_static_paths),
         ('epg_contract_masters', t.list_of_dicts(('app_profile_name', t.name),
                                                  ('name', t.name))),
-        ('monitored', t.bool))
+        ('monitored', t.bool),
+        ('sync', t.bool))
 
     _aci_mo_name = 'fvAEPg'
     _tree_parent = ApplicationProfile
@@ -392,7 +393,8 @@ class EndpointGroup(AciResourceBase):
                                              self.POLICY_UNENFORCED,
                                              'static_paths': [],
                                              'epg_contract_masters': [],
-                                             'monitored': False},
+                                             'monitored': False,
+                                             'sync': True},
                                             **kwargs)
 
 

@@ -212,6 +212,7 @@ class ServiceGraphNode(resource.AciResourceBase):
         ('connectors', t.list_of_names),
         ('device_cluster_name', t.name),
         ('device_cluster_tenant_name', t.name),
+        ('sequence_number', t.string()),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vnsAbsNode'
@@ -226,6 +227,7 @@ class ServiceGraphNode(resource.AciResourceBase):
              'connectors': [],
              'device_cluster_name': '',
              'device_cluster_tenant_name': '',
+             'sequence_number': '0',
              'monitored': False},
             **kwargs)
 

@@ -156,7 +156,6 @@ def service_graph_converter(object_dict, otype, helper,
         ])
         lc_nodes = [n for n in object_dict['linear_chain_nodes']
                     if n.get('name')]
-        lc_nodes.sort(key=lambda x: x['name'])
 
         prev_conn = term_cons.values()[0]['attributes']['dn']
         cntr = 0
@@ -165,6 +164,7 @@ def service_graph_converter(object_dict, otype, helper,
             node = service_graph.ServiceGraphNode(
                 tenant_name=tn, service_graph_name=gr, name=fn['name'],
                 managed=False, routing_mode='Redirect',
+                sequence_number=str(cntr - 1),
                 connectors=['consumer', 'provider'])
             if fn.get('device_cluster_name'):
                 node.device_cluster_name = fn['device_cluster_name']
@@ -227,7 +227,8 @@ resource_map = {
     'vnsRsALDevToDomP': [{
         'resource': service_graph.DeviceCluster,
         'exceptions': {'tDn': {'other': 'vmm_domain_name',
-                               'converter': vnsRsALDevToDomP_converter}},
+                               'converter': vnsRsALDevToDomP_converter,
+                               'skip_if_empty': True}},
         'to_resource': utils.default_to_resource_strict,
     }],
     'vnsLIf': [{
@@ -258,7 +259,8 @@ resource_map = {
     'vnsAbsGraph': [{
         'resource': service_graph.ServiceGraph,
         'converter': service_graph_converter,
-        'skip': ['linear_chain_nodes']
+        # TODO(ivar): temporarily disable nameAlias
+        'skip': ['linear_chain_nodes', 'display_name', 'name_alias']
     }],
     'vnsAbsNode': [{
         'resource': service_graph.ServiceGraphNode,

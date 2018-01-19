@@ -53,8 +53,10 @@ class HashTreeDbListener(object):
                         root = res.root
                     except AttributeError:
                         continue
-                    action = (aim_tree.ActionLog.CREATE if i == 0
-                              else aim_tree.ActionLog.DELETE)
+                    if i == 0 and getattr(res, 'sync', True):
+                        action = aim_tree.ActionLog.CREATE
+                    else:
+                        action = aim_tree.ActionLog.DELETE
                     # TODO(ivar): root should never be None for any object!
                     # We have some conversions broken
                     if self._get_reset_count(ctx, root) > 0:
@@ -109,15 +111,17 @@ class HashTreeDbListener(object):
                                                      **filters):
                         # Need all the faults and statuses as well
                         stat = self.aim_manager.get_status(aim_ctx, obj)
-                        if stat:
-                            log_by_root.setdefault(obj.root, []).append(
-                                (aim_tree.ActionLog.CREATE, stat, None))
-                            for f in stat.faults:
+                        if getattr(obj, 'sync', True):
+                            if stat:
                                 log_by_root.setdefault(obj.root, []).append(
-                                    (aim_tree.ActionLog.CREATE, f, None))
-                            del stat.faults
-                        log_by_root.setdefault(obj.root, []).append(
-                            (aim_tree.ActionLog.CREATE, obj, None))
+                                    (aim_tree.ActionLog.CREATE, stat, None))
+                                for f in stat.faults:
+                                    log_by_root.setdefault(
+                                        obj.root, []).append(
+                                        (aim_tree.ActionLog.CREATE, f, None))
+                                del stat.faults
+                            log_by_root.setdefault(obj.root, []).append(
+                                (aim_tree.ActionLog.CREATE, obj, None))
             # Reset the trees
             self._push_changes_to_trees(aim_ctx, log_by_root,
                                         delete_logs=False, check_reset=False)

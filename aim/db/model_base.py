@@ -91,6 +91,11 @@ class IsMonitored(object):
     monitored = sa.Column(sa.Boolean, nullable=False, default=False)
 
 
+class IsSynced(object):
+    """Add to subclasses for objects that can be synced."""
+    sync = sa.Column(sa.Boolean, nullable=False, default=True)
+
+
 class AttributeMixin(object):
     """Mixin class for translating between resource and model."""
 

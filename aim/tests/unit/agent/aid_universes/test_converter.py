@@ -1119,7 +1119,7 @@ class TestAciToAimConverterDeviceCluster(TestAciToAimConverterBase,
          'exceptions': {
              'vmm_domain_name': {
                  'converter': conv_service_graph.vnsRsALDevToDomP_converter,
-                 'other': 'tDn'}},
+                 'other': 'tDn', 'skip_if_empty': True}},
          'to_resource': conv_utils.default_to_resource_strict},
         {'resource': 'vnsLDevVip',
          'exceptions': {'managed': {'converter': converter.boolean,
@@ -1247,7 +1247,8 @@ class TestAciToAimConverterServiceGraph(TestAciToAimConverterBase,
     resource_type = aim_service_graph.ServiceGraph
     reverse_map_output = [
         {'resource': 'vnsAbsGraph',
-         'skip': ['linearChainNodes'],
+         # TODO(ivar): temporarily disable nameAlias
+         'skip': ['linearChainNodes', 'displayName', 'nameAlias'],
          'exceptions': {},
          'converter': conv_service_graph.service_graph_converter}]
     sample_input = [_aci_obj('vnsAbsGraph',
@@ -1256,8 +1257,9 @@ class TestAciToAimConverterServiceGraph(TestAciToAimConverterBase,
                     _aci_obj('vnsAbsGraph',
                              dn='uni/tn-t1/AbsGraph-gr2')]
     sample_output = [
+        # TODO(ivar): temporarily disable nameAlias
         aim_service_graph.ServiceGraph(
-            tenant_name='t1', name='gr1', display_name='alias'),
+            tenant_name='t1', name='gr1', display_name=''),
         aim_service_graph.ServiceGraph(tenant_name='t1', name='gr2')]
 
 
@@ -1283,7 +1285,8 @@ class TestAciToAimConverterServiceGraphNode(TestAciToAimConverterBase,
     sample_input = [[_aci_obj('vnsAbsNode',
                               dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N1',
                               nameAlias='alias', managed='no',
-                              funcType='GoThrough', routingMode='Redirect'),
+                              funcType='GoThrough', routingMode='Redirect',
+                              sequenceNumber='1'),
                      _aci_obj('vnsAbsFuncConn',
                               dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/'
                                   'AbsFConn-c'),
@@ -1293,16 +1296,18 @@ class TestAciToAimConverterServiceGraphNode(TestAciToAimConverterBase,
                                   'rsNodeToLDev'),
                               tDn='uni/tn-common/lDevVip-cl1')],
                     _aci_obj('vnsAbsNode',
-                             dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2')]
+                             dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2',
+                             sequenceNumber='3')]
     sample_output = [
         aim_service_graph.ServiceGraphNode(
             tenant_name='t1', service_graph_name='gr1', name='N1',
             display_name='alias', managed=False, function_type='GoThrough',
             routing_mode='Redirect', connectors=['c'],
             device_cluster_tenant_name='common',
-            device_cluster_name='cl1'),
+            device_cluster_name='cl1', sequence_number='1'),
         aim_service_graph.ServiceGraphNode(
-            tenant_name='t1', service_graph_name='gr2', name='N2')]
+            tenant_name='t1', service_graph_name='gr2', name='N2',
+            sequence_number='3')]
 
 
 class TestAciToAimConverterServiceGraphConnection(TestAciToAimConverterBase,
@@ -2864,10 +2869,7 @@ class TestAimToAciConverterDeviceCluster(TestAimToAciConverterBase,
          _aci_obj('vnsRsCIfPathAtt',
                   dn='uni/tn-t1/lDevVip-cl2/cDev-n2/cIf-[interface]/'
                      'rsCIfPathAtt',
-                  tDn='foo'),
-         _aci_obj('vnsRsALDevToDomP',
-                  dn='uni/tn-t1/lDevVip-cl2/rsALDevToDomP',
-                  tDn='')]
+                  tDn='foo')]
     ]
 
 
@@ -2975,20 +2977,21 @@ class TestAimToAciConverterServiceGraphNode(TestAimToAciConverterBase,
                         function_type='GoThrough', managed=False,
                         routing_mode='Redirect', connectors=['c1'],
                         device_cluster_name='cl1',
-                        device_cluster_tenant_name='common')]
+                        device_cluster_tenant_name='common',
+                        sequence_number='3')]
 
     sample_output = [
         [_aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N0',
                   funcType='GoTo', managed='yes', nameAlias='N',
-                  routingMode='unspecified'),
+                  routingMode='unspecified', sequenceNumber='0'),
          _aci_obj('vnsRsNodeToLDev',
                   dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N0/rsNodeToLDev'),
                   tDn='')],
         [_aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsNode-N1',
                   funcType='GoThrough', managed='no', nameAlias='',
-                  routingMode='Redirect'),
+                  routingMode='Redirect', sequenceNumber='3'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr1/AbsNode-N1/'
                       'AbsFConn-c1'),
@@ -3046,7 +3049,7 @@ def get_example_aim_service_graph(**kwargs):
 
 class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                                         base.TestAimDBBase):
-    sample_input = [get_example_aim_service_graph(display_name='G'),
+    sample_input = [get_example_aim_service_graph(),
                     get_example_aim_service_graph(
                         name='gr2',
                         linear_chain_nodes=[
@@ -3059,9 +3062,9 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                             {'device_cluster_name': 'cl4'}])]
 
     sample_output = [
+        # TODO(ivar): temporarily disable nameAlias
         [_aci_obj('vnsAbsGraph',
-                  dn='uni/tn-t1/AbsGraph-gr1',
-                  nameAlias='G'),
+                  dn='uni/tn-t1/AbsGraph-gr1'),
          _aci_obj('vnsAbsTermNodeCon',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeCon-T1'),
          _aci_obj('vnsAbsTermConn__Con',
@@ -3079,8 +3082,7 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
          _aci_obj('vnsOutTerm__Prov',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeProv-T2/outtmnl')],
         [_aci_obj('vnsAbsGraph',
-                  dn='uni/tn-t1/AbsGraph-gr2',
-                  nameAlias=''),
+                  dn='uni/tn-t1/AbsGraph-gr2'),
          _aci_obj('vnsAbsTermNodeCon',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeCon-T1'),
          _aci_obj('vnsAbsTermConn__Con',
@@ -3100,7 +3102,8 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
          _aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N0',
                   nameAlias='',
-                  managed='no', funcType='GoTo', routingMode='Redirect'),
+                  managed='no', funcType='GoTo', routingMode='Redirect',
+                  sequenceNumber='0'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N0/'
                       'AbsFConn-consumer'),
@@ -3114,7 +3117,7 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                   tDn=''),
          _aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N1',
-                  nameAlias='',
+                  nameAlias='', sequenceNumber='1',
                   managed='no', funcType='GoTo', routingMode='Redirect'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N1/'
@@ -3130,7 +3133,7 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                   tDn='uni/tn-t1/lDevVip-cl1'),
          _aci_obj('vnsAbsNode',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsNode-N2',
-                  nameAlias='',
+                  nameAlias='', sequenceNumber='2',
                   managed='no', funcType='GoTo', routingMode='Redirect'),
          _aci_obj('vnsAbsFuncConn',
                   dn=('uni/tn-t1/AbsGraph-gr2/AbsNode-N2/'

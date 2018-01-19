@@ -1707,6 +1707,143 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self.aim_manager.get_status(self.ctx, vrf).sync_status)
         self.assertIsNone(self.aim_manager.get(self.ctx, tn1))
 
+    def test_sync_flag(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+
+        desired_monitor = agent.multiverse[2]['desired']
+        current_monitor = agent.multiverse[2]['current']
+
+        tenant_name = 'test_sync_flag'
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+
+        tn1 = resource.Tenant(name=tenant_name)
+        ap = resource.ApplicationProfile(tenant_name=tenant_name, name='test')
+        epg = resource.EndpointGroup(tenant_name=tenant_name,
+                                     app_profile_name='test', name='test')
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        self.aim_manager.create(self.ctx, ap)
+        self.aim_manager.create(self.ctx, epg)
+        # Run loop for serving tenant
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+
+        # Verify epg in APIC
+        prov = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
+        self.assertNotEqual([], prov)
+        # Flip sync flag
+        self.aim_manager.update(self.ctx, epg, sync=False)
+
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+
+        # Verify epg not in APIC
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk,
+            test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
+        # Status doesn't re-create the object
+        self.aim_manager.get_status(self.ctx, epg)
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        # Verify epg not in APIC
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk,
+            test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
+        # Or even faults
+        self.aim_manager.set_fault(
+            self.ctx, epg, aim_status.AciFault(
+                fault_code='516',
+                external_identifier='uni/tn-%s/ap-test/epg-test/'
+                                    'fault-516' % tenant_name))
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        # Verify epg not in APIC
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk,
+            test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
+        # Resetting sync flag will bring it back
+        self.aim_manager.update(self.ctx, epg, sync=True)
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+
+        # Verify epg in APIC
+        prov = test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
+        self.assertNotEqual([], prov)
+        # Verify all tree converged
+        self._assert_universe_sync(desired_monitor, current_monitor,
+                                   tenants=[tn1.root])
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn1.root])
+        self._assert_reset_consistency()
+
+    def test_sync_flag_monitored(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+
+        desired_monitor = agent.multiverse[2]['desired']
+        current_monitor = agent.multiverse[2]['current']
+
+        tenant_name = 'test_sync_flag'
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+
+        tn1 = resource.Tenant(name=tenant_name)
+        ap = resource.ApplicationProfile(tenant_name=tenant_name, name='test')
+
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        self.aim_manager.create(self.ctx, ap)
+        # Run loop for serving tenant
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        # Manual EPG
+        aci_epg = self._get_example_aci_epg(
+            tenant_name=tenant_name, name='test',
+            dn='uni/tn-%s/ap-test/epg-test' % tenant_name)
+        self._set_events(
+            [aci_epg],
+            manager=desired_monitor.serving_tenants[tn1.rn],
+            tag=False)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        epg = resource.EndpointGroup(tenant_name=tenant_name,
+                                     app_profile_name='test', name='test')
+        epg = self.aim_manager.get(self.ctx, epg)
+        self.assertTrue(epg.monitored)
+        self.aim_manager.update(self.ctx, epg, sync=False)
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        # Set back to normal
+        epg = self.aim_manager.get(self.ctx, epg)
+        self.assertTrue(epg.sync)
+
+        # Verify all tree converged
+        self._assert_universe_sync(desired_monitor, current_monitor,
+                                   tenants=[tn1.root])
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn1.root])
+        self._assert_reset_consistency()
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']
