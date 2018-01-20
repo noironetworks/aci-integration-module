@@ -48,6 +48,9 @@ class DeviceCluster(model_base.Base, model_base.HasAimId,
     context_aware = sa.Column(sa.Enum("single-Context", "multi-Context"))
     managed = sa.Column(sa.Boolean)
     physical_domain_name = model_base.name_column()
+    vmm_domain_type = sa.Column(sa.Enum('OpenStack', 'Kubernetes',
+                                        'VMware', ''))
+    vmm_domain_name = model_base.name_column()
     encap = sa.Column(sa.String(24))
     devices = orm.relationship(DeviceClusterDevice,
                                backref='cluster',
