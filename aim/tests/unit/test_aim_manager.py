@@ -1236,6 +1236,8 @@ class TestDeviceClusterMixin(object):
     test_search_attributes = {'device_type': 'VIRTUAL'}
     test_update_attributes = {'devices': [],
                               'physical_domain_name': 'virt',
+                              'vmm_domain_type': 'OpenStack',
+                              'vmm_domain_name': 'test',
                               'encap': 'vlan-200'}
     test_default_values = {'device_type': 'PHYSICAL',
                            'service_type': 'OTHERS',
