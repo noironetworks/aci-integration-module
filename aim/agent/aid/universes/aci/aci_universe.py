@@ -340,7 +340,13 @@ class AciUniverse(base.HashTreeStoredUniverse):
         LOG.warn('Reset called for roots %s' % tenants)
         for root in tenants:
             if root in serving_tenants:
-                serving_tenants[root].scheduled_reset = -1
+                try:
+                    serving_tenants[root].kill()
+                    serving_tenants[root]._unsubscribe_tenant()
+                except Exception:
+                    LOG.error(traceback.format_exc())
+                    LOG.error('Failed to reset tenant %s' % root)
+                serving_tenants.pop(root, None)
 
     def push_resources(self, resources):
         # Organize by tenant, and push into APIC
