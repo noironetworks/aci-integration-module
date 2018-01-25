@@ -9,6 +9,8 @@ ExecStart=/usr/bin/aim-aid --config-file=/etc/aim/aim.conf --log-file=/var/log/a
 PrivateTmp=false
 KillMode=process
 Restart=always
+RestartSec=2
+StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target
