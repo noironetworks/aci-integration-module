@@ -357,8 +357,6 @@ class HashTreeStoredUniverse(AimUniverse):
                     delete_candidates.get(tenant, set()).discard(self)
 
         if not differences.get(CREATE) and not differences.get(DELETE):
-            LOG.debug("Universe %s and %s are in sync." %
-                      (self.name, other_universe.name))
             diff = False
         else:
             LOG.info("Universe differences between %s and %s: %s",

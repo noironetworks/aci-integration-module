@@ -117,7 +117,7 @@ class WebSocketContext(object):
                 cert_name=self.cert_name, key=self.private_key_file)
             resp = self.session.login()
             if not resp.ok:
-                LOG.debug('Websocket connection failed: %s' % resp.text)
+                LOG.warn('Websocket connection failed: %s' % resp.text)
                 self.ws_urls.rotate(-1)
                 LOG.info('Rotating websocket URL, using: %s' % self.ws_urls[0])
                 retries += 1

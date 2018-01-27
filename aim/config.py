@@ -375,7 +375,6 @@ class ConfigSubscriber(utils.AIMThread):
                 group='aim')
         return self._polling_interval
 
-    @utils.log
     def register_callback(self, callback, item, group, host, version):
         """Main callback subscription method.
 

@@ -63,8 +63,6 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
                 keep.append(curr)
                 trees.remove(curr.tree_root_rn)
         self.hash_trees = keep
-        if trees:
-            LOG.debug("Adding trees for agent %s: %s" % (self.id, trees))
         with session.begin(subtransactions=True):
             for tree in trees:
                 self.tree_exists(session, tree)

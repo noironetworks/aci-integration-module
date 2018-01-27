@@ -478,7 +478,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
     def test_event_loop_failure(self):
         manager = aci_tenant.AciTenantManager(
-            'tenant-1', self.cfg_manager,
+            'tn-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
             aci_universe.get_websocket_context(self.cfg_manager))
         manager.ws_context.has_event = mock.Mock(side_effect=KeyError)
@@ -487,7 +487,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
     def test_tenant_reset(self):
         manager = aci_tenant.AciTenantManager(
-            'tenant-1', self.cfg_manager,
+            'tn-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
             aci_universe.get_websocket_context(self.cfg_manager))
         manager.polling_yield = 0

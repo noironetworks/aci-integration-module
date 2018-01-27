@@ -935,7 +935,6 @@ class AciToAimModelConverter(BaseConverter):
         which has the object type as the first key
         :return: list of AIM resources
         """
-        LOG.debug("converting aci objects %s" % aci_objects)
         result = []
         for object in aci_objects:
             try:
@@ -969,8 +968,8 @@ class AciToAimModelConverter(BaseConverter):
                          "%s with error %s" % (object, e.message))
                 LOG.debug(traceback.format_exc())
         squashed = self._squash(result)
-        LOG.debug("Converted:\n %s\n into:\n %s" %
-                  (aci_objects, squashed))
+        if aci_objects:
+            LOG.debug("Converted: %s into: %s" % (aci_objects, squashed))
         return squashed
 
     def _squash(self, converted_list):
@@ -1005,7 +1004,6 @@ class AimToAciModelConverter(BaseConverter):
         :param aim_objects: list of AIM objects
         :return: list of AIM resources
         """
-        LOG.debug("converting aim objects %s" % aim_objects)
         result = []
         in_objects = copy.copy(aim_objects)
         for object in in_objects:
@@ -1048,8 +1046,8 @@ class AimToAciModelConverter(BaseConverter):
                 LOG.debug(traceback.format_exc())
 
         squashed = self._squash(result)
-        LOG.debug("Converted:\n %s\n into:\n %s" %
-                  (aim_objects, squashed))
+        if aim_objects:
+            LOG.debug("Converted: %s into: %s" % (aim_objects, squashed))
         return squashed
 
     def _squash(self, converted_list):
