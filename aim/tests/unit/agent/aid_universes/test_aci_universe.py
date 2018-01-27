@@ -59,14 +59,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.addCleanup(self.mock_is_warm.stop)
 
     def test_serve(self):
-        tenant_list = ['tn%s' % x for x in range(10)]
+        tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
         # List of serving tenant correctly updated
         self.assertEqual(set(tenant_list),
                          set(self.universe.serving_tenants.keys()))
         # Remove some tenants and add more
         tenant_list = tenant_list[5:]
-        tenant_list.extend(['tn%s' % x for x in range(15, 20)])
+        tenant_list.extend(['tn-%s' % x for x in range(15, 20)])
         self.assertNotEqual(set(tenant_list),
                             set(self.universe.serving_tenants.keys()))
         self.universe.serve(tenant_list)
@@ -83,11 +83,11 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
         # Kill one of the values, and verify that it gets restored on next
         # serve
-        self.universe.serving_tenants['tn19'].is_dead = mock.Mock(
+        self.universe.serving_tenants['tn-19'].is_dead = mock.Mock(
             return_value=True)
         self.universe.serve(tenant_list)
         for k, v in serving_tenants_copy.iteritems():
-            if k != 'tn19':
+            if k != 'tn-19':
                 # Serving tenant values are the same
                 self.assertIs(v, self.universe.serving_tenants[k])
             else:
@@ -95,7 +95,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                 self.assertIsNot(v, self.universe.serving_tenants[k])
 
     def test_observe(self):
-        tenant_list = ['tn%s' % x for x in range(10)]
+        tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
         self.assertEqual({}, self.universe.state)
         self.universe.observe()
@@ -105,13 +105,13 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                                        structured_tree.StructuredHashTree))
         # Remove some tenants and add more
         tenant_list = tenant_list[5:]
-        tenant_list.extend(['tn%s' % x for x in range(15, 20)])
+        tenant_list.extend(['tn-%s' % x for x in range(15, 20)])
         self.universe.serve(tenant_list)
         # Old state is popped
-        for tenant in ['tn%s' % x for x in range(5)]:
+        for tenant in ['tn-%s' % x for x in range(5)]:
             self.assertFalse(tenant in self.universe.state)
         # New state not present yet
-        for tenant in ['tn%s' % x for x in range(15, 20)]:
+        for tenant in ['tn-%s' % x for x in range(15, 20)]:
             self.assertFalse(tenant in self.universe.state)
         self.universe.observe()
         # Now the new state is fully there
@@ -121,15 +121,15 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                                        structured_tree.StructuredHashTree))
 
     def test_serve_exception(self):
-        tenant_list = ['tn%s' % x for x in range(10)]
+        tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
         # Remove some tenants
         tenant_list_new = tenant_list[5:]
-        old = self.universe.serving_tenants['tn9'].is_dead
-        self.universe.serving_tenants['tn9'].is_dead = mock.Mock(
+        old = self.universe.serving_tenants['tn-9'].is_dead
+        self.universe.serving_tenants['tn-9'].is_dead = mock.Mock(
             side_effect=KeyError)
         self.assertRaises(KeyError, self.universe.serve, tenant_list_new)
-        self.universe.serving_tenants['tn9'].is_dead = old
+        self.universe.serving_tenants['tn-9'].is_dead = old
         # List of serving tenant back to the initial one
         self.assertEqual(set(tenant_list),
                          set(self.universe.serving_tenants.keys()))
@@ -145,7 +145,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             self.assertFalse(self.universe.serving_tenants[tenant].is_dead())
 
         # Kill raises exception
-        self.universe.serving_tenants['tn1'].kill = mock.Mock(
+        self.universe.serving_tenants['tn-1'].kill = mock.Mock(
             side_effect=ValueError)
         # Serve happens without problems
         self.universe.serve(tenant_list_new)
@@ -435,7 +435,7 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
     def test_shared_served_tenants(self):
         operational = aci_universe.AciOperationalUniverse().initialize(
             self.ctx, aim_cfg.ConfigManager(self.ctx, ''), [])
-        tenant_list = ['tn%s' % x for x in range(10)]
+        tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
         self.assertIs(self.universe.serving_tenants,
                       operational.serving_tenants)

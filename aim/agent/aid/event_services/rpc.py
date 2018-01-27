@@ -18,7 +18,6 @@ import traceback
 from oslo_log import log as logging
 import oslo_messaging
 
-from aim.common import utils
 from aim import config as aim_cfg
 
 
@@ -50,12 +49,10 @@ class AIDEventRpcApi(object):
                       "noop: %s" % ex.message)
             self.client = None
 
-    @utils.log
     def serve(self, context, server=None):
         LOG.debug("Sending broadcast 'serve' message")
         return self._cast(context, 'serve', server)
 
-    @utils.log
     def reconcile(self, context, server=None):
         LOG.debug("Sending broadcast 'reconcile' message")
         return self._cast(context, 'reconcile', server)

@@ -219,7 +219,6 @@ class StructuredHashTree(base.ComparableCollection):
             root._children.add(StructuredHashTree._build_tree(child))
         return root
 
-    @utils.log
     def add(self, key, **kwargs):
         if not key:
             # nothing to do
@@ -268,7 +267,6 @@ class StructuredHashTree(base.ComparableCollection):
         self._recalculate_parents_stack(stack)
         return self
 
-    @utils.log
     def include(self, iterable):
         """Add multiple nodes to the Tree.
 
@@ -293,7 +291,6 @@ class StructuredHashTree(base.ComparableCollection):
                 self.pop(x)
             raise e
 
-    @utils.log
     def pop(self, key, default=None):
         result = default
         current, stack = self._get_node_and_parent_stack(key)
@@ -312,12 +309,10 @@ class StructuredHashTree(base.ComparableCollection):
                 self._recalculate_parents_stack(stack)
         return result
 
-    @utils.log
     def remove(self, key):
         if not self.pop(key):
             raise KeyError
 
-    @utils.log
     def clear(self, key):
         # Set the specific node as Dummy
         node, parents = self._get_node_and_parent_stack(key)
@@ -382,7 +377,6 @@ class StructuredHashTree(base.ComparableCollection):
         for othernode in otherchildren:
             if selfchildren.index(othernode.key) is None:
                 # This subtree needs to be removed
-                LOG.debug("Extra subtree to remove: %s" % str(othernode))
                 result['remove'] += self._get_subtree_keys(othernode)
             else:
                 # Common child
@@ -390,7 +384,6 @@ class StructuredHashTree(base.ComparableCollection):
                 if selfnode.partial_hash != othernode.partial_hash:
                     # Only evaluate differences for non error nodes
                     if not (othernode.error or selfnode.error):
-                        LOG.debug("Node %s out of sync" % str(othernode.key))
                         if selfnode.dummy:
                             # Needs to be removed on the other tree
                             result['remove'].append(othernode.key)
@@ -404,7 +397,6 @@ class StructuredHashTree(base.ComparableCollection):
         for node in selfchildren:
             if otherchildren.index(node.key) is None:
                 # Whole subtree needs to be added
-                LOG.debug("Subtree missing: %s" % str(node))
                 result['add'] += self._get_subtree_keys(node)
             # Common nodes have already been evaluated in the previous loop
 

@@ -126,6 +126,8 @@ class Root(acitoolkit.BaseACIObject):
                 self.dn = rn_base + '/' + rn
         except KeyError:
             self.dn = apic_client.DN_BASE + 'rn'
+        self.type = apic_client.ManagedObjectClass.prefix_to_mos[
+            rn.split('-')[0]]
         self.urls = self._get_instance_subscription_urls()
 
     def _get_instance_subscription_urls(self):
@@ -295,9 +297,18 @@ class AciTenantManager(utils.AIMThread):
             # Continuously check for events
             events = self.ws_context.get_event_data(self.tenant.urls)
             for event in events:
-                if (event.keys()[0] == TENANT_KEY and not
-                        event[TENANT_KEY]['attributes'].get(STATUS_FIELD)):
+                # REVISIT(ivar): remove vmmDomP once websocket ACI bug is fixed
+                if (event.keys()[0] in [self.tenant.type, 'vmmDomP'] and not
+                        event[event.keys()[0]]['attributes'].get(
+                            STATUS_FIELD)):
                     LOG.info("Resetting Tree %s" % self.tenant_name)
+                    # REVISIT(ivar): on subscription to VMMPolicy objects, aci
+                    # doesn't return the root object itself because of a bug.
+                    # Let's craft a fake root to work around this problem
+                    if self.tenant_name.startswith('vmmp-'):
+                        LOG.debug('Faking vmmProvP %s' % self.tenant_name)
+                        events.append({'vmmProvP': {
+                            'attributes': {'dn': self.tenant.dn}}})
                     # This is a full resync, trees need to be reset
                     self._state = structured_tree.StructuredHashTree()
                     self._operational_state = (
@@ -306,8 +317,11 @@ class AciTenantManager(utils.AIMThread):
                         structured_tree.StructuredHashTree())
                     self.tag_set = set()
                     break
-            LOG.debug("received events for root %s: %s" %
-                      (self.tenant_name, events))
+            # REVISIT(ivar): there's already a debug log in acitoolkit listing
+            # all the events received one by one. The following would be more
+            # compact, we need to choose which to keep.
+            # LOG.debug("received events for root %s: %s" %
+            #           (self.tenant_name, events))
             # Make events list flat
             self.flat_events(events)
             # Pull incomplete objects
@@ -547,10 +561,7 @@ class AciTenantManager(utils.AIMThread):
         :param events: List of events to retrieve
         :return:
         """
-        start = time.time()
         result = self.retrieve_aci_objects(events)
-        LOG.debug('Filling procedure took %s for tenant %s' %
-                  (time.time() - start, self.tenant.name))
         return result
 
     def _get_full_state(self):
