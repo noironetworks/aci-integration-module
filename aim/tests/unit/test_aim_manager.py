@@ -1357,7 +1357,8 @@ class TestServiceGraphNodeMixin(object):
                                 'device_cluster_tenant_name': 'common'}
     test_search_attributes = {'function_type': 'GoThrough'}
     test_update_attributes = {'connectors': ['p', 'q'],
-                              'routing_mode': 'unspecified'}
+                              'routing_mode': 'unspecified',
+                              'sequence_number': '1'}
     test_default_values = {'function_type': 'GoTo',
                            'managed': True,
                            'routing_mode': 'unspecified',

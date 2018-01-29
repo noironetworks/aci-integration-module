@@ -248,7 +248,7 @@ class ServiceGraphNode(model_base.Base, model_base.HasAimId,
     routing_mode = sa.Column(sa.Enum('unspecified', 'Redirect'))
     device_cluster_name = model_base.name_column()
     device_cluster_tenant_name = model_base.name_column()
-
+    sequence_number = sa.Column(sa.Integer)
     conns = orm.relationship(ServiceGraphNodeConnector,
                              backref='graph_node',
                              cascade='all, delete-orphan',
@@ -267,6 +267,8 @@ class ServiceGraphNode(model_base.Base, model_base.HasAimId,
         res_attr = super(ServiceGraphNode, self).to_attr(session)
         for c in res_attr.pop('conns', []):
             res_attr.setdefault('connectors', []).append(c.connector)
+        if 'sequence_number' in res_attr:
+            res_attr['sequence_number'] = str(res_attr['sequence_number'])
         return res_attr
 
 
