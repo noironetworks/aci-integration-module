@@ -209,6 +209,8 @@ class SqlAlchemyStore(AimStore):
                     api_res.VMMDomain: models.VMMDomain,
                     api_res.PhysicalDomain: models.PhysicalDomain,
                     api_res.L3Outside: models.L3Outside,
+                    api_res.L3OutInterfaceBgpPeerP:
+                        models.L3OutInterfaceBgpPeerP,
                     api_res.L3OutNodeProfile: models.L3OutNodeProfile,
                     api_res.L3OutNode: models.L3OutNode,
                     api_res.L3OutStaticRoute: models.L3OutStaticRoute,

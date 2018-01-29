@@ -2369,3 +2369,60 @@ class TestVmmInjectedContGroup(TestVmmInjectedContGroupMixin,
 
         grp = self.mgr.get(self.ctx, grp)
         self.assertEqual(rs.name, grp.replica_set_name)
+
+
+class TestBgpPeerPMixin(object):
+
+    resource_class = resource.L3OutInterfaceBgpPeerP
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [resource.Tenant(name='tn1'),
+                      resource.L3Outside(tenant_name='tn1', name='testOut1',
+                                         vrf_name='ctx1',
+                                         l3_domain_dn='uni/foo',
+                                         bgp_enable=True),
+                      resource.L3OutNodeProfile(tenant_name='tn1',
+                                                l3out_name='testout1',
+                                                name='testNP1'),
+                      resource.L3OutInterfaceProfile(tenant_name='tn1',
+                                                     l3out_name='testOut1',
+                                                     node_profile_name='testNP'
+                                                                       '1',
+                                                     name='testLifP1'),
+                      resource.L3OutInterface(tenant_name='tn1',
+                                              l3out_name='testOut1',
+                                              node_profile_name='testNP1',
+                                              interface_profile_name='testLifP'
+                                                                     '1',
+                                              interface_path='topology/pod-1/'
+                                              'paths-101/pathep-[eth1/1]')
+                      ]
+    test_identity_attributes = {'tenant_name': 'tn1',
+                                'l3out_name': 'testOut1',
+                                'node_profile_name': 'testNP1',
+                                'interface_profile_name': 'testLifP1',
+                                'interface_path': 'topology/pod-1/paths-'
+                                                  '101/pathep-[eth1/1]',
+                                'addr': '1.1.1.0/24'
+                                }
+    test_required_attributes = {'tenant_name': 'tn1',
+                                'l3out_name': 'testOut1',
+                                'node_profile_name': 'testNP1',
+                                'interface_profile_name': 'testLifP1',
+                                'interface_path': 'topology/pod-1/paths-'
+                                                  '101/pathep-[eth1/1]',
+                                'addr': '1.1.1.0/24',
+                                'asn': 1,
+                                'local_asn': 65000}
+    test_update_attributes = {'asn': 2, 'local_asn': 10000}
+    test_search_attributes = {'addr': '1.1.1.0/24'}
+    test_default_values = {'asn': 1, 'local_asn': 65000}
+    test_dn = ('uni/tn-tn1/out-testOut1/lnodep-testNP1/lifp-testLifP1/'
+               'rspathL3OutAtt-[topology/pod-1/paths-101/pathep-[eth1/1]]/'
+               'peerP-[1.1.1.0/24]')
+
+    res_command = 'l3-out-interface-bgp-peer-p'
+
+
+class TestBgpPeerP(TestBgpPeerPMixin, TestAciResourceOpsBase,
+                   base.TestAimDBBase):
+    pass
