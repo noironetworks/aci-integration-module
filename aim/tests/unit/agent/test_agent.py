@@ -1844,6 +1844,77 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn1.root])
         self._assert_reset_consistency()
 
+    def test_bgp(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+
+        desired_monitor = agent.multiverse[2]['desired']
+        current_monitor = agent.multiverse[2]['current']
+
+        tenant_name = 'test_gbp'
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn1 = resource.Tenant(name=tenant_name)
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+
+        self.aim_manager.create(
+            self.ctx, resource.L3Outside(tenant_name=tenant_name,
+                                         name='testOut1',
+                                         vrf_name='ctx1',
+                                         l3_domain_dn='uni/foo',
+                                         bgp_enable=True))
+        self.aim_manager.create(
+            self.ctx,
+            resource.L3OutNodeProfile(tenant_name=tenant_name,
+                                      l3out_name='testOut1',
+                                      name='testNP1'))
+        self.aim_manager.create(
+            self.ctx,
+            resource.L3OutInterfaceProfile(tenant_name=tenant_name,
+                                           l3out_name='testOut1',
+                                           node_profile_name='testNP1',
+                                           name='testLifP1'))
+        self.aim_manager.create(
+            self.ctx,
+            resource.L3OutInterface(tenant_name=tenant_name,
+                                    l3out_name='testOut1',
+                                    node_profile_name='testNP1',
+                                    interface_profile_name='testLifP1',
+                                    interface_path='topology/pod-1/paths-101/'
+                                                   'pathep-[eth1/1]'))
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        bgp = self.aim_manager.create(self.ctx,
+                                      resource.L3OutInterfaceBgpPeerP(
+                                          tenant_name=tenant_name,
+                                          l3out_name='testOut1',
+                                          node_profile_name='testNP1',
+                                          interface_profile_name='testLifP1',
+                                          interface_path='topology/pod-1/'
+                                          'paths-101/pathep-[eth1/1]',
+                                          addr='1.1.1.0/24', local_asn="0",
+                                          asn="65000"))
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        self._assert_universe_sync(desired_monitor, current_monitor,
+                                   tenants=[tn1.root])
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn1.root])
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        self._observe_aci_events(current_config)
+        status = self.aim_manager.get_status(self.ctx, bgp)
+        self.assertEqual(aim_status.AciStatus.SYNCED, status.sync_status)
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']

@@ -373,6 +373,33 @@ def l3ext_member_converter(object_dict, otype, helper,
     return result
 
 
+def bgp_extp_converter(object_dict, otype, helper,
+                       source_identity_attributes,
+                       destination_identity_attributes,
+                       to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        res_dict['bgp_enable'] = True
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        if object_dict.get('bgp_enable'):
+            dn = default_identity_converter(object_dict, otype, helper,
+                                            aci_mo_type=helper['resource'],
+                                            to_aim=False)[0]
+            result.append({helper['resource']: {
+                'attributes': {'dn': dn}
+            }})
+    return result
+
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -432,6 +459,11 @@ def infraRsVlan_vmm_id_converter(object_dict, otype, helper, to_aim=True):
                                             aci_mo_type='infraRsVlanNs__vmm',
                                             to_aim=to_aim)
 
+
+def bgp_as_id_converter(object_dict, otype, helper, to_aim=True):
+    return default_identity_converter(object_dict, otype, helper,
+                                      aci_mo_type='bgpAsP__Peer',
+                                      to_aim=to_aim)
 
 resource_map = {
     'fvBD': [{
@@ -630,7 +662,11 @@ resource_map = {
     }],
     'l3extOut': [{
         'resource': resource.L3Outside,
-        'skip': ['vrf_name', 'l3_domain_dn']
+        'skip': ['vrf_name', 'l3_domain_dn', 'bgp_enable']
+    }],
+    'bgpExtP': [{
+        'resource': resource.L3Outside,
+        'converter': bgp_extp_converter
     }],
     'l3extRsEctx': [{
         'resource': resource.L3Outside,
@@ -669,6 +705,24 @@ resource_map = {
                        'addr': {'other': 'primary_addr_a'}},
         'skip': ['primary_addr_b', 'secondary_addr_a_list',
                  'secondary_addr_b_list'],
+    }],
+    'bgpPeerP': [{
+        'resource': resource.L3OutInterfaceBgpPeerP,
+        'skip': ['asn', 'local_asn']
+    }],
+    'bgpAsP': [{
+        'resource': resource.L3OutInterfaceBgpPeerP,
+        'identity_converter': bgp_as_id_converter,
+        'skip': ['local_asn']
+    }],
+    'bgpLocalAsnP': [{
+        'resource': resource.L3OutInterfaceBgpPeerP,
+        'exceptions': {
+            'localAsn': {
+                'other': 'local_asn',
+            }
+        },
+        'skip': ['asn']
     }],
     'l3extIp': [{
         'resource': resource.L3OutInterface,
@@ -846,9 +900,18 @@ resource_map.update({
                        'convert_pre_existing': True,
                        'convert_monitored': False}],
     'infraRsVlanNs__vmm': [resource_map['infraRsVlanNs'][0]],
+    'bgpAsP__Peer': [{
+        'resource': resource.L3OutInterfaceBgpPeerP,
+        'identity_converter': bgp_as_id_converter,
+        'skip': ['local_asn']
+    }]
 })
 
 resource_map.update(service_graph.resource_map_post_reverse)
+
+for item in reverse_resource_map[resource.L3OutInterfaceBgpPeerP]:
+    if item['resource'] == 'bgpAsP':
+        item['resource'] = 'bgpAsP__Peer'
 
 
 class BaseConverter(object):

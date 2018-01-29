@@ -527,3 +527,8 @@ class TestDeviceClusterInterfaceContext(
     test_aim_manager.TestDeviceClusterInterfaceContextMixin,
     TestManagerResourceOpsBase, base.TestShell):
         pass
+
+
+class TestBgpPeerP(test_aim_manager.TestBgpPeerPMixin,
+                   base.TestShell):
+        pass

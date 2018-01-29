@@ -527,6 +527,7 @@ class L3Outside(model_base.Base, model_base.HasAimId,
 
     vrf_name = model_base.name_column()
     l3_domain_dn = sa.Column(sa.String(1024))
+    bgp_enable = sa.Column(sa.Boolean, nullable=False)
 
 
 class L3OutNodeProfile(model_base.Base, model_base.HasAimId,
@@ -773,6 +774,8 @@ class ExternalSubnet(model_base.Base, model_base.HasAimId,
     l3out_name = model_base.name_column(nullable=False)
     external_network_name = model_base.name_column(nullable=False)
     cidr = sa.Column(sa.String(64), nullable=False)
+    aggregate = sa.Column(sa.String(64), nullable=False)
+    scope = sa.Column(sa.String(64), nullable=False)
 
 
 class SecurityGroup(model_base.Base, model_base.HasAimId,
@@ -1060,3 +1063,30 @@ class VmmInjectedContGroup(model_base.Base, model_base.HasAimId,
     host_name = model_base.name_column(nullable=False)
     compute_node_name = model_base.name_column(nullable=False)
     replica_set_name = model_base.name_column(nullable=False)
+
+
+class L3OutInterfaceBgpPeerP(model_base.Base, model_base.HasAimId,
+                             model_base.HasTenantName,
+                             model_base.AttributeMixin,
+                             model_base.IsMonitored):
+    """DB model for BgpPeerConnectivityProfile."""
+    __tablename__ = 'aim_l3out_interface_bgp_peer_prefix'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                               'node_profile_name', 'interface_profile_name',
+                               'interface_path', 'addr') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+    l3out_name = model_base.name_column(nullable=False)
+    node_profile_name = model_base.name_column(nullable=False)
+    interface_profile_name = model_base.name_column(nullable=False)
+    interface_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
+    addr = sa.Column(sa.String(64), nullable=False)
+    asn = sa.Column(sa.Integer)
+    local_asn = sa.Column(sa.Integer)
+
+    def to_attr(self, session):
+        res_attr = super(L3OutInterfaceBgpPeerP, self).to_attr(session)
+        for to_str in ['local_asn', 'asn']:
+            if to_str in res_attr:
+                res_attr[to_str] = str(res_attr[to_str])
+        return res_attr
