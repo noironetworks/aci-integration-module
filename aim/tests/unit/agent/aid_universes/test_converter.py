@@ -911,6 +911,9 @@ class TestAciToAimConverterL3OutInterface(TestAciToAimConverterBase,
          'resource': 'l3extIp',
          'converter': converter.l3ext_ip_converter},
         {'exceptions': {},
+         'resource': 'l3extIp__Member',
+         'converter': converter.l3ext_ip_converter},
+        {'exceptions': {},
          'resource': 'l3extMember',
          'converter': converter.l3ext_member_converter}]
     sample_input = [[get_example_aci_l3out_interface(nameAlias='alias'),
@@ -952,12 +955,12 @@ class TestAciToAimConverterL3OutInterface(TestAciToAimConverterBase,
                                  'pathep-[eth1/2]]/mem-B',
                               side='B',
                               addr='1.1.1.102/24'),
-                     _aci_obj('l3extIp',
+                     _aci_obj('l3extIp__Member',
                               dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
                                  'rspathL3OutAtt-[topology/pod-1/paths-101/'
                                  'pathep-[eth1/2]]/mem-B/addr-[1.1.1.13/24]',
                               addr='1.1.1.13/24'),
-                     _aci_obj('l3extIp',
+                     _aci_obj('l3extIp__Member',
                               dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
                                  'rspathL3OutAtt-[topology/pod-1/paths-101/'
                                  'pathep-[eth1/2]]/mem-B/addr-[1.1.1.14/24]',

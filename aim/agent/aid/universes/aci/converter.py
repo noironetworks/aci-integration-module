@@ -285,7 +285,7 @@ def l3ext_ip_converter(object_dict, otype, helper,
         for index, attr in enumerate(destination_identity_attributes):
             res_dict[attr] = id[index]
         if object_dict.get('addr'):
-            if is_vpc:
+            if is_vpc or otype == 'l3extIp__Member':
                 if id[5] == 'A':
                     res_dict['secondary_addr_a_list'] = [{'addr':
                                                          object_dict['addr']}]
@@ -326,8 +326,8 @@ def l3ext_ip_converter(object_dict, otype, helper,
                     dn = default_identity_converter(
                         object_dict, otype, helper,
                         extra_attributes=[p['addr']],
-                        aci_mo_type=helper['resource'], to_aim=False)[0]
-                    result.append({helper['resource']: {
+                        aci_mo_type='l3extIp', to_aim=False)[0]
+                    result.append({'l3extIp': {
                         'attributes': {'dn': dn,
                                        'addr': p['addr']}}})
     return result
@@ -725,6 +725,10 @@ resource_map = {
         'skip': ['asn']
     }],
     'l3extIp': [{
+        'resource': resource.L3OutInterface,
+        'converter': l3ext_ip_converter,
+    }],
+    'l3extIp__Member': [{
         'resource': resource.L3OutInterface,
         'converter': l3ext_ip_converter,
     }],
