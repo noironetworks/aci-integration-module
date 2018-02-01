@@ -900,9 +900,18 @@ resource_map.update({
                        'convert_pre_existing': True,
                        'convert_monitored': False}],
     'infraRsVlanNs__vmm': [resource_map['infraRsVlanNs'][0]],
+    'bgpAsP__Peer': [{
+        'resource': resource.L3OutInterfaceBgpPeerP,
+        'identity_converter': bgp_as_id_converter,
+        'skip': ['local_asn']
+    }]
 })
 
 resource_map.update(service_graph.resource_map_post_reverse)
+
+for item in reverse_resource_map[resource.L3OutInterfaceBgpPeerP]:
+    if item['resource'] == 'bgpAsP':
+        item['resource'] = 'bgpAsP__Peer'
 
 
 class BaseConverter(object):

@@ -1083,3 +1083,10 @@ class L3OutInterfaceBgpPeerP(model_base.Base, model_base.HasAimId,
     addr = sa.Column(sa.String(64), nullable=False)
     asn = sa.Column(sa.Integer)
     local_asn = sa.Column(sa.Integer)
+
+    def to_attr(self, session):
+        res_attr = super(L3OutInterfaceBgpPeerP, self).to_attr(session)
+        for to_str in ['local_asn', 'asn']:
+            if to_str in res_attr:
+                res_attr[to_str] = str(res_attr[to_str])
+        return res_attr

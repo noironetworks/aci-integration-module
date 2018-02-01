@@ -2412,11 +2412,11 @@ class TestBgpPeerPMixin(object):
                                 'interface_path': 'topology/pod-1/paths-'
                                                   '101/pathep-[eth1/1]',
                                 'addr': '1.1.1.0/24',
-                                'asn': 1,
-                                'local_asn': 65000}
-    test_update_attributes = {'asn': 2, 'local_asn': 10000}
+                                'asn': '1',
+                                'local_asn': "65000"}
+    test_update_attributes = {'asn': '2', 'local_asn': '10000'}
     test_search_attributes = {'addr': '1.1.1.0/24'}
-    test_default_values = {'asn': 1, 'local_asn': 65000}
+    test_default_values = {'asn': '1', 'local_asn': '65000'}
     test_dn = ('uni/tn-tn1/out-testOut1/lnodep-testNP1/lifp-testLifP1/'
                'rspathL3OutAtt-[topology/pod-1/paths-101/pathep-[eth1/1]]/'
                'peerP-[1.1.1.0/24]')
