@@ -818,8 +818,8 @@ class L3OutInterfaceBgpPeerP(AciResourceBase):
         ('interface_path', t.string()),
         ('addr', t.ip_cidr))
     other_attributes = t.other(
-        ('asn', t.positive_number),
-        ('local_asn', t.positive_number),
+        ('asn', t.string()),
+        ('local_asn', t.string()),
         ('monitored', t.bool))
 
     _aci_mo_name = 'bgpPeerP'
@@ -827,7 +827,7 @@ class L3OutInterfaceBgpPeerP(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(L3OutInterfaceBgpPeerP, self).__init__(
-            {'asn': 0, 'local_asn': 0,
+            {'asn': "0", 'local_asn': "0",
              'monitored': False}, **kwargs)
 
 
