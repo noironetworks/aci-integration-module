@@ -44,6 +44,7 @@ CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
 TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev', 'fabricTopology']
 CHILDREN_MOS_UNI = None
 CHILDREN_MOS_TOPOLOGY = None
+SUPPORTS_ANNOTATIONS = None
 RESET_INTERVAL = 3600
 DEFAULT_WS_TO = '900'
 
@@ -94,6 +95,14 @@ def get_children_mos(apic_session, root):
                     raise e
                 CHILDREN_MOS_TOPOLOGY.add(mo_name)
         return CHILDREN_MOS_TOPOLOGY
+
+
+def supports_annotations(apic_session):
+    global SUPPORTS_ANNOTATIONS
+    if SUPPORTS_ANNOTATIONS is None:
+        tn = apic_session.GET('/mo/uni/tn-common.json')
+        SUPPORTS_ANNOTATIONS = 'annotation' in tn[0]['fvTenant']['attributes']
+    return SUPPORTS_ANNOTATIONS
 
 
 OPERATIONAL_LIST = [FAULT_KEY]
@@ -158,6 +167,134 @@ class Root(acitoolkit.BaseACIObject):
             return urls
 
 
+class OwnershipManager(object):
+
+    def __init__(self, apic_session, apic_config, aim_system_id):
+        self.use_annotation = supports_annotations(apic_session)
+        self.aim_system_id = aim_system_id or apic_config.get_option(
+            'aim_system_id', 'aim')
+        if self.use_annotation:
+            self.annotation_key = apic_config.get_option(
+                'annotation_prefix', 'aim') + self.aim_system_id
+        self.tag_key = self.aim_system_id
+        self.owned_by_tag = set()
+        self.owned_by_annotation = set()
+        self.failure_log = {}
+
+    @property
+    def owned_set(self):
+        return self.owned_by_tag | self.owned_by_annotation
+
+    def set_ownership_key(self, to_push):
+        """Set ownership key
+
+        When pushing objects to APIC, push annotations when supported, TAG
+        only otherwise.
+        :param to_push:
+        :return:
+        """
+        result = to_push
+        if self.use_annotation:
+            for obj in to_push:
+                obj.values()[0]['attributes']['annotation'] = (
+                    self.annotation_key)
+        else:
+            tags = []
+            for obj in to_push:
+                if not obj.keys()[0].startswith(TAG_KEY):
+                    dn = obj.values()[0]['attributes']['dn']
+                    dn += '/tag-%s' % self.tag_key
+                    tags.append({"%s__%s" % (TAG_KEY, obj.keys()[0]):
+                                 {"attributes": {"dn": dn}}})
+            result.extend(tags)
+        return result
+
+    def set_ownership_change(self, to_push):
+        to_update = []
+        if self.use_annotation:
+            for obj in to_push:
+                if obj.keys()[0].startswith(TAG_KEY):
+                    dn = obj.values()[0]['attributes']['dn']
+                    if dn.endswith('/tag-%s' % self.tag_key):
+                        dec = apic_client.DNManager().aci_decompose_dn_guess(
+                            dn, obj.keys()[0])
+                        parent_dec = dec[1][:-1]
+                        parent_dn = apic_client.DNManager().build(parent_dec)
+                        parent_type = parent_dec[-1][0]
+                        to_update.append(
+                            {parent_type: {'attributes': {'dn': parent_dn,
+                                                          'annotation': ''}}})
+        return to_push, to_update
+
+    def filter_ownership(self, events):
+        managed = []
+        if self.use_annotation:
+            for event in events:
+                attrs = event.values()[0]['attributes']
+                if AciTenantManager.is_deleting(event):
+                    self.owned_by_annotation.discard(attrs['dn'])
+                elif attrs.get('annotation') == self.annotation_key:
+                    self.owned_by_annotation.add(attrs['dn'])
+                elif 'annotation' in attrs:
+                    # Has a different annotation
+                    self.owned_by_annotation.discard(attrs['dn'])
+                if event.keys()[0] != TAG_KEY:
+                    managed.append(event)
+        # Tags might still be in the system, use them with annotations to
+        # discern ownership
+        for event in events:
+            if event.keys()[0] == TAG_KEY:
+                decomposed = event.values()[0][
+                    'attributes']['dn'].split('/')
+                if decomposed[-1] == 'tag-' + self.tag_key:
+                    parent_dn = '/'.join(decomposed[:-1])
+                    if AciTenantManager.is_deleting(event):
+                        self.owned_by_tag.discard(parent_dn)
+                    else:
+                        self.owned_by_tag.add(parent_dn)
+            else:
+                managed.append(event)
+        for event in managed:
+            if AciTenantManager.is_deleting(event):
+                self.owned_by_tag.discard(
+                    event.values()[0]['attributes']['dn'])
+        return managed
+
+    def is_owned(self, aci_object, check_parent=True):
+        # An RS whose parent is owned is an owned object.
+        dn = aci_object.values()[0]['attributes']['dn']
+        type = aci_object.keys()[0]
+        if type in apic_client.MULTI_PARENT:
+            decomposed = dn.split('/')
+            # Check for parent ownership
+            return self.is_owned_dn('/'.join(decomposed[:-1]))
+        else:
+            owned = self.is_owned_dn(dn)
+            if not owned and AciTenantManager.is_child_object(
+                    type) and check_parent:
+                # Check for parent ownership
+                try:
+                    decomposed = (
+                        apic_client.DNManager().aci_decompose_dn_guess(
+                            dn, type))
+                except apic_client.DNManager.InvalidNameFormat:
+                    LOG.debug("Type %s with DN %s is not supported." %
+                              (type, dn))
+                    return False
+                # Check for parent ownership
+                return self.is_owned_dn(apic_client.DNManager().build(
+                    decomposed[1][:-1]))
+            else:
+                return owned
+
+    def is_owned_dn(self, dn):
+        return (dn in self.owned_by_annotation) or (dn in self.owned_by_tag)
+
+    def reset_ownership(self):
+        self.owned_by_annotation = set()
+        self.owned_by_tag = set()
+
+
 class AciTenantManager(utils.AIMThread):
 
     def __init__(self, tenant_name, apic_config, apic_session, ws_context,
@@ -186,9 +323,6 @@ class AciTenantManager(utils.AIMThread):
         self.to_aci_converter = converter.AimToAciModelConverter()
         self._reset_object_backlog()
         self.tree_builder = tree_manager.HashTreeBuilder(None)
-        self.tag_name = aim_system_id or self.apic_config.get_option(
-            'aim_system_id', 'aim')
-        self.tag_set = set()
         self.failure_log = {}
 
         def noop(*args, **kwargs):
@@ -204,6 +338,8 @@ class AciTenantManager(utils.AIMThread):
         self.error_handler = error.APICAPIErrorHandler()
         # For testing purposes
         self.num_loop_runs = float('inf')
+        self.ownership_mgr = OwnershipManager(apic_session, apic_config,
+                                              aim_system_id)
         # Initialize tenant tree
 
     def _reset_object_backlog(self):
@@ -344,7 +480,7 @@ class AciTenantManager(utils.AIMThread):
                 # Pull incomplete objects
                 events = self._fill_events(events)
                 # Manage Tags
-                events = self._filter_ownership(events)
+                events = self.ownership_mgr.filter_ownership(events)
                 self._event_to_tree(events)
         time.sleep(max(0, self.polling_yield - (time.time() - start_time)))
 
@@ -397,6 +533,23 @@ class AciTenantManager(utils.AIMThread):
             # iteration
             pass
 
+    def _post_with_transaction(self, to_push, modified=False):
+        if not to_push:
+            return
+        dn_mgr = apic_client.DNManager()
+        decompose = dn_mgr.aci_decompose_dn_guess
+        with self.aci_session.transaction(
+                top_send=True) as trs:
+            for obj in to_push:
+                attr = obj.values()[0]['attributes']
+                if modified:
+                    attr['status'] = converter.MODIFIED_STATUS
+                mo, parents_rns = decompose(
+                    attr.pop('dn'), obj.keys()[0])
+                rns = dn_mgr.filter_rns(parents_rns)
+                getattr(self.aci_session, mo).create(*rns, transaction=trs,
+                                                     **attr)
+
     def _push_aim_resources(self):
         dn_mgr = apic_client.DNManager()
         decompose = dn_mgr.aci_decompose_dn_guess
@@ -437,41 +590,30 @@ class AciTenantManager(utils.AIMThread):
                             to_push = self.to_aci_converter.convert(
                                 [aim_object])
                         LOG.debug('%s AIM object %s in APIC' % (
-                            method, repr(aim_object)))
-                        # Set TAGs before pushing the request
-                        tags = []
-                        if method == base_universe.CREATE:
-                            # No need to deal with tags on deletion
-                            for obj in to_push:
-                                if not obj.keys()[0].startswith(TAG_KEY):
-                                    dn = obj.values()[0]['attributes']['dn']
-                                    dn += '/tag-%s' % self.tag_name
-                                    tags.append({"tagInst__%s" % obj.keys()[0]:
-                                                 {"attributes": {"dn": dn}}})
-                        LOG.debug("Pushing %s into APIC: %s" %
-                                  (method, to_push + tags))
-                        # Multiple objects could result from a conversion, push
-                        # them in a single transaction
+                                  method, repr(aim_object)))
                         try:
-                            if method == base_universe.DELETE:
-                                for obj in to_push + tags:
+                            if method == base_universe.CREATE:
+                                # Set ownership before pushing the request
+                                to_push = self.ownership_mgr.set_ownership_key(
+                                    to_push)
+                                LOG.debug("POSTING into APIC: %s" % to_push)
+                                self._post_with_transaction(to_push)
+                                self.creation_succeeded(aim_object)
+                            else:
+                                to_delete, to_update = (
+                                    self.ownership_mgr.set_ownership_change(
+                                        to_push))
+                                LOG.debug("DELETING from APIC: %s" % to_delete)
+                                for obj in to_delete:
                                     attr = obj.values()[0]['attributes']
                                     self.aci_session.DELETE(
                                         '/mo/%s.json' % attr.pop('dn'))
-                            else:
-                                with self.aci_session.transaction(
-                                        top_send=True) as trs:
-                                    for obj in to_push + tags:
-                                        attr = obj.values()[0]['attributes']
-                                        mo, parents_rns = decompose(
-                                            attr.pop('dn'), obj.keys()[0])
-                                        rns = dn_mgr.filter_rns(parents_rns)
-                                        getattr(getattr(self.aci_session, mo),
-                                                method)(*rns, transaction=trs,
-                                                        **attr)
-                                # Object creation was successful, change object
-                                # state
-                                self.creation_succeeded(aim_object)
+                                LOG.debug("UPDATING in APIC: %s" % to_update)
+                                # Update object ownership
+                                self._post_with_transaction(to_update,
+                                                            modified=True)
+                                if to_update:
+                                    self.creation_succeeded(aim_object)
                         except Exception as e:
                             LOG.debug(traceback.format_exc())
                             LOG.error("An error has occurred during %s for "
@@ -528,7 +670,7 @@ class AciTenantManager(utils.AIMThread):
                 if self._check_parent_type(
                         event,
                         ACI_TYPES_NOT_CONVERT_IF_MONITOR[type]):
-                    if not self._is_owned(event):
+                    if not self.ownership_mgr.is_owned(event):
                         # For an RS object like fvRsProv we check the
                         # parent ownership as well.
                         continue
@@ -539,19 +681,20 @@ class AciTenantManager(utils.AIMThread):
                         event, ACI_TYPES_SKIP_ON_MANAGES[type]):
                     # Check whether the event is owned, and whether its
                     # parent is.
-                    if (not self._is_owned(event, check_parent=False) and
-                            self._is_owned(event)):
+                    if (not self.ownership_mgr.is_owned(
+                            event, check_parent=False) and
+                            self.ownership_mgr.is_owned(event)):
                         continue
-            if self.is_child_object(type) and self._is_deleting(event):
+            if self.is_child_object(type) and self.is_deleting(event):
                 # Can be excluded, we expect parent objects
                 continue
 
-            if self._is_deleting(event):
+            if self.is_deleting(event):
                 dn = event.values()[0]['attributes']['dn']
                 removing_dns.add(dn)
             filtered_events.append(event)
         for event in self.to_aim_converter.convert(filtered_events):
-            if event.dn not in self.tag_set:
+            if not self.ownership_mgr.is_owned_dn(event.dn):
                 event.monitored = True
             if event.dn in removing_dns:
                 LOG.info('ACI event: REMOVED %s' % event)
@@ -706,50 +849,6 @@ class AciTenantManager(utils.AIMThread):
                     valid_children.append(child)
                 events.extend(valid_children)
 
-    def _filter_ownership(self, events):
-        managed = []
-        for event in events:
-            if event.keys()[0] == TAG_KEY:
-                decomposed = event.values()[0]['attributes']['dn'].split('/')
-                if decomposed[-1] == 'tag-' + self.tag_name:
-                    parent_dn = '/'.join(decomposed[:-1])
-                    if self._is_deleting(event):
-                        self.tag_set.discard(parent_dn)
-                    else:
-                        self.tag_set.add(parent_dn)
-            else:
-                managed.append(event)
-        for event in managed:
-            if self._is_deleting(event):
-                self.tag_set.discard(event.values()[0]['attributes']['dn'])
-        return managed
-
-    def _is_owned(self, aci_object, check_parent=True):
-        # An RS whose parent is owned is an owned object.
-        dn = aci_object.values()[0]['attributes']['dn']
-        type = aci_object.keys()[0]
-        if type in apic_client.MULTI_PARENT:
-            decomposed = dn.split('/')
-            # Check for parent ownership
-            return '/'.join(decomposed[:-1]) in self.tag_set
-        else:
-            owned = dn in self.tag_set
-            if not owned and self.is_child_object(type) and check_parent:
-                # Check for parent ownership
-                try:
-                    decomposed = (
-                        apic_client.DNManager().aci_decompose_dn_guess(
-                            dn, type))
-                except apic_client.DNManager.InvalidNameFormat:
-                    LOG.debug("Type %s with DN %s is not supported." %
-                              (type, dn))
-                    return False
-                # Check for parent ownership
-                return apic_client.DNManager().build(
-                    decomposed[1][:-1]) in self.tag_set
-            else:
-                return owned
-
     def _check_parent_type(self, aci_object, parent_types):
         dn = aci_object.values()[0]['attributes']['dn']
         type = aci_object.keys()[0]
@@ -765,14 +864,15 @@ class AciTenantManager(utils.AIMThread):
             return False
         return decomposed[1][-2][0] in parent_types
 
-    def _is_deleting(self, aci_object):
+    @staticmethod
+    def is_deleting(aci_object):
         attrs = aci_object.values()[0]['attributes']
         status = attrs.get(STATUS_FIELD, attrs.get(SEVERITY_FIELD))
         return status in [converter.DELETED_STATUS, converter.CLEARED_SEVERITY]
 
     @staticmethod
     def is_child_object(type):
-        if type == 'tagInst':
+        if type == TAG_KEY:
             return True
         aim_res = converter.resource_map.get(type, [])
         return aim_res and type not in [x['resource']._aci_mo_name

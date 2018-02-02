@@ -63,6 +63,11 @@ agent_opts = [
     cfg.StrOpt('aim_system_id', required=True, default='openstack_aid',
                help="Identifier of the AIM system used to mark object "
                     "ownership in ACI"),
+    # Top level orchestration might be K8S, OpenStack, or a mix of the 2.
+    cfg.StrOpt('annotation_prefix', required=True,
+               default='orchestrator:openstack:',
+               help="Only used on systems that support annotation, specifies "
+                    "the orchestrator this AID agent is serving"),
     cfg.FloatOpt('aci_tenant_polling_yield', default=0.2,
                  help="how long the ACITenant yield to other processed"),
     cfg.IntOpt('max_operation_retry', default=5,
