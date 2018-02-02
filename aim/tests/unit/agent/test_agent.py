@@ -121,7 +121,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         base = 'uni'
         container = mo.container
         if container:
-            base = apic_client.ManagedObjectClass(container).dn(*params[:-1])
+            try:
+                base = apic_client.ManagedObjectClass(container).dn(
+                    *params[:-1])
+            except Exception:
+                base = apic_client.ManagedObjectClass(container).dn(*params)
         self._tree_to_event(data, events, base, self._current_manager)
         # pre-create Kubernetes VMM domain so that implicitly
         # created Kubernetes objects can be handled
@@ -173,6 +177,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                     universe.aci_session = session
                     session._data_stash = {}
         return aid
+
+    def _is_object_owned(self, desired_monitor, dn, tenant_rn):
+        try:
+            tag = test_aci_tenant.mock_get_data(
+                desired_monitor.serving_tenants[tenant_rn].aci_session,
+                'mo/' + dn + '/tag-openstack_aid')
+            return tag != []
+        except apic_client.cexc.ApicResponseNotOk:
+            return False
 
     def test_init(self):
         agent = self._create_agent()
@@ -277,7 +290,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertNotEqual([], result2)
 
         # Upgrade agent2 version
-        agent2.agent.version = "2.0.0"
+        agent2.agent.version = "3.0.0"
         self.aim_manager.create(self.ctx, agent2.agent, overwrite=True)
         result = agent._calculate_tenants(self.ctx)
         result2 = agent2._calculate_tenants(self.ctx)
@@ -287,7 +300,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual([], result)
 
         # Upgrade agent1 version
-        agent.agent.version = "2.0.0"
+        agent.agent.version = "3.0.0"
         self.aim_manager.create(self.ctx, agent.agent, overwrite=True)
         result = agent._calculate_tenants(self.ctx)
         result2 = agent2._calculate_tenants(self.ctx)
@@ -764,12 +777,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             desired_monitor.serving_tenants[tn1.rn].aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1' % tenant_name)
         self.assertNotEqual([], prov[0])
-        # Also its tag exists
-        prov_tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
-            'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1/'
-            'tag-openstack_aid' % tenant_name)
-        self.assertNotEqual([], prov_tag[0])
+        self.assertTrue(self._is_object_owned(
+            desired_monitor,
+            'uni/tn-%s/out-default/instP-extnet/rsprov-c1' % tenant_name,
+            tn1.rn))
         # Old contract still exists
         prov_def = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn1.rn].aci_session,
@@ -954,14 +965,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                (desired_monitor, current_monitor)],
                               tenants=[tn.root])
         # Tag exists in ACI
-        tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn.rn].aci_session,
-            'mo/' + epg.dn + '/tag-openstack_aid')
-        self.assertNotEqual([], tag)
-        tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn.rn].aci_session,
-            'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
-        self.assertNotEqual([], tag)
+        self.assertTrue(self._is_object_owned(desired_monitor, epg.dn, tn.rn))
+        self.assertTrue(self._is_object_owned(desired_monitor,
+                                              epg.dn + '/rsprov-c', tn.rn))
         # Run an empty change on the EPG, bringing it to sync pending
         self.aim_manager.update(self.ctx, epg)
         self._sync_and_verify(agent, current_config,
@@ -978,14 +984,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                (desired_monitor, current_monitor)],
                               tenants=[tn.root])
         # Tag doesn't exist anymore
-        self.assertRaises(
-            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
-            'mo/' + epg.dn + '/rsprov-c/tag-openstack_aid')
-        self.assertRaises(
-            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
-            'mo/' + epg.dn + '/tag-openstack_aid')
+        self.assertFalse(self._is_object_owned(desired_monitor,
+                                               epg.dn + '/rsprov-c', tn.rn))
+        self.assertFalse(self._is_object_owned(desired_monitor, epg.dn, tn.rn))
         # Object is in monitored universe and in good shape
         epg = self.aim_manager.get(self.ctx, epg)
         self.assertTrue(epg.monitored)
@@ -1085,11 +1086,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
-        tag = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn.rn].aci_session,
-            'mo/' + ext_net.dn + '/rsprov-p1/tag-openstack_aid')
-        self.assertNotEqual([], tag)
-
+        self.assertTrue(self._is_object_owned(
+            desired_monitor, ext_net.dn + '/rsprov-p1', tn.rn))
         self.aim_manager.update(self.ctx, ext_net,
                                 provided_contract_names=[])
         ext_net = self.aim_manager.get(self.ctx, ext_net)
@@ -1101,11 +1099,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             test_aci_tenant.mock_get_data,
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + ext_net.dn + '/rsprov-p1')
-        self.assertRaises(
-            apic_client.cexc.ApicResponseNotOk,
-            test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
-            'mo/' + ext_net.dn + '/rsprov-p1/tag-openstack_aid')
+        self.assertFalse(self._is_object_owned(
+            desired_monitor, ext_net.dn + '/rsprov-p1', tn.rn))
 
     def test_aci_errors(self):
         self.set_override('max_operation_retry', 2, 'aim')
@@ -2140,3 +2135,29 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._assert_universe_sync(couple[0], couple[1], tenants=tenants)
         self._assert_reset_consistency()
         self._verify_get_relevant_state(agent)
+
+
+class TestAgentAnnotation(TestAgent):
+
+    def setUp(self):
+        super(TestAgentAnnotation, self).setUp()
+        self.use_annotation = mock.patch(
+            'aim.agent.aid.universes.aci.tenant.supports_annotations',
+            return_value=True)
+        self.use_annotation.start()
+
+    def _is_object_owned(self, desired_monitor, dn, tenant_rn):
+        try:
+            obj = test_aci_tenant.mock_get_data(
+                desired_monitor.serving_tenants[tenant_rn].aci_session,
+                'mo/' + dn)
+            return obj[0].values()[0]['attributes'].get('annotation', False)
+        except apic_client.cexc.ApicResponseNotOk:
+            # Fallback to tags
+            try:
+                tag = test_aci_tenant.mock_get_data(
+                    desired_monitor.serving_tenants[tenant_rn].aci_session,
+                    'mo/' + dn + '/tag-openstack_aid')
+                return tag != []
+            except apic_client.cexc.ApicResponseNotOk:
+                return False

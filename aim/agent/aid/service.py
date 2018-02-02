@@ -36,7 +36,7 @@ from aim import tree_manager
 
 LOG = logging.getLogger(__name__)
 AGENT_TYPE = 'Aci Synchronization Module'
-AGENT_VERSION = '1.0.0'
+AGENT_VERSION = '2.0.0'
 AGENT_BINARY = 'aci-inconsistency-detector'
 AGENT_DESCRIPTION = ('This Agent synchronizes the AIM state with ACI for a '
                      'certain amount of Tenants.')
