@@ -3854,7 +3854,7 @@ class TestAciToAimConverterBgpAsPPeer(TestAciToAimConverterBase,
                               'rspathL3OutAtt-[topology/pod-1/paths-101/'
                               'pathep-[eth1/1]]/peerP-[1.1.1.0/24]',
                         'status': 'created'}, 'children': []}},
-        {'bgpAsP': {
+        {'bgpAsP__Peer': {
             'attributes': {'rn': 'as',
                            'dn': 'uni/tn-test_gbp/out-testOut1/'
                                  'lnodep-testNP1/lifp-testLifP1/'
