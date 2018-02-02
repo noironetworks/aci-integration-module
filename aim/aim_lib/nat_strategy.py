@@ -105,7 +105,8 @@ class NatStrategy(object):
     """
 
     @abc.abstractmethod
-    def create_l3outside(self, ctx, l3outside):
+    def create_l3outside(self, ctx, l3outside,
+                         vmm_domains=None, phys_domains=None):
         """Create L3Outside object if needed.
 
         :param ctx: AIM context
@@ -230,8 +231,11 @@ class NatStrategyMixin(NatStrategy):
         self.mgr = mgr
         self.db = model.CloneL3OutManager()
 
-    def create_l3outside(self, ctx, l3outside):
-        return self._create_l3out(ctx, l3outside)
+    def create_l3outside(self, ctx, l3outside,
+                         vmm_domains=None, phys_domains=None):
+        return self._create_l3out(ctx, l3outside,
+                                  vmm_domains=vmm_domains,
+                                  phys_domains=phys_domains)
 
     def delete_l3outside(self, ctx, l3outside):
         self._delete_l3out(ctx, l3outside)
@@ -289,7 +293,7 @@ class NatStrategyMixin(NatStrategy):
         if ext_net_db:
             self._manage_external_subnets(ctx, ext_net_db, external_cidrs)
 
-    def _create_l3out(self, ctx, l3out):
+    def _create_l3out(self, ctx, l3out, vmm_domains=None, phys_domains=None):
         """Create NAT EPG etc. in addition to creating L3Out."""
 
         with ctx.store.begin(subtransactions=True):
@@ -304,7 +308,9 @@ class NatStrategyMixin(NatStrategy):
                 l3out_db = copy.copy(l3out)
                 l3out_db.vrf_name = ext_vrf.name
                 l3out_db = self.mgr.create(ctx, l3out_db)
-            self._create_nat_epg(ctx, l3out_db)
+            self._create_nat_epg(ctx, l3out_db,
+                                 vmm_domains=vmm_domains,
+                                 phys_domains=phys_domains)
             return l3out_db
 
     def _delete_l3out(self, ctx, l3out, delete_epg=True):
@@ -463,8 +469,18 @@ class NatStrategyMixin(NatStrategy):
         epg.physical_domains = phy_doms
         return [fltr, entry, contract, subject, bd, ap, epg]
 
-    def _create_nat_epg(self, ctx, l3out):
+    def _select_domains(self, objs, vmm_domains=None, phys_domains=None):
+        for obj in objs:
+            if isinstance(obj, resource.EndpointGroup):
+                if vmm_domains:
+                    obj.vmm_domains = vmm_domains
+                if phys_domains:
+                    obj.physical_domains = phys_domains
+
+    def _create_nat_epg(self, ctx, l3out, vmm_domains=None, phys_domains=None):
         objs = self._get_nat_objects(ctx, l3out)
+        self._select_domains(objs, vmm_domains=vmm_domains,
+                             phys_domains=phys_domains)
         with ctx.store.begin(subtransactions=True):
             for r in objs:
                 if not self.mgr.get(ctx, r):
