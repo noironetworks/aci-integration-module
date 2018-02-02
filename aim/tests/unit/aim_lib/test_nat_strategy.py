@@ -39,6 +39,8 @@ class TestNatStrategyBase(object):
         self.mgr.create(self.ctx, a_res.VMMDomain(type='OpenStack',
                                                   name='ostack'))
         self.mgr.create(self.ctx, a_res.PhysicalDomain(name='phys'))
+        self.vmm_domains = [{'type': 'OpenStack', 'name': 'ostack'}]
+        self.phys_domains = [{'name': 'phys'}]
 
     def _assert_res_eq(self, lhs, rhs):
         def sort_if_list(obj):
@@ -69,10 +71,13 @@ class TestNatStrategyBase(object):
                               'Resource %s' % o)
 
     def _get_l3out_objects(self, l3out_name=None, l3out_display_name=None,
-                           nat_vrf_name=None):
+                           nat_vrf_name=None, vmm_domains=None,
+                           phys_domains=None):
         name = 'EXT-%s' % (l3out_name or 'o1')
         d_name = 'EXT-%s' % (l3out_display_name or 'OUT')
         nat_vrf = a_res.VRF(tenant_name='t1', name=name, display_name=d_name)
+        vmm_doms = vmm_domains or self.vmm_domains
+        phys_doms = phys_domains or self.phys_domains
         return ([
             a_res.Filter(tenant_name='t1', name=name,
                          display_name=d_name),
@@ -99,11 +104,14 @@ class TestNatStrategyBase(object):
                                 # representations since a GET on the EPG
                                 # will also return the domain name list
                                 # for backward compatibility
-                                openstack_vmm_domain_names=['ostack'],
-                                physical_domain_names=['phys'],
-                                vmm_domains=[{'type': 'OpenStack',
-                                              'name': 'ostack'}],
-                                physical_domains=[{'name': 'phys'}])] +
+                                openstack_vmm_domain_names=[dom['name']
+                                                            for dom in vmm_doms
+                                                            if dom['type'] ==
+                                                            'OpenStack'],
+                                physical_domain_names=[dom['name']
+                                                       for dom in phys_doms],
+                                vmm_domains=vmm_doms,
+                                physical_domains=phys_doms)] +
                 ([nat_vrf] if nat_vrf_name is None else []))
 
     @base.requires(['foreign_keys'])
@@ -979,3 +987,67 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         self.ns.disconnect_vrf(self.ctx, ext_net, vrf)
         bd1_dept1.l3out_names = []
         self._verify(present=[bd1_dept1, bd2_dept1])
+
+
+class TestNatStrategyVmmAndPhysDomains(TestNoNatStrategy,
+                                       base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestNatStrategyVmmAndPhysDomains, self).setUp()
+        # add in VMware policy, another OpenStack VMM domain,
+        # a VMware VMM domain, and another PhysDom
+        self.mgr.create(self.ctx, a_res.VMMPolicy(type='VMware'))
+        self.mgr.create(self.ctx, a_res.VMMDomain(type='OpenStack',
+                                                  name='ostack2'))
+        self.mgr.create(self.ctx, a_res.VMMDomain(type='VMware',
+                                                  name='vmware1'))
+        self.mgr.create(self.ctx, a_res.PhysicalDomain(name='phys2'))
+        self.vmm_domains = [{'type': u'OpenStack', 'name': u'ostack'},
+                            {'type': u'OpenStack', 'name': u'ostack2'},
+                            {'type': u'VMware', 'name': u'vmware1'}]
+        self.phys_domains = [{'name': 'phys'}, {'name': 'phys2'}]
+
+    def test_l3outside_vmm_domains_all_domains(self):
+        l3out = a_res.L3Outside(tenant_name='t1', name='o1',
+                                display_name='OUT')
+        res = self.ns.create_l3outside(self.ctx, l3out)
+        self.assertIsNotNone(res)
+        other_objs = self._get_l3out_objects(vmm_domains=self.vmm_domains,
+                                             phys_domains=self.phys_domains)
+        l3out.vrf_name = 'EXT-o1'
+        self._verify(present=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        other_objs.append(l3out)
+        self._assert_res_list_eq(get_objs, other_objs)
+
+        self.ns.delete_l3outside(self.ctx, l3out)
+        self._verify(absent=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        self.assertEqual([], get_objs)
+
+    def test_l3outside_vmm_domains_limited_domains(self):
+        l3out = a_res.L3Outside(tenant_name='t1', name='o1',
+                                display_name='OUT')
+        vmm_domains = [{'type': 'OpenStack', 'name': 'ostack'},
+                       {'type': 'VMware', 'name': 'vmware1'}]
+        phys_domains = [{'name': 'phys2'}]
+        res = self.ns.create_l3outside(self.ctx, l3out,
+                                       vmm_domains=vmm_domains,
+                                       phys_domains=phys_domains)
+        self.assertIsNotNone(res)
+        other_objs = self._get_l3out_objects(vmm_domains=vmm_domains,
+                                             phys_domains=phys_domains)
+        l3out.vrf_name = 'EXT-o1'
+        self._verify(present=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        other_objs.append(l3out)
+        self._assert_res_list_eq(get_objs, other_objs)
+
+        self.ns.delete_l3outside(self.ctx, l3out)
+        self._verify(absent=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        self.assertEqual([], get_objs)
