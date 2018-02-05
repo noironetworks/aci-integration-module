@@ -76,8 +76,14 @@ class TestNatStrategyBase(object):
         name = 'EXT-%s' % (l3out_name or 'o1')
         d_name = 'EXT-%s' % (l3out_display_name or 'OUT')
         nat_vrf = a_res.VRF(tenant_name='t1', name=name, display_name=d_name)
-        vmm_doms = vmm_domains or self.vmm_domains
-        phys_doms = phys_domains or self.phys_domains
+        if vmm_domains is not None:
+            vmm_doms = vmm_domains
+        else:
+            vmm_doms = self.vmm_domains
+        if phys_domains is not None:
+            phys_doms = phys_domains
+        else:
+            phys_doms = self.phys_domains
         return ([
             a_res.Filter(tenant_name='t1', name=name,
                          display_name=d_name),
@@ -1033,6 +1039,30 @@ class TestNatStrategyVmmAndPhysDomains(TestNoNatStrategy,
         vmm_domains = [{'type': 'OpenStack', 'name': 'ostack'},
                        {'type': 'VMware', 'name': 'vmware1'}]
         phys_domains = [{'name': 'phys2'}]
+        res = self.ns.create_l3outside(self.ctx, l3out,
+                                       vmm_domains=vmm_domains,
+                                       phys_domains=phys_domains)
+        self.assertIsNotNone(res)
+        other_objs = self._get_l3out_objects(vmm_domains=vmm_domains,
+                                             phys_domains=phys_domains)
+        l3out.vrf_name = 'EXT-o1'
+        self._verify(present=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        other_objs.append(l3out)
+        self._assert_res_list_eq(get_objs, other_objs)
+
+        self.ns.delete_l3outside(self.ctx, l3out)
+        self._verify(absent=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        self.assertEqual([], get_objs)
+
+    def test_l3outside_vmm_domains_no_domains(self):
+        l3out = a_res.L3Outside(tenant_name='t1', name='o1',
+                                display_name='OUT')
+        vmm_domains = []
+        phys_domains = []
         res = self.ns.create_l3outside(self.ctx, l3out,
                                        vmm_domains=vmm_domains,
                                        phys_domains=phys_domains)
