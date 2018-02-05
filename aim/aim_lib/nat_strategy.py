@@ -472,9 +472,9 @@ class NatStrategyMixin(NatStrategy):
     def _select_domains(self, objs, vmm_domains=None, phys_domains=None):
         for obj in objs:
             if isinstance(obj, resource.EndpointGroup):
-                if vmm_domains:
+                if vmm_domains is not None:
                     obj.vmm_domains = vmm_domains
-                if phys_domains:
+                if phys_domains is not None:
                     obj.physical_domains = phys_domains
 
     def _create_nat_epg(self, ctx, l3out, vmm_domains=None, phys_domains=None):
