@@ -393,6 +393,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
         def action(result, aci_object, node):
             if node and not node.dummy:
                 # Monitored state transition -> Delete the TAG instead
+                LOG.debug("Deleting tag for transitioning object %s",
+                          aci_object.values()[0]['attributes']['dn'])
                 aci_type = 'tagInst'
                 dn = aci_object.values()[0]['attributes'][
                     'dn'] + '/tag-' + self.aim_system_id
