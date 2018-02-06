@@ -56,6 +56,7 @@ class WebSocketSubscriptionFailed(exceptions.AimException):
 
 class WebSocketContext(object):
     """Placeholder for websocket session"""
+    EMPTY_URLS = ["empty/url"]
 
     def __init__(self, apic_config):
         self.apic_config = apic_config
@@ -150,6 +151,10 @@ class WebSocketContext(object):
         return resp
 
     def subscribe(self, urls):
+        if urls == self.EMPTY_URLS:
+            raise WebSocketSubscriptionFailed(urls=urls,
+                                              code=400,
+                                              text="Empty URLS")
         resp = self._subscribe(urls)
         if resp is not None:
             if resp.ok:
@@ -162,6 +167,8 @@ class WebSocketContext(object):
                                                   text=resp.text)
 
     def unsubscribe(self, urls):
+        if urls == self.EMPTY_URLS:
+            return
         LOG.debug("Subscription urls: %s", urls)
         for url in urls:
             self.session.unsubscribe(url)
@@ -176,6 +183,8 @@ class WebSocketContext(object):
         return result
 
     def has_event(self, urls):
+        if urls == self.EMPTY_URLS:
+            return False
         return any(self.session.has_events(url) for url in urls)
 
     def _thread_monitor(self, thread, name, flag):
@@ -279,7 +288,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 self._state.pop(removed, None)
                 try:
                     serving_tenant_copy[removed].kill()
-                    serving_tenant_copy[removed]._unsubscribe_tenant()
                 except Exception as e:
                     LOG.debug(traceback.format_exc())
                     LOG.error('Killing manager failed for tenant %s: %s' %
@@ -309,7 +317,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
                             added, serving_tenants[added].is_dead())
                         # Cleanup the tenant's state
                         serving_tenants[added].kill()
-                        serving_tenants[added]._unsubscribe_tenant()
                     serving_tenants[added] = aci_tenant.AciTenantManager(
                         added, self.conf_manager, self.aci_session,
                         self.ws_context, self.creation_succeeded,
@@ -336,17 +343,17 @@ class AciUniverse(base.HashTreeStoredUniverse):
         self._state = new_state
 
     def reset(self, tenants):
+        # Reset can only be called during reconciliation. serving_tenants
+        # can't be modified meanwhile
         global serving_tenants
         LOG.warn('Reset called for roots %s' % tenants)
         for root in tenants:
             if root in serving_tenants:
                 try:
                     serving_tenants[root].kill()
-                    serving_tenants[root]._unsubscribe_tenant()
                 except Exception:
                     LOG.error(traceback.format_exc())
                     LOG.error('Failed to reset tenant %s' % root)
-                serving_tenants.pop(root, None)
 
     def push_resources(self, resources):
         # Organize by tenant, and push into APIC

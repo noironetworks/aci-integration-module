@@ -200,6 +200,15 @@ class AciTenantManager(utils.AIMThread):
     def _reset_object_backlock(self):
         self.object_backlog = Queue.Queue()
 
+    def kill(self, *args, **kwargs):
+        try:
+            self._unsubscribe_tenant(kill=True)
+        except Exception as e:
+            LOG.warn("Failed to unsubscribe tenant during kill "
+                     "procedure: %s %s" % (self.tenant_name, e.message))
+        finally:
+            super(AciTenantManager, self).kill(*args, **kwargs)
+
     def is_dead(self):
         # Wrapping the greenlet property for easier testing
         return self.dead
@@ -454,10 +463,14 @@ class AciTenantManager(utils.AIMThread):
                                 self.creation_failed(aim_object, e.message,
                                                      err_type)
 
-    def _unsubscribe_tenant(self):
+    def _unsubscribe_tenant(self, kill=False):
         LOG.info("Unsubscribing tenant websocket %s" % self.tenant_name)
         self._warm = False
-        self.ws_context.unsubscribe(self.tenant.urls)
+        urls = self.tenant.urls
+        if kill:
+            # Make sure this thread cannot use websocket anymore
+            self.tenant.urls = self.ws_context.EMPTY_URLS
+        self.ws_context.unsubscribe(urls)
         self._reset_object_backlock()
 
     def _subscribe_tenant(self):
