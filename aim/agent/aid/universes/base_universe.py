@@ -87,7 +87,7 @@ class BaseUniverse(object):
         """
 
     @abc.abstractmethod
-    def reconcile(self, other_universe, delete_candidates):
+    def reconcile(self, other_universe):
         """State reconciliation method.
 
         When an universe's reconcile method is called, the state of the passed
@@ -343,8 +343,8 @@ class HashTreeStoredUniverse(AimUniverse):
     def observe(self):
         pass
 
-    def reconcile(self, other_universe, delete_candidates):
-        return self._reconcile(other_universe, delete_candidates)
+    def reconcile(self, other_universe):
+        return self._reconcile(other_universe)
 
     def vote_deletion_candidates(self, other_universe, delete_candidates,
                                  vetoes):
@@ -353,7 +353,7 @@ class HashTreeStoredUniverse(AimUniverse):
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
         pass
 
-    def _reconcile(self, other_universe, delete_candidates):
+    def _reconcile(self, other_universe):
         # "self" is always the current state, "other" the desired
         my_state = self.state
         other_state = other_universe.state

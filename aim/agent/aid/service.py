@@ -177,8 +177,7 @@ class AID(object):
         # Reconcile everything
         changes = False
         for pair in self.multiverse:
-            changes |= pair[CURRENT].reconcile(pair[DESIRED],
-                                               delete_candidates)
+            changes |= pair[CURRENT].reconcile(pair[DESIRED])
         if not changes:
             LOG.info("Congratulations! your multiverse is nice and synced :)")
 
