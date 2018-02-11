@@ -16,6 +16,7 @@
 import ast
 
 from aim import aim_manager
+from aim.api import infra
 from aim.api import resource
 from aim.common import utils
 from aim.tests.unit import test_aim_manager
@@ -44,7 +45,7 @@ class TestManager(base.TestShell):
         self.mgr.create(self.ctx, pre_vmm)
         self.mgr.create(self.ctx, pre_epg2)
         self.mgr.create(self.ctx, pre_epg1)
-        self.run_command('manager load-domains')
+        self.run_command('manager load-domains --no-mappings')
         # Verify pre-existing domains are still there
         self.assertIsNotNone(self.mgr.get(self.ctx, pre_phys))
         self.assertIsNotNone(self.mgr.get(self.ctx, pre_vmm))
@@ -77,7 +78,7 @@ class TestManager(base.TestShell):
         # Delete one of them, and use the replace flag
         self.mgr.delete(self.ctx, resource.VMMDomain(type='OpenStack',
                                                      name='ostack2'))
-        self.run_command('manager load-domains --replace')
+        self.run_command('manager load-domains --replace --no-mappings')
 
         # Now only 2 Domains each exist
         self.assertEqual(4, len(self.mgr.find(self.ctx, resource.VMMDomain)))
@@ -94,7 +95,8 @@ class TestManager(base.TestShell):
         self.assertEqual([], pre_epg2.physical_domains)
 
         # now update the current environment
-        self.run_command('manager load-domains --replace --enforce')
+        cmd = 'manager load-domains --replace --enforce --no-mappings'
+        self.run_command(cmd)
         pre_epg1 = self.mgr.get(self.ctx, pre_epg1)
         pre_epg2 = self.mgr.get(self.ctx, pre_epg2)
 
@@ -120,6 +122,205 @@ class TestManager(base.TestShell):
         self.assertEqual(sorted([get_phys('phys'),
                                  get_phys('phys2')]),
                          sorted(pre_epg2.physical_domains))
+
+        # re-run the command, but populate the  domain mappings
+        self.run_command('manager load-domains --replace --enforce')
+
+        pre_epg1 = self.mgr.get(self.ctx, pre_epg1)
+        pre_epg2 = self.mgr.get(self.ctx, pre_epg2)
+
+        def get_vmm(type, name):
+            return {'type': type, 'name': name}
+
+        def get_phys(name):
+            return {'name': name}
+
+        # The load-domains should creat host domain mappings with
+        # wildcard entries for every entry in the configuration file
+        existing_mappings = [{'domain_type': 'PhysDom',
+                              'host_name': '*',
+                              'domain_name': 'phys'},
+                             {'domain_type': 'PhysDom',
+                              'host_name': '*',
+                              'domain_name': 'phys2'},
+                             {'domain_type': 'OpenStack',
+                              'host_name': '*',
+                              'domain_name': 'ostack'},
+                             {'domain_type': 'OpenStack',
+                              'host_name': '*',
+                              'domain_name': 'ostack'},
+                             {'domain_type': 'VMware',
+                              'host_name': '*',
+                              'domain_name': 'vmware'},
+                             {'domain_type': 'VMware',
+                              'host_name': '*',
+                              'domain_name': 'vmware2'}]
+        for mapping in existing_mappings:
+            mapping = infra.HostDomainMappingV2(
+                host_name=mapping['host_name'],
+                domain_name=mapping['domain_name'],
+                domain_type=mapping['domain_type'])
+            try:
+                self.assertIsNotNone(self.mgr.get(self.ctx, mapping))
+            except Exception:
+                self.assertFalse(True)
+
+        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
+                                 get_vmm('OpenStack', 'ostack2'),
+                                 get_vmm('VMware', 'vmware'),
+                                 get_vmm('VMware', 'vmware2')]),
+                         sorted(pre_epg1.vmm_domains))
+        self.assertEqual(sorted([get_phys('phys'),
+                                 get_phys('phys2')]),
+                         sorted(pre_epg1.physical_domains))
+        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
+                                 get_vmm('OpenStack', 'ostack2'),
+                                 get_vmm('VMware', 'vmware'),
+                                 get_vmm('VMware', 'vmware2')]),
+                         sorted(pre_epg2.vmm_domains))
+        self.assertEqual(sorted([get_phys('phys'),
+                                 get_phys('phys2')]),
+                         sorted(pre_epg2.physical_domains))
+
+        # re-run the command, with host-specific domain mappings populated.
+        # This should cause an exception
+        self.mgr.create(self.ctx, infra.HostDomainMappingV2(
+            host_name='host1',
+            domain_name='ostack10',
+            domain_type='OpenStack'))
+        self.run_command('manager load-domains --enforce', raises=True)
+
+    def test_load_mappings(self):
+        # The load-domains command invokes load-mappings,
+        # so we don't use it to create hte domains -- we
+        # have to create them manually
+
+        cfg_mappings = [{'host_name': '*',
+                         'domain_name': 'phys',
+                         'domain_type': 'PhysDom'},
+                        {'host_name': '*',
+                         'domain_name': 'phys2',
+                         'domain_type': 'PhysDom'},
+                        {'host_name': '*',
+                         'domain_name': 'ostack',
+                         'domain_type': 'OpenStack'},
+                        {'host_name': '*',
+                         'domain_name': 'ostack2',
+                         'domain_type': 'OpenStack'},
+                        {'host_name': '*',
+                         'domain_name': 'vmware',
+                         'domain_type': 'VMware'},
+                        {'host_name': '*',
+                         'domain_name': 'vmware2',
+                         'domain_type': 'VMware'}]
+        for mapping in cfg_mappings:
+            if mapping['domain_type'] is 'PhysDom':
+                domain = resource.PhysicalDomain(name=mapping['domain_name'])
+            else:
+                domain = resource.VMMDomain(type=mapping['domain_type'],
+                                            name=mapping['domain_name'])
+            self.mgr.create(self.ctx, domain)
+
+        # Run the load-mappings command, which populates
+        # the HostDomainMappingV2 table using the domain
+        # objects found in AIM
+        self.run_command('manager load-mappings')
+
+        mappings = self.mgr.find(self.ctx, infra.HostDomainMappingV2)
+        db_mappings = [infra.HostDomainMappingV2(
+                       host_name=mapping['host_name'],
+                       domain_type=mapping['domain_type'],
+                       domain_name=mapping['domain_name'])
+                       for mapping in cfg_mappings]
+        self.assertEqual(sorted(db_mappings, key=lambda x: x.domain_name),
+                         sorted(mappings, key=lambda x: x.domain_name))
+
+    def _test_load_mappings_preexisting_mappings(self, replace=False):
+        # The load-domains command invokes load-mappings,
+        # so we don't use it to create hte domains -- we
+        # have to create them manually
+
+        cfg_mappings = [{'domain_type': 'PhysDom',
+                         'host_name': '*',
+                         'domain_name': 'phys'},
+                        {'domain_type': 'PhysDom',
+                         'host_name': '*',
+                         'domain_name': 'phys2'},
+                        {'domain_type': 'OpenStack',
+                         'host_name': '*',
+                         'domain_name': 'ostack'},
+                        {'domain_type': 'OpenStack',
+                         'host_name': '*',
+                         'domain_name': 'ostack2'},
+                        {'domain_type': 'VMware',
+                         'host_name': '*',
+                         'domain_name': 'vmware'},
+                        {'domain_type': 'VMware',
+                         'host_name': '*',
+                         'domain_name': 'vmware2'}]
+        existing_mappings = [{'domain_type': 'PhysDom',
+                              'host_name': '*',
+                              'domain_name': 'phys3'},
+                             {'domain_type': 'PhysDom',
+                              'host_name': 'vm1',
+                              'domain_name': 'phys4'},
+                             {'domain_type': 'OpenStack',
+                              'host_name': '*',
+                              'domain_name': 'ostack3'},
+                             {'domain_type': 'OpenStack',
+                              'host_name': 'vm2',
+                              'domain_name': 'ostack4'},
+                             {'domain_type': 'VMware',
+                              'host_name': '*',
+                              'domain_name': 'vmware3'},
+                             {'domain_type': 'VMware',
+                              'host_name': 'vm3',
+                              'domain_name': 'vmware4'}]
+        for mapping in cfg_mappings:
+            if mapping['domain_type'] is 'PhysDom':
+                domain = resource.PhysicalDomain(name=mapping['domain_name'],
+                                                 monitored=True)
+            else:
+                domain = resource.VMMDomain(type=mapping['domain_type'],
+                                            name=mapping['domain_name'],
+                                            monitored=True)
+            self.mgr.create(self.ctx, domain)
+        # Create some existing mappings, both host-specific
+        # and wildcarded
+        for mapping in existing_mappings:
+            mapping_obj = infra.HostDomainMappingV2(
+                host_name=mapping['host_name'],
+                domain_name=mapping['domain_name'],
+                domain_type=mapping['domain_type'])
+            self.mgr.create(self.ctx, mapping_obj)
+        mappings = self.mgr.find(self.ctx, infra.HostDomainMappingV2)
+
+        # Run the load-mappings command, which populates
+        # the HostDomainMappingV2 table using the contents
+        # of the configuration file
+        cmd = 'manager load-mappings'
+        if replace:
+            cmd += ' --replace'
+        self.run_command(cmd)
+
+        mappings = self.mgr.find(self.ctx, infra.HostDomainMappingV2)
+        if replace:
+            all_mappings = cfg_mappings
+        else:
+            all_mappings = existing_mappings + cfg_mappings
+        db_mappings = [infra.HostDomainMappingV2(
+                       host_name=mapping['host_name'],
+                       domain_type=mapping['domain_type'],
+                       domain_name=mapping['domain_name'])
+                       for mapping in all_mappings]
+        self.assertEqual(sorted(db_mappings, key=lambda x: x.domain_name),
+                         sorted(mappings, key=lambda x: x.domain_name))
+
+    def test_load_mappings_preexisting_mappings(self):
+        self._test_load_mappings_preexisting_mappings()
+
+    def test_load_mappings_preexisting_mappings_replace(self):
+        self._test_load_mappings_preexisting_mappings(replace=True)
 
     def _parse_sync_find_output(self, result):
         res = result.output_bytes.split('\n')[1:-1]
