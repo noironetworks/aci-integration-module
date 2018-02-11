@@ -16,6 +16,8 @@
 from aim.api import resource
 from aim.api import types as t
 
+WILDCARD_HOST = '*'
+
 
 class HostLink(resource.ResourceBase):
     """Switch-port connection information for a host node."""
