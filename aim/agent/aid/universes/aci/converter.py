@@ -708,21 +708,11 @@ resource_map = {
     }],
     'bgpPeerP': [{
         'resource': resource.L3OutInterfaceBgpPeerP,
-        'skip': ['asn', 'local_asn']
+        'skip': ['asn']
     }],
     'bgpAsP': [{
         'resource': resource.L3OutInterfaceBgpPeerP,
         'identity_converter': bgp_as_id_converter,
-        'skip': ['local_asn']
-    }],
-    'bgpLocalAsnP': [{
-        'resource': resource.L3OutInterfaceBgpPeerP,
-        'exceptions': {
-            'localAsn': {
-                'other': 'local_asn',
-            }
-        },
-        'skip': ['asn']
     }],
     'l3extIp': [{
         'resource': resource.L3OutInterface,
@@ -907,7 +897,6 @@ resource_map.update({
     'bgpAsP__Peer': [{
         'resource': resource.L3OutInterfaceBgpPeerP,
         'identity_converter': bgp_as_id_converter,
-        'skip': ['local_asn']
     }]
 })
 

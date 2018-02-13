@@ -3837,17 +3837,12 @@ class TestAciToAimConverterBgpAsPPeer(TestAciToAimConverterBase,
                                       base.TestAimDBBase):
     resource_type = resource.L3OutInterfaceBgpPeerP
     reverse_map_output = [
-        {'resource': 'bgpLocalAsnP',
-         'exceptions': {'local_asn': {
-             'other': 'localAsn'}},
-         'skip': ['asn']},
         {'exceptions': {},
          'resource': 'bgpPeerP',
-         'skip': ['asn', 'localAsn']},
+         'skip': ['asn']},
         {'exceptions': {},
          'identity_converter': converter.bgp_as_id_converter,
-         'resource': 'bgpAsP__Peer',
-         'skip': ['localAsn']}
+         'resource': 'bgpAsP__Peer'}
     ]
     sample_input = [[
         {'bgpPeerP': {
@@ -3865,17 +3860,7 @@ class TestAciToAimConverterBgpAsPPeer(TestAciToAimConverterBase,
                                  'paths-101/pathep-[eth1/1]]/'
                                  'peerP-[1.1.1.0/24]/as',
                                  'status': 'created', 'asn': "65000"},
-            'children': []}},
-        {'bgpLocalAsnP': {'attributes': {'rn': 'localasn',
-                                         'dn': 'uni/tn-test_gbp/'
-                                               'out-testOut1/lnodep-testNP1/'
-                                               'lifp-testLifP1/rspathL3OutAtt'
-                                               '-[topology/pod-1/paths-101/'
-                                               'pathep-[eth1/1]]/peerP-'
-                                               '[1.1.1.0/24]/localasn',
-                                         'localAsn': "0",
-                                         'status': 'created'},
-                          'children': []}}],
+            'children': []}}],
         [get_example_aci_bgppeerp(),
          _aci_obj('bgpAsP',
                   dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
@@ -3894,8 +3879,7 @@ class TestAciToAimConverterBgpAsPPeer(TestAciToAimConverterBase,
             node_profile_name='np1', interface_profile_name='ip1',
             interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
             addr='1.1.1.0/24',
-            asn="0"),
-    ]
+            asn="0")]
 
 
 def get_example_aim_bgppeerp(**kwargs):
@@ -3904,8 +3888,7 @@ def get_example_aim_bgppeerp(**kwargs):
         node_profile_name='np1', interface_profile_name='ip1',
         interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
         addr='1.1.1.0/24',
-        asn="65000",
-        local_asn="1")
+        asn="65000")
     example.__dict__.update(kwargs)
     return example
 
@@ -3926,12 +3909,7 @@ class TestAimToAciConverterBgpAsPPeer(TestAimToAciConverterBase,
                   asn="65000",
                   dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
                      'rspathL3OutAtt-[topology/pod-1/paths-101/'
-                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as'),
-         _aci_obj('bgpLocalAsnP',
-                  localAsn="1",
-                  dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
-                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
-                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/localasn')],
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as')],
         [_aci_obj('bgpPeerP',
                   dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
                      'rspathL3OutAtt-[topology/pod-1/paths-101/'
@@ -3940,63 +3918,4 @@ class TestAimToAciConverterBgpAsPPeer(TestAimToAciConverterBase,
                   asn="65001",
                   dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
                      'rspathL3OutAtt-[topology/pod-1/paths-101/'
-                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as'),
-         _aci_obj('bgpLocalAsnP',
-                  localAsn="1",
-                  dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
-                     'rspathL3OutAtt-[topology/pod-1/paths-101/'
-                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/localasn')]]
-
-
-def get_example_aci_bgplocalasnp(**kwargs):
-    attr = {
-        'localAsn': '1',
-        'dn': 'uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
-              '[topology/pod-1/paths-101/pathep-[eth1/1]]/peerP-'
-              '[1.1.1.0/24]/localasn'}
-    attr.update(**kwargs)
-    return _aci_obj('bgpLocalAsnP', **attr)
-
-
-class TestAciToAimConverterBgpLocalAsnP(TestAciToAimConverterBase,
-                                        base.TestAimDBBase):
-    resource_type = resource.L3OutInterfaceBgpPeerP
-    reverse_map_output = [
-        {'resource': 'bgpLocalAsnP',
-         'exceptions': {'local_asn': {
-             'other': 'localAsn'}},
-         'skip': ['asn']},
-        {'exceptions': {},
-         'resource': 'bgpPeerP',
-         'skip': ['asn', 'localAsn']},
-        {'exceptions': {},
-         'identity_converter': converter.bgp_as_id_converter,
-         'resource': 'bgpAsP__Peer',
-         'skip': ['localAsn']}
-    ]
-    sample_input = [[get_example_aci_bgppeerp(),
-                     get_example_aci_bgplocalasnp()],
-                    [get_example_aci_bgppeerp(tenant_name='t2'),
-                     _aci_obj('bgpLocalAsnP',
-                              dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
-                                 'rspathL3OutAtt-[topology/pod-1/paths-101/'
-                                 'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/'
-                                 'localasn',
-                              addr='1.1.1.0/24',
-                              localAsn='20')]
-                    ]
-
-    sample_output = [
-        resource.L3OutInterfaceBgpPeerP(
-            tenant_name='t1', l3out_name='l1',
-            node_profile_name='np1', interface_profile_name='ip1',
-            interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
-            addr='1.1.1.0/24',
-            local_asn='1'),
-        resource.L3OutInterfaceBgpPeerP(
-            tenant_name='t2', l3out_name='l1',
-            node_profile_name='np1', interface_profile_name='ip1',
-            interface_path='topology/pod-1/paths-101/pathep-[eth1/1]',
-            addr='1.1.1.0/24',
-            local_asn='20')
-    ]
+                     'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as')]]
