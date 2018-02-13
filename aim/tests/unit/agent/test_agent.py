@@ -1902,7 +1902,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                           interface_profile_name='testLifP1',
                                           interface_path='topology/pod-1/'
                                           'paths-101/pathep-[eth1/1]',
-                                          addr='1.1.1.0/24', local_asn="0",
+                                          addr='1.1.1.0/24',
                                           asn="65000"))
         self._observe_aci_events(current_config)
         agent._daemon_loop(self.ctx)
