@@ -1,4 +1,8 @@
 %define version_py @VERSION_PY@
+%define aim_daemon aim-aid.service
+%define aim_eventpool aim-event-service-polling.service
+%define aim_eventrpc aim-event-service-rpc.service
+%define aim_http aim-http-server.service
 
 Name:		aci-integration-module
 Version:	@VERSION@
@@ -15,6 +19,9 @@ Requires:	python-oslo-config >= 1.4.0
 Requires:	python-click >= 3.3
 Requires:       python-sqlalchemy
 Requires:       acitoolkit >= 0.3.2
+Requires(post): systemd-units
+Requires(preun): systemd-units
+Requires(postun): systemd-units
 
 %description
 Library for programming ACI.
@@ -28,16 +35,66 @@ rm -f requirements.txt
 
 %install
 %{__python2} setup.py install -O1 --install-data / --skip-build --root %{buildroot}
-install -p -D -m 0644 rpm/aim-aid.service %{buildroot}/%{_unitdir}/aim-aid.service
-install -p -D -m 0644 rpm/aim-event-service-polling.service %{buildroot}/%{_unitdir}/aim-event-service-polling.service
-install -p -D -m 0644 rpm/aim-event-service-rpc.service %{buildroot}/%{_unitdir}/aim-event-service-rpc.service
-install -p -D -m 0644 rpm/aim-http-server.service %{buildroot}/%{_unitdir}/aim-http-server.service
+install -p -D -m 0644 rpm/%{aim_daemon} %{buildroot}/%{_unitdir}/%{aim_daemon}
+install -p -D -m 0644 rpm/%{aim_eventpool} %{buildroot}/%{_unitdir}/%{aim_eventpool}
+install -p -D -m 0644 rpm/%{aim_eventrpc} %{buildroot}/%{_unitdir}/%{aim_eventrpc}
+install -p -D -m 0644 rpm/%{aim_http} %{buildroot}/%{_unitdir}/%{aim_http}
 mkdir -p $RPM_BUILD_ROOT/run/aid/events
 # Install logrotate
 install -p -D -m 0644 etc/logrotate.d/aim %{buildroot}%{_sysconfdir}/logrotate.d/aim
 
 # Remove unused files
 rm -rf %{buildroot}%{python2_sitelib}/aim/tests
+
+%post
+%if 0%{?systemd_post:1}
+    %systemd_post %{aim_daemon}
+    %systemd_post %{aim_eventpool}
+    %systemd_post %{aim_eventrpc}
+    %systemd_post %{aim_http}
+%else
+    if [ $1 -eq 1 ]; then
+        # Package install, not upgrade
+        /bin/systemctl daemon-reload >dev/null || :
+    fi
+%endif
+
+%preun
+%if 0%{?systemd_preun:1}
+    %systemd_preun %{aim_daemon}
+    %systemd_preun %{aim_eventpool}
+    %systemd_preun %{aim_eventrpc}
+    %systemd_preun %{aim_http}
+%else
+    if [ $1 -eq 0 ] ; then
+        # Package removal, not upgrade
+        /bin/systemctl --no-reload disable %{aim_daemon} >/dev/null 2>&1 || :
+        /bin/systemctl stop %{aim_daemon} >/dev/null 2>&1 || :
+        /bin/systemctl --no-reload disable %{aim_eventpool} >/dev/null 2>&1 || :
+        /bin/systemctl stop %{aim_eventpool} >/dev/null 2>&1 || :
+        /bin/systemctl --no-reload disable %{aim_eventrpc} >/dev/null 2>&1 || :
+        /bin/systemctl stop %{aim_eventrpc} >/dev/null 2>&1 || :
+        /bin/systemctl --no-reload disable %{aim_http} >/dev/null 2>&1 || :
+        /bin/systemctl stop %{aim_http} >/dev/null 2>&1 || :
+    fi
+%endif
+
+%postun
+%if 0%{?systemd_postun_with_restart:1}
+    %systemd_postun_with_restart %{aim_daemon}
+    %systemd_postun_with_restart %{aim_eventpool}
+    %systemd_postun_with_restart %{aim_eventrpc}
+    %systemd_postun_with_restart %{aim_http}
+%else
+    /bin/systemctl daemon-reload >/dev/null 2>&1 || :
+    if [ "$1" -ge "1" ] ; then
+        # Package upgrade, not uninstall
+        /bin/systemctl try-restart %{aim_daemon} >/dev/null 2>&1 || :
+        /bin/systemctl try-restart %{aim_eventpool} >/dev/null 2>&1 || :
+        /bin/systemctl try-restart %{aim_eventrpc} >/dev/null 2>&1 || :
+        /bin/systemctl try-restart %{aim_http} >/dev/null 2>&1 || :
+    fi
+%endif
 
 %files
 %doc README.rst
@@ -51,10 +108,10 @@ rm -rf %{buildroot}%{python2_sitelib}/aim/tests
 %{_bindir}/aim-http-server
 %config(noreplace) %{_sysconfdir}/aim/aim.conf
 %config(noreplace) %{_sysconfdir}/aim/aimctl.conf
-%{_unitdir}/aim-aid.service
-%{_unitdir}/aim-event-service-polling.service
-%{_unitdir}/aim-event-service-rpc.service
-%{_unitdir}/aim-http-server.service
+%{_unitdir}/%{aim_daemon}
+%{_unitdir}/%{aim_eventpool}
+%{_unitdir}/%{aim_eventrpc}
+%{_unitdir}/%{aim_http}
 %dir /run/aid/events
 %config(noreplace) %{_sysconfdir}/logrotate.d/*
 
