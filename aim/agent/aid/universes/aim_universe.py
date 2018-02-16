@@ -336,7 +336,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
     def reconcile(self, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(other_universe, delete_candidates)
+        return self._reconcile(other_universe)
 
     def update_status_objects(self, my_state, raw_diff, skip_roots=None):
         pass
@@ -380,7 +380,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
 
     def reconcile(self, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(other_universe, delete_candidates)
+        return self._reconcile(other_universe)
 
     def get_resources_for_delete(self, resource_keys):
         des_mon = self.multiverse[base.MONITOR_UNIVERSE]['desired'].state

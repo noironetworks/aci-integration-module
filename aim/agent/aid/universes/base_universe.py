@@ -330,7 +330,7 @@ class HashTreeStoredUniverse(AimUniverse):
         pass
 
     def reconcile(self, other_universe, delete_candidates):
-        return self._reconcile(other_universe, delete_candidates)
+        return self._reconcile(other_universe)
 
     def vote_deletion_candidates(self, other_universe, delete_candidates,
                                  vetoes):
@@ -339,7 +339,7 @@ class HashTreeStoredUniverse(AimUniverse):
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
         pass
 
-    def _reconcile(self, other_universe, delete_candidates):
+    def _reconcile(self, other_universe):
         # "self" is always the current state, "other" the desired
         my_state = self.state
         other_state = other_universe.state
