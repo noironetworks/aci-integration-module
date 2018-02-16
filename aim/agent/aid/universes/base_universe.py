@@ -230,19 +230,14 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff, skip_roots=None):
+    def update_status_objects(self, my_state, raw_diff, skip_roots=None):
         """Update status objects
 
         Given the current state of the system, update the proper status objects
         to reflect their sync situation.
 
         :param my_state: state of the universe
-        :param other_state: state of the comparing universe
-        :param other_universe: handler to the other universe
         :param raw_diff: difference dictionary listing hashtree keys
-        :param transformed_diff: difference dictionary listing normalized
-                                 objects
         :return:
         """
 
@@ -357,9 +352,6 @@ class HashTreeStoredUniverse(AimUniverse):
             difference = tree.diff(my_tenant_state)
             differences[CREATE].extend(difference['add'])
             differences[DELETE].extend(difference['remove'])
-            if difference['add'] or difference['remove']:
-                LOG.info("Universes %s and %s have differences for tenant "
-                         "%s" % (self.name, other_universe.name, tenant))
 
         if not differences.get(CREATE) and not differences.get(DELETE):
             diff = False
@@ -368,7 +360,6 @@ class HashTreeStoredUniverse(AimUniverse):
                      self.name, other_universe.name, differences)
             diff = True
 
-        # Get AIM resources at the end to reduce the number of transactions
         result = {CREATE: other_universe.get_resources(differences[CREATE]),
                   DELETE: self.get_resources_for_delete(differences[DELETE])}
 
@@ -406,10 +397,8 @@ class HashTreeStoredUniverse(AimUniverse):
                     self._get_resource_root(method, x) not in stop_sync]
 
         # Set status objects properly
-        self.update_status_objects(my_state, other_universe, other_state,
-                                   differences, result, skip_roots=stop_sync)
-        other_universe.update_status_objects(other_state, self, my_state,
-                                             differences, result,
+        self.update_status_objects(my_state, differences, skip_roots=stop_sync)
+        other_universe.update_status_objects(other_state, differences,
                                              skip_roots=stop_sync)
         # Reconciliation method for pushing changes
         self.push_resources(result)

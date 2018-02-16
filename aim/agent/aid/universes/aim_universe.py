@@ -255,34 +255,41 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 else:
                     self.manager.delete(self.context, resource)
 
-    def _set_sync_pending_state(self, transformed_diff, raw_diff,
-                                other_universe, skip_roots=None):
+    def _get_state_pending_na_nodes(self, my_state, skip_roots=None):
         skip_roots = skip_roots or []
-        aim_add = transformed_diff[base.CREATE]
-        # Set AIM differences to sync_pending
-        for obj in aim_add:
-            if obj.root not in skip_roots:
-                self.manager.set_resource_sync_pending(self.context, obj)
-
-    def _set_synced_state(self, my_state, raw_diff, skip_roots=None):
-        skip_roots = skip_roots or []
-        all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
         pending_nodes = []
+        na_nodes = []
         for root, tree in my_state.iteritems():
             if root not in skip_roots:
                 pending_nodes.extend(tree.find_by_metadata('pending', True))
-                pending_nodes.extend(tree.find_no_metadata('pending'))
-        keys_to_sync = set(pending_nodes) - all_modified_keys
+                na_nodes.extend(tree.find_no_metadata('pending'))
+        return pending_nodes, na_nodes
+
+    def _set_sync_pending_state(self, raw_diff, pending_nodes,
+                                skip_roots=None):
+        skip_roots = skip_roots or []
+        all_modified_keys = set(raw_diff[base.CREATE])
+        keys_to_sync = all_modified_keys - set(pending_nodes)
+        aim_to_sync = self.get_resources(list(keys_to_sync))
+        # Set AIM differences to sync_pending
+        for obj in aim_to_sync:
+            if obj.root not in skip_roots:
+                self.manager.set_resource_sync_pending(self.context, obj)
+
+    def _set_synced_state(self, raw_diff, unsynced_nodes):
+        all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
+        keys_to_sync = set(unsynced_nodes) - all_modified_keys
         aim_to_sync = self.get_resources(list(keys_to_sync))
         for obj in aim_to_sync:
             self.manager.set_resource_sync_synced(self.context, obj)
 
-    def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff, skip_roots=None):
+    def update_status_objects(self, my_state, raw_diff, skip_roots=None):
         # AIM Config Universe is the desired state
-        self._set_sync_pending_state(transformed_diff, raw_diff,
-                                     other_universe, skip_roots=skip_roots)
-        self._set_synced_state(my_state, raw_diff, skip_roots=skip_roots)
+        pending_nodes, na_nodes = self._get_state_pending_na_nodes(
+            my_state, skip_roots=skip_roots)
+        self._set_sync_pending_state(raw_diff, pending_nodes,
+                                     skip_roots=skip_roots)
+        self._set_synced_state(raw_diff, pending_nodes + na_nodes)
 
     def _action_items_to_aim_resources(self, actions, action):
         if action == base.DELETE:
@@ -331,8 +338,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
         self._mask_tenant_state(other_universe, delete_candidates)
         return self._reconcile(other_universe, delete_candidates)
 
-    def update_status_objects(self, my_state, other_state, other_universe,
-                              raw_diff, transformed_diff, skip_roots=None):
+    def update_status_objects(self, my_state, raw_diff, skip_roots=None):
         pass
 
 
@@ -375,15 +381,6 @@ class AimDbMonitoredUniverse(AimDbUniverse):
     def reconcile(self, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
         return self._reconcile(other_universe, delete_candidates)
-
-    def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff, skip_roots=None):
-        # AIM Monitored Universe is current state
-        add_diff = {
-            base.CREATE: self.get_resources(list(raw_diff[base.CREATE]))}
-        self._set_sync_pending_state(add_diff, raw_diff, other_universe,
-                                     skip_roots=skip_roots)
-        self._set_synced_state(my_state, raw_diff, skip_roots=skip_roots)
 
     def get_resources_for_delete(self, resource_keys):
         des_mon = self.multiverse[base.MONITOR_UNIVERSE]['desired'].state
