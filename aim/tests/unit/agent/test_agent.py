@@ -1629,8 +1629,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Tenant still exists
         self.assertIsNotNone(self.aim_manager.get(self.ctx, tn1))
         # Action cache is empty
-        self.assertEqual({}, desired_monitor._action_cache)
-        self.assertEqual({}, current_monitor._action_cache)
+        self.assertEqual({}, desired_monitor._action_cache.get('create', {}))
+        self.assertEqual({}, desired_monitor._action_cache.get('delete', {}))
+        self.assertEqual({}, current_monitor._action_cache.get('create', {}))
+        self.assertEqual({}, current_monitor._action_cache.get('delete', {}))
 
     def test_tenant_delete_behavior(self):
         tenant_name = 'test_skip_for_managed'
@@ -2096,6 +2098,53 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
 
+    def test_isolated_tenants(self):
+        agent = self._create_agent()
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        tenant_name1 = 'test_isolated_tenants1'
+        tenant_name2 = 'test_isolated_tenants2'
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+
+        tn1 = resource.Tenant(name=tenant_name1)
+        tn2 = resource.Tenant(name=tenant_name2)
+
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        self.aim_manager.create(self.ctx, tn2)
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+
+        ap1 = resource.ApplicationProfile(tenant_name=tenant_name1,
+                                          name='test')
+        ap2 = resource.ApplicationProfile(tenant_name=tenant_name2,
+                                          name='test')
+        self.aim_manager.create(self.ctx, ap1)
+        self.aim_manager.create(self.ctx, ap2)
+        # Disturb tenant2 sync
+        old_get_resources = desired_config.get_resources
+
+        def get_resources(diffs):
+            if diffs:
+                root = tree_manager.AimHashTreeMaker._extract_root_rn(diffs[0])
+                if tenant_name2 in root:
+                    raise Exception("disturbed!")
+            return old_get_resources(diffs)
+
+        desired_config.get_resources = get_resources
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        self._observe_aci_events(current_config)
+        # Verify tenant 1 synced
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn1.root])
+        # Tenant 2 is not synced
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn2.root], negative=True)
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']
@@ -2127,7 +2176,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._current_manager = tenant
             tenant._event_loop()
 
-    def _assert_universe_sync(self, desired, current, tenants=None):
+    def _assert_universe_sync(self, desired, current, tenants=None,
+                              negative=False):
 
         def printable_state(universe):
             return json.dumps({x: y.root.to_dict() if y.root else {}
@@ -2143,13 +2193,18 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                          (current.name, printable_state(current), desired.name,
                           printable_state(desired)))
         for tenant in (tenants or current.state):
-            self.assertEqual(
-                {"add": [], "remove": []},
-                desired.state[tenant].diff(current.state[tenant]),
-                'Not in sync:\n current(%s)\n: %s \n\n '
-                'desired(%s)\n: %s' %
-                (current.name, printable_state(current), desired.name,
-                 printable_state(desired)))
+            if negative:
+                self.assertNotEqual(
+                    {"add": [], "remove": []},
+                    desired.state[tenant].diff(current.state[tenant]))
+            else:
+                self.assertEqual(
+                    {"add": [], "remove": []},
+                    desired.state[tenant].diff(current.state[tenant]),
+                    'Not in sync:\n current(%s)\n: %s \n\n '
+                    'desired(%s)\n: %s' %
+                    (current.name, printable_state(current), desired.name,
+                     printable_state(desired)))
 
     def _assert_reset_consistency(self, tenant=None):
         ctx = mock.Mock()

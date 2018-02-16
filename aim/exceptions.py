@@ -81,3 +81,9 @@ class InvalidMonitoredStateUpdate(AimException):
 class InvalidMonitoredObjectDelete(AimException):
     message = ("Monitored object %(object)s cannot be deleted while in "
                "pending state")
+
+
+class BadTrackingArgument(AimException):
+    message = ("Bad argument passed to the tracking function. root %(exp)s "
+               "expected, but there are resources for root %(act)s. "
+               "All objects: %(res)s")

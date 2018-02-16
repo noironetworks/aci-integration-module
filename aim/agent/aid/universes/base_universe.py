@@ -17,6 +17,7 @@
 import abc
 import six
 import time
+import traceback
 
 from apicapi import apic_client
 from oslo_log import log as logging
@@ -28,6 +29,7 @@ from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import context
 from aim.db import api
+from aim import exceptions
 from aim import tree_manager
 
 
@@ -230,10 +232,10 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def update_status_objects(self, my_state, raw_diff, skip_roots=None):
+    def update_status_objects(self, my_state, raw_diff):
         """Update status objects
 
-        Given the current state of the system, update the proper status objects
+        Given the current state of the tenant, update the proper status objects
         to reflect their sync situation.
 
         :param my_state: state of the universe
@@ -343,65 +345,77 @@ class HashTreeStoredUniverse(AimUniverse):
         # "self" is always the current state, "other" the desired
         my_state = self.state
         other_state = other_universe.state
-        differences = {CREATE: [], DELETE: []}
+        diff = False
         for tenant in set(my_state.keys()) & set(other_state.keys()):
-            tree = other_state[tenant]
-            my_tenant_state = my_state.get(
-                tenant, structured_tree.StructuredHashTree())
-            # Retrieve difference to transform self into other
-            difference = tree.diff(my_tenant_state)
-            differences[CREATE].extend(difference['add'])
-            differences[DELETE].extend(difference['remove'])
+            try:
+                differences = {CREATE: [], DELETE: []}
+                other_tenant_state = other_state[tenant]
+                my_tenant_state = my_state.get(
+                    tenant, structured_tree.StructuredHashTree())
+                # Retrieve difference to transform self into other
+                difference = other_tenant_state.diff(my_tenant_state)
+                differences[CREATE].extend(difference['add'])
+                differences[DELETE].extend(difference['remove'])
 
-        if not differences.get(CREATE) and not differences.get(DELETE):
-            diff = False
-        else:
-            LOG.info("Universe differences between %s and %s: %s",
-                     self.name, other_universe.name, differences)
-            diff = True
+                if differences.get(CREATE) or differences.get(DELETE):
+                    LOG.info("Universe differences between %s and %s: %s",
+                             self.name, other_universe.name, differences)
+                    diff = True
+                result = {
+                    CREATE: other_universe.get_resources(differences[CREATE]),
+                    DELETE: self.get_resources_for_delete(differences[DELETE])
+                }
 
-        result = {CREATE: other_universe.get_resources(differences[CREATE]),
-                  DELETE: self.get_resources_for_delete(differences[DELETE])}
+                reset, purge = self._track_universe_actions(result, tenant)
+                LOG.debug('Action cache for %s: %s' % (self.name,
+                                                       self._action_cache))
+                # Schedule root reset
+                if reset:
+                    self.reset(reset)
+                    other_universe.reset(reset)
+                stop_sync = set()
+                for action, res in purge:
+                    # It's no use to set error state for resetting roots
+                    if res.root not in reset:
+                        if action == CREATE:
+                            self.creation_failed(
+                                self.context,
+                                res, reason='Divergence detected on this '
+                                            'object.',
+                                error=errors.OPERATION_CRITICAL)
+                        if action == DELETE:
+                            self.deletion_failed(
+                                self.context,
+                                res, reason='Divergence detected on this '
+                                            'object.',
+                                error=errors.OPERATION_CRITICAL)
+                        stop_sync.add(res.root)
+                # Don't synchronize resetting roots or purge objects
+                stop_sync |= reset
+                if stop_sync:
+                    for method in CREATE, DELETE:
+                        differences[method] = [
+                            x for x in differences[method] if
+                            tree_manager.AimHashTreeMaker._extract_root_rn(x)
+                            not in stop_sync]
+                        result[method] = [
+                            x for x in result[method] if
+                            self._get_resource_root(method, x)
+                            not in stop_sync]
 
-        reset, purge = self._track_universe_actions(result)
-        LOG.debug('Action cache for %s: %s' % (self.name, self._action_cache))
-        # Schedule root reset
-        if reset:
-            self.reset(reset)
-            other_universe.reset(reset)
-        stop_sync = set()
-        for action, res in purge:
-            # It's no use to set error state for resetting roots
-            if res.root not in reset:
-                if action == CREATE:
-                    self.creation_failed(
-                        self.context,
-                        res, reason='Divergence detected on this object.',
-                        error=errors.OPERATION_CRITICAL)
-                if action == DELETE:
-                    self.deletion_failed(
-                        self.context,
-                        res, reason='Divergence detected on this object.',
-                        error=errors.OPERATION_CRITICAL)
-                stop_sync.add(res.root)
-        # Don't synchronize resetting roots or purge objects
-        stop_sync |= reset
-        if stop_sync:
-            for method in CREATE, DELETE:
-                differences[method] = [
-                    x for x in differences[method] if
-                    tree_manager.AimHashTreeMaker._extract_root_rn(x)
-                    not in stop_sync]
-                result[method] = [
-                    x for x in result[method] if
-                    self._get_resource_root(method, x) not in stop_sync]
-
-        # Set status objects properly
-        self.update_status_objects(my_state, differences, skip_roots=stop_sync)
-        other_universe.update_status_objects(other_state, differences,
-                                             skip_roots=stop_sync)
-        # Reconciliation method for pushing changes
-        self.push_resources(result)
+                # Set status objects properly
+                if tenant not in stop_sync:
+                    self.update_status_objects(my_tenant_state, differences)
+                    other_universe.update_status_objects(other_tenant_state,
+                                                         differences)
+                # Reconciliation method for pushing changes
+                self.push_resources(result)
+            except Exception as e:
+                LOG.error("An unexpected error has occurred while "
+                          "reconciling tenant %s: %s" % (tenant, e.message))
+                LOG.debug(traceback.format_exc())
+                # Guess we can't consider the multiverse synced if this happens
+                diff = True
         return diff
 
     def reset(self, tenants):
@@ -576,26 +590,30 @@ class HashTreeStoredUniverse(AimUniverse):
     def _convert_get_resources_result(self, result, monitored_set):
         return result
 
-    def _track_universe_actions(self, actions):
+    def _track_universe_actions(self, actions, root):
         """Track Universe Actions.
 
         Keep track of what the universe has been doing in the past few
         iterations. Keeping count of any operation repeated over time and
         decreasing count of actions that are not happening in this iteration.
         :param actions: dictionary in the form {'create': [..], 'delete': [..]}
+        :param root: root under consideration
         :return:
         """
-        cache = {}
+        # TODO(ivar): if tenant is unserved, its action track will leak until
+        # AID is restarted. Be aware of this during tracking refactoring.
         curr_time = time.time()
         reset = set()
         purge = []
         for action in [CREATE, DELETE]:
+            root_cache = {}
             for res in self._action_items_to_aim_resources(actions, action):
                 # Same resource created twice in the same iteration is
                 # increased only once
-                root = res.root
-                new = (cache.setdefault(action, {}).
-                       setdefault(root, {}).
+                if root != res.root:
+                    raise exceptions.BadTrackingArgument(
+                        exp=root, act=res.root, res=actions)
+                new = (root_cache.
                        setdefault(res.hash, {'limit': self.reset_retry_limit,
                                              'res': res, 'retries': 0,
                                              'action': ACTION_RESET,
@@ -616,7 +634,10 @@ class HashTreeStoredUniverse(AimUniverse):
                     else:
                         new['limit'] += 5
                         purge.append((action, res))
-        self._action_cache = cache
+            if not root_cache:
+                self._action_cache.setdefault(action, {}).pop(root, None)
+            else:
+                self._action_cache.setdefault(action, {})[root] = root_cache
         return reset, purge
 
     @property
