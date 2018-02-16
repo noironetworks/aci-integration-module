@@ -1,6 +1,7 @@
 /var/log/aim-*.log {
     rotate 14
     size 10M
+    maxsize 100M
     missingok
     compress
     copytruncate
