@@ -47,7 +47,7 @@ class TestHashRing(base.BaseTestCase):
 
     def test_replicas(self):
         # One one, only one replica regardless
-        ring = hashring.ConsistentHashRing({'a': None})
+        ring = hashring.ConsistentHashRing({'a': None}, replicas=2)
         allocation = ring.assign_key('somekey')
         self.assertEqual(allocation, ['a'])
 
@@ -67,7 +67,8 @@ class TestHashRing(base.BaseTestCase):
         cluster = dict([(str(x), None) for x in range(100)])
 
         # 10 rings
-        rings = [hashring.ConsistentHashRing(cluster) for x in range(10)]
+        rings = [hashring.ConsistentHashRing(cluster, replicas=2)
+                 for x in range(10)]
         # They are all different instances with the same configuration,
         # keys must be assigned in the same way
         # Hash 100 keys
