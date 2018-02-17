@@ -52,7 +52,7 @@ class ConsistentHashRing(object):
     by different instances given the same configuration.
     """
 
-    def __init__(self, nodes=None, vnodes=40, replicas=2, default_weight=1):
+    def __init__(self, nodes=None, vnodes=40, replicas=1, default_weight=1):
         """ConsistentHashRing initialization.
 
         :param nodes: Initial node set, the expected format is a dictionary

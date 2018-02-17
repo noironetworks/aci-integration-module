@@ -229,25 +229,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         result3 = agent3._calculate_tenants(self.ctx)
         # All the tenants must be served
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']),
-                         set(result + result2))
-        self.assertNotEqual([], result)
-        self.assertNotEqual([], result2)
-        self.assertNotEqual([], result3)
-        if not agent.single_aid:
-            # Each tenant has 2 agents
-            self.assertEqual(
-                2,
-                len([x for x in result + result2 + result3 if x == 'keyA']))
-            self.assertEqual(
-                2,
-                len([x for x in result + result2 + result3 if x == 'keyA1']))
-            self.assertEqual(
-                2,
-                len([x for x in result + result2 + result3 if x == 'keyA2']))
-        else:
-            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result))
-            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result2))
-            self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(result3))
+                         set(result + result2 + result3))
 
     @base.requires(['timestamp'])
     def test_down_time_suicide(self):
