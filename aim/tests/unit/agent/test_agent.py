@@ -1899,6 +1899,152 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         status = self.aim_manager.get_status(self.ctx, bgp)
         self.assertEqual(aim_status.AciStatus.SYNCED, status.sync_status)
 
+    def test_monitored_sg_same_seq(self):
+        template = {"vnsAbsGraph": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3"}}}
+        term_prov = {"vnsAbsTermNodeProv": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeProv-T2"}}}
+        outterm_prov = {"vnsOutTerm__Prov": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeProv-T2/outtmnl"}}}
+        interm_prov = {"vnsInTerm__Prov": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeProv-T2/intmnl"}}}
+        conn1 = {"vnsAbsTermConn__Prov": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeProv-T2/AbsTConn"}}}
+        termprov = {"vnsAbsTermNodeCon": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeCon-T1"}}}
+        outterm_cons = {"vnsOutTerm__Con": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeCon-T1/outtmnl"}}}
+        interm_cons = {"vnsInTerm__Con": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeCon-T1/intmnl"}}}
+        conn2 = {"vnsAbsTermConn__Con": {
+            "attributes": {"dn": "uni/tn-common/AbsGraph-PBRGraph3/"
+                                 "AbsTermNodeCon-T1/AbsTConn"}}}
+        node1 = {"vnsAbsNode": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW4",
+            "routingMode": "Redirect", "sequenceNumber": "0"}}}
+        node1_ldev = {"vnsRsNodeToLDev": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW4/"
+                  "rsNodeToLDev"}}}
+        node1_conn1 = {"vnsAbsFuncConn": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW4/"
+                  "AbsFConn-provider"}}}
+        node1_conn2 = {"vnsAbsFuncConn": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW4/"
+                  "AbsFConn-consumer"}}}
+        node2 = {"vnsAbsNode": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW6",
+            "routingMode": "Redirect", "sequenceNumber": "0"}}}
+        node2_ldev = {"vnsRsNodeToLDev": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW6/"
+                  "rsNodeToLDev"}}}
+        node2_conn1 = {"vnsAbsFuncConn": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW6/"
+                  "AbsFConn-provider"}}}
+        node2_conn2 = {"vnsAbsFuncConn": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW6/"
+                  "AbsFConn-consumer"}}}
+        node3 = {"vnsAbsNode": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW5",
+            "routingMode": "Redirect", "sequenceNumber": "0"}}}
+        node3_ldev = {"vnsRsNodeToLDev": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW5/"
+                  "rsNodeToLDev"}}}
+        node3_conn1 = {"vnsAbsFuncConn": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW5/"
+                  "AbsFConn-provider"}}}
+        node3_conn2 = {"vnsAbsFuncConn": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsNode-FW5/"
+                  "AbsFConn-consumer"}}}
+        abs_conn1 = {"vnsAbsConnection": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C4"}}}
+        abs_conn1_connector1 = {"vnsRsAbsConnectionConns": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C4/"
+                  "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3/"
+                  "AbsTermNodeProv-T2/AbsTConn]"}}}
+        abs_conn1_connector2 = {"vnsRsAbsConnectionConns": {
+            "attributes": {
+                "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C4/"
+                      "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3/"
+                      "AbsNode-FW6/AbsFConn-provider]"}}}
+        abs_conn2 = {"vnsAbsConnection": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C2"}}}
+        abs_conn2_connector1 = {"vnsRsAbsConnectionConns": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C2/"
+                  "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3"
+                  "/AbsNode-FW5/AbsFConn-consumer]"}}}
+        abs_conn2_connector2 = {"vnsRsAbsConnectionConns": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C2/"
+                  "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3/"
+                  "AbsNode-FW4/AbsFConn-provider]"}}}
+        abs_conn3 = {"vnsAbsConnection": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C1"}}}
+        abs_conn3_connector1 = {"vnsRsAbsConnectionConns": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C1/"
+                  "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3/"
+                  "AbsTermNodeCon-T1/AbsTConn]"}}}
+        abs_conn3_connector2 = {"vnsRsAbsConnectionConns": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C1/"
+                  "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3/"
+                  "AbsNode-FW4/AbsFConn-consumer]"}}}
+        abs_conn4 = {"vnsAbsConnection": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C3"}}}
+        abs_conn4_connector1 = {"vnsRsAbsConnectionConns": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C3/"
+                  "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3/"
+                  "AbsNode-FW5/AbsFConn-provider]"}}}
+        abs_conn4_connector2 = {"vnsRsAbsConnectionConns": {"attributes": {
+            "dn": "uni/tn-common/AbsGraph-PBRGraph3/AbsConnection-C3/"
+                  "rsabsConnectionConns-[uni/tn-common/AbsGraph-PBRGraph3/"
+                  "AbsNode-FW6/AbsFConn-consumer]"}}}
+
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_monitor = agent.multiverse[2]['desired']
+
+        tenant_name = 'common'
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn1 = resource.Tenant(name=tenant_name, monitored=True)
+        tenant = {
+            'fvTenant': {'attributes': {'dn': 'uni/tn-%s' % tenant_name}}}
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        # Run loop for serving tenant
+        self._first_serve(agent)
+        self._set_events(
+            [tenant, template, term_prov, outterm_prov, interm_prov, conn1,
+             termprov, outterm_cons, interm_cons, conn2, node1, node1_ldev,
+             node1_conn1, node1_conn2, node2, node2_ldev, node2_conn1,
+             node2_conn2, node3, node3_ldev, node3_conn1, node3_conn2,
+             abs_conn1, abs_conn1_connector1, abs_conn1_connector2, abs_conn2,
+             abs_conn2_connector1, abs_conn2_connector2, abs_conn3,
+             abs_conn3_connector1, abs_conn3_connector2, abs_conn4,
+             abs_conn4_connector1, abs_conn4_connector2],
+            manager=desired_monitor.serving_tenants[tn1.rn],
+            tag=False)
+        self._observe_aci_events(current_config)
+        agent._daemon_loop(self.ctx)
+        self.assertEqual(
+            1,
+            len(self.aim_manager.find(self.ctx, service_graph.ServiceGraph)))
+        self.assertEqual(
+            3,
+            len(self.aim_manager.find(self.ctx,
+                                      service_graph.ServiceGraphNode)))
+        self.assertEqual(
+            4,
+            len(self.aim_manager.find(self.ctx,
+                                      service_graph.ServiceGraphConnection)))
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']
