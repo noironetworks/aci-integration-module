@@ -259,8 +259,7 @@ resource_map = {
     'vnsAbsGraph': [{
         'resource': service_graph.ServiceGraph,
         'converter': service_graph_converter,
-        # TODO(ivar): temporarily disable nameAlias
-        'skip': ['linear_chain_nodes', 'display_name', 'name_alias']
+        'skip': ['linear_chain_nodes']
     }],
     'vnsAbsNode': [{
         'resource': service_graph.ServiceGraphNode,
