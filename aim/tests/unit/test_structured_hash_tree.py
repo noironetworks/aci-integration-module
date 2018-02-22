@@ -1066,3 +1066,30 @@ class TestTreeBuilder(base.TestAimDBBase):
             _build(key, [], [ns])
 
         self.assertIsNotNone(trees['config']['comp'].find(exp_key))
+
+    def test_sync_object_status(self):
+        mgr = aim_manager.AimManager()
+        epg = mgr.create(self.ctx, resource.EndpointGroup(
+            tenant_name='test', app_profile_name='test', name='test',
+            sync=False))
+        status = mgr.get_status(self.ctx, epg)
+        mgr.update(self.ctx, status, sync_status=status.SYNCED)
+        tt_builder = tree_manager.HashTreeBuilder(mgr)
+        trees = {}
+        tt_maker = tree_manager.AimHashTreeMaker()
+        key = tt_maker.get_root_key(epg)
+        cfg = trees.setdefault(tt_builder.CONFIG, {}).setdefault(
+            key, tree.StructuredHashTree())
+        mo = trees.setdefault(tt_builder.MONITOR, {}).setdefault(
+            key, tree.StructuredHashTree())
+        oper = trees.setdefault(tt_builder.OPER, {}).setdefault(
+            key, tree.StructuredHashTree())
+
+        tt_builder.build([status], [], [],
+                         {tt_builder.CONFIG: {key: cfg},
+                          tt_builder.MONITOR: {key: mo},
+                          tt_builder.OPER: {key: oper}},
+                         aim_ctx=self.ctx)
+        # Should not add parent back
+        exp_key = tt_maker._build_hash_tree_key(epg)
+        self.assertIsNone(cfg.find(exp_key))
