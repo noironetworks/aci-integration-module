@@ -1253,8 +1253,7 @@ class TestAciToAimConverterServiceGraph(TestAciToAimConverterBase,
     resource_type = aim_service_graph.ServiceGraph
     reverse_map_output = [
         {'resource': 'vnsAbsGraph',
-         # TODO(ivar): temporarily disable nameAlias
-         'skip': ['linearChainNodes', 'displayName', 'nameAlias'],
+         'skip': ['linearChainNodes'],
          'exceptions': {},
          'converter': conv_service_graph.service_graph_converter}]
     sample_input = [_aci_obj('vnsAbsGraph',
@@ -1263,9 +1262,8 @@ class TestAciToAimConverterServiceGraph(TestAciToAimConverterBase,
                     _aci_obj('vnsAbsGraph',
                              dn='uni/tn-t1/AbsGraph-gr2')]
     sample_output = [
-        # TODO(ivar): temporarily disable nameAlias
         aim_service_graph.ServiceGraph(
-            tenant_name='t1', name='gr1', display_name=''),
+            tenant_name='t1', name='gr1', display_name='alias'),
         aim_service_graph.ServiceGraph(tenant_name='t1', name='gr2')]
 
 
@@ -3068,7 +3066,7 @@ def get_example_aim_service_graph(**kwargs):
 
 class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                                         base.TestAimDBBase):
-    sample_input = [get_example_aim_service_graph(),
+    sample_input = [get_example_aim_service_graph(display_name='G'),
                     get_example_aim_service_graph(
                         name='gr2',
                         linear_chain_nodes=[
@@ -3081,9 +3079,8 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
                             {'device_cluster_name': 'cl4'}])]
 
     sample_output = [
-        # TODO(ivar): temporarily disable nameAlias
         [_aci_obj('vnsAbsGraph',
-                  dn='uni/tn-t1/AbsGraph-gr1'),
+                  dn='uni/tn-t1/AbsGraph-gr1', nameAlias='G'),
          _aci_obj('vnsAbsTermNodeCon',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeCon-T1'),
          _aci_obj('vnsAbsTermConn__Con',
@@ -3101,7 +3098,7 @@ class TestAimToAciConverterServiceGraph(TestAimToAciConverterBase,
          _aci_obj('vnsOutTerm__Prov',
                   dn='uni/tn-t1/AbsGraph-gr1/AbsTermNodeProv-T2/outtmnl')],
         [_aci_obj('vnsAbsGraph',
-                  dn='uni/tn-t1/AbsGraph-gr2'),
+                  dn='uni/tn-t1/AbsGraph-gr2', nameAlias=''),
          _aci_obj('vnsAbsTermNodeCon',
                   dn='uni/tn-t1/AbsGraph-gr2/AbsTermNodeCon-T1'),
          _aci_obj('vnsAbsTermConn__Con',
