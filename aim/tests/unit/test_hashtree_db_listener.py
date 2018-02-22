@@ -309,9 +309,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                     self.mgr.create(self.ctx, ap1)
                     self.mgr.create(self.ctx, epg1)
                 self.assertEqual(0, cast.call_count)
-            # Trees are now saved one at a time, so serve is called twice
             exp_calls = [
-                mock.call(mock.ANY, 'serve', None),
                 mock.call(mock.ANY, 'serve', None),
                 mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
