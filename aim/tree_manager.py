@@ -543,28 +543,27 @@ class HashTreeBuilder(object):
                     # Remove main object from config tree if in sync error
                     # during an update
                     if parent:
-                        if tree_index == 0:
-                            if res.sync_status == res.SYNC_FAILED:
-                                # Put the object in error state
-                                parent._error = True
-                                parent._pending = False
-                            elif res.sync_status == res.SYNC_PENDING:
-                                # A sync pending monitored object is in a limbo
-                                # state, potentially switching from Owned to
-                                # Monitored, and therefore should be removed
-                                # from all the trees
-                                parent._pending = True
-                            elif res.sync_status == res.SYNCED:
-                                parent._pending = False
-                            all_updates[1].append(parent)
-                        else:
-                            # Delete parent on operational tree
-                            parent_key = self.tt_maker.get_root_key(parent)
-                            updates_by_root.setdefault(
-                                parent_key, {conf: ([], []), monitor: ([], []),
-                                             oper: ([], [])})
-                            updates_by_root[
-                                parent_key][oper][tree_index].append(parent)
+                        if getattr(parent, 'sync', True):
+                            if tree_index == 0:
+                                if res.sync_status == res.SYNC_FAILED:
+                                    # Put the object in error state
+                                    parent._error = True
+                                    parent._pending = False
+                                elif res.sync_status == res.SYNC_PENDING:
+                                    parent._pending = True
+                                elif res.sync_status == res.SYNCED:
+                                    parent._pending = False
+                                all_updates[1].append(parent)
+                            else:
+                                # Delete parent on operational tree
+                                parent_key = self.tt_maker.get_root_key(parent)
+                                updates_by_root.setdefault(
+                                    parent_key, {conf: ([], []),
+                                                 monitor: ([], []),
+                                                 oper: ([], [])})
+                                updates_by_root[
+                                    parent_key][oper][tree_index].append(
+                                    parent)
                     elif tree_index == 0:
                         # Parent doesn't exist for some reason, delete the
                         # status object
