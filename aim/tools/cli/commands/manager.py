@@ -207,7 +207,7 @@ def describe(klass):
     return _describe
 
 
-def do_mappings(aim_ctx, manager, replace):
+def do_mappings(aim_ctx, manager, replace, vmm_doms=None, phys_doms=None):
     if replace:
         curr_mappings = manager.find(aim_ctx, infra.HostDomainMappingV2)
 
@@ -215,8 +215,10 @@ def do_mappings(aim_ctx, manager, replace):
             click.echo("Deleting %s: %s" % (type(mapping), mapping.__dict__))
             manager.delete(aim_ctx, mapping)
 
-    vmm_doms = manager.find(aim_ctx, resource.VMMDomain)
-    phys_doms = manager.find(aim_ctx, resource.PhysicalDomain)
+    if not vmm_doms:
+        vmm_doms = manager.find(aim_ctx, resource.VMMDomain)
+    if not phys_doms:
+        phys_doms = manager.find(aim_ctx, resource.PhysicalDomain)
     doms = vmm_doms + phys_doms
     for dom in doms:
         if isinstance(dom, resource.PhysicalDomain):
@@ -229,6 +231,33 @@ def do_mappings(aim_ctx, manager, replace):
         print_resource(manager.create(aim_ctx, res, overwrite=True))
 
 
+def get_domains(aim_ctx, manager, create_doms=True):
+    vmms = config.create_vmdom_dictionary()
+    physdoms = config.create_physdom_dictionary()
+    vmm_doms = []
+    phys_doms = []
+    if vmms:
+        vmm_types = utils.KNOWN_VMM_TYPES
+        for type_ in vmm_types.values():
+            res = resource.VMMPolicy(type=type_, monitored=True)
+            if create_doms:
+                print_resource(manager.create(aim_ctx, res, overwrite=True))
+        for vmm_name, cfg in vmms.iteritems():
+            res = resource.VMMDomain(
+                type=vmm_types.get(
+                    cfg.get('apic_vmm_type', 'openstack').lower()),
+                name=vmm_name, monitored=True)
+            if create_doms:
+                print_resource(manager.create(aim_ctx, res, overwrite=True))
+            vmm_doms.append(res)
+    for phys in physdoms:
+        res = resource.PhysicalDomain(name=phys, monitored=True)
+        if create_doms:
+            print_resource(manager.create(aim_ctx, res, overwrite=True))
+        phys_doms.append(res)
+    return vmm_doms, phys_doms
+
+
 @manager.command(name='load-domains')
 @click.option('--replace/--no-replace', default=False)
 @click.option('--enforce/--no-enforce', default=False)
@@ -237,7 +266,6 @@ def do_mappings(aim_ctx, manager, replace):
 def load_domains(ctx, replace, enforce, mappings):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
-    vmm_types = utils.KNOWN_VMM_TYPES
 
     with aim_ctx.store.begin(subtransactions=True):
         if replace:
@@ -248,26 +276,13 @@ def load_domains(ctx, replace, enforce, mappings):
                 click.echo("Deleting %s: %s" % (type(dom), dom.__dict__))
                 manager.delete(aim_ctx, dom)
 
-        vmms = config.create_vmdom_dictionary()
-        physdoms = config.create_physdom_dictionary()
-        if vmms:
-            for type_ in vmm_types.values():
-                res = resource.VMMPolicy(type=type_, monitored=True)
-                print_resource(manager.create(aim_ctx, res, overwrite=True))
-            for vmm_name, cfg in vmms.iteritems():
-                res = resource.VMMDomain(
-                    type=vmm_types.get(
-                        cfg.get('apic_vmm_type', 'openstack').lower()),
-                    name=vmm_name, monitored=True)
-                print_resource(manager.create(aim_ctx, res, overwrite=True))
-        for phys in physdoms:
-            res = resource.PhysicalDomain(name=phys, monitored=True)
-            print_resource(manager.create(aim_ctx, res, overwrite=True))
+        vmm_doms, phys_doms = get_domains(aim_ctx, manager)
 
         if mappings:
             # do not use replace entries in the host domain mappings table
             # when used as part of the load-domains command
-            do_mappings(aim_ctx, manager, False)
+            do_mappings(aim_ctx, manager, False, vmm_doms=vmm_doms,
+                        phys_doms=phys_doms)
 
         if enforce:
             # If there are host-specific mappings, and the user
@@ -323,7 +338,9 @@ def load_mappings(ctx, replace):
     aim_ctx = ctx.obj['aim_ctx']
 
     with aim_ctx.store.begin(subtransactions=True):
-        do_mappings(aim_ctx, manager, replace)
+        vmm_doms, phys_doms = get_domains(aim_ctx, manager, create_doms=False)
+        do_mappings(aim_ctx, manager, replace, vmm_doms=vmm_doms,
+                    phys_doms=phys_doms)
 
 
 @manager.command(name='sync-state-find')
