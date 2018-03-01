@@ -363,34 +363,42 @@ resource_map = {
 resource_map_post_reverse = {
     'vnsAbsTermNodeCon': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict,
     }],
     'vnsAbsTermConn__Con': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict
     }],
     'vnsInTerm__Con': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict
     }],
     'vnsOutTerm__Con': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict
     }],
     'vnsAbsTermNodeProv': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict,
     }],
     'vnsAbsTermConn__Prov': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict
     }],
     'vnsInTerm__Prov': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict
     }],
     'vnsOutTerm__Prov': [{
         'resource': service_graph.ServiceGraph,
+        'skip': ['display_name', 'name_alias'],
         'to_resource': utils.default_to_resource_strict
     }],
 }
