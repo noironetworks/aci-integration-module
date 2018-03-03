@@ -1890,9 +1890,6 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
             # DB side timestamp has granularity in seconds
             time.sleep(1)
             # Update and verify that timestamp changed
-            agent = self.mgr.update(self.ctx, agent,
-                                    beat_count=agent.beat_count + 1)
-            # Hbeat is updated
             self.assertTrue(hbeat < agent.heartbeat_timestamp)
 
     def test_agent_down(self):
