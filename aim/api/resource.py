@@ -226,14 +226,12 @@ class Agent(ResourceBase):
         ('admin_state_up', t.bool),
         ('description', t.string(255)),
         ('hash_trees', t.list_of_ids),
-        ('beat_count', t.number),
         ('version', t.string()))
     # Attrbutes completely managed by the DB (eg. timestamps)
     db_attributes = t.db(('heartbeat_timestamp', t.string()))
 
     def __init__(self, **kwargs):
         super(Agent, self).__init__({'admin_state_up': True,
-                                     'beat_count': 0,
                                      'id': utils.generate_uuid()}, **kwargs)
 
     def __eq__(self, other):
