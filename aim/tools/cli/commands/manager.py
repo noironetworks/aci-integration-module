@@ -444,18 +444,20 @@ for res in aim_manager.AimManager._db_model_map:
     manager.command(name=name + '-update')(f)
 
     # runtime find commands
-    f = click.pass_context(find(res))
-    f = plain_output(f)
-    f = click.option('--column', '-c', multiple=True)(f)
-    f = specify_other_attrs(f)
-    f = specify_id_attrs_as_options(f)
-    manager.command(name=name + '-find')(f)
+    for command_sfx in ['-find', '-list']:
+        f = click.pass_context(find(res))
+        f = plain_output(f)
+        f = click.option('--column', '-c', multiple=True)(f)
+        f = specify_other_attrs(f)
+        f = specify_id_attrs_as_options(f)
+        manager.command(name=name + command_sfx)(f)
 
     # runtime get commands
-    f = click.pass_context(get(res))
-    f = plain_output(f)
-    f = specify_id_attrs(f)
-    manager.command(name=name + '-get')(f)
+    for command_sfx in ['-show', '-get']:
+        f = click.pass_context(get(res))
+        f = plain_output(f)
+        f = specify_id_attrs(f)
+        manager.command(name=name + command_sfx)(f)
 
     # runtime describe commands
     f = click.pass_context(describe(res))

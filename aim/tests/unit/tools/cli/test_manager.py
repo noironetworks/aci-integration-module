@@ -441,8 +441,15 @@ class TestManagerResourceOpsBase(object):
     def find(self, res_command, attributes):
         return self._run_manager_command(res_command, 'find', attributes)
 
+    def list(self, res_command, attributes):
+        return self._run_manager_command(res_command, 'list', attributes)
+
     def get(self, res_command, attributes):
         res = self._run_manager_command(res_command, 'get', attributes)
+        return self._parse(res)
+
+    def show(self, res_command, attributes):
+        res = self._run_manager_command(res_command, 'show', attributes)
         return self._parse(res)
 
     def describe(self, res_command):
@@ -477,6 +484,7 @@ class TestManagerResourceOpsBase(object):
             self.run_command('manager ' + res_command + '-update', raises=True)
             self.run_command('manager ' + res_command + '-delete', raises=True)
             self.run_command('manager ' + res_command + '-get', raises=True)
+            self.run_command('manager ' + res_command + '-show', raises=True)
 
         creation_attributes = {}
         creation_attributes.update(test_required_attributes),
@@ -494,6 +502,11 @@ class TestManagerResourceOpsBase(object):
         for k, v in creation_attributes.iteritems():
             self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
+        # Verify show
+        r1 = self.show(res_command, id_attr_val)
+        for k, v in creation_attributes.iteritems():
+            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+
         # Test update
         updates = {}
         updates.update(id_attr_val)
@@ -505,6 +518,7 @@ class TestManagerResourceOpsBase(object):
         # Test delete
         self.delete(res_command, id_attr_val)
         self.assertIsNone(self.get(res_command, id_attr_val))
+        self.assertIsNone(self.show(res_command, id_attr_val))
 
     def _create_prerequisite_objects(self):
         for obj in (self.prereq_objects or []):
