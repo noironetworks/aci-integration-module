@@ -73,19 +73,19 @@ class AID(object):
         self.multiverse += [
             # Configuration Universe (AIM to ACI)
             {DESIRED: aim_universe.AimDbUniverse().initialize(
-                api.get_store(), self.conf_manager, self.multiverse),
+                self.conf_manager, self.multiverse),
              CURRENT: aci_universe.AciUniverse().initialize(
-                 api.get_store(), self.conf_manager, self.multiverse)},
+                 self.conf_manager, self.multiverse)},
             # Operational Universe (ACI to AIM)
             {DESIRED: aci_universe.AciOperationalUniverse().initialize(
-                api.get_store(), self.conf_manager, self.multiverse),
+                self.conf_manager, self.multiverse),
              CURRENT: aim_universe.AimDbOperationalUniverse().initialize(
-                 api.get_store(), self.conf_manager, self.multiverse)},
+                 self.conf_manager, self.multiverse)},
             # Monitored Universe (ACI to AIM)
             {DESIRED: aci_universe.AciMonitoredUniverse().initialize(
-                api.get_store(), self.conf_manager, self.multiverse),
+                self.conf_manager, self.multiverse),
              CURRENT: aim_universe.AimDbMonitoredUniverse().initialize(
-                 api.get_store(), self.conf_manager, self.multiverse)},
+                 self.conf_manager, self.multiverse)},
         ]
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
@@ -147,7 +147,6 @@ class AID(object):
                                   LOG, readable_caller='AID',
                                   notify_exceeding_timeout=False)
 
-    @utils.fix_session_if_needed
     def _reconciliation_cycle(self, aim_ctx, serve=True):
         if serve:
             LOG.info("Start serving cycle.")

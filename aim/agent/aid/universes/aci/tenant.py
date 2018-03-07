@@ -182,7 +182,7 @@ class AciTenantManager(utils.AIMThread):
         self.tag_set = set()
         self.failure_log = {}
 
-        def noop(par):
+        def noop(*args, **kwargs):
             pass
         self.creation_succeeded = creation_succeeded or noop
         self.creation_failed = creation_failed or noop

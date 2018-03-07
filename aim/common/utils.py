@@ -321,14 +321,3 @@ def json_loads(json_text):
 
 def json_dumps(dict):
     return json.dumps(dict)
-
-
-def fix_session_if_needed(func):
-    def wrap(inst, *args, **kwargs):
-        try:
-            return func(inst, *args, **kwargs)
-        except Exception as e:
-            LOG.debug(traceback.format_exc())
-            inst.context.store.fix_session(e)
-            raise e
-    return wrap

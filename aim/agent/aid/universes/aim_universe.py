@@ -22,7 +22,6 @@ from aim.agent.aid.universes import base_universe as base
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
 from aim.common import utils
-from aim import context
 from aim.db import hashtree_db_listener
 from aim import exceptions as aim_exc
 from aim import tree_manager
@@ -38,10 +37,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     from the AIM database.
     """
 
-    def initialize(self, store, conf_mgr, multiverse):
-        super(AimDbUniverse, self).initialize(store, conf_mgr, multiverse)
+    def initialize(self, conf_mgr, multiverse):
+        super(AimDbUniverse, self).initialize(conf_mgr, multiverse)
         self.tree_manager = tree_manager.HashTreeManager()
-        self.context = context.AimContext(store=store)
         self._converter = converter.AciToAimModelConverter()
         self._converter_aim_to_aci = converter.AimToAciModelConverter()
         self._served_tenants = set()
@@ -76,7 +74,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             new_state.setdefault(tenant, self._state.get(tenant))
         self._state = new_state
 
-    @utils.fix_session_if_needed
     def observe(self):
         # TODO(ivar): move this to a separate thread and add scheduled reset
         # mechanism
@@ -87,7 +84,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # avoid syncing it altogether
         self._state.update(self.get_optimized_state(self.state))
 
-    @utils.fix_session_if_needed
     def reset(self, tenants):
         LOG.warn('Reset called for roots %s' % tenants)
         for root in tenants:
@@ -99,7 +95,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # TODO(ivar): make it tree-version based to reflect metadata changes
         return self._get_state(tree=tree)
 
-    @utils.fix_session_if_needed
     def cleanup_state(self, key):
         # Only delete if state is still empty. Never remove a tenant if there
         # are leftovers.
@@ -109,7 +104,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             self.tree_manager.delete_by_root_rn(self.context, key,
                                                 if_empty=True)
 
-    @utils.fix_session_if_needed
     def _get_state(self, tree=tree_manager.CONFIG_TREE):
         return self.tree_manager.find_changed(
             self.context, dict([(x, None) for x in self._served_tenants]),
@@ -183,11 +177,10 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                               (method, resource, e.message))
                     LOG.debug(traceback.format_exc())
                     if method == 'delete':
-                        self.deletion_failed(resource)
+                        self.deletion_failed(self.context, resource)
                 else:
                     self._monitored_state_update_failures = 0
 
-    @utils.fix_session_if_needed
     def _push_resource(self, resource, method, monitored):
         if isinstance(resource, aim_status.AciFault):
             # Retrieve fault's parent and set/unset the fault
@@ -216,8 +209,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         [resource])
                     resource = self._converter.convert(resource)[0]
                     resource.monitored = monitored
-                with self.context.store.begin(
-                        subtransactions=True):
+                with self.context.store.begin(subtransactions=True):
                     if isinstance(resource, aim_resource.AciRoot):
                         # Roots should not be created by the
                         # AIM monitored universe.
@@ -263,7 +255,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 else:
                     self.manager.delete(self.context, resource)
 
-    @utils.fix_session_if_needed
     def _set_sync_pending_state(self, transformed_diff, raw_diff,
                                 other_universe, skip_roots=None):
         skip_roots = skip_roots or []
@@ -273,7 +264,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             if obj.root not in skip_roots:
                 self.manager.set_resource_sync_pending(self.context, obj)
 
-    @utils.fix_session_if_needed
     def _set_synced_state(self, my_state, raw_diff, skip_roots=None):
         skip_roots = skip_roots or []
         all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
