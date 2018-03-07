@@ -24,6 +24,7 @@ from oslo_log import log as logging
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
+from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes import errors
 from aim.api import resource
 from aim.common import utils
@@ -54,6 +55,11 @@ class WebSocketSessionLoginFailed(exceptions.AimException):
 
 class WebSocketSubscriptionFailed(exceptions.AimException):
     message = ("Web socket session failed to subscribe for url %(urls)s "
+               "with error %(code)s: %(text)s")
+
+
+class WebSocketUnsubscriptionFailed(exceptions.AimException):
+    message = ("Web socket session failed to unsubscribe for url %(urls)s "
                "with error %(code)s: %(text)s")
 
 
@@ -106,31 +112,38 @@ class WebSocketContext(object):
             self.ws_urls = ws_urls
 
     def establish_ws_session(self, max_retries=None):
-        retries = 0
-        self._reload_websocket_config()
-        max_retries = max_retries or 2 * len(self.ws_urls)
-        while retries < max_retries:
-            if self.session and self.session.session:
-                self.session.close()
-            LOG.info('Establishing WS connection with parameters: %s',
-                     [self.ws_urls[0], self.apic_username, self.apic_password,
-                      self.verify_ssl_certificate])
-            self.session = acitoolkit.Session(
-                self.ws_urls[0], self.apic_username, self.apic_password,
-                verify_ssl=self.verify_ssl_certificate,
-                cert_name=self.cert_name, key=self.private_key_file)
-            resp = self.session.login()
-            if not resp.ok:
-                LOG.warn('Websocket connection failed: %s' % resp.text)
-                self.ws_urls.rotate(-1)
-                LOG.info('Rotating websocket URL, using: %s' % self.ws_urls[0])
-                retries += 1
-                continue
-            LOG.info('Websocket connection succeeded.')
-            self._spawn_monitors()
-            return self.session
-        utils.perform_harakiri(LOG, "Cannot establish WS connection after %s "
-                                    "retries." % retries)
+        try:
+            with utils.get_rlock(lcon.ACI_WS_CONNECTION_LOCK, blocking=False):
+                retries = 0
+                self._reload_websocket_config()
+                max_retries = max_retries or 2 * len(self.ws_urls)
+                while retries < max_retries:
+                    if self.session and self.session.session:
+                        self.session.close()
+                    LOG.info('Establishing WS connection with parameters: %s',
+                             [self.ws_urls[0], self.apic_username,
+                              self.apic_password, self.verify_ssl_certificate])
+                    self.session = acitoolkit.Session(
+                        self.ws_urls[0], self.apic_username,
+                        self.apic_password,
+                        verify_ssl=self.verify_ssl_certificate,
+                        cert_name=self.cert_name, key=self.private_key_file)
+                    resp = self.session.login()
+                    if not resp.ok:
+                        LOG.warn('Websocket connection failed: %s' % resp.text)
+                        self.ws_urls.rotate(-1)
+                        LOG.info('Rotating websocket URL, '
+                                 'using: %s' % self.ws_urls[0])
+                        retries += 1
+                        continue
+                    LOG.info('Websocket connection succeeded.')
+                    self._spawn_monitors()
+                    return self.session
+                utils.perform_harakiri(LOG, "Cannot establish WS connection "
+                                            "after %s retries." % retries)
+        except utils.LockNotAcquired:
+            # Some other thread is trying to reconnect
+            return
 
     def _ws_config_callback(self, new_conf):
         # If any of the WS related configurations changed, reload fresh values
@@ -141,16 +154,25 @@ class WebSocketContext(object):
             # Log out WS
             self.establish_ws_session()
 
-    def _subscribe(self, urls, extension=''):
+    def _subscribe(self, urls):
         """Subscribe to the urls if not subscribed yet."""
         resp = None
         for url in urls:
-            if not self.session.is_subscribed(url + extension):
-                resp = self.session.subscribe(url + extension)
-                LOG.debug('Subscribed to %s %s %s ', url + extension, resp,
-                          resp.text)
+            if not self.session.is_subscribed(url):
+                resp = self.session.subscribe(url)
                 if not resp.ok:
                     return resp
+                LOG.debug('Subscribed to %s %s %s ', url, resp,
+                          resp.text)
+        return resp
+
+    def _unsubscribe(self, urls):
+        resp = None
+        for url in urls:
+            resp = self.session.unsubscribe(url)
+            if resp is not None and not resp.ok:
+                return resp
+            LOG.debug('Unsubscribed to %s', url)
         return resp
 
     def subscribe(self, urls):
@@ -163,7 +185,7 @@ class WebSocketContext(object):
             if resp.ok:
                 return utils.json_loads(resp.text)['imdata']
             else:
-                if resp.status_code in [405, 598]:
+                if resp.status_code in [405, 598, 500]:
                     self.establish_ws_session()
                 raise WebSocketSubscriptionFailed(urls=urls,
                                                   code=resp.status_code,
@@ -172,9 +194,13 @@ class WebSocketContext(object):
     def unsubscribe(self, urls):
         if urls == self.EMPTY_URLS:
             return
-        LOG.debug("Subscription urls: %s", urls)
-        for url in urls:
-            self.session.unsubscribe(url)
+        resp = self._unsubscribe(urls)
+        if resp is not None and not resp.ok:
+            if resp.status_code in [405, 598, 500]:
+                self.establish_ws_session()
+            raise WebSocketUnsubscriptionFailed(urls=urls,
+                                                code=resp.status_code,
+                                                text=resp.text)
 
     def get_event_data(self, urls):
         result = []
