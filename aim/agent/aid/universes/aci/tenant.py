@@ -175,7 +175,7 @@ class AciTenantManager(utils.AIMThread):
             'aci_tenant_polling_yield', 'aim')
         self.to_aim_converter = converter.AciToAimModelConverter()
         self.to_aci_converter = converter.AimToAciModelConverter()
-        self._reset_object_backlock()
+        self._reset_object_backlog()
         self.tree_builder = tree_manager.HashTreeBuilder(None)
         self.tag_name = aim_system_id or self.apic_config.get_option(
             'aim_system_id', 'aim')
@@ -197,7 +197,7 @@ class AciTenantManager(utils.AIMThread):
         self.num_loop_runs = float('inf')
         # Initialize tenant tree
 
-    def _reset_object_backlock(self):
+    def _reset_object_backlog(self):
         self.object_backlog = Queue.Queue()
 
     def kill(self, *args, **kwargs):
@@ -471,7 +471,7 @@ class AciTenantManager(utils.AIMThread):
             # Make sure this thread cannot use websocket anymore
             self.tenant.urls = self.ws_context.EMPTY_URLS
         self.ws_context.unsubscribe(urls)
-        self._reset_object_backlock()
+        self._reset_object_backlog()
 
     def _subscribe_tenant(self):
         self.ws_context.subscribe(self.tenant.urls)
