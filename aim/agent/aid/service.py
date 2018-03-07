@@ -16,7 +16,6 @@
 import signal
 import sys
 import time
-import traceback
 
 from oslo_log import log as logging
 import semantic_version
@@ -44,6 +43,8 @@ AGENT_DESCRIPTION = ('This Agent synchronizes the AIM state with ACI for a '
 DESIRED = 'desired'
 CURRENT = 'current'
 AID_EXIT_CHECK_INTERVAL = 5
+DAEMON_LOOP_MAX_WAIT = 5
+DAEMON_LOOP_MAX_RETRIES = 5
 
 logging.register_options(aim_cfg.CONF)
 
@@ -72,19 +73,19 @@ class AID(object):
         self.multiverse += [
             # Configuration Universe (AIM to ACI)
             {DESIRED: aim_universe.AimDbUniverse().initialize(
-                api.get_store(), self.conf_manager, self.multiverse),
+                self.conf_manager, self.multiverse),
              CURRENT: aci_universe.AciUniverse().initialize(
-                 api.get_store(), self.conf_manager, self.multiverse)},
+                 self.conf_manager, self.multiverse)},
             # Operational Universe (ACI to AIM)
             {DESIRED: aci_universe.AciOperationalUniverse().initialize(
-                api.get_store(), self.conf_manager, self.multiverse),
+                self.conf_manager, self.multiverse),
              CURRENT: aim_universe.AimDbOperationalUniverse().initialize(
-                 api.get_store(), self.conf_manager, self.multiverse)},
+                 self.conf_manager, self.multiverse)},
             # Monitored Universe (ACI to AIM)
             {DESIRED: aci_universe.AciMonitoredUniverse().initialize(
-                api.get_store(), self.conf_manager, self.multiverse),
+                self.conf_manager, self.multiverse),
              CURRENT: aim_universe.AimDbMonitoredUniverse().initialize(
-                 api.get_store(), self.conf_manager, self.multiverse)},
+                 self.conf_manager, self.multiverse)},
         ]
         # Operational Universes. ACI operational info will be synchronized into
         # AIM's
@@ -113,40 +114,40 @@ class AID(object):
     def daemon_loop(self):
         aim_ctx = context.AimContext(store=api.get_store())
         # Serve tenants the very first time regardless of the events received
-        self._daemon_loop(aim_ctx, True)
-        while True:
-            try:
-                serve = False
-                # wait first event
-                first_event_time = None
-                squash_time = AID_EXIT_CHECK_INTERVAL
-                while squash_time > 0:
-                    event = self.events.get_event(squash_time)
-                    if not event and first_event_time is None:
-                        # This is a lone timeout, just check if we need to exit
-                        if not self.run_daemon_loop:
-                            LOG.info("Stopping AID main loop.")
-                            return
-                        continue
-                    if not first_event_time:
-                        first_event_time = time.time()
-                    if event in event_handler.EVENTS + [None]:
-                        # Set squash timeout
-                        squash_time = (first_event_time + self.squash_time -
-                                       time.time())
-                        if event == event_handler.EVENT_SERVE:
-                            # Serving tenants is required as well
-                            serve = True
-                start_time = time.time()
-                self._daemon_loop(aim_ctx, serve)
-                utils.wait_for_next_cycle(start_time, self.polling_interval,
-                                          LOG, readable_caller='AID',
-                                          notify_exceeding_timeout=False)
-            except Exception:
-                LOG.error('A error occurred in agent')
-                LOG.error(traceback.format_exc())
+        self._reconciliation_cycle(aim_ctx, True)
+        self._daemon_loop(aim_ctx)
 
-    def _daemon_loop(self, aim_ctx, serve=True):
+    @utils.retry_loop(DAEMON_LOOP_MAX_WAIT, DAEMON_LOOP_MAX_RETRIES, 'AID',
+                      fail=True)
+    def _daemon_loop(self, aim_ctx):
+        serve = False
+        # wait first event
+        first_event_time = None
+        squash_time = AID_EXIT_CHECK_INTERVAL
+        while squash_time > 0:
+            event = self.events.get_event(squash_time)
+            if not event and first_event_time is None:
+                # This is a lone timeout, just check if we need to exit
+                if not self.run_daemon_loop:
+                    LOG.info("Stopping AID main loop.")
+                    raise utils.StopLoop()
+                continue
+            if not first_event_time:
+                first_event_time = time.time()
+            if event in event_handler.EVENTS + [None]:
+                # Set squash timeout
+                squash_time = (first_event_time + self.squash_time -
+                               time.time())
+                if event == event_handler.EVENT_SERVE:
+                    # Serving tenants is required as well
+                    serve = True
+        start_time = time.time()
+        self._reconciliation_cycle(aim_ctx, serve)
+        utils.wait_for_next_cycle(start_time, self.polling_interval,
+                                  LOG, readable_caller='AID',
+                                  notify_exceeding_timeout=False)
+
+    def _reconciliation_cycle(self, aim_ctx, serve=True):
         if serve:
             LOG.info("Start serving cycle.")
             tenants = self._calculate_tenants(aim_ctx)

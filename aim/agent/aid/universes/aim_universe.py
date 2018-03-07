@@ -22,7 +22,6 @@ from aim.agent.aid.universes import base_universe as base
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
 from aim.common import utils
-from aim import context
 from aim.db import hashtree_db_listener
 from aim import exceptions as aim_exc
 from aim import tree_manager
@@ -38,10 +37,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     from the AIM database.
     """
 
-    def initialize(self, store, conf_mgr, multiverse):
-        super(AimDbUniverse, self).initialize(store, conf_mgr, multiverse)
+    def initialize(self, conf_mgr, multiverse):
+        super(AimDbUniverse, self).initialize(conf_mgr, multiverse)
         self.tree_manager = tree_manager.HashTreeManager()
-        self.context = context.AimContext(store=store)
         self._converter = converter.AciToAimModelConverter()
         self._converter_aim_to_aci = converter.AimToAciModelConverter()
         self._served_tenants = set()
@@ -76,7 +74,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             new_state.setdefault(tenant, self._state.get(tenant))
         self._state = new_state
 
-    @base.fix_session_if_needed
     def observe(self):
         # TODO(ivar): move this to a separate thread and add scheduled reset
         # mechanism
@@ -87,7 +84,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # avoid syncing it altogether
         self._state.update(self.get_optimized_state(self.state))
 
-    @base.fix_session_if_needed
     def reset(self, tenants):
         LOG.warn('Reset called for roots %s' % tenants)
         for root in tenants:
@@ -99,7 +95,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # TODO(ivar): make it tree-version based to reflect metadata changes
         return self._get_state(tree=tree)
 
-    @base.fix_session_if_needed
     def cleanup_state(self, key):
         # Only delete if state is still empty. Never remove a tenant if there
         # are leftovers.
@@ -109,7 +104,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             self.tree_manager.delete_by_root_rn(self.context, key,
                                                 if_empty=True)
 
-    @base.fix_session_if_needed
     def _get_state(self, tree=tree_manager.CONFIG_TREE):
         return self.tree_manager.find_changed(
             self.context, dict([(x, None) for x in self._served_tenants]),
@@ -173,84 +167,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             for resource in items:
                 # Items are in the other universe's format unless deletion
                 try:
-                    if isinstance(resource, aim_status.AciFault):
-                        # Retrieve fault's parent and set/unset the fault
-                        if method == 'create':
-                            parents = utils.retrieve_fault_parent(
-                                resource.external_identifier,
-                                converter.resource_map)
-                            for parent in parents:
-                                if self.manager.get_status(self.context,
-                                                           parent):
-                                    LOG.debug("%s for object %s: %s",
-                                              self.manager.set_fault.__name__,
-                                              parent, resource)
-                                    self.manager.set_fault(self.context,
-                                                           resource=parent,
-                                                           fault=resource)
-                                    break
-                        else:
-                            self.manager.delete(self.context, resource)
-                    else:
-                        LOG.debug("%s object in AIM %s" %
-                                  (method, resource))
-                        if method == 'create':
-                            if monitored:
-                                # We need two more conversions to screen out
-                                # unmanaged items
-                                resource.monitored = monitored
-                                resource = self._converter_aim_to_aci.convert(
-                                    [resource])
-                                resource = self._converter.convert(resource)[0]
-                                resource.monitored = monitored
-                            with self.context.store.begin(
-                                    subtransactions=True):
-                                if isinstance(resource, aim_resource.AciRoot):
-                                    # Roots should not be created by the
-                                    # AIM monitored universe.
-                                    # NOTE(ivar): there are contention cases
-                                    # where a user might delete a Root object
-                                    # right before the AIM Monitored Universe
-                                    # pushes an update on it. If we run a
-                                    # simple "create overwrite" this would
-                                    # re-create the object and AID would keep
-                                    # monitoring said root. by only updating
-                                    # roots and never creating them, we give
-                                    # full control over which trees to monitor
-                                    # to the user.
-                                    ext = self.context.store.extract_attributes
-                                    obj = self.manager.update(
-                                        self.context, resource,
-                                        fix_ownership=monitored,
-                                        **ext(resource, "other"))
-                                    if obj:
-                                        # Declare victory for the update
-                                        self.creation_succeeded(resource)
-                                else:
-                                    self.manager.create(
-                                        self.context, resource, overwrite=True,
-                                        fix_ownership=monitored)
-                                    # Declare victory for the created object
-                                    self.creation_succeeded(resource)
-                        else:
-                            if isinstance(resource,
-                                          aim_resource.AciRoot) and monitored:
-                                # Monitored Universe doesn't delete Tenant
-                                # Resources
-                                LOG.info('%s skipping delete for object %s' %
-                                         (self.name, resource))
-                                continue
-                            if monitored:
-                                # Only delete a resource if monitored
-                                with self.context.store.begin(
-                                        subtransactions=True):
-                                    existing = self.manager.get(self.context,
-                                                                resource)
-                                    if existing and existing.monitored:
-                                        self.manager.delete(self.context,
-                                                            resource)
-                            else:
-                                self.manager.delete(self.context, resource)
+                    self._push_resource(resource, method, monitored)
                 except aim_exc.InvalidMonitoredStateUpdate as e:
                     msg = ("Failed to %s object %s in AIM: %s." %
                            (method, resource, e.message))
@@ -259,18 +176,85 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, e.message))
                     LOG.debug(traceback.format_exc())
-                    self.context.store.fix_session(e)
-                    # REVISIT(ivar): can creation on the AIM side fail? If so,
-                    # what can the universe do about it? We can't set sync
-                    # status of non existing objects, neither we can remove
-                    # objects from ACI-side trees (how would the manual
-                    # operation for resync be triggered?)
                     if method == 'delete':
-                        self.deletion_failed(resource)
+                        self.deletion_failed(self.context, resource)
                 else:
                     self._monitored_state_update_failures = 0
 
-    @base.fix_session_if_needed
+    def _push_resource(self, resource, method, monitored):
+        if isinstance(resource, aim_status.AciFault):
+            # Retrieve fault's parent and set/unset the fault
+            if method == 'create':
+                parents = utils.retrieve_fault_parent(
+                    resource.external_identifier, converter.resource_map)
+                for parent in parents:
+                    if self.manager.get_status(self.context, parent):
+                        LOG.debug("%s for object %s: %s",
+                                  self.manager.set_fault.__name__, parent,
+                                  resource)
+                        self.manager.set_fault(self.context, resource=parent,
+                                               fault=resource)
+                        break
+            else:
+                self.manager.delete(self.context, resource)
+        else:
+            LOG.debug("%s object in AIM %s" %
+                      (method, resource))
+            if method == 'create':
+                if monitored:
+                    # We need two more conversions to screen out
+                    # unmanaged items
+                    resource.monitored = monitored
+                    resource = self._converter_aim_to_aci.convert(
+                        [resource])
+                    resource = self._converter.convert(resource)[0]
+                    resource.monitored = monitored
+                with self.context.store.begin(subtransactions=True):
+                    if isinstance(resource, aim_resource.AciRoot):
+                        # Roots should not be created by the
+                        # AIM monitored universe.
+                        # NOTE(ivar): there are contention cases
+                        # where a user might delete a Root object
+                        # right before the AIM Monitored Universe
+                        # pushes an update on it. If we run a
+                        # simple "create overwrite" this would
+                        # re-create the object and AID would keep
+                        # monitoring said root. by only updating
+                        # roots and never creating them, we give
+                        # full control over which trees to monitor
+                        # to the user.
+                        ext = self.context.store.extract_attributes
+                        obj = self.manager.update(
+                            self.context, resource,
+                            fix_ownership=monitored,
+                            **ext(resource, "other"))
+                        if obj:
+                            # Declare victory for the update
+                            self.creation_succeeded(resource)
+                    else:
+                        self.manager.create(
+                            self.context, resource, overwrite=True,
+                            fix_ownership=monitored)
+                        # Declare victory for the created object
+                        self.creation_succeeded(resource)
+            else:
+                if isinstance(resource, aim_resource.AciRoot) and monitored:
+                    # Monitored Universe doesn't delete Tenant
+                    # Resources
+                    LOG.info('%s skipping delete for object %s' %
+                             (self.name, resource))
+                    return
+                if monitored:
+                    # Only delete a resource if monitored
+                    with self.context.store.begin(subtransactions=True):
+                        existing = self.manager.get(self.context,
+                                                    resource)
+                        if existing and existing.monitored:
+                            self.manager.delete(self.context,
+                                                resource)
+                else:
+                    self.manager.delete(self.context, resource)
+
     def _set_sync_pending_state(self, transformed_diff, raw_diff,
                                 other_universe, skip_roots=None):
         skip_roots = skip_roots or []
@@ -280,7 +264,6 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             if obj.root not in skip_roots:
                 self.manager.set_resource_sync_pending(self.context, obj)
 
-    @base.fix_session_if_needed
     def _set_synced_state(self, my_state, raw_diff, skip_roots=None):
         skip_roots = skip_roots or []
         all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])

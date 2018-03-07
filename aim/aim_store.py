@@ -18,6 +18,7 @@ import copy
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from sqlalchemy import event as sa_event
+from sqlalchemy import exc
 from sqlalchemy.sql.expression import func
 
 from aim.agent.aid.event_services import rpc
@@ -378,7 +379,8 @@ class SqlAlchemyStore(AimStore):
     def fix_session(self, error, force=False):
         if error:
             LOG.debug("Rolling back session after %s", error.message)
-        if force or isinstance(error, db_exc.DBError):
+        if force or any(isinstance(error, x) for x in
+                        [db_exc.DBError, exc.SQLAlchemyError]):
             try:
                 self.db_session.rollback()
             except Exception as e:

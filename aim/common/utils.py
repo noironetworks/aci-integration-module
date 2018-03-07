@@ -148,7 +148,11 @@ class ThreadExit(Exception):
     pass
 
 
-def retry_loop(max_wait, max_retries, name):
+class StopLoop(Exception):
+    pass
+
+
+def retry_loop(max_wait, max_retries, name, fail=False):
     def wrap(func):
         def inner(*args, **kwargs):
             recovery_retries = None
@@ -156,6 +160,8 @@ def retry_loop(max_wait, max_retries, name):
                 try:
                     func(*args, **kwargs)
                     recovery_retries = None
+                except StopLoop:
+                    return
                 except ThreadExit as e:
                     raise e
                 except Exception as e:
@@ -164,6 +170,8 @@ def retry_loop(max_wait, max_retries, name):
                         max_wait, tentative=recovery_retries)
                     if recovery_retries.get() >= max_retries:
                         LOG.error("Exceeded max recovery retries for %s", name)
+                        if fail:
+                            perform_harakiri(LOG, e.message)
                         raise e
         return inner
     return wrap

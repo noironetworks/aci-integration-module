@@ -108,9 +108,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def _first_serve(self, agent):
         # Initialize tenants
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Actually serve them
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
     def _reset_apic_client(self):
         apic_client.ApicSession.post_body_dict = self.old_post
@@ -355,7 +355,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tenant._event_loop()
 
         # Now, the two trees are in sync
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._assert_universe_sync(agent.desired_universe,
                                    agent.current_universe,
                                    tenants=[tn1.root, tn2.root])
@@ -385,7 +385,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         currentserving_tenants = {
             k: v for k, v in
             agent.current_universe.serving_tenants.iteritems()}
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertIs(agent.current_universe.serving_tenants[tn1.rn],
                       currentserving_tenants[tn1.rn])
         self.assertIs(agent.current_universe.serving_tenants[tn2.rn],
@@ -401,7 +401,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         for tenant in agent.current_universe.serving_tenants.values():
             self._current_manager = tenant
             tenant._event_loop()
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Everything is in sync again
         self._assert_universe_sync(agent.desired_universe,
                                    agent.current_universe,
@@ -413,7 +413,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.delete(self.ctx, bd2_tn1)
         self.aim_manager.delete(self.ctx, tn1)
 
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # There are changes on tn1 only
         self.assertFalse(
             agent.current_universe.serving_tenants[tn1.rn].
@@ -432,7 +432,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Depending on the order of operation, we might need another
         # iteration to cleanup the tree completely
         if agent.current_universe.serving_tenants[tn1.rn]._state.root:
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             for tenant in agent.current_universe.serving_tenants.values():
                 self._current_manager = tenant
                 tenant._event_loop()
@@ -442,13 +442,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         tree1 = agent.tree_manager.find(self.ctx, root_rn=[tn1.rn])
         self.assertEqual(1, len(tree1))
         # Now tenant will be deleted (still served)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertIsNone(agent.current_universe.state[tn1.rn].root)
         tree1 = agent.tree_manager.find(self.ctx, root_rn=[tn1.rn])
         self.assertEqual(0, len(tree1))
 
         # Agent not served anymore
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertFalse(tenant_name1 in agent.current_universe.state)
 
     def test_handle_sigterm(self):
@@ -510,11 +510,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(current_config)
 
         # Run the loop for reconciliation
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         # Run loop again to set SYNCED state
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         # A monitored BD should now exist in AIM
         aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
@@ -532,7 +532,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Delete the monitored BD, will be re-created
         self.aim_manager.delete(self.ctx, aim_bd)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # It's reconciled
         aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
             tenant_name=tenant_name, name='default'))
@@ -549,7 +549,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe ACI events
         self._observe_aci_events(current_config)
         # Run the loop for reconciliation
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # BD is deleted
         aim_bd = self.aim_manager.get(self.ctx, resource.BridgeDomain(
             tenant_name=tenant_name, name='default'))
@@ -587,15 +587,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             [aci_tn, aci_bd],
             manager=desired_monitor.serving_tenants[tn1.rn], tag=False)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         bd1 = resource.BridgeDomain(name='bd1', tenant_name=tenant_name)
         self.aim_manager.create(self.ctx, bd1)
         # Push BD in ACI
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Feedback loop
         self._observe_aci_events(current_config)
         # Observe
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Config universes in sync
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn1.root])
@@ -603,19 +603,19 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Detele the only managed item
         self.aim_manager.delete(self.ctx, bd1)
         # Delete on ACI
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Feedback loop
         self._observe_aci_events(current_config)
         # Observe
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Delete the tenant on AIM, agents should stop watching it
         self.aim_manager.delete(self.ctx, tn1)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Agent will delete remaining objects
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertTrue(tn1.rn in desired_monitor.serving_tenants)
         # Now deletion happens
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertTrue(tn1.rn not in desired_monitor.serving_tenants)
 
     def test_monitored_tree_relationship(self):
@@ -650,7 +650,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tag=False)
         self._observe_aci_events(current_config)
         # Reconcile
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Create a managed subnet in the BD
         sub = resource.Subnet(tenant_name=tenant_name, bd_name='mybd',
                               gw_ip_mask='10.10.10.1/28')
@@ -662,10 +662,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe
         self._observe_aci_events(current_config)
         # Reconcile
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Observe
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Verify all trees converged
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn1.root])
@@ -680,10 +680,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Observe
         self._observe_aci_events(current_config)
         # Reconcile
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Observe
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertIsNone(self.aim_manager.get(self.ctx, bd))
         sub = self.aim_manager.get(self.ctx, sub)
         sub_status = self.aim_manager.get_status(self.ctx, sub)
@@ -733,7 +733,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             manager=desired_monitor.serving_tenants[tn1.rn], tag=False)
         self._observe_aci_events(current_config)
         # Reconcile
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Verify AIM ext net doesn't have contracts set
         ext_net = resource.ExternalNetwork(
             tenant_name=tenant_name, name='extnet', l3out_name='default')
@@ -742,7 +742,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual([], ext_net.consumed_contract_names)
         self._observe_aci_events(current_config)
         # Observe
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         self._assert_universe_sync(desired_monitor, current_monitor,
                                    tenants=[tn1.root])
@@ -753,10 +753,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         ext_net = self.aim_manager.update(self.ctx, ext_net,
                                           provided_contract_names=['c1'])
         # Reconcile
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         # Observe
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         ext_net = self.aim_manager.get(self.ctx, ext_net)
         self.assertEqual(['c1'], ext_net.provided_contract_names)
         # Verify contract is provided in ACI
@@ -785,7 +785,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def test_daemon_loop(self):
         agent = self._create_agent()
-        agent._daemon_loop = run_once_loop(agent)
+        agent._reconciliation_cycle = run_once_loop(agent)
         # Calling the first time with a reconcile event, still calls serve=True
         agent.events.q.put_nowait('reconcile')
         agent.daemon_loop()
@@ -837,7 +837,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._first_serve(agent)
         self._observe_aci_events(current_config)
         # Reconcile
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Verify everything is fine
         self._assert_universe_sync(desired_monitor, current_monitor,
                                    tenants=[tn.root])
@@ -849,9 +849,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.update(self.ctx, epg, provided_contract_names=['c1'])
 
         # Observe, Reconcile, Verify
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._assert_universe_sync(desired_monitor, current_monitor,
                                    tenants=[tn.root])
         self._assert_universe_sync(desired_config, current_config,
@@ -875,9 +875,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             manager=desired_monitor.serving_tenants[tn.rn], tag=False)
         self._observe_aci_events(current_config)
         # Observe, Reconcile, Verify
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._assert_universe_sync(desired_monitor, current_monitor,
                                    tenants=[tn.root])
         self._assert_universe_sync(desired_config, current_config,
@@ -1083,7 +1083,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         ext_net = self.aim_manager.get(self.ctx, ext_net)
         self.assertEqual(['p1'], ext_net.provided_contract_names)
 
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         tag = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn.rn].aci_session,
@@ -1094,7 +1094,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                 provided_contract_names=[])
         ext_net = self.aim_manager.get(self.ctx, ext_net)
         self.assertEqual([], ext_net.provided_contract_names)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
@@ -1127,14 +1127,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                     err_text='', err_code='122'))
             # Observe and Reconcile
             self._observe_aci_events(current_config)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             # Tenant object should be in sync_error state
             self.assertEqual(
                 aim_status.AciStatus.SYNC_FAILED,
                 self.aim_manager.get_status(self.ctx, tn).sync_status)
             # Put tenant back in pending state
             self.aim_manager.update(self.ctx, tn)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
 
             # OPERATION_TRANSIENT (fail object after max retries)
             apic_client.ApicSession.post_body_dict = mock.Mock(
@@ -1143,14 +1143,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                     err_text='', err_code='102'))
             # Observe and Reconcile
             self._observe_aci_events(current_config)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             # Tenant is still in SYNC_PENDING state
             self.assertEqual(
                 aim_status.AciStatus.SYNC_PENDING,
                 self.aim_manager.get_status(self.ctx, tn).sync_status)
             # Another tentative, however, will fail the object
             self._observe_aci_events(current_config)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             # Tenant is still in SYNC_PENDING state
             self.assertEqual(
                 aim_status.AciStatus.SYNC_FAILED,
@@ -1165,7 +1165,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             for x in range(3):
                 # Observe and Reconcile
                 self._observe_aci_events(current_config)
-                agent._daemon_loop(self.ctx)
+                agent._reconciliation_cycle(self.ctx)
                 # Tenant is still in SYNC_PENDING state
                 self.assertEqual(
                     aim_status.AciStatus.SYNC_PENDING,
@@ -1176,7 +1176,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 side_effect=aexc.ApicResponseNoCookie(request=''))
             self.assertEqual(0, harakiri.call_count)
             self._observe_aci_events(current_config)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             self.assertEqual(1, harakiri.call_count)
 
             # UNKNOWN (fail after max retries)
@@ -1184,14 +1184,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 side_effect=Exception())
             # Observe and Reconcile
             self._observe_aci_events(current_config)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             # Tenant is still in SYNC_PENDING state
             self.assertEqual(
                 aim_status.AciStatus.SYNC_PENDING,
                 self.aim_manager.get_status(self.ctx, tn).sync_status)
             # Another tentative, however, will fail the object
             self._observe_aci_events(current_config)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             # Tenant is still in SYNC_PENDING state
             self.assertEqual(
                 aim_status.AciStatus.SYNC_FAILED,
@@ -1341,11 +1341,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, resource.ApplicationProfile(
             tenant_name=tenant_name, name='ap-name'))
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertEqual(aim_status.AciStatus.SYNC_PENDING,
                          self.aim_manager.get_status(self.ctx, tn).sync_status)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertEqual(aim_status.AciStatus.SYNCED,
                          self.aim_manager.get_status(self.ctx, tn).sync_status)
 
@@ -1359,7 +1359,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         vmm = resource.VMMDomain(type='Kubernetes', name='kubernetes',
                                  monitored=True)
         self.aim_manager.create(self.ctx, vmm)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         f1 = aim_status.AciFault(
             fault_code='F609007',
             external_identifier='comp/prov-Kubernetes/'
@@ -1370,7 +1370,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertIsNotNone(self.aim_manager.create(self.ctx, f1))
         # see if it gets deleted
         self._observe_aci_events(desired_oper)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertIsNone(self.aim_manager.get(self.ctx, f1))
 
     def test_create_delete(self):
@@ -1481,7 +1481,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         apic_client.ApicSession.post_body_dict = mock.Mock()
         bd = resource.BridgeDomain(tenant_name=tenant_name, name='bd1')
         self.aim_manager.create(self.ctx, bd)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         # Universe not in sync
         self.assertRaises(Exception,
@@ -1493,14 +1493,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         current_config.push_resources = mock.Mock()
         for x in range(current_config.reset_retry_limit):
             current_config.push_resources.reset_mock()
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             self.assertEqual(0, current_config.reset.call_count)
             self.assertEqual(0, desired_config.reset.call_count)
             current_config.push_resources.assert_called_once_with(
                 {'create': [bd], 'delete': []})
 
         current_config.push_resources.reset_mock()
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         current_config.reset.assert_called_once_with(set([tn.rn]))
         desired_config.reset.assert_called_once_with(set([tn.rn]))
         current_config.push_resources.assert_called_once_with(
@@ -1515,13 +1515,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         for x in range(current_config.reset_retry_limit,
                        current_config.purge_retry_limit - 1):
             current_config.push_resources.reset_mock()
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
             self.assertEqual(0, current_config.reset.call_count)
             self.assertEqual(0, desired_config.reset.call_count)
             current_config.push_resources.assert_called_once_with(
                 {'create': [bd], 'delete': []})
         current_config.push_resources.reset_mock()
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertEqual(0, current_config.reset.call_count)
         self.assertEqual(0, desired_config.reset.call_count)
         current_config.push_resources.assert_called_once_with(
@@ -1575,11 +1575,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(current_config)
 
         # Run the loop for reconciliation
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         # Run loop again to set SYNCED state
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         # A monitored EPG should now exist in AIM with its contracts
         aim_epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
@@ -1595,9 +1595,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                              name='default2'))
         self._observe_aci_events(current_config)
         # Run the loop for reconciliation
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Add contracts manually
         aci_rsprov = self._get_example_provided_contract(
             dn='uni/tn-%s/ap-ap/epg-default2/rsprov-c' % tenant_name)
@@ -1608,9 +1608,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                          tag=False)
         self._observe_aci_events(current_config)
         # Run the loop for reconciliation
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Contracts not in AIM, but still in ACI
         aim_epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
             tenant_name=tenant_name, app_profile_name='ap', name='default2'))
@@ -1648,7 +1648,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, tn1)
         self._first_serve(agent)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Tenant still exists
         self.assertIsNotNone(self.aim_manager.get(self.ctx, tn1))
         # Action cache is empty
@@ -1672,17 +1672,17 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, vrf)
         self._first_serve(agent)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         self.aim_manager.delete(self.ctx, tn1)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # push config
         self._observe_aci_events(current_config)
         # Will be out of sync until VRF goes in error state
         for _ in range(2):
             self._observe_aci_events(current_config)
-            agent._daemon_loop(self.ctx)
+            agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn1.root])
@@ -1716,7 +1716,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Run loop for serving tenant
         self._first_serve(agent)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         # Verify epg in APIC
         prov = test_aci_tenant.mock_get_data(
@@ -1726,7 +1726,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Flip sync flag
         self.aim_manager.update(self.ctx, epg, sync=False)
 
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
 
         # Verify epg not in APIC
@@ -1737,7 +1737,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
         # Status doesn't re-create the object
         self.aim_manager.get_status(self.ctx, epg)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         # Verify epg not in APIC
         self.assertRaises(
@@ -1751,7 +1751,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 fault_code='516',
                 external_identifier='uni/tn-%s/ap-test/epg-test/'
                                     'fault-516' % tenant_name))
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         # Verify epg not in APIC
         self.assertRaises(
@@ -1761,7 +1761,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
         # Resetting sync flag will bring it back
         self.aim_manager.update(self.ctx, epg, sync=True)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
 
         # Verify epg in APIC
@@ -1799,7 +1799,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Run loop for serving tenant
         self._first_serve(agent)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Manual EPG
         aci_epg = self._get_example_aci_epg(
             tenant_name=tenant_name, name='test',
@@ -1809,13 +1809,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         epg = resource.EndpointGroup(tenant_name=tenant_name,
                                      app_profile_name='test', name='test')
         epg = self.aim_manager.get(self.ctx, epg)
         self.assertTrue(epg.monitored)
         self.aim_manager.update(self.ctx, epg, sync=False)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         # Set back to normal
         epg = self.aim_manager.get(self.ctx, epg)
@@ -1846,7 +1846,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, tn1)
         self._first_serve(agent)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
 
         self.aim_manager.create(
             self.ctx, resource.L3Outside(tenant_name=tenant_name,
@@ -1874,7 +1874,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                     interface_path='topology/pod-1/paths-101/'
                                                    'pathep-[eth1/1]'))
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         bgp = self.aim_manager.create(self.ctx,
                                       resource.L3OutInterfaceBgpPeerP(
@@ -1887,14 +1887,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                           addr='1.1.1.0/24',
                                           asn="65000"))
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         self._assert_universe_sync(desired_monitor, current_monitor,
                                    tenants=[tn1.root])
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn1.root])
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         status = self.aim_manager.get_status(self.ctx, bgp)
         self.assertEqual(aim_status.AciStatus.SYNCED, status.sync_status)
@@ -2032,7 +2032,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             manager=desired_monitor.serving_tenants[tn1.rn],
             tag=False)
         self._observe_aci_events(current_config)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self.assertEqual(
             1,
             len(self.aim_manager.find(self.ctx, service_graph.ServiceGraph)))
@@ -2132,9 +2132,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples, tenants=None):
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(to_observe)
-        agent._daemon_loop(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         # Verify everything is fine
         for couple in couples:
             self._assert_universe_sync(couple[0], couple[1], tenants=tenants)

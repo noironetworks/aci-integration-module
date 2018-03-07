@@ -434,7 +434,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self._do_aci_mocks()
         self.backend_state = {}
         universe = aci_universe.AciUniverse().initialize(
-            self.store, aim_cfg.ConfigManager(self.ctx, 'h1'), [])
+            aim_cfg.ConfigManager(self.ctx, 'h1'), [])
         self.manager = aci_tenant.AciTenantManager(
             'tn-tenant-1', self.cfg_manager,
             aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),

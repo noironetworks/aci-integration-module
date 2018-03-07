@@ -24,8 +24,11 @@ from oslo_log import log as logging
 from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
+from aim.agent.aid.universes import errors
 from aim.api import resource
 from aim.common import utils
+from aim import context as aim_ctx
+from aim.db import api
 from aim import exceptions
 from aim import tree_manager
 
@@ -237,8 +240,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
     from the ACI REST API.
     """
 
-    def initialize(self, store, conf_mgr, multiverse):
-        super(AciUniverse, self).initialize(store, conf_mgr, multiverse)
+    def initialize(self, conf_mgr, multiverse):
+        super(AciUniverse, self).initialize(conf_mgr, multiverse)
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
         # Initialize children MOS here so that it globally fails if there's
@@ -320,7 +323,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     serving_tenants[added] = aci_tenant.AciTenantManager(
                         added, self.conf_manager, self.aci_session,
                         self.ws_context, self.creation_succeeded,
-                        self.creation_failed, self.aim_system_id,
+                        self.tenant_creation_failed, self.aim_system_id,
                         self.get_resources)
                     # A subscription might be leaking here
                     serving_tenants[added]._unsubscribe_tenant()
@@ -331,6 +334,13 @@ class AciUniverse(base.HashTreeStoredUniverse):
             # Rollback served tenants
             serving_tenants = serving_tenant_copy
             raise e
+
+    def tenant_creation_failed(self, aim_object, reason='unknown',
+                               error=errors.UNKNOWN):
+        # New context, sessions are not thread safe.
+        store = api.get_store()
+        context = aim_ctx.AimContext(store=store)
+        self.creation_failed(context, aim_object, reason=reason, error=error)
 
     def observe(self):
         # Copy state accumulated so far

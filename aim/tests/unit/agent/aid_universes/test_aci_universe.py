@@ -37,7 +37,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.backend_state = {}
         self.universe = (universe_klass or
                          aci_universe.AciUniverse)().initialize(
-            self.store, aim_cfg.ConfigManager(self.ctx, 'h1'), [])
+            aim_cfg.ConfigManager(self.ctx, 'h1'), [])
         self.universe.get_relevant_state_for_read = mock.Mock(
             return_value=[self.backend_state])
         # Mock ACI tenant manager
@@ -330,18 +330,18 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         # Set max_retry to infinity, we don't care about failing the object
         self.universe.max_create_retry = float('inf')
         # Fail first operation
-        self.universe.creation_failed(aim_object)
+        self.universe.creation_failed(self.universe.context, aim_object)
         self.assertEqual((1, mock.ANY), self.universe.failure_log[aim_id])
         # If the cooldown is high enough, the object will not increase in retry
         # value as it keeps failing
         self.universe.retry_cooldown = float('inf')
         for x in range(10):
-            self.universe.creation_failed(aim_object)
+            self.universe.creation_failed(self.universe.context, aim_object)
         self.assertEqual((1, mock.ANY), self.universe.failure_log[aim_id])
         # If the cooldown is low enough, we will see an increase in tentatives
         self.universe.retry_cooldown = -1
         for x in range(10):
-            self.universe.creation_failed(aim_object)
+            self.universe.creation_failed(self.universe.context, aim_object)
         self.assertEqual((11, mock.ANY), self.universe.failure_log[aim_id])
 
         self.universe.retry_cooldown = curr_cooldown
@@ -434,7 +434,7 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
 
     def test_shared_served_tenants(self):
         operational = aci_universe.AciOperationalUniverse().initialize(
-            self.ctx, aim_cfg.ConfigManager(self.ctx, ''), [])
+            aim_cfg.ConfigManager(self.ctx, ''), [])
         tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(tenant_list)
         self.assertIs(self.universe.serving_tenants,

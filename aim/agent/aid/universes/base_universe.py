@@ -27,6 +27,7 @@ from aim import aim_manager
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import context
+from aim.db import api
 from aim import tree_manager
 
 
@@ -38,16 +39,6 @@ OPER_UNIVERSE = 1
 MONITOR_UNIVERSE = 2
 ACTION_RESET = 'reset'
 ACTION_PURGE = 'purge'
-
-
-def fix_session_if_needed(func):
-    def wrap(inst, *args, **kwargs):
-        try:
-            return func(inst, *args, **kwargs)
-        except Exception as e:
-            inst.context.store.fix_session(e)
-            raise e
-    return wrap
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -65,7 +56,7 @@ class BaseUniverse(object):
     """
 
     @abc.abstractmethod
-    def initialize(self, store, conf_mgr, multiverse):
+    def initialize(self, conf_mgr, multiverse):
         """Observer initialization method.
 
         This method will be called before any other.
@@ -281,11 +272,11 @@ class AimUniverse(BaseUniverse):
 class HashTreeStoredUniverse(AimUniverse):
     """Universe storing state in the form of a Hash Tree."""
 
-    def initialize(self, store, conf_mgr, multiverse):
-        super(HashTreeStoredUniverse, self).initialize(
-            store, conf_mgr, multiverse)
+    def initialize(self, conf_mgr, multiverse):
+        super(HashTreeStoredUniverse, self).initialize(conf_mgr, multiverse)
         self.multiverse = multiverse
-        self.context = context.AimContext(store=store)
+        self.store = api.get_store()
+        self.context = context.AimContext(store=self.store)
         self.manager = aim_manager.AimManager()
         self.conf_manager = conf_mgr
         self._state = {}
@@ -393,10 +384,12 @@ class HashTreeStoredUniverse(AimUniverse):
             if res.root not in reset:
                 if action == CREATE:
                     self.creation_failed(
+                        self.context,
                         res, reason='Divergence detected on this object.',
                         error=errors.OPERATION_CRITICAL)
                 if action == DELETE:
                     self.deletion_failed(
+                        self.context,
                         res, reason='Divergence detected on this object.',
                         error=errors.OPERATION_CRITICAL)
                 stop_sync.add(res.root)
@@ -544,21 +537,22 @@ class HashTreeStoredUniverse(AimUniverse):
         aim_id = self._get_aim_object_identifier(aim_object)
         self.failure_log.pop(aim_id, None)
 
-    def creation_failed(self, aim_object, reason='unknown',
+    def creation_failed(self, context, aim_object, reason='unknown',
                         error=errors.UNKNOWN):
-        self._fail_aim_synchronization(aim_object, 'creation', reason, error)
+        self._fail_aim_synchronization(context, aim_object, 'creation', reason,
+                                       error)
 
-    def deletion_failed(self, aim_object, reason='unknown',
+    def deletion_failed(self, context, aim_object, reason='unknown',
                         error=errors.UNKNOWN):
-        self._fail_aim_synchronization(aim_object, 'deletion', reason, error)
+        self._fail_aim_synchronization(context, aim_object, 'deletion', reason,
+                                       error)
 
-    def _fail_aim_synchronization(self, aim_object, operation, reason,
+    def _fail_aim_synchronization(self, context, aim_object, operation, reason,
                                   error):
         return self.error_handlers.get(error, self._noop)(
-            aim_object, operation, reason)
+            context, aim_object, operation, reason)
 
-    @fix_session_if_needed
-    def _retry_until_max(self, aim_object, operation, reason):
+    def _retry_until_max(self, context, aim_object, operation, reason):
         aim_id = self._get_aim_object_identifier(aim_object)
         failures, last = self.failure_log.get(aim_id, (0, None))
         curr_time = time.time()
@@ -569,18 +563,17 @@ class HashTreeStoredUniverse(AimUniverse):
                          "setting its state to Error" %
                          (aim_id, operation, self.max_create_retry, self.name))
                 # Surrender
-                self.manager.set_resource_sync_error(self.context, aim_object,
+                self.manager.set_resource_sync_error(context, aim_object,
                                                      message=reason)
                 self.failure_log.pop(aim_id, None)
 
-    @fix_session_if_needed
-    def _surrender_operation(self, aim_object, operation, reason):
+    def _surrender_operation(self, context, aim_object, operation, reason):
         aim_id = self._get_aim_object_identifier(aim_object)
-        self.manager.set_resource_sync_error(self.context, aim_object,
+        self.manager.set_resource_sync_error(context, aim_object,
                                              message=reason)
         self.failure_log.pop(aim_id, None)
 
-    def _fail_agent(self, aim_object, operation, reason):
+    def _fail_agent(self, context, aim_object, operation, reason):
         utils.perform_harakiri(LOG, message=reason)
 
     def _get_aim_object_identifier(self, aim_object):
