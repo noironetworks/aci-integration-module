@@ -22,6 +22,7 @@ Tests for `utils` module.
 
 import mock
 
+from aim.api import resource
 from aim.common import utils as internal_utils
 from aim.tests import base
 from aim import utils
@@ -103,3 +104,38 @@ class TestUtils(base.TestAimDBBase):
         self.assertTrue('test' in internal_utils.all_locks)
         self.assertTrue('test2' in internal_utils.all_locks)
         self.assertEqual(2, len(internal_utils.all_locks))
+
+    @base.requires(['sql'])
+    def test_get_epg_by_host_names(self):
+        epg1 = self.mgr.create(self.ctx, resource.EndpointGroup(
+            tenant_name='t1', app_profile_name='ap', name='epg1',
+            static_paths=[{'path': 'h1/path/2', 'host': 'h1', 'encap': '100'},
+                          {'path': 'not_known', 'encap': '100'}],
+            consumed_contract_names=['test1', 'test2']))
+        epg2 = self.mgr.create(self.ctx, resource.EndpointGroup(
+            tenant_name='t1', app_profile_name='ap', name='epg2',
+            static_paths=[{'path': 'h1/path/2', 'host': 'h1',
+                           'encap': '100'},
+                          {'path': 'h2/path/VPC', 'host': 'h2',
+                           'encap': '100'}],
+            vmm_domains=[{'type': 'OpenStack', 'name': '1'}]))
+        epg3 = self.mgr.create(self.ctx, resource.EndpointGroup(
+            tenant_name='t1', app_profile_name='ap', name='epg3',
+            static_paths=[{'path': 'h3/path/2', 'host': 'h3',
+                           'encap': '100'},
+                          {'path': 'h2/path/2', 'host': 'h2',
+                           'encap': '100'}]))
+        by_h1 = utils.get_epg_by_host_names(self.ctx, ['h1'])
+        self.assertEqual(sorted([epg1, epg2], key=lambda x: x.name),
+                         sorted(by_h1, key=lambda x: x.name))
+        by_h2 = utils.get_epg_by_host_names(self.ctx, ['h2'])
+        self.assertEqual(sorted([epg2, epg3], key=lambda x: x.name),
+                         sorted(by_h2, key=lambda x: x.name))
+        by_h3 = utils.get_epg_by_host_names(self.ctx, ['h3'])
+        self.assertEqual(sorted([epg3], key=lambda x: x.name),
+                         sorted(by_h3, key=lambda x: x.name))
+        by_h1_h3 = utils.get_epg_by_host_names(self.ctx, ['h3', 'h1'])
+        self.assertEqual(sorted([epg1, epg2, epg3], key=lambda x: x.name),
+                         sorted(by_h1_h3, key=lambda x: x.name))
+        by_ = utils.get_epg_by_host_names(self.ctx, [])
+        self.assertEqual([], by_)
