@@ -1,0 +1,76 @@
+# Copyright (c) 2018 Cisco Systems
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
+import sqlalchemy as sa
+from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy import update
+
+
+HostLink = sa.Table(
+    'aim_host_links', sa.MetaData(),
+    sa.Column('host_name', sa.String(128), primary_key=True),
+    sa.Column('interface_name', sa.String(32), primary_key=True),
+    sa.Column('interface_mac', sa.String(24)),
+    sa.Column('switch_id', sa.String(128)),
+    sa.Column('module', sa.String(128)),
+    sa.Column('port', sa.String(128)),
+    sa.Column('path', VARCHAR(512, charset='latin1')),
+    sa.Column('pod_id', sa.String(128)),
+    sa.Column('from_config', sa.Boolean, default=False)
+)
+
+
+EndpointGroupStaticPath = sa.Table(
+    'aim_endpoint_group_static_paths', sa.MetaData(),
+    sa.Column('path', VARCHAR(512, charset='latin1'), primary_key=True),
+    sa.Column('host', sa.String(1024), nullable=True, index=True),
+    sa.Column('encap', sa.String(24))
+)
+
+
+ConcreteDeviceInterface = sa.Table(
+    'aim_concrete_device_ifs', sa.MetaData(),
+    sa.Column('path', sa.String(512)),
+    sa.Column('host', sa.String(1024), nullable=True, index=True),
+    sa.Column('device_cluster_name', sa.String(64), nullable=False),
+    sa.Column('device_name', sa.String(64), nullable=False),
+    sa.Column('name', sa.String(64), nullable=False),
+    sa.Column('tenant_name', sa.String(64), nullable=False),
+    sa.Column('display_name', sa.String(64), nullable=False),
+    sa.Column('aim_id', sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column('monitored', sa.Boolean, default=False)
+)
+
+DeviceClusterDevice = sa.Table(
+    'aim_device_cluster_devices', sa.MetaData(),
+    sa.Column('name', sa.String(64), nullable=False),
+    sa.Column('path', VARCHAR(512, charset='latin1'), primary_key=True),
+    sa.Column('host', sa.String(1024), nullable=True, index=True),
+)
+
+
+def migrate(session):
+    with session.begin(subtransactions=True):
+        host_links = session.query(HostLink).all()
+        for hlink in host_links:
+            session.execute(update(EndpointGroupStaticPath).where(
+                EndpointGroupStaticPath.c.path == hlink.path).values(
+                host=hlink.host_name))
+            session.execute(update(ConcreteDeviceInterface).where(
+                ConcreteDeviceInterface.c.path == hlink.path).values(
+                host=hlink.host_name))
+            session.execute(update(DeviceClusterDevice).where(
+                DeviceClusterDevice.c.path == hlink.path).values(
+                host=hlink.host_name))

@@ -241,6 +241,7 @@ class EndpointGroupStaticPath(model_base.Base):
     # Use VARCHAR with ASCII encoding to work-around MySQL limitations
     # on the length of primary keys
     path = sa.Column(VARCHAR(512, charset='latin1'), primary_key=True)
+    host = sa.Column(sa.String(1024), nullable=True, index=True)
     encap = sa.Column(sa.String(24))
 
 
@@ -340,7 +341,8 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
             for p in (res_attr.pop('static_paths', []) or []):
                 if p.get('path') and p.get('encap'):
                     static_paths.append(EndpointGroupStaticPath(
-                        path=p['path'], encap=p['encap']))
+                        path=p['path'], encap=p['encap'],
+                        host=p.get('host', '')))
             self.static_paths = static_paths
 
         if 'epg_contract_masters' in res_attr:
@@ -371,8 +373,10 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
             res_attr.setdefault('physical_domain_names', []).append(
                 d.physdom_name)
         for p in res_attr.pop('static_paths', []):
-            res_attr.setdefault('static_paths', []).append(
-                {'path': p.path, 'encap': p.encap})
+            static_path = {'path': p.path, 'encap': p.encap}
+            if p.host:
+                static_path['host'] = p.host
+            res_attr.setdefault('static_paths', []).append(static_path)
         for p in res_attr.pop('epg_contract_masters', []):
             res_attr.setdefault('epg_contract_masters', []).append(
                 {'app_profile_name': p.app_profile_name, 'name': p.name})

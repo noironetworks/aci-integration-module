@@ -37,7 +37,8 @@ class DeviceCluster(resource.AciResourceBase):
         ('vmm_domain_name', t.name),
         ('encap', t.string(24)),
         ('devices', t.list_of_dicts(('name', t.name),
-                                    ('path', t.string(512)))),
+                                    ('path', t.string(512)),
+                                    ('host', t.string(512)))),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vnsLDevVip'
@@ -122,6 +123,7 @@ class ConcreteDeviceInterface(resource.AciResourceBase):
     other_attributes = t.other(
         ('display_name', t.name),
         ('path', t.string()),
+        ('host', t.string()),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vnsCIf'
@@ -131,6 +133,7 @@ class ConcreteDeviceInterface(resource.AciResourceBase):
         super(ConcreteDeviceInterface, self).__init__(
             {'display_name': '',
              'path': '',
+             'host': '',
              'monitored': False},
             **kwargs)
 
