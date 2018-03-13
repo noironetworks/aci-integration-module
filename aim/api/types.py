@@ -139,7 +139,8 @@ mac_address = {
 static_path = {
     "type": "object",
     "properties": {"encap": {"type": "string"},
-                   "path": {"type": "string"}}}
+                   "path": {"type": "string"},
+                   "host": {"type": "string"}}}
 list_of_static_paths = {"type": "array", "items": static_path}
 ip_cidr_obj = {
     "type": "object",

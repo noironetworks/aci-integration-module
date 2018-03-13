@@ -1225,9 +1225,10 @@ class TestAciToAimConverterConcreteDeviceInterface(
     resource_type = aim_service_graph.ConcreteDeviceInterface
     reverse_map_output = [
         {'resource': 'vnsCIf',
-         'skip': ['path'],
+         'skip': ['path', 'host'],
          'exceptions': {}},
         {'resource': 'vnsRsCIfPathAtt',
+         'skip': ['host'],
          'exceptions': {'path': {'other': 'tDn'}},
          'to_resource': converter.default_to_resource_strict}]
     sample_input = [[_aci_obj('vnsCIf',

@@ -652,7 +652,8 @@ class TestEndpointGroupMixin(object):
                                                  {'path': 'topology/pod-1/'
                                                           'paths-102/pathep-'
                                                           '[eth1/5]',
-                                                  'encap': 'vlan-5'}],
+                                                  'encap': 'vlan-5',
+                                                  'host': 'h1'}],
                                 'physical_domains': [{'name': 'phys'}],
                                 'epg_contract_masters': [
                                     {'app_profile_name': 'masterap1',
@@ -669,7 +670,8 @@ class TestEndpointGroupMixin(object):
                               'static_paths': [{'path': ('topology/pod-1/'
                                                          'paths-101/pathep-'
                                                          '[eth1/2]'),
-                                                'encap': 'vlan-22'}],
+                                                'encap': 'vlan-22',
+                                                'host': 'h2'}],
                               'epg_contract_masters': [
                                   {'app_profile_name': 'masterap1',
                                    'name': 'masterepg1'}]}
@@ -1232,7 +1234,8 @@ class TestDeviceClusterMixin(object):
                                 'physical_domain_name': 'physdom',
                                 'encap': 'vlan-44',
                                 'devices': [{'name': '1', 'path': 'a'},
-                                            {'name': '2', 'path': 'b'}]}
+                                            {'name': '2', 'path': 'b',
+                                             'host': 'c'}]}
     test_search_attributes = {'device_type': 'VIRTUAL'}
     test_update_attributes = {'devices': [],
                               'physical_domain_name': 'virt',
@@ -1308,9 +1311,9 @@ class TestConcreteDeviceInterfaceMixin(object):
                                 'device_cluster_name': 'cl1',
                                 'device_name': 'cdev1',
                                 'name': 'if1',
-                                'path': 'abc'}
+                                'path': 'abc', 'host': 'h1'}
     test_search_attributes = {'device_name': 'cdev1'}
-    test_update_attributes = {'path': 'pqr'}
+    test_update_attributes = {'path': 'pqr', 'host': 'h2'}
     test_default_values = {'path': ''}
     test_dn = 'uni/tn-tenant1/lDevVip-cl1/cDev-cdev1/cIf-[if1]'
     res_command = 'concrete-device-interface'

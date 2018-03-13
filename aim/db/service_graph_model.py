@@ -30,6 +30,7 @@ class DeviceClusterDevice(model_base.Base):
                           primary_key=True)
     name = model_base.name_column(primary_key=True)
     path = sa.Column(sa.String(512))
+    host = sa.Column(sa.String(1024), nullable=True, index=True)
 
 
 class DeviceCluster(model_base.Base, model_base.HasAimId,
@@ -61,7 +62,8 @@ class DeviceCluster(model_base.Base, model_base.HasAimId,
             devs = []
             for d in (res_attr.pop('devices', []) or []):
                 devs.append(DeviceClusterDevice(name=d['name'],
-                                                path=d.get('path', None)))
+                                                path=d.get('path', None),
+                                                host=d.get('host', None)))
             self.devices = devs
         # map remaining attributes to model
         super(DeviceCluster, self).from_attr(session, res_attr)
@@ -72,6 +74,8 @@ class DeviceCluster(model_base.Base, model_base.HasAimId,
             d = {'name': f.name}
             if f.path is not None:
                 d['path'] = f.path
+            if f.host is not None:
+                d['host'] = f.host
             res_attr.setdefault('devices', []).append(d)
         return res_attr
 
@@ -157,6 +161,7 @@ class ConcreteDeviceInterface(model_base.Base, model_base.HasAimId,
     device_cluster_name = model_base.name_column(nullable=False)
     device_name = model_base.name_column(nullable=False)
     path = sa.Column(sa.String(512))
+    host = sa.Column(sa.String(1024), nullable=True, index=True)
 
 
 class ServiceGraphConnectionConnector(model_base.Base):

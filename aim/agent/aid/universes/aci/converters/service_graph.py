@@ -247,12 +247,13 @@ resource_map = {
     }],
     'vnsCIf': [{
         'resource': service_graph.ConcreteDeviceInterface,
-        'skip': ['path'],
+        'skip': ['path', 'host'],
         'alt_resource': service_graph.DeviceCluster
     }],
     'vnsRsCIfPathAtt': [{
         'resource': service_graph.ConcreteDeviceInterface,
         'exceptions': {'tDn': {'other': 'path'}},
+        'skip': ['host'],
         'to_resource': utils.default_to_resource_strict,
         'alt_resource': service_graph.DeviceCluster
     }],
