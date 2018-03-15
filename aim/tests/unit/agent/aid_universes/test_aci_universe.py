@@ -311,15 +311,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.ws_context.monitor_sleep_time = 0
         t = mock.Mock()
         t.isAlive = mock.Mock(return_value=False)
+        self.universe.ws_context.subs_thread = t
         with mock.patch.object(utils, 'perform_harakiri') as harakiri:
-            self.universe.ws_context._thread_monitor(t, 'test',
-                                                     {'monitor_runs': 4})
+            self.universe.ws_context._thread_monitor({'monitor_runs': 4})
             self.assertEqual(4, t.isAlive.call_count)
             harakiri.assert_called_once_with(mock.ANY, mock.ANY)
             harakiri.reset_mock()
             t.isAlive = mock.Mock(return_value=True)
-            self.universe.ws_context._thread_monitor(t, 'test',
-                                                     {'monitor_runs': 4})
+            self.universe.ws_context._thread_monitor({'monitor_runs': 4})
             self.assertEqual(0, harakiri.call_count)
 
     def test_creation_failed_cooldown(self):
