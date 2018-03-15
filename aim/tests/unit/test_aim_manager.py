@@ -101,6 +101,7 @@ class TestAimManager(base.TestAimDBBase):
 class TestResourceOpsBase(object):
     test_dn = None
     prereq_objects = None
+    test_epoch = True
 
     def setUp(self):
         super(TestResourceOpsBase, self).setUp()
@@ -171,11 +172,15 @@ class TestResourceOpsBase(object):
                 'guid' in resource.db_attributes):
             self.assertTrue(bool(r1.guid))
 
+        old_epoch = res.epoch
         # Verify overwrite
         for k, v in test_search_attributes.iteritems():
             setattr(res, k, v)
         if not getattr(self, 'skip_overwrite', False):
             r2 = self.mgr.create(self.ctx, res, overwrite=True)
+            if self.test_epoch:
+                self.assertNotEqual(old_epoch, r2.epoch)
+            old_epoch = r2.epoch
             for k, v in test_search_attributes.iteritems():
                 self.assertEqual(v, getattr_canonical(r2, k))
 
@@ -195,10 +200,13 @@ class TestResourceOpsBase(object):
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
         for k, v in test_update_attributes.iteritems():
             self.assertEqual(v, getattr_canonical(r3, k))
+        if self.test_epoch:
+            self.assertNotEqual(old_epoch, r3.epoch)
         # check other attributes are unaffected
         for attr in r1.attributes():
             if attr not in (test_update_attributes.keys() +
-                            res.db_attributes.keys()):
+                            res.db_attributes.keys() +
+                            res.common_db_attributes.keys()):
                 self.assertEqual(getattr_canonical(r1, attr),
                                  getattr_canonical(r3, attr))
 
@@ -255,7 +263,8 @@ class TestResourceOpsBase(object):
         """
         listener = mock.Mock()
         listener.__name__ = 'mock-listener'
-        self.ctx.store.register_update_listener('mock-listener', listener)
+        self.ctx.store.register_before_session_flush_callback(
+            'mock-listener', listener)
 
         creation_attributes = {}
         creation_attributes.update(test_required_attributes),
@@ -1960,6 +1969,36 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
         self.assertEqual([],
                          getattr_canonical(r2, 'vmm_domains'))
 
+    @base.requires(['sql'])
+    def test_list_attributes_epoch(self):
+        res = resource.EndpointGroup(**self.test_required_attributes)
+        epg = self.mgr.create(self.ctx, res)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              provided_contract_names=['rev_test'])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              consumed_contract_names=['rev_test'])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              vmm_domains=[{'type': 'test',
+                                            'name': 'version'}])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              vmm_domains=[{'type': 'test',
+                                            'name': 'version'}])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              physical_domains=[{'name': 'pdom'}])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg, static_paths=[])
+        self.assertNotEqual(old_epoch, epg.epoch)
+
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
     pass
@@ -2197,7 +2236,7 @@ class TestPod(TestPodMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
 class TestTopology(TestTopologyMixin, TestResourceOpsBase,
                    base.TestAimDBBase):
-    pass
+    test_epoch = False
 
 
 class TestVMMController(TestVMMControllerMixin, TestAciResourceOpsBase,

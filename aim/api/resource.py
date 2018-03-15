@@ -46,8 +46,10 @@ class ResourceBase(object):
     """
 
     db_attributes = t.db()
+    common_db_attributes = t.db(('epoch', t.epoch))
 
     def __init__(self, defaults, **kwargs):
+        self._set_common_attributes_default(defaults)
         unset_attr = [k for k in self.identity_attributes
                       if kwargs.get(k) is None and k not in defaults]
         if 'display_name' in self.other_attributes:
@@ -61,6 +63,9 @@ class ResourceBase(object):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
+    def _set_common_attributes_default(self, defaults):
+        defaults.setdefault('epoch', 0)
+
     @property
     def identity(self):
         return [str(getattr(self, x)) for x in self.identity_attributes.keys()]
@@ -68,7 +73,15 @@ class ResourceBase(object):
     @classmethod
     def attributes(cls):
         return (cls.identity_attributes.keys() + cls.other_attributes.keys() +
-                cls.db_attributes.keys())
+                cls.db_attributes.keys() + cls.common_db_attributes.keys())
+
+    @classmethod
+    def user_attributes(cls):
+        return cls.identity_attributes.keys() + cls.other_attributes.keys()
+
+    @classmethod
+    def non_user_attributes(cls):
+        return cls.db_attributes.keys() + cls.common_db_attributes.keys()
 
     @property
     def members(self):

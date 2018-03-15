@@ -1429,6 +1429,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, tn2)
         self._first_serve(agent)
         original_max_value = hashtree_db_listener.MAX_EVENTS_PER_ROOT
+        self.ctx.store._after_transaction_end_2_called = True
         try:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = 0
             for tenant in [tenant_name, tenant_name2]:
@@ -1458,6 +1459,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 self.assertFalse(base_tree.needs_reset)
         finally:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
+            self.ctx.store._after_transaction_end_2_called = False
 
     def test_divergence_reset(self):
         agent = self._create_agent()
@@ -1680,7 +1682,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # push config
         self._observe_aci_events(current_config)
         # Will be out of sync until VRF goes in error state
-        for _ in range(2):
+        for _ in range(3):
             self._observe_aci_events(current_config)
             agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)

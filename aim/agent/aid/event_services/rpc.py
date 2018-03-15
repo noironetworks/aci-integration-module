@@ -18,6 +18,7 @@ import traceback
 from oslo_log import log as logging
 import oslo_messaging
 
+from aim.api import tree
 from aim import config as aim_cfg
 
 
@@ -66,9 +67,14 @@ class AIDEventRpcApi(object):
             return cctxt.cast(context, method, fanout=True)
 
     def tree_creation_postcommit(self, session, added, updated, deleted):
-        if added or deleted:
+        should_serve = any(isinstance(x, tree.TypeTreeBase)
+                           for x in added + deleted)
+        should_reconcile = any(isinstance(x, (tree.TypeTreeBase,
+                                              tree.ActionLog))
+                               for x in added + updated)
+        if should_serve:
             self.serve({})
-        elif updated:
+        elif should_reconcile:
             # Serve implies a reconcile
             self.reconcile({})
 

@@ -47,7 +47,7 @@ class TestNatStrategyBase(object):
             return sorted(obj) if isinstance(obj, list) else obj
 
         self.assertEqual(type(lhs), type(rhs))
-        for attr in lhs.attributes():
+        for attr in lhs.user_attributes():
             self.assertEqual(sort_if_list(getattr(lhs, attr, None)),
                              sort_if_list(getattr(rhs, attr, None)),
                              'Attribute %s of %s' % (attr, lhs))

@@ -14,12 +14,9 @@
 #    under the License.
 
 import copy
-import traceback
 
 from oslo_log import log as logging
-from sqlalchemy import event as sa_event
 
-from aim.agent.aid.event_services import rpc
 from aim.agent.aid.universes.aci import converter
 from aim.api import status as aim_status
 from aim.api import tree as tree_res
@@ -45,18 +42,12 @@ class TreeManager(object):
     def __init__(self, tree_klass, root_rn_funct=None,
                  root_key_funct=None):
         self.tree_klass = tree_klass
-        self.root_rn_funct = (root_rn_funct or
-                              self._default_root_rn_funct)
-        self.root_key_funct = (root_key_funct or
-                               self._default_root_key_funct)
-        self._after_commit_listeners = []
-        self.register_update_listener(
-            rpc.AIDEventRpcApi().tree_creation_postcommit)
+        self.root_rn_funct = root_rn_funct or self._default_root_rn_funct
+        self.root_key_funct = root_key_funct or self._default_root_key_funct
 
     @utils.log
     def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
         trees = {self.root_rn_funct(x): x for x in hash_trees}
-        self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
             db_objs = self._find_query(context, tree, lock_update=True,
                                        in_={'root_rn': trees.keys()})
@@ -93,7 +84,6 @@ class TreeManager(object):
 
     @utils.log
     def delete_bulk(self, context, hash_trees):
-        self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
             root_rns = [self.root_rn_funct(x) for x in hash_trees]
             for type in SUPPORTED_TREES + [ROOT_TREE]:
@@ -104,7 +94,6 @@ class TreeManager(object):
 
     @utils.log
     def delete_all(self, context):
-        self._add_commit_hook(context)
         with context.store.begin(subtransactions=True):
             for type in SUPPORTED_TREES + [ROOT_TREE]:
                 db_objs = self._find_query(context, type, lock_update=True)
@@ -119,7 +108,6 @@ class TreeManager(object):
 
     @utils.log
     def delete_by_root_rn(self, context, root_rn, if_empty=False):
-        self._add_commit_hook(context)
         try:
             with context.store.begin(subtransactions=True):
                 self._delete_if_exist(context, ROOT_TREE, root_rn)
@@ -212,31 +200,6 @@ class TreeManager(object):
         else:
             return []
 
-    def register_update_listener(self, func):
-        """Register callback for update to AIM tree objects.
-
-        Parameter 'func' should be a function that accepts 4 parameters.
-        The first parameter is SQLAlchemy ORM session in which AIM objects
-        are being updated. Rest of the parameters are lists of AIM root rns
-        that were added, updated and deleted respectively.
-        The callback will be invoked before the database transaction
-        that updated the AIM object commits.
-
-        Example:
-
-        def my_listener(session, added, updated, deleted):
-            "Iterate over 'added', 'updated', 'deleted'
-
-        a_mgr = TreeManager()
-        a_mgr.register_update_listener(my_listener)
-
-        """
-        self._after_commit_listeners.append(func)
-
-    def unregister_update_listener(self, func):
-        """Remove callback for update to AIM objects."""
-        self._after_commit_listeners.remove(func)
-
     def _delete_if_exist(self, context, tree_type, root_rn, if_empty=False):
         with context.store.begin(subtransactions=True):
             obj = self._find_query(context, tree_type, root_rn=root_rn,
@@ -269,64 +232,6 @@ class TreeManager(object):
 
     def _default_root_key_funct(self, rn):
         return rn,
-
-    def _add_commit_hook(self, context):
-        # TODO(ivar): this is sqlAlchemy specific. find a cleaner way to manage
-        # tree manager's hooks.
-        if context.store.supports_hooks:
-            session = context.store.db_session
-            if not sa_event.contains(session, 'after_flush',
-                                     self._after_tree_session_flush):
-                sa_event.listen(session, 'after_flush',
-                                self._after_tree_session_flush)
-            if not sa_event.contains(session, 'after_transaction_end',
-                                     self._after_tree_transaction_end):
-                sa_event.listen(session, 'after_transaction_end',
-                                self._after_tree_transaction_end)
-
-    def _after_tree_session_flush(self, session, _):
-        # Stash tree modifications
-        added = set([x.root_rn for x in session.new
-                     if isinstance(x, tree_model.TypeTreeBase)])
-        updated = set([x.root_rn for x in session.dirty
-                       if isinstance(x, tree_model.TypeTreeBase)])
-        deleted = set([x.root_rn for x in session.deleted
-                       if isinstance(x, tree_model.TypeTreeBase)])
-        try:
-            session._aim_tree_stash
-        except AttributeError:
-            session._aim_tree_stash = {'added': set(), 'updated': set(),
-                                       'deleted': set()}
-        session._aim_tree_stash['added'] |= added
-        session._aim_tree_stash['updated'] |= updated
-        session._aim_tree_stash['deleted'] |= deleted
-
-    def _after_tree_transaction_end(self, session, transaction):
-        # Check if outermost transaction
-        try:
-            if transaction.parent is not None:
-                return
-        except AttributeError:
-            # sqlalchemy 1.0.11 and below
-            if transaction._parent is not None:
-                return
-        try:
-            added = session._aim_tree_stash['added']
-            updated = session._aim_tree_stash['updated']
-            deleted = session._aim_tree_stash['deleted']
-        except AttributeError:
-            return
-        for func in self._after_commit_listeners[:]:
-            LOG.debug("Invoking after transaction commit hook %s with "
-                      "%d add(s), %d update(s), %d delete(s)",
-                      func.__name__, len(added), len(updated), len(deleted))
-            try:
-                func(session, added, updated, deleted)
-            except Exception as ex:
-                LOG.debug(traceback.format_exc())
-                LOG.error("An error occurred during tree manager postcommit "
-                          "execution: %s" % ex.message)
-        del session._aim_tree_stash
 
 
 class AimHashTreeMaker(object):

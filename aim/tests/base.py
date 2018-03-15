@@ -33,6 +33,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim import context
 from aim.db import api
+from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import model_base
 from aim.k8s import api_v1 as k8s_api_v1
 from aim.tools.cli import shell  # noqa
@@ -169,6 +170,11 @@ def _add_commit_hook(self):
 def _after_transaction_end_2(self, session, transaction):
     try:
         try:
+            if self._after_transaction_end_2_called:
+                return
+        except AttributeError:
+            pass
+        try:
             if transaction.parent is not None:
                 return
         except AttributeError:
@@ -176,9 +182,10 @@ def _after_transaction_end_2(self, session, transaction):
                 return
         session = api.get_session(autocommit=True, expire_on_commit=True,
                                   use_slave=False)
-        store = aim_store.SqlAlchemyStore(session,
-                                          initialize_hooks=False)
-        self._hashtree_db_listener.catch_up_with_action_log(store)
+        store = aim_store.SqlAlchemyStore(session)
+        store._after_transaction_end_2_called = True
+        ht_db_l.HashTreeDbListener(
+            aim_manager.AimManager()).catch_up_with_action_log(store)
     except AttributeError:
         pass
 
