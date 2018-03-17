@@ -73,6 +73,12 @@ class ActionLog(model_base.Base, model_base.AttributeMixin):
     __table_args__ = (model_base.uniq_column(__tablename__, 'uuid') +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
+    # NOTE(ivar): Action logs are created by a hook-less store, version needs
+    # to be bumped at the DB level.
+    __mapper_args__ = {
+        "version_id_col": model_base.AttributeMixin.epoch,
+    }
+
     id = sa.Column(sa.BigInteger().with_variant(sa.Integer(), 'sqlite'),
                    primary_key=True)
     uuid = sa.Column(sa.Integer)

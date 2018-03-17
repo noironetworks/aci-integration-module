@@ -57,6 +57,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         try:
             aim_store.SqlAlchemyStore.add_commit_hook = (
                 self.old_add_commit_hook)
+            self.ctx.store.add_commit_hook()
         except AttributeError:
             pass
         self.set_override('agent_down_time', 3600, 'aim')

@@ -310,10 +310,6 @@ class SqlAlchemyStore(AimStore):
         return self.db_model_map.get(resource_klass)
 
     def add(self, db_obj):
-        try:
-            db_obj.bump_revision()
-        except AttributeError:
-            pass
         self.db_session.add(db_obj)
 
     def delete(self, db_obj):
@@ -400,6 +396,11 @@ class SqlAlchemyStore(AimStore):
         for mod_set, res_list in modified:
             for db_obj in mod_set:
                 if isinstance(db_obj, model_base.AttributeMixin):
+                    # SQL alchemy will add a where clause to the query
+                    # to perform a compare & swap operation. If some other
+                    # session concurrently updated the same object changing
+                    # che version, a StaleDataError would be raised.
+                    # http://docs.sqlalchemy.org/en/latest/orm/versioning.html
                     db_obj.bump_epoch()
                 res_cls = store.resource_map.get(type(db_obj))
                 if res_cls:

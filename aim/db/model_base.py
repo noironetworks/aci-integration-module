@@ -101,12 +101,13 @@ class AttributeMixin(object):
 
     __mapper_args__ = {
         "version_id_col": epoch,
+        "version_id_generator": False
     }
 
     def bump_epoch(self):
         if self.epoch is None:
             # this is a brand new object uncommitted so we don't bump now
-            return
+            self.epoch = 0
         self.epoch += 1
 
     def from_attr(self, session, resource_attr):

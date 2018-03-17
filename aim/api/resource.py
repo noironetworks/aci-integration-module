@@ -49,7 +49,6 @@ class ResourceBase(object):
     common_db_attributes = t.db(('epoch', t.epoch))
 
     def __init__(self, defaults, **kwargs):
-        self._set_common_attributes_default(defaults)
         unset_attr = [k for k in self.identity_attributes
                       if kwargs.get(k) is None and k not in defaults]
         if 'display_name' in self.other_attributes:
@@ -63,8 +62,10 @@ class ResourceBase(object):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
-    def _set_common_attributes_default(self, defaults):
-        defaults.setdefault('epoch', 0)
+    def __getattr__(self, item):
+        if item == 'epoch':
+            return None
+        super(ResourceBase, self).__getattr__(item)
 
     @property
     def identity(self):
@@ -239,14 +240,12 @@ class Agent(ResourceBase):
         ('admin_state_up', t.bool),
         ('description', t.string(255)),
         ('hash_trees', t.list_of_ids),
-        ('beat_count', t.number),
         ('version', t.string()))
     # Attrbutes completely managed by the DB (eg. timestamps)
     db_attributes = t.db(('heartbeat_timestamp', t.string()))
 
     def __init__(self, **kwargs):
         super(Agent, self).__init__({'admin_state_up': True,
-                                     'beat_count': 0,
                                      'id': utils.generate_uuid()}, **kwargs)
 
     def __eq__(self, other):
