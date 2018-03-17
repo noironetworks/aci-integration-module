@@ -2,6 +2,7 @@
     rotate 14
     size 10M
     maxsize 100M
+    nodateext
     missingok
     compress
     copytruncate
