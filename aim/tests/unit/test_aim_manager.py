@@ -1029,7 +1029,8 @@ class TestL3OutInterfaceMixin(object):
                               'primary_addr_a': '0.0.0.0',
                               'secondary_addr_a_list':
                                   [{'addr': '1.1.1.5/24'},
-                                   {'addr': '1.1.1.6/24'}]}
+                                   {'addr': '1.1.1.6/24'}],
+                              'host': 'h1'}
     test_default_values = {'type': 'ext-svi'}
     test_dn = ('uni/tn-tenant1/out-l3out1/lnodep-np1/lifp-if1/rspathL3OutAtt-'
                '[topology/pod-1/paths-101/pathep-[eth1/1]]')

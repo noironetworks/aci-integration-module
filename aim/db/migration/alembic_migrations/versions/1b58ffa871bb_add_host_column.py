@@ -46,6 +46,10 @@ def upgrade():
         'aim_device_cluster_devices',
         sa.Column('host', sa.String(1024), nullable=True, index=True)
     )
+    op.add_column(
+        'aim_l3out_interfaces',
+        sa.Column('host', sa.String(1024), nullable=True, index=True)
+    )
     session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
     add_host_column.migrate(session)
 
