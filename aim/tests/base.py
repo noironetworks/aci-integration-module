@@ -146,14 +146,7 @@ def _k8s_post_delete(self, deleted):
 
 
 def _add_commit_hook(self):
-    if not aim_store.sa_event.contains(self.db_session, 'before_flush',
-                                       self._before_session_commit):
-        aim_store.sa_event.listen(self.db_session, 'before_flush',
-                                  self._before_session_commit, self)
-    if not aim_store.sa_event.contains(self.db_session, 'after_flush',
-                                       self._after_session_flush):
-        aim_store.sa_event.listen(self.db_session, 'after_flush',
-                                  self._after_session_flush)
+    self.old_add_commit_hook()
     if not aim_store.sa_event.contains(
             self.db_session, 'after_transaction_end',
             self._after_transaction_end):
@@ -219,6 +212,8 @@ class TestAimDBBase(BaseTestCase):
             self.addCleanup(clear_tables)
             self.old_add_commit_hook = (
                 aim_store.SqlAlchemyStore.add_commit_hook)
+            aim_store.SqlAlchemyStore.old_add_commit_hook = (
+                self.old_add_commit_hook)
             aim_store.SqlAlchemyStore.add_commit_hook = _add_commit_hook
 
             def restore_commit_hook():

@@ -26,6 +26,7 @@ import time
 import jsonschema
 from jsonschema import exceptions as schema_exc
 import mock
+from sqlalchemy.orm import exc as sql_exc
 
 from aim import aim_manager
 from aim.api import infra
@@ -38,6 +39,7 @@ from aim.api import tree as api_tree
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import config  # noqa
+from aim.db import api
 from aim.db import hashtree_db_listener
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
@@ -485,6 +487,45 @@ class TestResourceOpsBase(object):
             klass_type = hashtree_db_listener.HashTreeDbListener(
                 self.mgr)._retrieve_class_root_type(self.resource_class)
             self.assertEqual(self.resource_root_type, klass_type)
+
+    @base.requires(['sql'])
+    def test_race(self):
+        def _test_race(res):
+            updates = []
+            for k, v in self.test_update_attributes.iteritems():
+                if isinstance(v, basestring):
+                    updates.append((k, v))
+            if len(updates) < 2:
+                # Not enough updates available to test
+                self.skipTest("Resource %s doesn't have enough string "
+                              "update attributes to test race." % res)
+            store1 = self.ctx.store
+            store1.db_session.begin()
+            db_type = store1.resource_to_db_type(res.__class__)
+            db_obj1 = store1.query(db_type, res.__class__)[0]
+            setattr(db_obj1, updates[0][0], updates[0][1])
+
+            # In the middle of store 1 transaction, store2 changes the same
+            # epg
+            store2 = api.get_store()
+            store2.db_session.begin()
+            db_type = store2.resource_to_db_type(res.__class__)
+            db_obj2 = store2.query(db_type, res.__class__)[0]
+            setattr(db_obj2, updates[1][0], updates[1][1])
+            store2.add(db_obj2)
+            store2.db_session.commit()
+
+            # Resume store 1 transaction
+            store1.add(db_obj1)
+            store1.db_session.commit()
+
+        self._create_prerequisite_objects()
+        creation_attributes = {}
+        creation_attributes.update(self.test_required_attributes),
+        creation_attributes.update(self.test_identity_attributes)
+        res = self.resource_class(**creation_attributes)
+        res = self.mgr.create(self.ctx, res)
+        self.assertRaises(sql_exc.StaleDataError, _test_race, res)
 
 
 class TestAciResourceOpsBase(TestResourceOpsBase):

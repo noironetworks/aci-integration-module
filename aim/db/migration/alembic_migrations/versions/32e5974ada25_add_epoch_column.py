@@ -59,6 +59,6 @@ TABLES = ('aim_agents', 'aim_config', 'aim_host_domain_mapping',
 def upgrade():
     for table in TABLES:
         op.add_column(table, sa.Column('epoch', sa.BigInteger(),
-                                       nullable=True))
+                                       nullable=False, server_default='0'))
     with op.batch_alter_table('aim_agents') as batch_op:
         batch_op.drop_column('beat_count')

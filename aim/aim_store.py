@@ -379,6 +379,10 @@ class SqlAlchemyStore(AimStore):
                                  self._after_session_flush):
             sa_event.listen(self.db_session, 'after_flush',
                             self._after_session_flush)
+        if not sa_event.contains(self.db_session, 'after_rollback',
+                                 self._after_session_rollback):
+            sa_event.listen(self.db_session, 'after_rollback',
+                            self._after_session_rollback)
         if not sa_event.contains(self.db_session, 'after_transaction_end',
                                  self._after_transaction_end):
             sa_event.listen(self.db_session, 'after_transaction_end',
@@ -432,6 +436,14 @@ class SqlAlchemyStore(AimStore):
         session._aim_stash['added'] |= added
         session._aim_stash['updated'] |= updated
         session._aim_stash['deleted'] |= deleted
+
+    @staticmethod
+    def _after_session_rollback(session):
+        # Unstash changes if any
+        try:
+            del session._aim_stash
+        except AttributeError:
+            pass
 
     @staticmethod
     def _after_transaction_end(session, transaction):
