@@ -805,7 +805,6 @@ class TestHashTreeManager(base.TestAimDBBase):
         agent2 = aim_manager.AimManager().update(self.ctx, agent2,
                                                  hash_trees=[])
         # Delete a tree
-        self.ctx.store.expunge_all()
         self.mgr.delete(self.ctx, data)
         if self.ctx.store.supports_foreign_keys:
             agent1 = aim_manager.AimManager().get(self.ctx, agent1)

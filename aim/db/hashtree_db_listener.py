@@ -154,8 +154,7 @@ class HashTreeDbListener(object):
             kwargs = {'order_by': ['root_rn', 'id']}
             if served_tenants:
                 kwargs['in_'] = {'root_rn': served_tenants}
-            logs = self.aim_manager.find(ctx, aim_tree.ActionLog,
-                                         for_update=True, **kwargs)
+            logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
             LOG.debug('Processing action logs: %s' % logs)
             log_by_root, resetting_roots = self._preprocess_logs(logs)
             self._cleanup_resetting_roots(ctx, log_by_root, resetting_roots)

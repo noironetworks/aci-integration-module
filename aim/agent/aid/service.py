@@ -95,7 +95,7 @@ class AID(object):
         self.agent = resource.Agent(id=self.agent_id, agent_type=AGENT_TYPE,
                                     host=self.host, binary_file=AGENT_BINARY,
                                     description=AGENT_DESCRIPTION,
-                                    version=AGENT_VERSION, beat_count=0)
+                                    version=AGENT_VERSION)
         # Register agent
         self._send_heartbeat(aim_ctx)
         # Report procedure should happen asynchronously
@@ -211,7 +211,6 @@ class AID(object):
 
     def _send_heartbeat(self, aim_ctx):
         LOG.info("Sending Heartbeat for agent %s" % self.agent_id)
-        self.agent.beat_count += 1
         self.agent = self.manager.create(aim_ctx, self.agent,
                                          overwrite=True)
 

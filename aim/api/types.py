@@ -151,3 +151,4 @@ next_hop = {
     "properties": {"addr": ip,
                    "preference": {"type": "string"}}}
 list_of_next_hop = {"type": "array", "items": next_hop}
+epoch = integer

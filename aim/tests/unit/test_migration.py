@@ -17,7 +17,12 @@ from aim import aim_manager
 from aim.api import infra
 from aim.api import resource
 from aim.api import service_graph
+from aim.api import status as aim_status
+from aim.api import tree
+from aim.common import utils
 from aim.db.migration.data_migration import add_host_column
+from aim.db.migration.data_migration import host_domain_mapping_v2
+from aim.db.migration.data_migration import status_add_tenant
 from aim.tests import base
 
 
@@ -87,8 +92,36 @@ class TestDataMigration(base.TestAimDBBase):
         self.assertEqual('h1', cdi1.host)
         cdi2 = self.mgr.get(self.ctx, cdi2)
         self.assertEqual('h2', cdi2.host)
-
         l3out_iface1 = self.mgr.get(self.ctx, l3out_iface1)
         self.assertEqual('h1', l3out_iface1.host)
         l3out_iface2 = self.mgr.get(self.ctx, l3out_iface2)
         self.assertEqual('h2', l3out_iface2.host)
+
+    def test_status_add_tenant(self):
+        for res_klass in self.mgr.aim_resources:
+            if res_klass in [aim_status.AciStatus, aim_status.AciFault,
+                             resource.Agent, infra.HostDomainMappingV2,
+                             infra.HostDomainMapping, tree.ActionLog]:
+                continue
+            res = self.mgr.create(
+                self.ctx, res_klass(
+                    **{k: utils.generate_uuid()
+                       for k in res_klass.identity_attributes.keys()}))
+            status = self.mgr.get_status(self.ctx, res)
+            if not status:
+                continue
+            status_add_tenant.migrate(self.ctx.db_session)
+            status = self.mgr.get_status(self.ctx, res)
+            self.assertEqual(res.root, status.resource_root)
+
+    def test_host_domain_mapping_v2(self):
+        hm1 = self.mgr.create(self.ctx, infra.HostDomainMapping(
+            host_name='h1', vmm_domain_name='vmm1',
+            physical_domain_name='phys1'))
+        hm2 = self.mgr.create(self.ctx, infra.HostDomainMapping(
+            host_name='h2', physical_domain_name='phys1'))
+        host_domain_mapping_v2.migrate(self.ctx.db_session)
+        self.assertIsNone(self.mgr.get(self.ctx, hm1))
+        self.assertIsNone(self.mgr.get(self.ctx, hm2))
+        new_mappings = self.mgr.find(self.ctx, infra.HostDomainMappingV2)
+        self.assertEqual(3, len(new_mappings))
