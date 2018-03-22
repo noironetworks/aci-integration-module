@@ -60,6 +60,21 @@ DeviceClusterDevice = sa.Table(
     sa.Column('host', sa.String(1024), nullable=True, index=True),
 )
 
+L3OutInterface = sa.Table(
+    'aim_l3out_interfaces', sa.MetaData(),
+    sa.Column('interface_path', VARCHAR(512, charset='latin1'),
+              nullable=False),
+    sa.Column('host', sa.String(1024), nullable=True, index=True),
+    sa.Column('l3out_name', sa.String(64), nullable=False),
+    sa.Column('node_profile_name', sa.String(64), nullable=False),
+    sa.Column('interface_profile_name', sa.String(64), nullable=False),
+    sa.Column('tenant_name', sa.String(64), nullable=False),
+    sa.Column('primary_addr_a', sa.String(64), nullable=False),
+    sa.Column('primary_addr_b', sa.String(64), nullable=False),
+    sa.Column('aim_id', sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column('monitored', sa.Boolean, default=False)
+)
+
 
 def migrate(session):
     with session.begin(subtransactions=True):
@@ -73,4 +88,7 @@ def migrate(session):
                 host=hlink.host_name))
             session.execute(update(DeviceClusterDevice).where(
                 DeviceClusterDevice.c.path == hlink.path).values(
+                host=hlink.host_name))
+            session.execute(update(L3OutInterface).where(
+                L3OutInterface.c.interface_path == hlink.path).values(
                 host=hlink.host_name))

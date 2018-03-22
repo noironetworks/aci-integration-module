@@ -61,6 +61,14 @@ class TestDataMigration(base.TestAimDBBase):
         cdi2 = self.mgr.create(self.ctx, service_graph.ConcreteDeviceInterface(
             tenant_name='t2', device_cluster_name='dc', device_name='2',
             name='dc', path='h2/path'))
+        l3out_iface1 = self.mgr.create(
+            self.ctx, resource.L3OutInterface(
+                tenant_name='t2', l3out_name='dc', node_profile_name='1',
+                interface_profile_name='dc1', interface_path='h1/path/VPC'))
+        l3out_iface2 = self.mgr.create(
+            self.ctx, resource.L3OutInterface(
+                tenant_name='t2', l3out_name='dc', node_profile_name='1',
+                interface_profile_name='dc2', interface_path='h2/path'))
         add_host_column.migrate(self.ctx.db_session)
         epg1 = self.mgr.get(self.ctx, epg1)
         self.assertEqual(sorted([{'path': 'h1/path/2', 'encap': '100',
@@ -84,6 +92,10 @@ class TestDataMigration(base.TestAimDBBase):
         self.assertEqual('h1', cdi1.host)
         cdi2 = self.mgr.get(self.ctx, cdi2)
         self.assertEqual('h2', cdi2.host)
+        l3out_iface1 = self.mgr.get(self.ctx, l3out_iface1)
+        self.assertEqual('h1', l3out_iface1.host)
+        l3out_iface2 = self.mgr.get(self.ctx, l3out_iface2)
+        self.assertEqual('h2', l3out_iface2.host)
 
     def test_status_add_tenant(self):
         for res_klass in self.mgr.aim_resources:

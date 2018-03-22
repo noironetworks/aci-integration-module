@@ -1,7 +1,10 @@
 /var/log/aim-*.log {
-    rotate 14
+    rotate 10
+    hourly
     size 10M
     maxsize 100M
+    nodateext
+    notifempty
     missingok
     compress
     copytruncate
