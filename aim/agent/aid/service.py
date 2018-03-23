@@ -114,7 +114,7 @@ class AID(object):
     def daemon_loop(self):
         aim_ctx = context.AimContext(store=api.get_store())
         # Serve tenants the very first time regardless of the events received
-        self._reconciliation_cycle(aim_ctx, True)
+        self.events.serve()
         self._daemon_loop(aim_ctx)
 
     @utils.retry_loop(DAEMON_LOOP_MAX_WAIT, DAEMON_LOOP_MAX_RETRIES, 'AID',
