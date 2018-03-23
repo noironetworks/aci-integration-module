@@ -784,27 +784,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn1.root])
         self._assert_reset_consistency()
 
-    def test_daemon_loop(self):
-        agent = self._create_agent()
-        agent._reconciliation_cycle = run_once_loop(agent)
-        # Calling the first time with a reconcile event, still calls serve=True
-        agent.events.q.put_nowait('reconcile')
-        agent.daemon_loop()
-        # Called 2 times with 2 arguments each time
-        self.assertEqual(4, len(agent._run_arguments))
-        # Served new tenants
-        self.assertTrue(agent._run_arguments[1])
-        self.assertFalse(agent._run_arguments[3])
-
-        # Call again with serve event
-        agent.run_daemon_loop = True
-        agent.events.q.put_nowait('reconcile')
-        agent.events.q.put_nowait('serve')
-        agent.daemon_loop()
-        self.assertEqual(8, len(agent._run_arguments))
-        self.assertTrue(agent._run_arguments[5])
-        self.assertTrue(agent._run_arguments[7])
-
     def test_manual_rs(self):
         agent = self._create_agent()
         tenant_name = 'test_manual_rs'
