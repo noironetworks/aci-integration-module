@@ -62,14 +62,13 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
                 keep.append(curr)
                 trees.remove(curr.tree_root_rn)
         self.hash_trees = keep
-        with session.begin(subtransactions=True):
-            for tree in trees:
-                self.tree_exists(session, tree)
-                # Check whether the current object already has an ID, use
-                # the one passed in the getter otherwise.
-                db_obj = tree_model.AgentToHashTreeAssociation(
-                    agent_id=self.id or kwargs.get('id'), tree_root_rn=tree)
-                self.hash_trees.append(db_obj)
+        for tree in trees:
+            self.tree_exists(session, tree)
+            # Check whether the current object already has an ID, use
+            # the one passed in the getter otherwise.
+            db_obj = tree_model.AgentToHashTreeAssociation(
+                agent_id=self.id or kwargs.get('id'), tree_root_rn=tree)
+            self.hash_trees.append(db_obj)
 
     def get_hash_trees(self, session):
         # Only return the trees' identifier

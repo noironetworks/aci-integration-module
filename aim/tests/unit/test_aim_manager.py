@@ -204,6 +204,8 @@ class TestResourceOpsBase(object):
             self.assertEqual(v, getattr_canonical(r3, k))
         if self.test_epoch:
             self.assertNotEqual(old_epoch, r3.epoch)
+            r3_1 = self.mgr.create(self.ctx, r3, overwrite=True)
+            self.assertEqual(r3.epoch, r3_1.epoch)
         # check other attributes are unaffected
         for attr in r1.attributes():
             if attr not in (test_update_attributes.keys() +
@@ -320,6 +322,9 @@ class TestResourceOpsBase(object):
 
         res = self.mgr.create(self.ctx, res, overwrite=True)
         status = self.mgr.get_status(self.ctx, res)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         self.assertTrue(isinstance(status, aim_status.AciStatus))
         # Sync status not available
         self.assertEqual(status.SYNC_NA, status.sync_status)
@@ -327,7 +332,13 @@ class TestResourceOpsBase(object):
         self.assertFalse(status.is_error())
         # Sync object
         self.mgr.set_resource_sync_synced(self.ctx, res)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         status = self.mgr.get_status(self.ctx, res)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         self.assertFalse(status.is_build())
 
         status.sync_message = "some message"
@@ -338,6 +349,9 @@ class TestResourceOpsBase(object):
             fault_code='412', external_identifier=res.dn,
             severity=aim_status.AciFault.SEV_CRITICAL)
         self.mgr.set_fault(self.ctx, res, fault)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         status = self.mgr.get_status(self.ctx, res)
         self.assertEqual(1, len(status.faults))
         self.assertEqual(aim_status.AciFault.SEV_CRITICAL,
@@ -2029,16 +2043,28 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
         self.assertNotEqual(old_epoch, epg.epoch)
         old_epoch = epg.epoch
         epg = self.mgr.update(self.ctx, epg,
-                              vmm_domains=[{'type': 'test',
-                                            'name': 'version'}])
-        self.assertNotEqual(old_epoch, epg.epoch)
-        old_epoch = epg.epoch
-        epg = self.mgr.update(self.ctx, epg,
                               physical_domains=[{'name': 'pdom'}])
         self.assertNotEqual(old_epoch, epg.epoch)
         old_epoch = epg.epoch
         epg = self.mgr.update(self.ctx, epg, static_paths=[])
         self.assertNotEqual(old_epoch, epg.epoch)
+
+        epg = self.mgr.update(self.ctx, epg, static_paths=[{'host': 'h1',
+                                                            'path': 'path',
+                                                            'encap': '123'},
+                                                           {'host': 'h2',
+                                                            'path': 'path2',
+                                                            'encap': '1234'}])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        # Same update
+        epg = self.mgr.update(self.ctx, epg, static_paths=[{'host': 'h2',
+                                                            'path': 'path2',
+                                                            'encap': '1234'},
+                                                           {'host': 'h1',
+                                                            'path': 'path',
+                                                            'encap': '123'}])
+        self.assertEqual(old_epoch, epg.epoch)
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):

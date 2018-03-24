@@ -154,6 +154,7 @@ class ServiceGraph(resource.AciResourceBase):
                          ('device_cluster_tenant_name', t.name))),
         ('monitored', t.bool))
 
+    sorted_attributes = ['linear_chain_nodes']
     _aci_mo_name = 'vnsAbsGraph'
     _tree_parent = resource.Tenant
 

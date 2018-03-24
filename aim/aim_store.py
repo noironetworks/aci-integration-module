@@ -383,10 +383,31 @@ class SqlAlchemyStore(AimStore):
                                  self._after_session_rollback):
             sa_event.listen(self.db_session, 'after_rollback',
                             self._after_session_rollback)
+        if not sa_event.contains(self.db_session, 'after_rollback',
+                                 self._clear_epoch_bumped_flags):
+            sa_event.listen(self.db_session, 'after_rollback',
+                            self._clear_epoch_bumped_flags)
+        if not sa_event.contains(self.db_session, 'after_commit',
+                                 self._clear_epoch_bumped_flags):
+            sa_event.listen(self.db_session, 'after_commit',
+                            self._clear_epoch_bumped_flags)
         if not sa_event.contains(self.db_session, 'after_transaction_end',
                                  self._after_transaction_end):
             sa_event.listen(self.db_session, 'after_transaction_end',
                             self._after_transaction_end)
+
+    @staticmethod
+    def _clear_epoch_bumped_flags(session):
+        for inst in session:
+            setattr(inst, '_epoch_bumped', False)
+
+    @staticmethod
+    def _bump_epoch(obj):
+        if getattr(obj, '_epoch_bumped', False):
+            # we've already bumped the revision of this object in this txn
+            return
+        obj.bump_epoch()
+        setattr(obj, '_epoch_bumped', True)
 
     @staticmethod
     def _before_session_commit(session, flush_context, instances):
@@ -405,7 +426,7 @@ class SqlAlchemyStore(AimStore):
                     # session concurrently updated the same object changing
                     # che version, a StaleDataError would be raised.
                     # http://docs.sqlalchemy.org/en/latest/orm/versioning.html
-                    db_obj.bump_epoch()
+                    SqlAlchemyStore._bump_epoch(db_obj)
                 res_cls = store.resource_map.get(type(db_obj))
                 if res_cls:
                     res = store.make_resource(res_cls, db_obj)
