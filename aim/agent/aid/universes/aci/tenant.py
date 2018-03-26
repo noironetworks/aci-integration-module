@@ -428,7 +428,12 @@ class AciTenantManager(utils.AIMThread):
                         dn_mgr = apic_client.DNManager()
                         decompose = dn_mgr.aci_decompose_dn_guess
                         try:
-                            if method == base_universe.CREATE:
+                            if method == base_universe.DELETE:
+                                for obj in to_push + tags:
+                                    attr = obj.values()[0]['attributes']
+                                    self.aci_session.DELETE(
+                                        '/mo/%s.json' % attr.pop('dn'))
+                            else:
                                 with self.aci_session.transaction(
                                         top_send=True) as trs:
                                     for obj in to_push + tags:
@@ -439,14 +444,8 @@ class AciTenantManager(utils.AIMThread):
                                         getattr(getattr(self.aci_session, mo),
                                                 method)(*rns, transaction=trs,
                                                         **attr)
-                            else:
-                                for obj in to_push + tags:
-                                    attr = obj.values()[0]['attributes']
-                                    self.aci_session.DELETE(
-                                        '/mo/%s.json' % attr.pop('dn'))
-                            # Object creation was successful, change object
-                            # state
-                            if method == base_universe.CREATE:
+                                # Object creation was successful, change object
+                                # state
                                 self.creation_succeeded(aim_object)
                         except Exception as e:
                             LOG.debug(traceback.format_exc())
