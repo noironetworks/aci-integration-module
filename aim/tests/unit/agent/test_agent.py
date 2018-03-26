@@ -309,14 +309,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create 2 tenants by initiating their objects
         tn1 = resource.Tenant(name=tenant_name1)
         tn2 = resource.Tenant(name=tenant_name2)
-        self.aim_manager.create(self.ctx, tn1)
+        tn = self.aim_manager.create(self.ctx, tn1)
         self.aim_manager.create(self.ctx, tn2)
 
         bd1_tn1 = resource.BridgeDomain(tenant_name=tenant_name1, name='bd1',
                                         vrf_name='vrf1')
         bd1_tn2 = resource.BridgeDomain(tenant_name=tenant_name2, name='bd1',
                                         vrf_name='vrf2', display_name='nice')
-        self.aim_manager.create(self.ctx, bd1_tn2)
+        bd = self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
         self.aim_manager.get_status(self.ctx, bd1_tn1)
         self.aim_manager.get_status(self.ctx, bd1_tn2)
@@ -357,6 +357,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Now, the two trees are in sync
         agent._reconciliation_cycle(self.ctx)
+        tn_after = self.aim_manager.get(self.ctx, tn)
+        bd_after = self.aim_manager.get(self.ctx, bd)
+        self.assertEqual(tn_after.epoch, tn.epoch)
+        self.assertEqual(bd_after.epoch, bd.epoch)
         self._assert_universe_sync(agent.desired_universe,
                                    agent.current_universe,
                                    tenants=[tn1.root, tn2.root])

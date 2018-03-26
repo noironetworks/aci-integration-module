@@ -97,7 +97,7 @@ class AID(object):
                                     description=AGENT_DESCRIPTION,
                                     version=AGENT_VERSION)
         # Register agent
-        self._send_heartbeat(aim_ctx)
+        self.agent = self.manager.create(aim_ctx, self.agent, overwrite=True)
         # Report procedure should happen asynchronously
         self.polling_interval = self.conf_manager.get_option_and_subscribe(
             self._change_polling_interval, 'agent_polling_interval',
@@ -211,8 +211,7 @@ class AID(object):
 
     def _send_heartbeat(self, aim_ctx):
         LOG.info("Sending Heartbeat for agent %s" % self.agent_id)
-        self.agent = self.manager.create(aim_ctx, self.agent,
-                                         overwrite=True)
+        self.agent = self.manager.update(aim_ctx, self.agent)
 
     def _calculate_tenants(self, aim_ctx):
         # REVISIT(ivar): should we lock the Agent table?

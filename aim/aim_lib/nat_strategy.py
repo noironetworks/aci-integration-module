@@ -594,10 +594,10 @@ class NoNatStrategy(NatStrategyMixin):
             self._set_bd_l3out(ctx, l3out, vrf, exclude_bd=nat_bd)
 
             contract = self._get_nat_contract(ctx, l3out)
-            prov = set(external_network.provided_contract_names +
-                       [contract.name])
-            cons = set(external_network.consumed_contract_names +
-                       [contract.name])
+            prov = list(set(external_network.provided_contract_names +
+                            [contract.name]))
+            cons = list(set(external_network.consumed_contract_names +
+                            [contract.name]))
             self.mgr.update(ctx, external_network,
                             provided_contract_names=prov,
                             consumed_contract_names=cons)

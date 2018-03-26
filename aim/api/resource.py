@@ -14,9 +14,9 @@
 #    under the License.
 
 import base64
-import collections
 import datetime
 from hashlib import md5
+import json
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -47,6 +47,7 @@ class ResourceBase(object):
 
     db_attributes = t.db()
     common_db_attributes = t.db(('epoch', t.epoch))
+    sorted_attributes = []
 
     def __init__(self, defaults, **kwargs):
         unset_attr = [k for k in self.identity_attributes
@@ -91,11 +92,35 @@ class ResourceBase(object):
 
     @property
     def hash(self):
-        parts = collections.OrderedDict()
-        parts.update(self.members)
+        def make_serializable(key, attr):
+            if isinstance(attr, list) and key not in self.sorted_attributes:
+                return sorted(make_serializable(None, x) for x in attr)
+            if isinstance(attr, dict):
+                return sorted([(k, make_serializable(k, v))
+                               for k, v in attr.iteritems()])
+            if isinstance(attr, set):
+                return sorted([(make_serializable(None, x) for x in attr)])
+            if isinstance(attr, (int, float, bool, type(None))):
+                return attr
+            # Don't know the type, make it serializable anyways
+            return str(attr)
+        serializable = make_serializable(None, self.members)
         return int(md5(base64.b64encode(
-            '|'.join(['%s=%s' % (x, y)
-                      for x, y in parts.iteritems()]))).hexdigest(), 16)
+            json.dumps(serializable, sort_keys=True))).hexdigest(), 16)
+
+    def user_equal(self, other):
+        def sort_if_list(key, attr):
+            return (sorted(attr) if isinstance(attr, list) and
+                    key not in self.sorted_attributes else attr)
+        missing = object()
+
+        if type(self) != type(other):
+            return False
+        for attr in self.user_attributes():
+            if (sort_if_list(attr, getattr(self, attr, missing)) !=
+                    sort_if_list(attr, getattr(other, attr, missing))):
+                return False
+        return True
 
     def __str__(self):
         return '%s(%s)' % (type(self).__name__, ','.join(self.identity))
