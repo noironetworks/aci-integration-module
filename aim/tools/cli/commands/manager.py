@@ -202,7 +202,7 @@ def describe(klass):
         rows = [[set_type, ', '.join(getattr(klass, set_type))]
                 for set_type in [
                     'identity_attributes', 'other_attributes',
-                    'db_attributes']]
+                    'db_attributes', 'common_db_attributes']]
         click.echo(tabulate(rows, tablefmt='plain' if plain else 'psql'))
     return _describe
 

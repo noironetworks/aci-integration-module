@@ -704,7 +704,7 @@ resource_map = {
         'exceptions': {'ifInstT': {'other': 'type'},
                        'addr': {'other': 'primary_addr_a'}},
         'skip': ['primary_addr_b', 'secondary_addr_a_list',
-                 'secondary_addr_b_list'],
+                 'secondary_addr_b_list', 'host'],
     }],
     'bgpPeerP': [{
         'resource': resource.L3OutInterfaceBgpPeerP,
@@ -716,14 +716,17 @@ resource_map = {
     }],
     'l3extIp': [{
         'resource': resource.L3OutInterface,
+        'skip': ['host'],
         'converter': l3ext_ip_converter,
     }],
     'l3extIp__Member': [{
         'resource': resource.L3OutInterface,
+        'skip': ['host'],
         'converter': l3ext_ip_converter,
     }],
     'l3extMember': [{
         'resource': resource.L3OutInterface,
+        'skip': ['host'],
         'converter': l3ext_member_converter,
     }],
     'l3extInstP': [{

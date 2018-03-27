@@ -14,9 +14,9 @@
 #    under the License.
 
 import base64
-import collections
 import datetime
 from hashlib import md5
+import json
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -46,6 +46,8 @@ class ResourceBase(object):
     """
 
     db_attributes = t.db()
+    common_db_attributes = t.db(('epoch', t.epoch))
+    sorted_attributes = []
 
     def __init__(self, defaults, **kwargs):
         unset_attr = [k for k in self.identity_attributes
@@ -61,6 +63,11 @@ class ResourceBase(object):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
+    def __getattr__(self, item):
+        if item == 'epoch':
+            return None
+        super(ResourceBase, self).__getattr__(item)
+
     @property
     def identity(self):
         return [str(getattr(self, x)) for x in self.identity_attributes.keys()]
@@ -68,7 +75,15 @@ class ResourceBase(object):
     @classmethod
     def attributes(cls):
         return (cls.identity_attributes.keys() + cls.other_attributes.keys() +
-                cls.db_attributes.keys())
+                cls.db_attributes.keys() + cls.common_db_attributes.keys())
+
+    @classmethod
+    def user_attributes(cls):
+        return cls.identity_attributes.keys() + cls.other_attributes.keys()
+
+    @classmethod
+    def non_user_attributes(cls):
+        return cls.db_attributes.keys() + cls.common_db_attributes.keys()
 
     @property
     def members(self):
@@ -77,11 +92,35 @@ class ResourceBase(object):
 
     @property
     def hash(self):
-        parts = collections.OrderedDict()
-        parts.update(self.members)
+        def make_serializable(key, attr):
+            if isinstance(attr, list) and key not in self.sorted_attributes:
+                return sorted(make_serializable(None, x) for x in attr)
+            if isinstance(attr, dict):
+                return sorted([(k, make_serializable(k, v))
+                               for k, v in attr.iteritems()])
+            if isinstance(attr, set):
+                return sorted([(make_serializable(None, x) for x in attr)])
+            if isinstance(attr, (int, float, bool, type(None))):
+                return attr
+            # Don't know the type, make it serializable anyways
+            return str(attr)
+        serializable = make_serializable(None, self.members)
         return int(md5(base64.b64encode(
-            '|'.join(['%s=%s' % (x, y)
-                      for x, y in parts.iteritems()]))).hexdigest(), 16)
+            json.dumps(serializable, sort_keys=True))).hexdigest(), 16)
+
+    def user_equal(self, other):
+        def sort_if_list(key, attr):
+            return (sorted(attr) if isinstance(attr, list) and
+                    key not in self.sorted_attributes else attr)
+        missing = object()
+
+        if type(self) != type(other):
+            return False
+        for attr in self.user_attributes():
+            if (sort_if_list(attr, getattr(self, attr, missing)) !=
+                    sort_if_list(attr, getattr(other, attr, missing))):
+                return False
+        return True
 
     def __str__(self):
         return '%s(%s)' % (type(self).__name__, ','.join(self.identity))
@@ -226,14 +265,12 @@ class Agent(ResourceBase):
         ('admin_state_up', t.bool),
         ('description', t.string(255)),
         ('hash_trees', t.list_of_ids),
-        ('beat_count', t.number),
         ('version', t.string()))
     # Attrbutes completely managed by the DB (eg. timestamps)
     db_attributes = t.db(('heartbeat_timestamp', t.string()))
 
     def __init__(self, **kwargs):
         super(Agent, self).__init__({'admin_state_up': True,
-                                     'beat_count': 0,
                                      'id': utils.generate_uuid()}, **kwargs)
 
     def __eq__(self, other):
@@ -790,6 +827,7 @@ class L3OutInterface(AciResourceBase):
         ('primary_addr_b', t.ip_cidr),
         ('secondary_addr_b_list', t.list_of_ip_cidr_obj),
         ('encap', t.string()),
+        ('host', t.string()),
         ('type', t.enum("ext-svi")),
         ('monitored', t.bool))
 
@@ -801,7 +839,7 @@ class L3OutInterface(AciResourceBase):
             {'primary_addr_a': '', 'secondary_addr_a_list': [],
              'primary_addr_b': '', 'secondary_addr_b_list': [],
              'encap': '', 'type': 'ext-svi',
-             'monitored': False}, **kwargs)
+             'monitored': False, 'host': ''}, **kwargs)
 
 
 class L3OutInterfaceBgpPeerP(AciResourceBase):

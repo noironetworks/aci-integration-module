@@ -57,6 +57,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         try:
             aim_store.SqlAlchemyStore.add_commit_hook = (
                 self.old_add_commit_hook)
+            self.ctx.store.add_commit_hook()
         except AttributeError:
             pass
         self.set_override('agent_down_time', 3600, 'aim')
@@ -321,14 +322,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Create 2 tenants by initiating their objects
         tn1 = resource.Tenant(name=tenant_name1)
         tn2 = resource.Tenant(name=tenant_name2)
-        self.aim_manager.create(self.ctx, tn1)
+        tn = self.aim_manager.create(self.ctx, tn1)
         self.aim_manager.create(self.ctx, tn2)
 
         bd1_tn1 = resource.BridgeDomain(tenant_name=tenant_name1, name='bd1',
                                         vrf_name='vrf1')
         bd1_tn2 = resource.BridgeDomain(tenant_name=tenant_name2, name='bd1',
                                         vrf_name='vrf2', display_name='nice')
-        self.aim_manager.create(self.ctx, bd1_tn2)
+        bd = self.aim_manager.create(self.ctx, bd1_tn2)
         self.aim_manager.create(self.ctx, bd1_tn1)
         self.aim_manager.get_status(self.ctx, bd1_tn1)
         self.aim_manager.get_status(self.ctx, bd1_tn2)
@@ -369,6 +370,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Now, the two trees are in sync
         agent._reconciliation_cycle(self.ctx)
+        tn_after = self.aim_manager.get(self.ctx, tn)
+        bd_after = self.aim_manager.get(self.ctx, bd)
+        self.assertEqual(tn_after.epoch, tn.epoch)
+        self.assertEqual(bd_after.epoch, bd.epoch)
         self._assert_universe_sync(agent.desired_universe,
                                    agent.current_universe,
                                    tenants=[tn1.root, tn2.root])
@@ -793,27 +798,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn1.root])
         self._assert_reset_consistency()
-
-    def test_daemon_loop(self):
-        agent = self._create_agent()
-        agent._reconciliation_cycle = run_once_loop(agent)
-        # Calling the first time with a reconcile event, still calls serve=True
-        agent.events.q.put_nowait('reconcile')
-        agent.daemon_loop()
-        # Called 2 times with 2 arguments each time
-        self.assertEqual(4, len(agent._run_arguments))
-        # Served new tenants
-        self.assertTrue(agent._run_arguments[1])
-        self.assertFalse(agent._run_arguments[3])
-
-        # Call again with serve event
-        agent.run_daemon_loop = True
-        agent.events.q.put_nowait('reconcile')
-        agent.events.q.put_nowait('serve')
-        agent.daemon_loop()
-        self.assertEqual(8, len(agent._run_arguments))
-        self.assertTrue(agent._run_arguments[5])
-        self.assertTrue(agent._run_arguments[7])
 
     def test_manual_rs(self):
         agent = self._create_agent()
@@ -1424,6 +1408,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, tn2)
         self._first_serve(agent)
         original_max_value = hashtree_db_listener.MAX_EVENTS_PER_ROOT
+        self.ctx.store._after_transaction_end_2_called = True
         try:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = 0
             for tenant in [tenant_name, tenant_name2]:
@@ -1453,6 +1438,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 self.assertFalse(base_tree.needs_reset)
         finally:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
+            self.ctx.store._after_transaction_end_2_called = False
 
     def test_divergence_reset(self):
         agent = self._create_agent()
@@ -1675,7 +1661,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # push config
         self._observe_aci_events(current_config)
         # Will be out of sync until VRF goes in error state
-        for _ in range(2):
+        for _ in range(3):
             self._observe_aci_events(current_config)
             agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)

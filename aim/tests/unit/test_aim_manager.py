@@ -26,6 +26,7 @@ import time
 import jsonschema
 from jsonschema import exceptions as schema_exc
 import mock
+from sqlalchemy.orm import exc as sql_exc
 
 from aim import aim_manager
 from aim.api import infra
@@ -38,6 +39,7 @@ from aim.api import tree as api_tree
 from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim import config  # noqa
+from aim.db import api
 from aim.db import hashtree_db_listener
 from aim.db import tree_model  # noqa
 from aim import exceptions as exc
@@ -101,6 +103,7 @@ class TestAimManager(base.TestAimDBBase):
 class TestResourceOpsBase(object):
     test_dn = None
     prereq_objects = None
+    test_epoch = True
 
     def setUp(self):
         super(TestResourceOpsBase, self).setUp()
@@ -171,11 +174,15 @@ class TestResourceOpsBase(object):
                 'guid' in resource.db_attributes):
             self.assertTrue(bool(r1.guid))
 
+        old_epoch = res.epoch
         # Verify overwrite
         for k, v in test_search_attributes.iteritems():
             setattr(res, k, v)
         if not getattr(self, 'skip_overwrite', False):
             r2 = self.mgr.create(self.ctx, res, overwrite=True)
+            if self.test_epoch:
+                self.assertNotEqual(old_epoch, r2.epoch)
+            old_epoch = r2.epoch
             for k, v in test_search_attributes.iteritems():
                 self.assertEqual(v, getattr_canonical(r2, k))
 
@@ -195,10 +202,15 @@ class TestResourceOpsBase(object):
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
         for k, v in test_update_attributes.iteritems():
             self.assertEqual(v, getattr_canonical(r3, k))
+        if self.test_epoch:
+            self.assertNotEqual(old_epoch, r3.epoch)
+            r3_1 = self.mgr.create(self.ctx, r3, overwrite=True)
+            self.assertEqual(r3.epoch, r3_1.epoch)
         # check other attributes are unaffected
         for attr in r1.attributes():
             if attr not in (test_update_attributes.keys() +
-                            res.db_attributes.keys()):
+                            res.db_attributes.keys() +
+                            res.common_db_attributes.keys()):
                 self.assertEqual(getattr_canonical(r1, attr),
                                  getattr_canonical(r3, attr))
 
@@ -255,7 +267,8 @@ class TestResourceOpsBase(object):
         """
         listener = mock.Mock()
         listener.__name__ = 'mock-listener'
-        self.ctx.store.register_update_listener('mock-listener', listener)
+        self.ctx.store.register_before_session_flush_callback(
+            'mock-listener', listener)
 
         creation_attributes = {}
         creation_attributes.update(test_required_attributes),
@@ -309,6 +322,9 @@ class TestResourceOpsBase(object):
 
         res = self.mgr.create(self.ctx, res, overwrite=True)
         status = self.mgr.get_status(self.ctx, res)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         self.assertTrue(isinstance(status, aim_status.AciStatus))
         # Sync status not available
         self.assertEqual(status.SYNC_NA, status.sync_status)
@@ -316,7 +332,13 @@ class TestResourceOpsBase(object):
         self.assertFalse(status.is_error())
         # Sync object
         self.mgr.set_resource_sync_synced(self.ctx, res)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         status = self.mgr.get_status(self.ctx, res)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         self.assertFalse(status.is_build())
 
         status.sync_message = "some message"
@@ -327,6 +349,9 @@ class TestResourceOpsBase(object):
             fault_code='412', external_identifier=res.dn,
             severity=aim_status.AciFault.SEV_CRITICAL)
         self.mgr.set_fault(self.ctx, res, fault)
+        if self.test_epoch:
+            res2 = self.mgr.get(self.ctx, res)
+            self.assertEqual(res2.epoch, res.epoch)
         status = self.mgr.get_status(self.ctx, res)
         self.assertEqual(1, len(status.faults))
         self.assertEqual(aim_status.AciFault.SEV_CRITICAL,
@@ -476,6 +501,45 @@ class TestResourceOpsBase(object):
             klass_type = hashtree_db_listener.HashTreeDbListener(
                 self.mgr)._retrieve_class_root_type(self.resource_class)
             self.assertEqual(self.resource_root_type, klass_type)
+
+    @base.requires(['sql'])
+    def test_race(self):
+        def _test_race(res):
+            updates = []
+            for k, v in self.test_update_attributes.iteritems():
+                if isinstance(v, basestring):
+                    updates.append((k, v))
+            if len(updates) < 2:
+                # Not enough updates available to test
+                self.skipTest("Resource %s doesn't have enough string "
+                              "update attributes to test race." % res)
+            store1 = self.ctx.store
+            store1.db_session.begin()
+            db_type = store1.resource_to_db_type(res.__class__)
+            db_obj1 = store1.query(db_type, res.__class__)[0]
+            setattr(db_obj1, updates[0][0], updates[0][1])
+
+            # In the middle of store 1 transaction, store2 changes the same
+            # epg
+            store2 = api.get_store()
+            store2.db_session.begin()
+            db_type = store2.resource_to_db_type(res.__class__)
+            db_obj2 = store2.query(db_type, res.__class__)[0]
+            setattr(db_obj2, updates[1][0], updates[1][1])
+            store2.add(db_obj2)
+            store2.db_session.commit()
+
+            # Resume store 1 transaction
+            store1.add(db_obj1)
+            store1.db_session.commit()
+
+        self._create_prerequisite_objects()
+        creation_attributes = {}
+        creation_attributes.update(self.test_required_attributes),
+        creation_attributes.update(self.test_identity_attributes)
+        res = self.resource_class(**creation_attributes)
+        res = self.mgr.create(self.ctx, res)
+        self.assertRaises(sql_exc.StaleDataError, _test_race, res)
 
 
 class TestAciResourceOpsBase(TestResourceOpsBase):
@@ -1029,7 +1093,8 @@ class TestL3OutInterfaceMixin(object):
                               'primary_addr_a': '0.0.0.0',
                               'secondary_addr_a_list':
                                   [{'addr': '1.1.1.5/24'},
-                                   {'addr': '1.1.1.6/24'}]}
+                                   {'addr': '1.1.1.6/24'}],
+                              'host': 'h1'}
     test_default_values = {'type': 'ext-svi'}
     test_dn = ('uni/tn-tenant1/out-l3out1/lnodep-np1/lifp-if1/rspathL3OutAtt-'
                '[topology/pod-1/paths-101/pathep-[eth1/1]]')
@@ -1893,8 +1958,7 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
             # DB side timestamp has granularity in seconds
             time.sleep(1)
             # Update and verify that timestamp changed
-            agent = self.mgr.update(self.ctx, agent,
-                                    beat_count=agent.beat_count + 1)
+            agent = self.mgr.update(self.ctx, agent)
             # Hbeat is updated
             self.assertTrue(hbeat < agent.heartbeat_timestamp)
 
@@ -1959,6 +2023,48 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
                          getattr_canonical(r2, 'openstack_vmm_domain_names'))
         self.assertEqual([],
                          getattr_canonical(r2, 'vmm_domains'))
+
+    @base.requires(['sql'])
+    def test_list_attributes_epoch(self):
+        res = resource.EndpointGroup(**self.test_required_attributes)
+        epg = self.mgr.create(self.ctx, res)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              provided_contract_names=['rev_test'])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              consumed_contract_names=['rev_test'])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              vmm_domains=[{'type': 'test',
+                                            'name': 'version'}])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              physical_domains=[{'name': 'pdom'}])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg, static_paths=[])
+        self.assertNotEqual(old_epoch, epg.epoch)
+
+        epg = self.mgr.update(self.ctx, epg, static_paths=[{'host': 'h1',
+                                                            'path': 'path',
+                                                            'encap': '123'},
+                                                           {'host': 'h2',
+                                                            'path': 'path2',
+                                                            'encap': '1234'}])
+        self.assertNotEqual(old_epoch, epg.epoch)
+        old_epoch = epg.epoch
+        # Same update
+        epg = self.mgr.update(self.ctx, epg, static_paths=[{'host': 'h2',
+                                                            'path': 'path2',
+                                                            'encap': '1234'},
+                                                           {'host': 'h1',
+                                                            'path': 'path',
+                                                            'encap': '123'}])
+        self.assertEqual(old_epoch, epg.epoch)
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
@@ -2197,7 +2303,7 @@ class TestPod(TestPodMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
 class TestTopology(TestTopologyMixin, TestResourceOpsBase,
                    base.TestAimDBBase):
-    pass
+    test_epoch = False
 
 
 class TestVMMController(TestVMMControllerMixin, TestAciResourceOpsBase,

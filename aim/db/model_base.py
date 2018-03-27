@@ -40,11 +40,7 @@ def dn_column(**kwargs):
 
 
 class AimBase(object):
-    """Base class for AIM DB models.
-
-    Defines a mandatory primary-key column named 'rn' for all tables.
-    Child classes may define additional primary-key columns.
-    """
+    """Base class for AIM DB models"""
 
     @declarative.declared_attr
     def __tablename__(cls):
@@ -98,6 +94,21 @@ class IsSynced(object):
 
 class AttributeMixin(object):
     """Mixin class for translating between resource and model."""
+
+    epoch = sa.Column(
+        sa.BigInteger().with_variant(sa.Integer(), 'sqlite'),
+        server_default='0', nullable=False)
+
+    __mapper_args__ = {
+        "version_id_col": epoch,
+        "version_id_generator": False
+    }
+
+    def bump_epoch(self):
+        if self.epoch is None:
+            # this is a brand new object uncommitted so we don't bump now
+            self.epoch = 0
+        self.epoch += 1
 
     def from_attr(self, session, resource_attr):
         """Populate model from resource attribute dictionary.

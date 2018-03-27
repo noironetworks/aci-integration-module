@@ -571,13 +571,7 @@ class AciTenantManager(utils.AIMThread):
                             to_push = self.to_aci_converter.convert(
                                 [aim_object])
                         try:
-                            if method == base_universe.CREATE:
-                                # Set ownership before pushing the request
-                                to_push = self.ownership_mgr.set_ownership_key(
-                                    to_push)
-                                LOG.debug("POSTING into APIC: %s" % to_push)
-                                self._post_with_transaction(to_push)
-                            else:
+                            if method == base_universe.DELETE:
                                 to_delete, to_update = (
                                     self.ownership_mgr.set_ownership_change(
                                         to_push))
@@ -590,10 +584,13 @@ class AciTenantManager(utils.AIMThread):
                                 # Update object ownership
                                 self._post_with_transaction(to_update,
                                                             modified=True)
-                            # Object creation was successful, change object
-                            # state
-                            if method == base_universe.CREATE:
                                 self.creation_succeeded(aim_object)
+                            else:
+                                # Set ownership before pushing the request
+                                to_push = self.ownership_mgr.set_ownership_key(
+                                    to_push)
+                                LOG.debug("POSTING into APIC: %s" % to_push)
+                                self._post_with_transaction(to_push)
                         except Exception as e:
                             LOG.debug(traceback.format_exc())
                             LOG.error("An error has occurred during %s for "

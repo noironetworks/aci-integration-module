@@ -74,18 +74,19 @@ class WebSocketContext(object):
         self.monitor_runs = {'monitor_runs': float('inf')}
         self.monitor_sleep_time = 10
         self.monitor_max_backoff = 30
+        self.login_thread = None
+        self.subs_thread = None
+        self.monitor_thread = None
         self.establish_ws_session()
 
     def _spawn_monitors(self):
-        # Stop currently running monitors
-        self.monitor_runs['monitor_runs'] = -1
-        self.monitor_runs = {'monitor_runs': float('inf')}
-        if self.apic_username and self.apic_password:
-            utils.spawn_thread(self._thread_monitor, self.session.login_thread,
-                               'login_thread', self.monitor_runs)
-        utils.spawn_thread(
-            self._thread_monitor, self.session.subscription_thread,
-            'subscription_thread', self.monitor_runs)
+        self.login_thread = None
+        self.subs_thread = None
+        if not self.monitor_thread:
+            self.monitor_thread = utils.spawn_thread(self._thread_monitor,
+                                                     self.monitor_runs)
+        self.login_thread = self.session.login_thread
+        self.subs_thread = self.session.subscription_thread
 
     def _reload_websocket_config(self):
         # Don't subscribe in this case
@@ -214,40 +215,50 @@ class WebSocketContext(object):
     def has_event(self, urls):
         if urls == self.EMPTY_URLS:
             return False
+        # Will be noop if already subscribed.
+        self.subscribe(urls)
         return any(self.session.has_events(url) for url in urls)
 
-    def _thread_monitor(self, thread, name, flag):
-        # TODO(ivar): I could have used thread.join instead of this
-        retries = None
+    def _thread_monitor(self, flag):
+        login_thread_name = 'login_thread'
+        subscription_thread_name = 'subscription_thread'
+        name_to_retry = {login_thread_name: None,
+                         subscription_thread_name: None}
         max_retries = len(self.ws_urls)
-        LOG.debug("Monitoring thread %s" % name)
+        LOG.debug("Monitoring threads login and subscription")
         try:
             while flag['monitor_runs']:
-                if not thread.isAlive():
-                    if retries and retries.get() >= max_retries:
-                        utils.perform_harakiri(
-                            LOG, "Critical thread %s stopped working" % name)
-                    else:
-                        retries = utils.exponential_backoff(
-                            self.monitor_max_backoff, tentative=retries)
-                        try:
-                            self.establish_ws_session()
-                        except Exception as e:
-                            LOG.debug(
-                                "Monitor for thread %s tried to reconnect web "
-                                "socket, but something went wrong. Will retry "
-                                "%s more times: %s" %
-                                (name, max_retries - retries.get(), e.message))
-                            continue
-                else:
-                    LOG.debug("Thread %s is in good shape" % name)
-                    retries = None
+                for thd, name in [(self.login_thread, 'login_thread'),
+                                  (self.subs_thread, 'subscription_thread')]:
+                    if thd and not thd.isAlive():
+                        if name_to_retry[name] and name_to_retry[
+                                name].get() >= max_retries:
+                            utils.perform_harakiri(
+                                LOG, "Critical thread %s stopped "
+                                     "working" % name)
+                        else:
+                            name_to_retry[name] = utils.exponential_backoff(
+                                self.monitor_max_backoff,
+                                tentative=name_to_retry[name])
+                            try:
+                                self.establish_ws_session()
+                            except Exception as e:
+                                LOG.debug(
+                                    "Monitor for thread %s tried to reconnect "
+                                    "web socket, but something went wrong. "
+                                    "Will retry %s more times: %s" %
+                                    (name,
+                                     max_retries - name_to_retry[name].get(),
+                                     e.message))
+                                continue
+                    elif thd:
+                        LOG.debug("Thread %s is in good shape" % name)
+                        name_to_retry[name] = None
                 time.sleep(self.monitor_sleep_time)
                 # for testing purposes
                 flag['monitor_runs'] -= 1
         except Exception as e:
-            msg = ("Unknown error in thread monitor "
-                   "for %s: %s" % (name, e.message))
+            msg = ("Unknown error in thread monitor: %s" % e.message)
             LOG.error(msg)
             utils.perform_harakiri(LOG, msg)
 

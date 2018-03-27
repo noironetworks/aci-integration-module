@@ -390,7 +390,7 @@ class TestManagerResourceOpsBase(object):
                     klass.identity_attributes]
         other = ['--%s %s' % (k, transform_list(k, v))
                  for k, v in attributes.iteritems()
-                 if k not in klass.identity_attributes]
+                 if k in klass.other_attributes]
         return self.run_command(
             'manager ' + res_command + '-%s ' % command + ' '.join(
                 identity + other) + ' -p')

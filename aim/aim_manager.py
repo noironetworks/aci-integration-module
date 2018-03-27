@@ -140,8 +140,7 @@ class AimManager(object):
             old_monitored = None
             new_monitored = None
             if overwrite:
-                old_db_obj = self._query_db_obj(context.store, resource,
-                                                for_update=True)
+                old_db_obj = self._query_db_obj(context.store, resource)
                 if old_db_obj:
                     old_monitored = getattr(old_db_obj, 'monitored', None)
                     new_monitored = getattr(resource, 'monitored', None)
@@ -150,10 +149,15 @@ class AimManager(object):
                         raise exc.InvalidMonitoredStateUpdate(object=resource)
                     attr_val = context.store.extract_attributes(resource,
                                                                 "other")
+                    old_resource = self._make_resource(context, resource,
+                                                       old_db_obj)
+                    if old_resource.user_equal(resource):
+                        # No need to update. Return old_resource for
+                        # updated DB attributes
+                        return old_resource
                     context.store.from_attr(old_db_obj, type(resource),
                                             attr_val)
             db_obj = old_db_obj or context.store.make_db_obj(resource)
-            self._add_commit_hook(context.store)
             context.store.add(db_obj)
             if self._should_set_pending(old_db_obj, old_monitored,
                                         new_monitored):
@@ -179,17 +183,24 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         with context.store.begin(subtransactions=True):
-            db_obj = self._query_db_obj(context.store, resource,
-                                        for_update=True)
+            db_obj = self._query_db_obj(context.store, resource)
             if db_obj:
+                old_resource = self._make_resource(context, resource, db_obj)
                 old_monitored = getattr(db_obj, 'monitored', None)
                 new_monitored = update_attr_val.get('monitored')
                 if (fix_ownership and old_monitored is not None and
                         old_monitored != new_monitored):
                     raise exc.InvalidMonitoredStateUpdate(object=resource)
                 attr_val = {k: v for k, v in update_attr_val.iteritems()
-                            if k in resource.other_attributes}
-                if not attr_val and resource.identity_attributes:
+                            if k in resource.other_attributes.keys()}
+                if attr_val:
+                    old_resource_copy = copy.deepcopy(old_resource)
+                    for k, v in attr_val.iteritems():
+                        setattr(old_resource, k, v)
+                    if old_resource.user_equal(old_resource_copy):
+                        # Nothing to do here
+                        return old_resource
+                elif resource.identity_attributes:
                     # force update
                     id_attr_0 = resource.identity_attributes.keys()[0]
                     attr_val = {id_attr_0: getattr(resource, id_attr_0)}
@@ -203,7 +214,6 @@ class AimManager(object):
                     # we take ownership of the objects, which should be removed
                     # soon as it's causing most of our bugs.
                     self.set_resource_sync_pending(context, resource)
-                self._add_commit_hook(context.store)
                 return self.get(context, resource)
 
     def _should_set_pending(self, old_obj, old_monitored, new_monitored):
@@ -219,13 +229,11 @@ class AimManager(object):
         """
         self._validate_resource_class(resource)
         with context.store.begin(subtransactions=True):
-            db_obj = self._query_db_obj(context.store, resource,
-                                        for_update=True)
+            db_obj = self._query_db_obj(context.store, resource)
             if db_obj:
                 if isinstance(resource, api_res.AciResourceBase):
                     status = self.get_status(
-                        context, resource, for_update=True,
-                        create_if_absent=False)
+                        context, resource, create_if_absent=False)
                     if status and getattr(
                             db_obj, 'monitored', None) and not force:
                         if status.sync_status == status.SYNC_PENDING:
@@ -236,7 +244,6 @@ class AimManager(object):
                     if status:
                         self.delete(context, status, force=force)
                 context.store.delete(db_obj)
-                self._add_commit_hook(context.store)
             # When cascade is specified, delete the object's subtree even if
             # the resource itself doesn't exist.
             if cascade:
@@ -272,6 +279,10 @@ class AimManager(object):
         self._validate_resource_class(resource)
         db_obj = self._query_db_obj(context.store, resource,
                                     for_update=for_update)
+        return self._make_resource(context, resource, db_obj,
+                                   include_aim_id=include_aim_id)
+
+    def _make_resource(self, context, resource, db_obj, include_aim_id=None):
         return context.store.make_resource(
             type(resource), db_obj,
             include_aim_id=include_aim_id) if db_obj else None
@@ -368,7 +379,7 @@ class AimManager(object):
             return False
         with context.store.begin(subtransactions=True):
             self._validate_resource_class(resource)
-            status = self.get_status(context, resource, for_update=True)
+            status = self.get_status(context, resource)
             exclude = exclude or []
             if status and status.sync_status not in exclude:
                 self.update(context, status, sync_status=sync_status,
@@ -460,9 +471,6 @@ class AimManager(object):
         cls = type(resource)
         objs = self._query_db(store, cls, for_update=for_update, **id_attr)
         return objs[0] if objs else None
-
-    def _add_commit_hook(self, store):
-        store.add_commit_hook()
 
     def _get_status_params(self, context, resource):
         res_type = type(resource).__name__

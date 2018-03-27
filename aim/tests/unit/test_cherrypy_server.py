@@ -121,8 +121,13 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
                 for item in data:
                     item.update({'aim_id': mock.ANY})
                 sorting_key = lambda x: x['attributes']
+                data_resp = resp.json()['data']
+                for to_compare in [data, data_resp]:
+                    for x in to_compare:
+                        for non_user in res_type.non_user_attributes():
+                            x['attributes'].pop(non_user, None)
                 self.assertEqual(sorted(data, key=sorting_key),
-                                 sorted(resp.json()['data'], key=sorting_key),
+                                 sorted(data_resp, key=sorting_key),
                                  fail_msg)
                 # GET with status included
                 resp = self.GET('aim?include-status=true')

@@ -30,10 +30,7 @@ depends_on = None
 from alembic import op
 import sqlalchemy as sa
 
-from aim import aim_manager
-from aim.api import status
-from aim import context
-from aim.db import api
+from aim.db.migration.data_migration import status_add_tenant
 
 
 def upgrade():
@@ -42,15 +39,8 @@ def upgrade():
         'aim_statuses',
         sa.Column('resource_root', sa.String(64), nullable=False,
                   server_default='|unknown|'))
-    mgr = aim_manager.AimManager()
-    ctx = context.AimContext(db_session=api.get_session(expire_on_commit=True))
-    with ctx.db_session.begin(subtransactions=True):
-        for st in mgr.find(ctx, status.AciStatus):
-            # We are changing an identity attribute
-            db_obj = mgr._query_db_obj(ctx.store, st)
-            parent = mgr.get_by_id(ctx, st.parent_class, st.resource_id)
-            db_obj.resource_root = parent.root
-            ctx.db_session.add(db_obj)
+    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
+    status_add_tenant.migrate(session)
 
 
 def downgrade():

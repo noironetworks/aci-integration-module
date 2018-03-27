@@ -28,19 +28,13 @@ depends_on = None
 from alembic import op
 import sqlalchemy as sa
 
-from aim import aim_manager
-from aim.api import infra
-from aim import context
-from aim.db import api
-
-
-AIM_HOST_DOMAIN_MAPPING_V2 = 'aim_host_domain_mapping_v2'
+from aim.db.migration.data_migration import host_domain_mapping_v2
 
 
 def upgrade():
     # A model of the new domains table
-    domainsv2 = op.create_table(
-        AIM_HOST_DOMAIN_MAPPING_V2,
+    op.create_table(
+        'aim_host_domain_mapping_v2',
         sa.Column('host_name', sa.String(128)),
         sa.Column('domain_name', sa.String(64)),
         sa.Column('domain_type', sa.Enum('PhysDom',
@@ -49,23 +43,8 @@ def upgrade():
                                          'VMware')),
         sa.PrimaryKeyConstraint('host_name', 'domain_name', 'domain_type')
     )
-
-    mgr = aim_manager.AimManager()
-    ctx = context.AimContext(db_session=api.get_session(expire_on_commit=True))
-    with ctx.db_session.begin(subtransactions=True):
-        migrations = []
-        for mapping in mgr.find(ctx, infra.HostDomainMapping):
-            if mapping.vmm_domain_name:
-                migrations.append({'host_name': mapping.host_name,
-                                   'domain_name': mapping.vmm_domain_name,
-                                   'domain_type': 'OpenStack'})
-            if mapping.physical_domain_name:
-                migrations.append({'host_name': mapping.host_name,
-                                   'domain_name': mapping.physical_domain_name,
-                                   'domain_type': 'PhysDom'})
-        op.bulk_insert(domainsv2, migrations)
-        # we can clear out the old table
-        mgr.delete_all(ctx, infra.HostDomainMapping)
+    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
+    host_domain_mapping_v2.migrate(session)
 
 
 def downgrade():
