@@ -1480,7 +1480,10 @@ class TestServiceRedirectPolicyMixin(object):
                                                   'redirect_health_'
                                                   'group_dn': 'my/dn'},
                                                  {'ip': '2',
-                                                  'mac': 'aa:bb:bb:cc:dd:ee'}],
+                                                  'mac': 'aa:bb:bb:cc:dd:ee'},
+                                                 {'ip': '3',
+                                                  'mac': 'aa:bb:bb:cc:dd:ef',
+                                                  'name': 'dest-name'}],
                                 'monitoring_policy_name': 'mpname',
                                 'monitoring_policy_tenant_name': 'mptname'}
     test_search_attributes = {'name': 'srp1',

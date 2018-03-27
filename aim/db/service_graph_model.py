@@ -376,6 +376,7 @@ class ServiceRedirectPolicyDestination(model_base.Base):
     ip = sa.Column(sa.String(64), primary_key=True)
     mac = sa.Column(sa.String(24))
     redirect_health_group_dn = sa.Column(sa.String(1024))
+    name = model_base.name_column()
 
 
 class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
@@ -407,7 +408,8 @@ class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
                     ServiceRedirectPolicyDestination(
                         ip=d['ip'], mac=d.get('mac'),
                         redirect_health_group_dn=d.get(
-                            'redirect_health_group_dn')))
+                            'redirect_health_group_dn'),
+                        name=d.get('name')))
             self.dest = dests
         # map remaining attributes to model
         super(ServiceRedirectPolicy, self).from_attr(session, res_attr)
@@ -421,6 +423,8 @@ class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
             if d.redirect_health_group_dn is not None:
                 dst['redirect_health_group_dn'] = (
                     d.redirect_health_group_dn)
+            if d.name is not None:
+                dst['name'] = d.name
             res_attr.setdefault('destinations', []).append(dst)
         return res_attr
 

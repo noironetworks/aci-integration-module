@@ -1407,6 +1407,11 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
                                  'rsIPSLAMonitoringPol',
                               tDn='uni/tn-common/ipslaMonitoringPol-'
                                   'mon_policy'),
+                    _aci_obj('vnsRedirectDest',
+                             dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                                 'RedirectDest_ip-[10.6.1.3]'),
+                             ip='10.6.1.3',
+                             mac='90:E2:Ba:b1:36:6d', destName='dest-name')
                      ],
                     _aci_obj('vnsSvcRedirectPol',
                              dn='uni/tn-t1/svcCont/svcRedirectPol-r2')]
@@ -1417,7 +1422,9 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
             monitoring_policy_name='mon_policy',
             destinations=[{'ip': '10.6.1.1', 'mac': '90:E2:BA:B1:36:6C'},
                           {'ip': '10.6.1.2',
-                           'redirect_health_group_dn': 'my/dn2'}]),
+                           'redirect_health_group_dn': 'my/dn2'},
+                          {'ip': '10.6.1.3', 'mac': '90:E2:BA:B1:36:6D',
+                           'name': 'dest-name'}]),
         aim_service_graph.ServiceRedirectPolicy(tenant_name='t1', name='r2')
     ]
 
@@ -3327,6 +3334,9 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                                        'redirect_health_group_dn': 'my/dn1'},
                                       {'ip': '10.6.1.2',
                                        'redirect_health_group_dn': 'my/dn2'},
+                                      {'ip': '10.6.1.3',
+                                       'mac': '90:e2:ba:B1:36:6D',
+                                       'name': 'dest-name'},
                                       {'foo': 'bar'}])]
 
     sample_output = [
@@ -3357,10 +3367,19 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                   dn=('uni/tn-t1/svcCont/svcRedirectPol-r2/'
                       'RedirectDest_ip-[10.6.1.2]'),
                   ip='10.6.1.2'),
+         _aci_obj('vnsRedirectDest',
+                  dn=('uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                      'RedirectDest_ip-[10.6.1.3]'),
+                  ip='10.6.1.3',
+                  mac='90:E2:BA:B1:36:6D',
+                  destName='dest-name'),
          _aci_obj('vnsRsRedirectHealthGroup',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
                      'RedirectDest_ip-[10.6.1.2]/rsRedirectHealthGroup',
                   tDn='my/dn2'),
+         _aci_obj('vnsRsRedirectHealthGroup',
+                  dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                     'RedirectDest_ip-[10.6.1.3]/rsRedirectHealthGroup')
          ]]
 
 
