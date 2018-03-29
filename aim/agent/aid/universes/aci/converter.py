@@ -985,6 +985,7 @@ class AciToAimModelConverter(BaseConverter):
         """
 
         res_map = collections.OrderedDict()
+        list_dict_by_id = {}
         for res in converted_list:
             # Base for squashing is the Resource with all its defaults
             klass = type(res)
@@ -994,7 +995,16 @@ class AciToAimModelConverter(BaseConverter):
                               enumerate(klass.identity_attributes)])))
             for k, v in res.__dict__.iteritems():
                 if isinstance(v, list):
-                    current.__dict__.setdefault(k, []).extend(v)
+                    for item in v:
+                        if isinstance(item, dict) and '_converter_id' in item:
+                            id_ = (klass.__name__, k) + item.pop(
+                                '_converter_id')
+                            if id_ in list_dict_by_id:
+                                list_dict_by_id[id_].update(item)
+                                continue
+                            else:
+                                list_dict_by_id[id_] = item
+                        current.__dict__.setdefault(k, []).append(item)
                 else:
                     setattr(current, k, v)
         return res_map.values()

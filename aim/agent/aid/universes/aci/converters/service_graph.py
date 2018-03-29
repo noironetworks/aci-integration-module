@@ -188,6 +188,15 @@ def service_graph_converter(object_dict, otype, helper,
     return result
 
 
+def vnsRsRedirectHealthGroup_ip_converter(input_dict, input_attr, to_aim=True):
+    if to_aim:
+        return utils.default_identity_converter(
+            input_dict, 'vnsRsRedirectHealthGroup', {})[-1]
+    else:
+        return {utils.IGNORE: utils.default_attribute_converter(
+            input_dict, input_attr, to_aim=to_aim)}
+
+
 vnsRsALDevToPhysDomP_converter = utils.dn_decomposer(
     ['physical_domain_name'], 'physDomP')
 vnsRsALDevToDomP_converter = utils.dn_decomposer(
@@ -198,6 +207,9 @@ vnsAbsFuncConn_converter = utils.child_list('connectors', 'name')
 vnsLDevVip_dn_decomposer = utils.dn_decomposer(
     ['device_cluster_tenant_name', 'device_cluster_name'],
     'vnsLDevVip')
+fvIPSLAMonitoringPol_dn_decomposer = utils.dn_decomposer(
+    ['monitoring_policy_tenant_name', 'monitoring_policy_name'],
+    'fvIPSLAMonitoringPol')
 vnsRsAbsConnectionConns_converter = utils.child_list('connector_dns', 'tDn')
 vnsRedirectDest_converter = utils.list_dict(
     'destinations',
@@ -205,6 +217,13 @@ vnsRedirectDest_converter = utils.list_dict(
      'mac': {'other': 'mac',
              'converter': utils.upper}},
     ['ip'])
+vnsRsRedirectHealthGroup_converter = utils.list_dict(
+    'destinations',
+    {'redirect_health_group_dn': {'other': 'tDn'},
+     'ip': {'other': 'dn',
+            'converter': vnsRsRedirectHealthGroup_ip_converter}},
+    ['ip'])
+
 
 resource_map = {
     'vnsLDevVip': [{
@@ -305,11 +324,24 @@ resource_map = {
     }],
     'vnsSvcRedirectPol': [{
         'resource': service_graph.ServiceRedirectPolicy,
-        'skip': ['destinations'],
+        'skip': ['destinations', 'monitoring_policy_tenant_name',
+                 'monitoring_policy_name'],
     }],
     'vnsRedirectDest': [{
         'resource': service_graph.ServiceRedirectPolicy,
         'converter': vnsRedirectDest_converter,
+    }],
+    'vnsRsIPSLAMonitoringPol': [{
+        'resource': service_graph.ServiceRedirectPolicy,
+        'exceptions': {
+            'tDn': {'other': 'monitoring_policy_name',
+                    'converter': fvIPSLAMonitoringPol_dn_decomposer},
+        },
+        'to_resource': utils.default_to_resource_strict
+    }],
+    'vnsRsRedirectHealthGroup': [{
+        'resource': service_graph.ServiceRedirectPolicy,
+        'converter': vnsRsRedirectHealthGroup_converter,
     }],
     'vnsLDevCtx': [{
         'resource': service_graph.DeviceClusterContext,
@@ -359,6 +391,17 @@ resource_map = {
         'to_resource': utils.default_to_resource_strict,
         'alt_resource': service_graph.DeviceClusterContext
     }],
+    'fvIPSLAMonitoringPol': [{
+        'resource': service_graph.ServiceRedirectMonitoringPolicy,
+        'exceptions': {
+            'slaPort': {'other': 'tcp_port'},
+            'slaType': {'other': 'type'},
+            'slaFrequency': {'other': 'frequency'}
+        },
+    }],
+    'vnsRedirectHealthGroup': [{
+        'resource': service_graph.ServiceRedirectHealthGroup,
+    }]
 }
 
 resource_map_post_reverse = {

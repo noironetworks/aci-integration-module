@@ -20,6 +20,7 @@ from oslo_log import log as logging
 from apicapi import apic_client
 
 LOG = logging.getLogger(__name__)
+IGNORE = object()
 
 
 def boolean(resource, attribute, to_aim=True):
@@ -292,7 +293,11 @@ def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None):
                     others = do_attribute_conversion(object_dict, aci_attr,
                                                      rev_mapping_info,
                                                      to_aim=True)
+                    others.pop(IGNORE, None)
                     aim_list_item.update(others)
+            if all(id_ in aim_list_item for id_ in id_attr):
+                aim_list_item['_converter_id'] = tuple([aim_list_item[k] for k
+                                                        in sorted(id_attr)])
             res_dict[aim_attr] = [aim_list_item]
             result.append(default_to_resource(res_dict, helper, to_aim=True))
         else:
@@ -322,6 +327,7 @@ def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None):
                                                              aim_d_a,
                                                              mapping_info,
                                                              to_aim=False)
+                            others.pop(IGNORE, None)
                             aci_obj.update(others)
                     result.append({aci_type: {'attributes': aci_obj}})
         return result
