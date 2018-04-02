@@ -256,6 +256,10 @@ class SqlAlchemyStore(AimStore):
                         service_graph_model.DeviceClusterContext),
                     api_service_graph.DeviceClusterInterfaceContext: (
                         service_graph_model.DeviceClusterInterfaceContext),
+                    api_service_graph.ServiceRedirectMonitoringPolicy: (
+                        service_graph_model.ServiceRedirectMonitoringPolicy),
+                    api_service_graph.ServiceRedirectHealthGroup: (
+                        service_graph_model.ServiceRedirectHealthGroup),
                     api_infra.OpflexDevice: infra_model.OpflexDevice,
                     api_res.VMMPolicy: models.VMMPolicy,
                     api_res.Pod: models.Pod,

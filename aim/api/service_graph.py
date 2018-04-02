@@ -237,6 +237,49 @@ class ServiceGraphNode(resource.AciResourceBase):
             **kwargs)
 
 
+class ServiceRedirectMonitoringPolicy(resource.AciResourceBase):
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('frequency', t.string()),
+        ('type', t.enum(None, 'tcp', 'icmp')),
+        ('tcp_port', t.port),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'fvIPSLAMonitoringPol'
+    _tree_parent = resource.Tenant
+
+    def __init__(self, **kwargs):
+        super(ServiceRedirectMonitoringPolicy, self).__init__(
+            {'display_name': '',
+             'frequency': '60',
+             'type': 'icmp',
+             'tcp_port': '0',
+             'monitored': False},
+            **kwargs)
+
+
+class ServiceRedirectHealthGroup(resource.AciResourceBase):
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vnsRedirectHealthGroup'
+    _tree_parent = resource.Tenant
+
+    def __init__(self, **kwargs):
+        super(ServiceRedirectHealthGroup, self).__init__(
+            {'display_name': '',
+             'monitored': False},
+            **kwargs)
+
+
 class ServiceRedirectPolicy(resource.AciResourceBase):
     """Resource representing a service-redirect policy.
 
@@ -247,8 +290,12 @@ class ServiceRedirectPolicy(resource.AciResourceBase):
         ('name', t.name))
     other_attributes = t.other(
         ('display_name', t.name),
+        ('monitoring_policy_tenant_name', t.name),
+        ('monitoring_policy_name', t.name),
         ('destinations', t.list_of_dicts(('ip', t.string()),
-                                         ('mac', t.mac_address))),
+                                         ('mac', t.mac_address),
+                                         ('redirect_health_group_dn',
+                                          t.string()))),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vnsSvcRedirectPol'
@@ -257,6 +304,8 @@ class ServiceRedirectPolicy(resource.AciResourceBase):
     def __init__(self, **kwargs):
         super(ServiceRedirectPolicy, self).__init__(
             {'display_name': '',
+             'monitoring_policy_tenant_name': '',
+             'monitoring_policy_name': '',
              'destinations': [],
              'monitored': False},
             **kwargs)

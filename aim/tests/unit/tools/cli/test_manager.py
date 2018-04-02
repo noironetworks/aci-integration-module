@@ -747,3 +747,14 @@ class TestDeviceClusterInterfaceContext(
 class TestBgpPeerP(test_aim_manager.TestBgpPeerPMixin,
                    base.TestShell):
         pass
+
+
+class TestServiceRedirectMonitoringPolicy(
+        test_aim_manager.TestServiceRedirectMonitoringPolicyMixin,
+        base.TestShell):
+    pass
+
+
+class TestServiceRedirectHealthGroup(
+        test_aim_manager.TestServiceRedirectHealthGroupMixin, base.TestShell):
+    pass

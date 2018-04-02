@@ -96,6 +96,8 @@ class AimManager(object):
                      api_service_graph.ServiceRedirectPolicy,
                      api_service_graph.DeviceClusterContext,
                      api_service_graph.DeviceClusterInterfaceContext,
+                     api_service_graph.ServiceRedirectMonitoringPolicy,
+                     api_service_graph.ServiceRedirectHealthGroup,
                      api_infra.OpflexDevice,
                      api_res.VMMPolicy,
                      api_res.Pod,

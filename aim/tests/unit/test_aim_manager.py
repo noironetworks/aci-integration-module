@@ -1476,12 +1476,19 @@ class TestServiceRedirectPolicyMixin(object):
                                 'name': 'srp1'}
     test_required_attributes = {'tenant_name': 'tenant1',
                                 'name': 'srp1',
-                                'destinations': [{'ip': '1'},
+                                'destinations': [{'ip': '1',
+                                                  'redirect_health_'
+                                                  'group_dn': 'my/dn'},
                                                  {'ip': '2',
-                                                  'mac': 'aa:bb:bb:cc:dd:ee'}]}
-    test_search_attributes = {'name': 'srp1'}
+                                                  'mac': 'aa:bb:bb:cc:dd:ee'}],
+                                'monitoring_policy_name': 'mpname',
+                                'monitoring_policy_tenant_name': 'mptname'}
+    test_search_attributes = {'name': 'srp1',
+                              'monitoring_policy_name': 'mpname'}
     test_update_attributes = {'destinations': [],
-                              'display_name': 'REDIR'}
+                              'display_name': 'REDIR',
+                              'monitoring_policy_name': 'mpname2',
+                              'monitoring_policy_tenant_name': 'mptname2'}
     test_default_values = {'destinations': []}
     test_dn = 'uni/tn-tenant1/svcCont/svcRedirectPol-srp1'
     res_command = 'service-redirect-policy'
@@ -1862,6 +1869,45 @@ class TestActionLogMixin(object):
     test_update_attributes = {'action': 'delete'}
     test_default_values = {}
     res_command = 'action-log'
+
+
+class TestServiceRedirectMonitoringPolicyMixin(object):
+    resource_class = aim_service_graph.ServiceRedirectMonitoringPolicy
+    resource_root_type = resource.Tenant._aci_mo_name
+    test_identity_attributes = {'tenant_name': 'tn-common',
+                                'name': 'h1'}
+    test_required_attributes = {'tenant_name': 'tn-common',
+                                'name': 'h1',
+                                'frequency': '10',
+                                'type': 'icmp',
+                                'tcp_port': '80'}
+    test_search_attributes = {'name': 'h1',
+                              'type': 'icmp'}
+    test_update_attributes = {'display_name': 'alias',
+                              'type': 'tcp',
+                              'frequency': '80', 'tcp_port': '443'}
+    test_default_values = {'display_name': '',
+                           'monitored': False,
+                           'tcp_port': '0',
+                           'frequency': '60',
+                           'type': 'icmp'}
+    test_dn = 'uni/tn-tn-common/ipslaMonitoringPol-h1'
+    res_command = 'service-redirect-monitoring-policy'
+
+
+class TestServiceRedirectHealthGroupMixin(object):
+    resource_class = aim_service_graph.ServiceRedirectHealthGroup
+    resource_root_type = resource.Tenant._aci_mo_name
+    test_identity_attributes = {'tenant_name': 'tn-common',
+                                'name': 'h1'}
+    test_required_attributes = {'tenant_name': 'tn-common',
+                                'name': 'h1'}
+    test_search_attributes = {'name': 'h1'}
+    test_update_attributes = {'display_name': 'alias'}
+    test_default_values = {'display_name': '',
+                           'monitored': False}
+    test_dn = 'uni/tn-tn-common/svcCont/redirectHealthGroup-h1'
+    res_command = 'service-redirect-health-group'
 
 
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
@@ -2534,4 +2580,16 @@ class TestBgpPeerPMixin(object):
 
 class TestBgpPeerP(TestBgpPeerPMixin, TestAciResourceOpsBase,
                    base.TestAimDBBase):
+    pass
+
+
+class TestServiceRedirectMonitoringPolicy(
+        TestServiceRedirectMonitoringPolicyMixin, TestAciResourceOpsBase,
+        base.TestAimDBBase):
+    pass
+
+
+class TestServiceRedirectHealthGroup(TestServiceRedirectHealthGroupMixin,
+                                     TestAciResourceOpsBase,
+                                     base.TestAimDBBase):
     pass

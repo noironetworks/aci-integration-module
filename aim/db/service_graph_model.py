@@ -340,6 +340,30 @@ class ServiceGraph(model_base.Base, model_base.HasAimId,
         return res_attr
 
 
+class ServiceRedirectHealthGroup(model_base.Base, model_base.HasAimId,
+                                 model_base.HasName, model_base.HasDisplayName,
+                                 model_base.HasTenantName,
+                                 model_base.IsMonitored,
+                                 model_base.AttributeMixin):
+    __tablename__ = 'aim_service_redirect_health_group'
+
+
+class ServiceRedirectMonitoringPolicy(model_base.Base, model_base.HasAimId,
+                                      model_base.HasName,
+                                      model_base.HasDisplayName,
+                                      model_base.HasTenantName,
+                                      model_base.IsMonitored,
+                                      model_base.AttributeMixin):
+    __tablename__ = 'aim_service_redirect_monitoring_policy'
+
+    tcp_port = sa.Column(sa.String(16))
+    type = sa.Column(sa.String(32))
+    frequency = sa.Column(sa.Integer)
+
+    def get_frequency(self, _):
+        return str(self.frequency)
+
+
 class ServiceRedirectPolicyDestination(model_base.Base):
     """DB model for destinations used by ServiceRedirectPolicy."""
 
@@ -351,6 +375,7 @@ class ServiceRedirectPolicyDestination(model_base.Base):
         primary_key=True)
     ip = sa.Column(sa.String(64), primary_key=True)
     mac = sa.Column(sa.String(24))
+    redirect_health_group_dn = sa.Column(sa.String(1024))
 
 
 class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
@@ -365,6 +390,8 @@ class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
         model_base.uniq_column(__tablename__, 'tenant_name', 'name') +
         model_base.to_tuple(model_base.Base.__table_args__))
 
+    monitoring_policy_tenant_name = model_base.name_column()
+    monitoring_policy_name = model_base.name_column()
     dest = orm.relationship(ServiceRedirectPolicyDestination,
                             backref='redirect_policy',
                             cascade='all, delete-orphan',
@@ -377,8 +404,10 @@ class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
                 if not d.get('ip'):
                     continue
                 dests.append(
-                    ServiceRedirectPolicyDestination(ip=d['ip'],
-                                                     mac=d.get('mac')))
+                    ServiceRedirectPolicyDestination(
+                        ip=d['ip'], mac=d.get('mac'),
+                        redirect_health_group_dn=d.get(
+                            'redirect_health_group_dn')))
             self.dest = dests
         # map remaining attributes to model
         super(ServiceRedirectPolicy, self).from_attr(session, res_attr)
@@ -389,6 +418,9 @@ class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
             dst = {'ip': d.ip}
             if d.mac is not None:
                 dst['mac'] = d.mac
+            if d.redirect_health_group_dn is not None:
+                dst['redirect_health_group_dn'] = (
+                    d.redirect_health_group_dn)
             res_attr.setdefault('destinations', []).append(dst)
         return res_attr
 

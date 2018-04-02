@@ -1367,10 +1367,24 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
     reverse_map_output = [
         {'resource': 'vnsSvcRedirectPol',
          'exceptions': {},
-         'skip': ['destinations']},
+         'skip': ['destinations', 'monitoringPolicyTenantName',
+                  'monitoringPolicyName']},
         {'resource': 'vnsRedirectDest',
          'converter': conv_service_graph.vnsRedirectDest_converter,
-         'exceptions': {}}]
+         'exceptions': {}},
+        {'resource': 'vnsRsIPSLAMonitoringPol',
+         'exceptions': {
+             'monitoring_policy_name': {
+                 'other': 'tDn',
+                 'converter': (
+                     conv_service_graph.fvIPSLAMonitoringPol_dn_decomposer)},
+         },
+         'to_resource': conv_utils.default_to_resource_strict},
+        {'resource': 'vnsRsRedirectHealthGroup',
+         'exceptions': {},
+         'converter': conv_service_graph.vnsRsRedirectHealthGroup_converter},
+
+    ]
     sample_input = [[_aci_obj('vnsSvcRedirectPol',
                               dn='uni/tn-t1/svcCont/svcRedirectPol-r1',
                               nameAlias='alias'),
@@ -1382,16 +1396,75 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
                      _aci_obj('vnsRedirectDest',
                               dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
                                   'RedirectDest_ip-[10.6.1.2]'),
-                              ip='10.6.1.2')],
+                              ip='10.6.1.2'),
+                     _aci_obj('vnsRsRedirectHealthGroup',
+                              dn='uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                                 'RedirectDest_ip-[10.6.1.2]/rsRedirect'
+                                 'HealthGroup',
+                              tDn='my/dn2'),
+                     _aci_obj('vnsRsIPSLAMonitoringPol',
+                              dn='uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                                 'rsIPSLAMonitoringPol',
+                              tDn='uni/tn-common/ipslaMonitoringPol-'
+                                  'mon_policy'),
+                     ],
                     _aci_obj('vnsSvcRedirectPol',
                              dn='uni/tn-t1/svcCont/svcRedirectPol-r2')]
     sample_output = [
         aim_service_graph.ServiceRedirectPolicy(
             tenant_name='t1', name='r1',
-            display_name='alias',
+            display_name='alias', monitoring_policy_tenant_name='common',
+            monitoring_policy_name='mon_policy',
             destinations=[{'ip': '10.6.1.1', 'mac': '90:E2:BA:B1:36:6C'},
-                          {'ip': '10.6.1.2'}]),
+                          {'ip': '10.6.1.2',
+                           'redirect_health_group_dn': 'my/dn2'}]),
         aim_service_graph.ServiceRedirectPolicy(tenant_name='t1', name='r2')
+    ]
+
+
+class TestAciToAimConverterServiceRedirectMonitoringPolicy(
+        TestAciToAimConverterBase, base.TestAimDBBase):
+    resource_type = aim_service_graph.ServiceRedirectMonitoringPolicy
+    reverse_map_output = [
+        {'resource': 'fvIPSLAMonitoringPol',
+         'exceptions': {
+             'tcp_port': {'other': 'slaPort'},
+             'type': {'other': 'slaType'},
+             'frequency': {'other': 'slaFrequency'}}
+         }
+    ]
+    sample_input = [[_aci_obj('fvIPSLAMonitoringPol',
+                              dn='uni/tn-t1/ipslaMonitoringPol-sla1',
+                              nameAlias='alias')],
+                    _aci_obj('fvIPSLAMonitoringPol',
+                             dn='uni/tn-t1/ipslaMonitoringPol-sla2',
+                             slaPort='8080', slaType='tcp',
+                             slaFrequency='50')]
+    sample_output = [
+        aim_service_graph.ServiceRedirectMonitoringPolicy(
+            tenant_name='t1', name='sla1', display_name='alias'),
+        aim_service_graph.ServiceRedirectMonitoringPolicy(
+            tenant_name='t1', name='sla2', tcp_port='8080',
+            type='tcp', frequency='50')
+    ]
+
+
+class TestAciToAimConverterServiceRedirectHealthGroup(
+        TestAciToAimConverterBase, base.TestAimDBBase):
+    resource_type = aim_service_graph.ServiceRedirectHealthGroup
+    reverse_map_output = [
+        {'resource': 'vnsRedirectHealthGroup',
+         'exceptions': {}}]
+    sample_input = [[_aci_obj('vnsRedirectHealthGroup',
+                              dn='uni/tn-t1/svcCont/redirectHealthGroup-h1',
+                              nameAlias='alias')],
+                    _aci_obj('vnsRedirectHealthGroup',
+                             dn='uni/tn-t1/svcCont/redirectHealthGroup-h2')]
+    sample_output = [
+        aim_service_graph.ServiceRedirectHealthGroup(
+            tenant_name='t1', name='h1', display_name='alias'),
+        aim_service_graph.ServiceRedirectHealthGroup(
+            tenant_name='t1', name='h2')
     ]
 
 
@@ -3247,27 +3320,89 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
     sample_input = [get_example_aim_service_redirect_policy(display_name='R'),
                     get_example_aim_service_redirect_policy(
                         name='r2',
+                        monitoring_policy_tenant_name='common',
+                        monitoring_policy_name='mon_policy',
                         destinations=[{'ip': '10.6.1.1',
-                                       'mac': '90:e2:ba:B1:36:6C'},
-                                      {'ip': '10.6.1.2'},
+                                       'mac': '90:e2:ba:B1:36:6C',
+                                       'redirect_health_group_dn': 'my/dn1'},
+                                      {'ip': '10.6.1.2',
+                                       'redirect_health_group_dn': 'my/dn2'},
                                       {'foo': 'bar'}])]
 
     sample_output = [
         [_aci_obj('vnsSvcRedirectPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r1',
-                  nameAlias='R')],
+                  nameAlias='R'),
+         _aci_obj('vnsRsIPSLAMonitoringPol',
+                  dn='uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                     'rsIPSLAMonitoringPol',
+                  tDn='')],
         [_aci_obj('vnsSvcRedirectPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r2',
                   nameAlias=''),
+         _aci_obj('vnsRsIPSLAMonitoringPol',
+                  dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                     'rsIPSLAMonitoringPol',
+                  tDn='uni/tn-common/ipslaMonitoringPol-mon_policy'),
          _aci_obj('vnsRedirectDest',
                   dn=('uni/tn-t1/svcCont/svcRedirectPol-r2/'
                       'RedirectDest_ip-[10.6.1.1]'),
                   ip='10.6.1.1',
                   mac='90:E2:BA:B1:36:6C'),
+         _aci_obj('vnsRsRedirectHealthGroup',
+                  dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                     'RedirectDest_ip-[10.6.1.1]/rsRedirectHealthGroup',
+                  tDn='my/dn1'),
          _aci_obj('vnsRedirectDest',
                   dn=('uni/tn-t1/svcCont/svcRedirectPol-r2/'
                       'RedirectDest_ip-[10.6.1.2]'),
-                  ip='10.6.1.2')]]
+                  ip='10.6.1.2'),
+         _aci_obj('vnsRsRedirectHealthGroup',
+                  dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
+                     'RedirectDest_ip-[10.6.1.2]/rsRedirectHealthGroup',
+                  tDn='my/dn2'),
+         ]]
+
+
+class TestAimToAciConverterServiceRedirectMonitoringPolicy(
+        TestAimToAciConverterBase, base.TestAimDBBase):
+
+    sample_input = [
+        aim_service_graph.ServiceRedirectMonitoringPolicy(
+            tenant_name='t1', name='sla1', display_name='alias'),
+        aim_service_graph.ServiceRedirectMonitoringPolicy(
+            tenant_name='t1', name='sla2', tcp_port='8080',
+            type='tcp', frequency='50')
+    ]
+
+    sample_output = [[_aci_obj('fvIPSLAMonitoringPol',
+                               dn='uni/tn-t1/ipslaMonitoringPol-sla1',
+                               nameAlias='alias',
+                               slaPort='0', slaFrequency='60',
+                               slaType='icmp')],
+                     [_aci_obj('fvIPSLAMonitoringPol',
+                               dn='uni/tn-t1/ipslaMonitoringPol-sla2',
+                               nameAlias='',
+                               slaPort='8080', slaType='tcp',
+                               slaFrequency='50')]]
+
+
+class TestAimToAciConverterServiceRedirectHealthGroup(
+        TestAimToAciConverterBase, base.TestAimDBBase):
+
+    sample_input = [
+        aim_service_graph.ServiceRedirectHealthGroup(
+            tenant_name='t1', name='h1', display_name='alias'),
+        aim_service_graph.ServiceRedirectHealthGroup(
+            tenant_name='t1', name='h2')
+    ]
+
+    sample_output = [[_aci_obj('vnsRedirectHealthGroup',
+                               dn='uni/tn-t1/svcCont/redirectHealthGroup-h1',
+                               nameAlias='alias')],
+                     [_aci_obj('vnsRedirectHealthGroup',
+                               dn='uni/tn-t1/svcCont/redirectHealthGroup-h2',
+                               nameAlias='')]]
 
 
 def get_example_aim_device_cluster_interface_context(**kwargs):
