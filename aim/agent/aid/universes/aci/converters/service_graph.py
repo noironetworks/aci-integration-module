@@ -215,7 +215,8 @@ vnsRedirectDest_converter = utils.list_dict(
     'destinations',
     {'ip': {'other': 'ip'},
      'mac': {'other': 'mac',
-             'converter': utils.upper}},
+             'converter': utils.upper},
+     'name': {'other': 'destName'}},
     ['ip'])
 vnsRsRedirectHealthGroup_converter = utils.list_dict(
     'destinations',

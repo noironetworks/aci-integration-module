@@ -295,7 +295,8 @@ class ServiceRedirectPolicy(resource.AciResourceBase):
         ('destinations', t.list_of_dicts(('ip', t.string()),
                                          ('mac', t.mac_address),
                                          ('redirect_health_group_dn',
-                                          t.string()))),
+                                          t.string()),
+                                         ('name', t.name))),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vnsSvcRedirectPol'
