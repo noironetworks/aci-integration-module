@@ -173,7 +173,7 @@ class AimManager(object):
 
     @utils.log
     def update(self, context, resource, fix_ownership=False,
-               **update_attr_val):
+               force_update=False, **update_attr_val):
         """Persist updates to AIM resource to the database.
 
         Values of identity attributes of parameter 'resource' are used
@@ -199,7 +199,8 @@ class AimManager(object):
                     old_resource_copy = copy.deepcopy(old_resource)
                     for k, v in attr_val.iteritems():
                         setattr(old_resource, k, v)
-                    if old_resource.user_equal(old_resource_copy):
+                    if old_resource.user_equal(
+                            old_resource_copy) and not force_update:
                         # Nothing to do here
                         return old_resource
                 elif resource.identity_attributes:
@@ -385,7 +386,7 @@ class AimManager(object):
             exclude = exclude or []
             if status and status.sync_status not in exclude:
                 self.update(context, status, sync_status=sync_status,
-                            sync_message=message)
+                            sync_message=message, force_update=True)
                 return True
             return False
 
