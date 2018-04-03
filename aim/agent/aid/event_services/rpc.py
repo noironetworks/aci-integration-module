@@ -66,7 +66,7 @@ class AIDEventRpcApi(object):
                 cctxt = self.client
             return cctxt.cast(context, method, fanout=True)
 
-    def tree_creation_postcommit(self, session, added, updated, deleted):
+    def tree_creation_postcommit(self, added, updated, deleted):
         should_serve = any(isinstance(x, tree.TypeTreeBase)
                            for x in added + deleted)
         should_reconcile = any(isinstance(x, (tree.TypeTreeBase,
