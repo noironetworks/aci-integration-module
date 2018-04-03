@@ -15,10 +15,8 @@
 
 from contextlib import contextmanager
 import copy
-from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from sqlalchemy import event as sa_event
-from sqlalchemy import exc
 from sqlalchemy.sql.expression import func
 
 from aim.agent.aid.event_services import rpc
@@ -184,9 +182,6 @@ class AimStore(object):
         self.from_attr(obj, type(resource),
                        self.extract_attributes(resource))
         return obj
-
-    def fix_session(self, error, force=False):
-        pass
 
 
 class SqlAlchemyStore(AimStore):
@@ -362,16 +357,6 @@ class SqlAlchemyStore(AimStore):
 
     def to_attr(self, resource_klass, db_obj):
         return db_obj.to_attr(self.db_session)
-
-    def fix_session(self, error, force=False):
-        if error:
-            LOG.debug("Rolling back session after %s", error.message)
-        if force or any(isinstance(error, x) for x in
-                        [db_exc.DBError, exc.SQLAlchemyError]):
-            try:
-                self.db_session.rollback()
-            except Exception as e:
-                LOG.exception(e)
 
     def add_commit_hook(self):
         # By session lifecycle order.
