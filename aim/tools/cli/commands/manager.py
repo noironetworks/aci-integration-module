@@ -40,24 +40,19 @@ ATTR_UNSPECIFIED = object()
 DICT_LIST_ATTRS = ['static_paths']
 BOOL_ATTRS = ['monitored']
 
-AVAILABLE_FORMATS = ['table', 'json']
-DEFAULT_FORMAT = 'tables'
-curr_format = DEFAULT_FORMAT
-
-
 def formated_output(rows, headers, **argv):
         output = ''
-        if curr_format == 'json':
+        if aimcli.curr_format == 'json':
             data = []
             for row in rows:
                 data.append(collections.OrderedDict(zip(headers, row)))
             output = json.dumps(data)
-        elif curr_format == 'tables':
+        elif  aimcli.curr_format == 'tables':
             plain = argv.get('plain')
             output = tabulate(rows, headers,
                               tablefmt='plain' if plain else 'psql')
         else:
-            output = 'Unknown format: %s' % (curr_format,)
+            output = 'Unknown format: %s' % (aimcli.curr_format,)
         return output
 
 

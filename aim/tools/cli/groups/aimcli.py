@@ -15,18 +15,20 @@
 
 from aim import config
 from aim.db import api
-from aim.tools.cli.commands import manager
 
 import click
 from click import exceptions as exc
 import logging
 
+AVAILABLE_FORMATS = ['table', 'json']
+DEFAULT_FORMAT = 'tables'
 
 global_opts = [
     config.cfg.StrOpt('apic_system_id',
                       help="Prefix for APIC domain/names/profiles created"),
 ]
 config.CONF.register_opts(global_opts)
+curr_format = DEFAULT_FORMAT
 
 
 @click.group()
@@ -59,9 +61,9 @@ def aim(ctx, config_file, fmt, debug):
                 "the '--config-file' option %s!" % config_file)
         ctx.obj['conf'] = config.CONF
 
-    ctx.obj['fmt'] = manager.DEFAULT_FORMAT
-    if fmt in manager.AVAILABLE_FORMATS:
+    ctx.obj['fmt'] = DEFAULT_FORMAT
+    if fmt in AVAILABLE_FORMATS:
         ctx.obj['fmt'] = fmt
-        manager.curr_format = fmt
+        curr_format = fmt
 
     api.get_store()
