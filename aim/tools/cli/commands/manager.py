@@ -54,7 +54,8 @@ def formated_output(rows, headers, **argv):
             output = json.dumps(data)
         elif curr_format == 'tables':
             plain = argv.get('plain')
-            output = tabulate(rows, headers, tablefmt='plain' if plain else 'psql')
+            output = tabulate(rows, headers,
+                              tablefmt='plain' if plain else 'psql')
         else:
             output = 'Unknown format: %s' % (curr_format,)
         return output
