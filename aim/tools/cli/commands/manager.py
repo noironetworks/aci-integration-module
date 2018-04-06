@@ -47,7 +47,7 @@ def formated_output(rows, headers, **argv):
             for row in rows:
                 data.append(collections.OrderedDict(zip(headers, row)))
             output = json.dumps(data)
-        elif  aimcli.curr_format == 'tables':
+        elif aimcli.curr_format == 'tables':
             plain = argv.get('plain')
             output = tabulate(rows, headers,
                               tablefmt='plain' if plain else 'psql')

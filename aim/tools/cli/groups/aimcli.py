@@ -63,7 +63,8 @@ def aim(ctx, config_file, fmt, debug):
 
     ctx.obj['fmt'] = DEFAULT_FORMAT
     if fmt in AVAILABLE_FORMATS:
-        ctx.obj['fmt'] = fmt
+        global curr_format
         curr_format = fmt
+        ctx.obj['fmt'] = fmt
 
     api.get_store()
