@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
 import json
 import re
 
@@ -39,31 +40,43 @@ ATTR_UNSPECIFIED = object()
 DICT_LIST_ATTRS = ['static_paths']
 BOOL_ATTRS = ['monitored']
 
+def formated_output(rows, headers, **argv):
+        output = ''
+        if aimcli.curr_format == 'json':
+            data = []
+            for row in rows:
+                data.append(collections.OrderedDict(zip(headers, row)))
+            output = json.dumps(data)
+        elif aimcli.curr_format == 'tables':
+            plain = argv.get('plain')
+            output = tabulate(rows, headers,
+                              tablefmt='plain' if plain else 'psql')
+        else:
+            output = 'Unknown format: %s' % (aimcli.curr_format,)
+        return output
+
 
 def print_resource(res, plain=False):
     if res:
         rows = [[a, getattr(res, a, None)] for a in res.attributes()]
         if isinstance(res, resource.AciResourceBase):
             rows.append(['dn', res.dn])
-        # TODO(ivar): optionally use a structured format for better
-        # scriptability
-        click.echo(tabulate(rows, headers=['Property', 'Value'],
-                            tablefmt='plain' if plain else 'psql'))
+        headers = ['Property', 'Value']
+        click.echo(formated_output(rows, headers, plain=plain))
 
 
 def print_resources(res_list, attrs=None, plain=False):
     if not res_list:
         return
     if attrs:
-        header = ['Identity'] + attrs
+        headers = ['Identity'] + attrs
         rows = [([','.join(res.identity)] +
                  [getattr(res, a, None) for a in attrs])
                 for res in res_list]
     else:
-        header = res_list[0].identity_attributes
+        headers = res_list[0].identity_attributes
         rows = [res.identity for res in res_list]
-    click.echo(tabulate(rows, headers=header,
-                        tablefmt='plain' if plain else 'psql'))
+    click.echo(formated_output(rows, headers, plain=plain))
 
 
 @aimcli.aim.group(name='manager')
