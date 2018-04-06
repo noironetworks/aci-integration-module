@@ -15,6 +15,7 @@
 
 from aim import config
 from aim.db import api
+from aim.tools.cli.commands import manager
 
 import click
 from click import exceptions as exc
@@ -32,9 +33,12 @@ config.CONF.register_opts(global_opts)
 @click.option('--config-file', '-c', multiple=True,
               default=['/etc/aim/aim.conf', '/etc/aim/aimctl.conf'],
               help='AIM static configuration file')
+@click.option('--fmt', '-f', multiple=False,
+              default='tables',
+              help='AIM output format. One of: tables, json')
 @click.option('--debug', '-d', is_flag=True)
 @click.pass_context
-def aim(ctx, config_file, debug):
+def aim(ctx, config_file, fmt, debug):
     """Group for AIM cli."""
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -54,4 +58,10 @@ def aim(ctx, config_file, debug):
                 "search paths (~/.aim/, ~/, /etc/aim/, /etc/) and "
                 "the '--config-file' option %s!" % config_file)
         ctx.obj['conf'] = config.CONF
+
+    ctx.obj['fmt'] = manager.DEFAULT_FORMAT
+    if fmt in AVAILABLE_FORMATS:
+        ctx.obj['fmt'] = fmt
+        manager.curr_format = fmt
+
     api.get_store()
