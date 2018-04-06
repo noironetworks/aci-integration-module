@@ -60,7 +60,7 @@ def aim(ctx, config_file, fmt, debug):
         ctx.obj['conf'] = config.CONF
 
     ctx.obj['fmt'] = manager.DEFAULT_FORMAT
-    if fmt in AVAILABLE_FORMATS:
+    if fmt in manager.AVAILABLE_FORMATS:
         ctx.obj['fmt'] = fmt
         manager.curr_format = fmt
 

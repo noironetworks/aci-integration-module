@@ -44,6 +44,7 @@ AVAILABLE_FORMATS = ['table', 'json']
 DEFAULT_FORMAT = 'tables'
 curr_format = DEFAULT_FORMAT
 
+
 def formated_output(rows, headers, **argv):
         output = ''
         if curr_format == 'json':
