@@ -17,6 +17,7 @@ from contextlib import contextmanager
 import copy
 from oslo_log import log as logging
 from sqlalchemy import event as sa_event
+from sqlalchemy.orm import exc as orm_exc
 from sqlalchemy.sql.expression import func
 
 from aim.agent.aid.event_services import rpc
@@ -482,8 +483,14 @@ class SqlAlchemyStore(AimStore):
             for db_obj in mod_set:
                 res_cls = store.resource_map.get(type(db_obj))
                 if res_cls:
-                    res = store.make_resource(res_cls, db_obj)
-                    res_list.append(res)
+                    try:
+                        res = store.make_resource(res_cls, db_obj)
+                        res_list.append(res)
+                    except orm_exc.ObjectDeletedError as objdel_exc:
+                        LOG.debug("Ignoring exception during aim manager"
+                                  "postcommit execution in "
+                                  "store.make_resource: "
+                                  "%s" % objdel_exc.message)
         for f in copy.copy(SqlAlchemyStore._postcommit_listeners).values():
             LOG.debug("Invoking after transaction commit hook %s with "
                       "%d add(s), %d update(s))",
