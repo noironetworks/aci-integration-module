@@ -251,7 +251,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             epg = aim_res.EndpointGroup(
                 tenant_name=tn_name, app_profile_name='ap', name='epg',
                 bd_name='some')
-            # Add Tenant and AP
+            # Add Tenant
             self.mgr.create(self.ctx, aim_res.Tenant(name=tn_name))
             # Creating a tenant also cause a log to be created, and
             # consequently a reconcile call

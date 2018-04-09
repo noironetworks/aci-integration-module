@@ -29,7 +29,7 @@ from aim.tests import base
 class TestDataMigration(base.TestAimDBBase):
 
     def setUp(self, *args, **kwargs):
-        super(TestDataMigration, self).setUp(*args, **kwargs)
+        super(TestDataMigration, self).setUp(*args, mock_store=False, **kwargs)
         self.mgr = aim_manager.AimManager()
 
     def test_host_data_migration(self):

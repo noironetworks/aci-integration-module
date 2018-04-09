@@ -75,7 +75,8 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
     #    - get/get-with-status/delete single class
     #    - entire model replaced
 
-    def test_aim_server_per_type(self):
+    # No one uses the server and the test is very slow
+    def _test_aim_server_per_type(self):
         exclude = {
             api_res.Configuration,  # There are many already
             status_res.AciFault,  # Tested by status test

@@ -24,7 +24,6 @@ import mock
 from aim.agent.aid import service
 from aim.agent.aid.universes.aci import aci_universe
 from aim import aim_manager
-from aim import aim_store
 from aim.api import resource
 from aim.api import service_graph
 from aim.api import status as aim_status
@@ -53,13 +52,7 @@ def run_once_loop(agent):
 class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
-        super(TestAgent, self).setUp(initialize_hooks=False)
-        try:
-            aim_store.SqlAlchemyStore.add_commit_hook = (
-                self.old_add_commit_hook)
-            self.ctx.store.add_commit_hook()
-        except AttributeError:
-            pass
+        super(TestAgent, self).setUp(mock_store=False)
         self.set_override('agent_down_time', 3600, 'aim')
         self.set_override('agent_polling_interval', 0, 'aim')
         self.set_override('aci_tenant_polling_yield', 0, 'aim')
@@ -1413,7 +1406,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.aim_manager.create(self.ctx, tn2)
         self._first_serve(agent)
         original_max_value = hashtree_db_listener.MAX_EVENTS_PER_ROOT
-        self.ctx.store._after_transaction_end_2_called = True
         try:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = 0
             for tenant in [tenant_name, tenant_name2]:
@@ -1443,7 +1435,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 self.assertFalse(base_tree.needs_reset)
         finally:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
-            self.ctx.store._after_transaction_end_2_called = False
 
     def test_divergence_reset(self):
         agent = self._create_agent()

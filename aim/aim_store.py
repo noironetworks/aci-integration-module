@@ -274,11 +274,10 @@ class SqlAlchemyStore(AimStore):
     for k, v in db_model_map.iteritems():
         resource_map[v] = k
 
-    def __init__(self, db_session, initialize_hooks=True):
+    def __init__(self, db_session):
         super(SqlAlchemyStore, self).__init__()
         self.db_session = db_session
-        self.initialize_hooks = initialize_hooks
-        if initialize_hooks:
+        if self.db_session:
             self.add_commit_hook()
             self._initialize_hooks()
 
@@ -361,29 +360,29 @@ class SqlAlchemyStore(AimStore):
     def add_commit_hook(self):
         # By session lifecycle order.
         if not sa_event.contains(self.db_session, 'before_flush',
-                                 self._before_session_commit):
+                                 SqlAlchemyStore._before_session_commit):
             sa_event.listen(self.db_session, 'before_flush',
-                            self._before_session_commit)
+                            SqlAlchemyStore._before_session_commit)
         if not sa_event.contains(self.db_session, 'after_flush',
-                                 self._after_session_flush):
+                                 SqlAlchemyStore._after_session_flush):
             sa_event.listen(self.db_session, 'after_flush',
-                            self._after_session_flush)
+                            SqlAlchemyStore._after_session_flush)
         if not sa_event.contains(self.db_session, 'after_rollback',
-                                 self._after_session_rollback):
+                                 SqlAlchemyStore._after_session_rollback):
             sa_event.listen(self.db_session, 'after_rollback',
-                            self._after_session_rollback)
+                            SqlAlchemyStore._after_session_rollback)
         if not sa_event.contains(self.db_session, 'after_rollback',
-                                 self._clear_epoch_bumped_flags):
+                                 SqlAlchemyStore._clear_epoch_bumped_flags):
             sa_event.listen(self.db_session, 'after_rollback',
-                            self._clear_epoch_bumped_flags)
+                            SqlAlchemyStore._clear_epoch_bumped_flags)
         if not sa_event.contains(self.db_session, 'after_commit',
-                                 self._clear_epoch_bumped_flags):
+                                 SqlAlchemyStore._clear_epoch_bumped_flags):
             sa_event.listen(self.db_session, 'after_commit',
-                            self._clear_epoch_bumped_flags)
+                            SqlAlchemyStore._clear_epoch_bumped_flags)
         if not sa_event.contains(self.db_session, 'after_transaction_end',
-                                 self._after_transaction_end):
+                                 SqlAlchemyStore._after_transaction_end):
             sa_event.listen(self.db_session, 'after_transaction_end',
-                            self._after_transaction_end)
+                            SqlAlchemyStore._after_transaction_end)
 
     @staticmethod
     def _clear_epoch_bumped_flags(session):
@@ -400,7 +399,7 @@ class SqlAlchemyStore(AimStore):
 
     @staticmethod
     def _before_session_commit(session, flush_context, instances):
-        store = SqlAlchemyStore(session, initialize_hooks=False)
+        store = SqlAlchemyStore(session)
         added = []
         updated = []
         deleted = []
@@ -417,9 +416,11 @@ class SqlAlchemyStore(AimStore):
                     # http://docs.sqlalchemy.org/en/latest/orm/versioning.html
                     SqlAlchemyStore._bump_epoch(db_obj)
                 res_cls = store.resource_map.get(type(db_obj))
-                if res_cls:
+                if res_cls and not getattr(db_obj, '_aim_log_created', False):
                     res = store.make_resource(res_cls, db_obj)
                     res_list.append(res)
+                    setattr(db_obj, '_aim_log_created', True)
+
         for f in copy.copy(SqlAlchemyStore._update_listeners).values():
             LOG.debug("Invoking pre-commit hook %s with %d add(s), "
                       "%d update(s), %d delete(s)",
@@ -429,14 +430,20 @@ class SqlAlchemyStore(AimStore):
     @staticmethod
     def _after_session_flush(session, _):
         # Stash log changes
-        added = set([x for x in session.new
-                     if isinstance(x, (tree_model.ActionLog,
-                                       tree_model.TypeTreeBase))])
-        updated = set([x for x in session.dirty
-                       if isinstance(x, (tree_model.ActionLog,
-                                         tree_model.TypeTreeBase))])
-        deleted = set([x for x in session.deleted
-                       if isinstance(x, tree_model.TypeTreeBase)])
+        def to_resource(objs):
+            res_set = set()
+            # This is not creating a session
+            store = SqlAlchemyStore(None)
+            for db_obj in objs:
+                res_cls = store.resource_map.get(type(db_obj))
+                if res_cls:
+                    res = store.make_resource(res_cls, db_obj)
+                    res_set.add(res)
+            return res_set
+
+        added = to_resource(session.new)
+        updated = to_resource(session.dirty)
+        deleted = to_resource(session.deleted)
 
         try:
             session._aim_stash
@@ -466,30 +473,17 @@ class SqlAlchemyStore(AimStore):
             if transaction._parent is not None:
                 return
         try:
-            stash_added = session._aim_stash['added']
-            stash_updated = session._aim_stash['updated']
-            stash_deleted = session._aim_stash['deleted']
+            added = list(session._aim_stash['added'])
+            updated = list(session._aim_stash['updated'])
+            deleted = list(session._aim_stash['deleted'])
         except AttributeError:
             return
-        added = []
-        updated = []
-        deleted = []
-        modified = [(stash_added, added),
-                    (stash_updated, updated),
-                    (stash_deleted, deleted)]
-        store = SqlAlchemyStore(None, initialize_hooks=False)
-        for mod_set, res_list in modified:
-            for db_obj in mod_set:
-                res_cls = store.resource_map.get(type(db_obj))
-                if res_cls:
-                    res = store.make_resource(res_cls, db_obj)
-                    res_list.append(res)
         for f in copy.copy(SqlAlchemyStore._postcommit_listeners).values():
             LOG.debug("Invoking after transaction commit hook %s with "
                       "%d add(s), %d update(s))",
                       f.__name__, len(added), len(updated))
             try:
-                f(session, added, updated, deleted)
+                f(added, updated, deleted)
             except Exception as ex:
                 LOG.error("An error occurred during aim manager postcommit "
                           "execution: %s" % ex.message)
