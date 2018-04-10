@@ -22,6 +22,7 @@ import sqlalchemy as sa
 from aim.agent.aid.universes.aci import aci_universe
 from aim import aim_manager
 from aim.api import resource
+from aim.common import utils
 from aim import config
 from aim import context
 from aim.db import api
@@ -71,6 +72,12 @@ def upgrade(ctx, version):
     fix_no_nat_l3out_ownership(aim_ctx)
 
     click.echo('Rebuilding hash-trees')
+    _reset(aim_mgr)
+
+
+@utils.retry_loop(1, 3, 'reset hashtree', return_=True)
+def _reset(aim_mgr):
+    aim_ctx = context.AimContext(store=api.get_store(expire_on_commit=True))
     # reset hash-trees to account for schema/converter changes
     listener = hashtree_db_listener.HashTreeDbListener(aim_mgr)
     aim_ctx.store.db_session.expunge_all()

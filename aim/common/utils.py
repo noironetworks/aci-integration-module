@@ -152,13 +152,15 @@ class StopLoop(Exception):
     pass
 
 
-def retry_loop(max_wait, max_retries, name, fail=False):
+def retry_loop(max_wait, max_retries, name, fail=False, return_=False):
     def wrap(func):
         def inner(*args, **kwargs):
             recovery_retries = None
             while True:
                 try:
-                    func(*args, **kwargs)
+                    res = func(*args, **kwargs)
+                    if return_:
+                        return res
                     recovery_retries = None
                 except StopLoop:
                     return
