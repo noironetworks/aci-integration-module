@@ -1,0 +1,14 @@
+[Unit]
+Description=HTTP Server for ACI Inconsistency Detector
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/aim-http-server --config-file=/etc/aim/aim.conf --log-file=/var/log/aim-http-server.log
+PrivateTmp=false
+KillMode=process
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

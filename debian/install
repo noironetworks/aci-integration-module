@@ -4,4 +4,5 @@ debian/aim-event-service-rpc.conf /etc/init/
 debian/aim-aid.service /lib/systemd/system/
 debian/aim-event-service-polling.service /lib/systemd/system/
 debian/aim-event-service-rpc.service /lib/systemd/system/
+debian/aim-http-server.service /lib/systemd/system/
 etc/logrotate.d/aim /etc/logrotate.d/
