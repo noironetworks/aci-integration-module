@@ -270,7 +270,7 @@ def reverse_attribute_mapping_info(mapping_info, to_aim=True):
     return result
 
 
-def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None):
+def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None, requires=None):
     def func(object_dict, otype, helper, source_identity_attributes,
              destination_identity_attributes, to_aim=True):
         result = []
@@ -302,8 +302,11 @@ def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None):
             result.append(default_to_resource(res_dict, helper, to_aim=True))
         else:
             aci_type = aci_mo or helper['resource']
+            req = requires or []
             for aim_list_item in object_dict[aim_attr]:
                 aim_list_item = copy.copy(aim_list_item)
+                if set(req) - set(aim_list_item.keys()):
+                    continue
                 # fill out the defaults
                 for aim_d_a, map_info in mapping_info.iteritems():
                     if aim_d_a not in aim_list_item and 'default' in map_info:

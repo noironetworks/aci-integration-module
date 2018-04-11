@@ -223,7 +223,7 @@ vnsRsRedirectHealthGroup_converter = utils.list_dict(
     {'redirect_health_group_dn': {'other': 'tDn'},
      'ip': {'other': 'dn',
             'converter': vnsRsRedirectHealthGroup_ip_converter}},
-    ['ip'])
+    ['ip'], requires=['redirect_health_group_dn'])
 
 
 resource_map = {
