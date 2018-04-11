@@ -1393,6 +1393,11 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
                                   'RedirectDest_ip-[10.6.1.1]'),
                               ip='10.6.1.1',
                               mac='90:E2:Ba:b1:36:6c'),
+                     _aci_obj('vnsRsRedirectHealthGroup',
+                              dn='uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                                 'RedirectDest_ip-[10.6.1.1]/rsRedirect'
+                                 'HealthGroup',
+                              tDn=''),
                      _aci_obj('vnsRedirectDest',
                               dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
                                   'RedirectDest_ip-[10.6.1.2]'),
@@ -1420,7 +1425,8 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
             tenant_name='t1', name='r1',
             display_name='alias', monitoring_policy_tenant_name='common',
             monitoring_policy_name='mon_policy',
-            destinations=[{'ip': '10.6.1.1', 'mac': '90:E2:BA:B1:36:6C'},
+            destinations=[{'ip': '10.6.1.1', 'mac': '90:E2:BA:B1:36:6C',
+                           'redirect_health_group_dn': ''},
                           {'ip': '10.6.1.2',
                            'redirect_health_group_dn': 'my/dn2'},
                           {'ip': '10.6.1.3', 'mac': '90:E2:BA:B1:36:6D',
@@ -3324,7 +3330,9 @@ def get_example_aim_service_redirect_policy(**kwargs):
 
 class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                                                  base.TestAimDBBase):
-    sample_input = [get_example_aim_service_redirect_policy(display_name='R'),
+    sample_input = [get_example_aim_service_redirect_policy(
+        display_name='R', destinations=[{'ip': '10.10.1.1',
+                                         'mac': '90:E2:BA:B1:37:6C'}]),
                     get_example_aim_service_redirect_policy(
                         name='r2',
                         monitoring_policy_tenant_name='common',
@@ -3346,7 +3354,12 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
          _aci_obj('vnsRsIPSLAMonitoringPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r1/'
                      'rsIPSLAMonitoringPol',
-                  tDn='')],
+                  tDn=''),
+         _aci_obj('vnsRedirectDest',
+                  dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
+                      'RedirectDest_ip-[10.10.1.1]'),
+                  ip='10.10.1.1',
+                  mac='90:E2:BA:B1:37:6C')],
         [_aci_obj('vnsSvcRedirectPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r2',
                   nameAlias=''),
@@ -3377,9 +3390,6 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
                      'RedirectDest_ip-[10.6.1.2]/rsRedirectHealthGroup',
                   tDn='my/dn2'),
-         _aci_obj('vnsRsRedirectHealthGroup',
-                  dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
-                     'RedirectDest_ip-[10.6.1.3]/rsRedirectHealthGroup')
          ]]
 
 
