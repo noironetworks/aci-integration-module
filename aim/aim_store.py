@@ -416,10 +416,9 @@ class SqlAlchemyStore(AimStore):
                     # http://docs.sqlalchemy.org/en/latest/orm/versioning.html
                     SqlAlchemyStore._bump_epoch(db_obj)
                 res_cls = store.resource_map.get(type(db_obj))
-                if res_cls and not getattr(db_obj, '_aim_log_created', False):
+                if res_cls:
                     res = store.make_resource(res_cls, db_obj)
                     res_list.append(res)
-                    setattr(db_obj, '_aim_log_created', True)
 
         for f in copy.copy(SqlAlchemyStore._update_listeners).values():
             LOG.debug("Invoking pre-commit hook %s with %d add(s), "
