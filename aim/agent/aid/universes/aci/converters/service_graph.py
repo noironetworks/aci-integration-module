@@ -207,9 +207,6 @@ vnsAbsFuncConn_converter = utils.child_list('connectors', 'name')
 vnsLDevVip_dn_decomposer = utils.dn_decomposer(
     ['device_cluster_tenant_name', 'device_cluster_name'],
     'vnsLDevVip')
-fvIPSLAMonitoringPol_dn_decomposer = utils.dn_decomposer(
-    ['monitoring_policy_tenant_name', 'monitoring_policy_name'],
-    'fvIPSLAMonitoringPol')
 vnsRsAbsConnectionConns_converter = utils.child_list('connector_dns', 'tDn')
 vnsRedirectDest_converter = utils.list_dict(
     'destinations',
@@ -224,7 +221,9 @@ vnsRsRedirectHealthGroup_converter = utils.list_dict(
      'ip': {'other': 'dn',
             'converter': vnsRsRedirectHealthGroup_ip_converter}},
     ['ip'], requires=['redirect_health_group_dn'])
-
+vnsRsIPSLAMonitoringPol_converter = utils.tdn_rs_converter(
+    ['monitoring_policy_tenant_name', 'monitoring_policy_name'],
+    'fvIPSLAMonitoringPol')
 
 resource_map = {
     'vnsLDevVip': [{
@@ -334,10 +333,7 @@ resource_map = {
     }],
     'vnsRsIPSLAMonitoringPol': [{
         'resource': service_graph.ServiceRedirectPolicy,
-        'exceptions': {
-            'tDn': {'other': 'monitoring_policy_name',
-                    'converter': fvIPSLAMonitoringPol_dn_decomposer},
-        },
+        'converter': vnsRsIPSLAMonitoringPol_converter,
         'to_resource': utils.default_to_resource_strict
     }],
     'vnsRsRedirectHealthGroup': [{

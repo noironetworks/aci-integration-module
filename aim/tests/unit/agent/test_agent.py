@@ -2022,6 +2022,80 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             len(self.aim_manager.find(self.ctx,
                                       service_graph.ServiceGraphConnection)))
 
+    def test_redirect_policy(self):
+        agent = self._create_agent()
+
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        tenant_name = 'test_redirect_policy'
+        desired_monitor = agent.multiverse[2]['desired']
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        tn = resource.Tenant(name=tenant_name)
+        self.aim_manager.create(self.ctx, tn)
+        # Run loop for serving tenant
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        srp_parent = {
+            'vnsSvcCont': {
+                'attributes': {'dn': 'uni/tn-%s/svcCont' % tenant_name}}}
+        self._set_events(
+            [srp_parent], manager=current_config.serving_tenants[tn.rn],
+            tag=False)
+        agent._reconciliation_cycle(self.ctx)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        red_pol = service_graph.ServiceRedirectPolicy(tenant_name=tenant_name,
+                                                      name='r1')
+        red_pol = self.aim_manager.create(self.ctx, red_pol)
+        agent._reconciliation_cycle(self.ctx)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn.root])
+        # Ip SLA RS doesn't exist
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
+            'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
+        # Add only tenant name
+        red_pol = self.aim_manager.update(
+            self.ctx, red_pol, monitoring_policy_tenant_name='common')
+        agent._reconciliation_cycle(self.ctx)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn.root])
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
+            'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
+        # Add also policy name
+        red_pol = self.aim_manager.update(
+            self.ctx, red_pol, monitoring_policy_name='test')
+        agent._reconciliation_cycle(self.ctx)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn.root])
+        self.assertIsNotNone(test_aci_tenant.mock_get_data(
+            desired_monitor.serving_tenants[tn.rn].aci_session,
+            'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol'))
+        # Reset tenant name
+        red_pol = self.aim_manager.update(
+            self.ctx, red_pol, monitoring_policy_tenant_name='')
+        agent._reconciliation_cycle(self.ctx)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn.root])
+        self.assertRaises(
+            apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
+            desired_monitor.serving_tenants[tn.rn].aci_session,
+            'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']

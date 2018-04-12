@@ -302,10 +302,14 @@ def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None, requires=None):
             result.append(default_to_resource(res_dict, helper, to_aim=True))
         else:
             aci_type = aci_mo or helper['resource']
-            req = requires or []
             for aim_list_item in object_dict[aim_attr]:
+                req = set(requires or [])
                 aim_list_item = copy.copy(aim_list_item)
-                if set(req) - set(aim_list_item.keys()):
+                for k, v in aim_list_item.iteritems():
+                    if k in req and not v:
+                        break
+                    req.discard(k)
+                if req:
                     continue
                 # fill out the defaults
                 for aim_d_a, map_info in mapping_info.iteritems():
@@ -357,3 +361,40 @@ def dn_decomposer(aim_attr_list, aci_mo):
                 dn = ''
             return dn
     return func
+
+
+def tdn_rs_converter(aim_attr_list, aci_mo):
+    def _tdn_rs_converter(object_dict, otype, helper,
+                          source_identity_attributes,
+                          destination_identity_attributes, to_aim=True):
+        result = []
+        if to_aim:
+            # Converting a fvRsDomAtt into an EPG
+            res_dict = {}
+            try:
+                id = default_identity_converter(object_dict, otype, helper,
+                                                to_aim=True)
+            except apic_client.DNManager.InvalidNameFormat:
+                return []
+            for index, attr in enumerate(destination_identity_attributes):
+                res_dict[attr] = id[index]
+            tdn = object_dict.get('tDn')
+            if tdn:
+                dnm = apic_client.DNManager()
+                mos_and_rns = dnm.aci_decompose_with_type(tdn, aci_mo)
+                rns = dnm.filter_rns(mos_and_rns)
+                res_dict.update(dict(zip(aim_attr_list, rns)))
+            to_res = helper.get('to_resource', default_to_resource)
+            result.append(to_res(res_dict, helper, to_aim=True))
+        else:
+            dn = default_identity_converter(
+                object_dict, otype, helper, to_aim=False)[0]
+            dn_attrs = [object_dict[a] for a in aim_attr_list
+                        if object_dict.get(a)]
+            if len(dn_attrs) == len(aim_attr_list):
+                tdn = apic_client.ManagedObjectClass(aci_mo).dn(*dn_attrs)
+                result.append(
+                    {helper['resource']: {'attributes': {'dn': dn,
+                                                         'tDn': tdn}}})
+        return result
+    return _tdn_rs_converter
