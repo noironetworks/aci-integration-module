@@ -1373,12 +1373,8 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
          'converter': conv_service_graph.vnsRedirectDest_converter,
          'exceptions': {}},
         {'resource': 'vnsRsIPSLAMonitoringPol',
-         'exceptions': {
-             'monitoring_policy_name': {
-                 'other': 'tDn',
-                 'converter': (
-                     conv_service_graph.fvIPSLAMonitoringPol_dn_decomposer)},
-         },
+         'exceptions': {},
+         'converter': conv_service_graph.vnsRsIPSLAMonitoringPol_converter,
          'to_resource': conv_utils.default_to_resource_strict},
         {'resource': 'vnsRsRedirectHealthGroup',
          'exceptions': {},
@@ -3344,17 +3340,14 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                                        'redirect_health_group_dn': 'my/dn2'},
                                       {'ip': '10.6.1.3',
                                        'mac': '90:e2:ba:B1:36:6D',
-                                       'name': 'dest-name'},
+                                       'name': 'dest-name',
+                                       'redirect_health_group_dn': ''},
                                       {'foo': 'bar'}])]
 
     sample_output = [
         [_aci_obj('vnsSvcRedirectPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r1',
                   nameAlias='R'),
-         _aci_obj('vnsRsIPSLAMonitoringPol',
-                  dn='uni/tn-t1/svcCont/svcRedirectPol-r1/'
-                     'rsIPSLAMonitoringPol',
-                  tDn=''),
          _aci_obj('vnsRedirectDest',
                   dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
                       'RedirectDest_ip-[10.10.1.1]'),
@@ -3391,6 +3384,30 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                      'RedirectDest_ip-[10.6.1.2]/rsRedirectHealthGroup',
                   tDn='my/dn2'),
          ]]
+
+    def test_ipsla_tenant_only(self):
+        example = get_example_aim_service_redirect_policy(
+            display_name='R', destinations=[{'ip': '10.10.1.1',
+                                             'mac': '90:E2:BA:B1:37:6C'}],
+            monitoring_policy_tenant_name='common')
+        result = self.converter.convert([example])
+        to_aim_converter = converter.AciToAimModelConverter()
+        back = to_aim_converter.convert(result)
+        self.assertNotEqual(example, back[0])
+        example.monitoring_policy_tenant_name = ''
+        self.assertEqual(example, back[0])
+
+    def test_ipsla_name_only(self):
+        example = get_example_aim_service_redirect_policy(
+            display_name='R', destinations=[{'ip': '10.10.1.1',
+                                             'mac': '90:E2:BA:B1:37:6C'}],
+            monitoring_policy_name='monitoring')
+        result = self.converter.convert([example])
+        to_aim_converter = converter.AciToAimModelConverter()
+        back = to_aim_converter.convert(result)
+        self.assertNotEqual(example, back[0])
+        example.monitoring_policy_name = ''
+        self.assertEqual(example, back[0])
 
 
 class TestAimToAciConverterServiceRedirectMonitoringPolicy(
