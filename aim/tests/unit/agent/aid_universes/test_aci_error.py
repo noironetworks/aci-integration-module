@@ -76,6 +76,14 @@ class TestACIError(base.BaseTestCase):
                         request='', status='400', reason='',
                         err_text='', err_code=str(err_code))))
 
+        for err_code in self.base_handler.APIC_SYSTEM_TRANSIENT:
+            self.assertEqual(
+                errors.SYSTEM_TRANSIENT,
+                self.apic_handler.analyze_exception(
+                    exceptions.ApicResponseNotOk(
+                        request='', status='400', reason='',
+                        err_text='', err_code=str(err_code))))
+
         self.assertEqual(
             errors.SYSTEM_TRANSIENT,
             self.apic_handler.analyze_exception(
