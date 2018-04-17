@@ -35,6 +35,7 @@ class APICErrorHandler(object):
 
     APIC_OBJECT_CRITICAL = set([122, 121, 120, 106, 801, 104])
     APIC_OBJECT_TRANSIENT = set([100, 102])
+    APIC_SYSTEM_TRANSIENT = set([1])
 
     def analyze_request_exception(self, e):
         if isinstance(e, request_exc.Timeout):
@@ -59,6 +60,8 @@ class APICErrorHandler(object):
                 return errors.OPERATION_CRITICAL
             if error_code in self.APIC_OBJECT_TRANSIENT:
                 return errors.OPERATION_TRANSIENT
+            if error_code in self.APIC_SYSTEM_TRANSIENT:
+                return errors.SYSTEM_TRANSIENT
             else:
                 LOG.warn("Unmanaged error code %s from APIC", error_code)
                 return errors.UNKNOWN
