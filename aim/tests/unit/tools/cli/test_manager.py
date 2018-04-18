@@ -14,6 +14,7 @@
 #    under the License.
 
 import ast
+import mock
 
 from aim import aim_manager
 from aim.api import infra
@@ -356,6 +357,24 @@ class TestManager(base.TestShell):
             else:
                 self.assertEqual(4, len(parsed))
             self.assertEqual(expected[state], set(parsed))
+
+    def test_sync_state_recover(self):
+        # Create 2 APs and 2 BDs for each state
+        tn = self.mgr.create(self.ctx, resource.Tenant(name='tn1'))
+        self.mgr.set_resource_sync_synced(self.ctx, tn)
+        items = []
+        for i in range(2):
+            name = 'error_%s' % i
+            for res in [resource.VRF, resource.BridgeDomain]:
+                item = self.mgr.create(self.ctx, res(tenant_name='tn1',
+                                                     name=name))
+                self.mgr.set_resource_sync_error(self.ctx, item)
+                items.append(item)
+
+        with mock.patch('aim.aim_manager.AimManager.update') as up:
+            self.run_command('manager sync-state-recover')
+            # Items are updated
+            self.assertEqual(4, up.call_count)
 
 
 class TestManagerResourceOpsBase(object):
