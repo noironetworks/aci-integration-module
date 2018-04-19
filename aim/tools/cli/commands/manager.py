@@ -377,6 +377,32 @@ def sync_state_find(ctx, state, plain):
                         tablefmt='plain' if plain else 'psql'))
 
 
+@manager.command(name='sync-state-recover')
+@click.pass_context
+def sync_state_recover(ctx):
+    manager = ctx.obj['manager']
+    aim_ctx = ctx.obj['aim_ctx']
+    error = (status_res.AciStatus.SYNC_FAILED, 'error', 'sync_error', 'failed')
+    to_process = []
+    for state in error:
+        statuses = manager.find(aim_ctx, status_res.AciStatus,
+                                sync_status=state)
+        for status in statuses:
+            aim_res = manager.get_by_id(
+                aim_ctx, status.parent_class, status.resource_id)
+            if not aim_res:
+                continue
+            to_process.append(aim_res)
+
+    with click.progressbar(to_process) as bar:
+        for aim_res in bar:
+            try:
+                manager.update(aim_ctx, aim_res)
+            except Exception as e:
+                click.echo("Failed to recover %s: %s" %
+                           (str(aim_res), e.message))
+
+
 @manager.command(name='schema-get')
 def schema_get():
     schema_dict = schema.generate_schema()
