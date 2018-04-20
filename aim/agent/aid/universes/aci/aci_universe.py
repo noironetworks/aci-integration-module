@@ -483,8 +483,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
             sign_hash=apic_config.get_option(
                 'signature_hash_type', group='apic'))
 
-    def update_status_objects(self, my_state, raw_diff, skip_roots=None):
-
+    def update_status_objects(self, my_state, raw_diff, skip_keys):
         pass
 
     def _action_items_to_aim_resources(self, actions, action):

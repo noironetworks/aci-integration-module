@@ -85,8 +85,8 @@ def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
 
 class Counter(object):
 
-    def __init__(self):
-        self.num = 0
+    def __init__(self, num=0):
+        self.num = num
 
     def get(self):
         return self.num
@@ -95,11 +95,14 @@ class Counter(object):
         self.num += 1
 
 
+def get_backoff_time(max_time, tentative_number):
+    return min(random.random() * (2 ** tentative_number), max_time)
+
+
 def exponential_backoff(max_time, tentative=None):
     tentative = tentative or Counter()
     try:
-        sleep_time_secs = min(random.random() * (2 ** tentative.get()),
-                              max_time)
+        sleep_time_secs = get_backoff_time(max_time, tentative.get())
     except OverflowError:
         sleep_time_secs = max_time
     LOG.debug('Sleeping for %s seconds' % sleep_time_secs)

@@ -321,41 +321,16 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             self.universe.ws_context._thread_monitor({'monitor_runs': 4})
             self.assertEqual(0, harakiri.call_count)
 
-    def test_creation_failed_cooldown(self):
-        curr_cooldown = self.universe.retry_cooldown
-        curr_max_retries = self.universe.max_create_retry
-        aim_object = resource.Tenant(name='test_creation_failed_cooldown')
-        aim_id = self.universe._get_aim_object_identifier(aim_object)
-        # Set max_retry to infinity, we don't care about failing the object
-        self.universe.max_create_retry = float('inf')
-        # Fail first operation
-        self.universe.creation_failed(self.universe.context, aim_object)
-        self.assertEqual((1, mock.ANY), self.universe.failure_log[aim_id])
-        # If the cooldown is high enough, the object will not increase in retry
-        # value as it keeps failing
-        self.universe.retry_cooldown = float('inf')
-        for x in range(10):
-            self.universe.creation_failed(self.universe.context, aim_object)
-        self.assertEqual((1, mock.ANY), self.universe.failure_log[aim_id])
-        # If the cooldown is low enough, we will see an increase in tentatives
-        self.universe.retry_cooldown = -1
-        for x in range(10):
-            self.universe.creation_failed(self.universe.context, aim_object)
-        self.assertEqual((11, mock.ANY), self.universe.failure_log[aim_id])
-
-        self.universe.retry_cooldown = curr_cooldown
-        self.universe.max_create_retry = curr_max_retries
-
     def test_track_universe_actions(self):
         # When AIM is the current state, created objects are in ACI form,
         # deleted objects are in AIM form
-        old_cooldown = self.universe.retry_cooldown
         reset_limit = self.universe.reset_retry_limit
         purge_limit = self.universe.purge_retry_limit
+        old_backoff_time = self.universe.max_backoff_time
         self.assertEqual(2 * self.universe.max_create_retry, reset_limit)
         self.assertEqual(2 * reset_limit, purge_limit)
         self.assertTrue(self.universe.max_create_retry > 0)
-        self.universe.retry_cooldown = -1
+        self.universe.max_backoff_time = 0
         actions = {
             'create': [
                 resource.BridgeDomain(tenant_name='t1', name='b'),
@@ -363,23 +338,25 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             ],
             'delete': []
         }
-        reset, purge = self.universe._track_universe_actions(actions, 'tn-t1')
-        self.assertEqual(set(), reset)
+        reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                   'tn-t1')
+        self.assertEqual(False, reset)
         self.assertEqual([], purge)
         # 1 root
-        self.assertEqual(1, len(self.universe._action_cache['create']))
+        self.assertEqual(1, len(self.universe._sync_log['tn-t1']['create']))
         actions = {
             'create': [
                 resource.VRF(tenant_name='t2', name='c'),
             ],
             'delete': []
         }
-        reset, purge = self.universe._track_universe_actions(actions, 'tn-t2')
+        reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                   'tn-t2')
         # 2 roots
-        self.assertEqual(2, len(self.universe._action_cache['create']))
+        self.assertEqual(1, len(self.universe._sync_log['tn-t2']['create']))
         # BD counted only once
         self.assertEqual(
-            0, self.universe._action_cache['create']['tn-t1'].values()[0][
+            0, self.universe._sync_log['tn-t1']['create'].values()[0][
                 'retries'])
         ctrl = resource.VMMController(domain_type='OpenStack',
                                       domain_name='os', name='ctrl')
@@ -389,53 +366,59 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                 self._get_example_aci_object('vmmCtrlrP', ctrl.dn)
             ]
         }
-        reset, purge = self.universe._track_universe_actions(actions,
-                                                             'vmmp-OpenStack')
-        self.assertEqual(set(), reset)
+        reset, purge, skip = self.universe._track_universe_actions(
+            actions, 'vmmp-OpenStack')
+        self.assertEqual(False, reset)
         self.assertEqual([], purge)
-        reset, purge = self.universe._track_universe_actions(
+        reset, purge, skip = self.universe._track_universe_actions(
             {'create': [], 'delete': []}, 'tn-t2')
         # Tenant t2 is off the hook
-        self.assertTrue('tn-t2' not in self.universe._action_cache['create'])
-        self.assertTrue('tn-t2' not in self.universe._action_cache['delete'])
+        self.assertTrue('tn-t2' not in
+                        self.universe._sync_log['tn-t2']['create'])
+        self.assertTrue('tn-t2' not in
+                        self.universe._sync_log['tn-t2']['delete'])
         actions = {
             'create': [
                 resource.BridgeDomain(tenant_name='t1', name='b'),
             ],
             'delete': []
         }
-        reset, purge = self.universe._track_universe_actions(actions, 'tn-t1')
+        reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                   'tn-t1')
         # BD count increased
         self.assertEqual(
-            1, self.universe._action_cache['create']['tn-t1'].values()[0][
+            1, self.universe._sync_log['tn-t1']['create'].values()[0][
                 'retries'])
         self.assertEqual(
-            0, self.universe._action_cache['delete'][ctrl.root].values()[0][
+            0, self.universe._sync_log[ctrl.root]['delete'].values()[0][
                 'retries'])
         # Retry the above until t1 needs reset
         for _ in range(reset_limit - 1):
-            reset, purge = self.universe._track_universe_actions(actions,
-                                                                 'tn-t1')
-            self.assertEqual(set(), reset)
+            reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                       'tn-t1')
+            self.assertEqual(False, reset)
             self.assertEqual([], purge)
-        reset, purge = self.universe._track_universe_actions(actions, 'tn-t1')
-        self.assertEqual({'tn-t1'}, reset)
+        reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                   'tn-t1')
+        self.assertEqual(True, reset)
         self.assertEqual([], purge)
         # with the next run, reset is not required for t1 anymore, but pure
         # countdown starts
-        reset, purge = self.universe._track_universe_actions(actions, 'tn-t1')
+        reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                   'tn-t1')
         self.assertEqual([], purge)
         for _ in range(purge_limit - reset_limit - 2):
-            reset, purge = self.universe._track_universe_actions(actions,
-                                                                 'tn-t1')
-            self.assertEqual(set(), reset)
+            reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                       'tn-t1')
+            self.assertEqual(False, reset)
             self.assertEqual([], purge)
-        reset, purge = self.universe._track_universe_actions(actions, 'tn-t1')
-        self.assertEqual(set(), reset)
+        reset, purge, skip = self.universe._track_universe_actions(actions,
+                                                                   'tn-t1')
+        self.assertEqual(False, reset)
         self.assertEqual(1, len(purge))
         self.assertEqual('create', purge[0][0])
         self.assertEqual('uni/tn-t1/BD-b', purge[0][1].dn)
-        self.universe.retry_cooldown = old_cooldown
+        self.universe.max_backoff_time = old_backoff_time
 
 
 class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):

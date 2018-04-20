@@ -269,19 +269,19 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         for obj in aim_to_sync:
             self.manager.set_resource_sync_pending(self.context, obj)
 
-    def _set_synced_state(self, raw_diff, unsynced_nodes):
+    def _set_synced_state(self, raw_diff, unsynced_nodes, skip_keys):
         all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
-        keys_to_sync = set(unsynced_nodes) - all_modified_keys
+        keys_to_sync = (set(unsynced_nodes) - all_modified_keys) - skip_keys
         aim_to_sync = self.get_resources(list(keys_to_sync))
         for obj in aim_to_sync:
             self.manager.set_resource_sync_synced(self.context, obj)
 
-    def update_status_objects(self, tenant_state, raw_diff):
+    def update_status_objects(self, tenant_state, raw_diff, skip_keys):
         # AIM Config Universe is the desired state
         pending_nodes, na_nodes = self._get_state_pending_na_nodes(
             tenant_state)
         self._set_sync_pending_state(raw_diff, pending_nodes)
-        self._set_synced_state(raw_diff, pending_nodes + na_nodes)
+        self._set_synced_state(raw_diff, pending_nodes + na_nodes, skip_keys)
 
     def _action_items_to_aim_resources(self, actions, action):
         if action == base.DELETE:
@@ -330,7 +330,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
         self._mask_tenant_state(other_universe, delete_candidates)
         return self._reconcile(other_universe)
 
-    def update_status_objects(self, tenant_state, raw_diff, skip_roots=None):
+    def update_status_objects(self, tenant_state, raw_diff, skip_keys):
         pass
 
 

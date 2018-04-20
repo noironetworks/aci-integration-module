@@ -296,11 +296,6 @@ class AimHashTreeMaker(object):
 
     def _prepare_aim_resource(self, tree, aim_res):
         result = {}
-        is_error = getattr(aim_res, '_error', False)
-        is_monitored = (getattr(aim_res, 'monitored', False) or
-                        getattr(aim_res, 'pre_existing', False))
-        pending = getattr(aim_res, '_pending', None)
-        to_aci = converter.AimToAciModelConverter()
         aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
         if not aim_res_dn:
             return result
@@ -309,7 +304,17 @@ class AimHashTreeMaker(object):
         aim_res_key = AimHashTreeMaker._build_hash_tree_key(aim_res)
         node = tree.find(aim_res_key) if aim_res_key else None
         self._clean_related(tree, node)
+        return self.aim_res_to_nodes(aim_res)
 
+    @staticmethod
+    def aim_res_to_nodes(aim_res):
+        result = {}
+        aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
+        is_error = getattr(aim_res, '_error', False)
+        is_monitored = (getattr(aim_res, 'monitored', False) or
+                        getattr(aim_res, 'pre_existing', False))
+        pending = getattr(aim_res, '_pending', None)
+        to_aci = converter.AimToAciModelConverter()
         for obj in to_aci.convert([aim_res]):
             for mo, v in obj.iteritems():
                 attr = v.get('attributes', {})

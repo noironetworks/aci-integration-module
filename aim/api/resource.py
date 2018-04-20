@@ -128,8 +128,14 @@ class ResourceBase(object):
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __repr__(self):
         return '%s(%s)' % (super(ResourceBase, self).__repr__(), self.members)
+
+    def __hash__(self):
+        return self.hash
 
 
 class AciResourceBase(ResourceBase):

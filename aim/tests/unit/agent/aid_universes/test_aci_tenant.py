@@ -206,7 +206,7 @@ class TestAciClientMixin(object):
                             else:
                                 raise apic_client.cexc.ApicResponseNotOk(
                                     status=400, reason='bad request',
-                                    request='create', err_code=400,
+                                    request='create', err_code=104,
                                     err_text='bad request')
                         else:
                             # Append newly created object

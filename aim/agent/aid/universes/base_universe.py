@@ -232,7 +232,7 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def update_status_objects(self, my_state, raw_diff):
+    def update_status_objects(self, my_state, raw_diff, skip_keys):
         """Update status objects
 
         Given the current state of the tenant, update the proper status objects
@@ -277,22 +277,16 @@ class HashTreeStoredUniverse(AimUniverse):
         self.manager = aim_manager.AimManager()
         self.conf_manager = conf_mgr
         self._state = {}
-        self.failure_log = {}
         self.max_create_retry = self.conf_manager.get_option(
             'max_operation_retry', 'aim')
-        # Don't increase retry value if at least retry_cooldown seconds have
-        # passed
-        self.retry_cooldown = self.conf_manager.get_option(
-            'retry_cooldown', 'aim')
+        self.max_backoff_time = 60
         self.reset_retry_limit = 2 * self.max_create_retry
         self.purge_retry_limit = 2 * self.reset_retry_limit
         self.error_handlers = {
-            errors.OPERATION_TRANSIENT: self._retry_until_max,
-            errors.UNKNOWN: self._retry_until_max,
             errors.OPERATION_CRITICAL: self._surrender_operation,
             errors.SYSTEM_CRITICAL: self._fail_agent,
         }
-        self._action_cache = {}
+        self._sync_log = {}
         return self
 
     def _dissect_key(self, key):
@@ -347,6 +341,7 @@ class HashTreeStoredUniverse(AimUniverse):
         other_state = other_universe.state
         diff = False
         for tenant in set(my_state.keys()) & set(other_state.keys()):
+            # TODO(ivar): parallelize the procedure on Tenant's basis
             try:
                 differences = {CREATE: [], DELETE: []}
                 other_tenant_state = other_state[tenant]
@@ -366,48 +361,55 @@ class HashTreeStoredUniverse(AimUniverse):
                     DELETE: self.get_resources_for_delete(differences[DELETE])
                 }
 
-                reset, purge = self._track_universe_actions(result, tenant)
-                LOG.debug('Action cache for %s: %s' % (self.name,
-                                                       self._action_cache))
-                # Schedule root reset
-                if reset:
-                    self.reset(reset)
-                    other_universe.reset(reset)
-                stop_sync = set()
-                for action, res in purge:
-                    # It's no use to set error state for resetting roots
-                    if res.root not in reset:
-                        if action == CREATE:
-                            self.creation_failed(
-                                self.context,
-                                res, reason='Divergence detected on this '
-                                            'object.',
-                                error=errors.OPERATION_CRITICAL)
-                        if action == DELETE:
-                            self.deletion_failed(
-                                self.context,
-                                res, reason='Divergence detected on this '
-                                            'object.',
-                                error=errors.OPERATION_CRITICAL)
-                        stop_sync.add(res.root)
-                # Don't synchronize resetting roots or purge objects
-                stop_sync |= reset
-                if stop_sync:
-                    for method in CREATE, DELETE:
-                        differences[method] = [
-                            x for x in differences[method] if
-                            tree_manager.AimHashTreeMaker._extract_root_rn(x)
-                            not in stop_sync]
-                        result[method] = [
-                            x for x in result[method] if
-                            self._get_resource_root(method, x)
-                            not in stop_sync]
+                reset, fail, skip = self._track_universe_actions(result,
+                                                                 tenant)
+                LOG.debug('Sync log cache for %s (%s): %s' %
+                          (self.name, tenant, self._sync_log))
 
-                # Set status objects properly
-                if tenant not in stop_sync:
-                    self.update_status_objects(my_tenant_state, differences)
-                    other_universe.update_status_objects(other_tenant_state,
-                                                         differences)
+                if reset:
+                    self.reset([tenant])
+                    other_universe.reset([tenant])
+                    # Don't synchronize resetting roots
+                    continue
+
+                for action, res in fail:
+                    if action == CREATE:
+                        self.creation_failed(
+                            self.context,
+                            res, reason='Divergence detected on this '
+                                        'object.',
+                            error=errors.OPERATION_CRITICAL)
+                    if action == DELETE:
+                        self.deletion_failed(
+                            self.context,
+                            res, reason='Divergence detected on this '
+                                        'object.',
+                            error=errors.OPERATION_CRITICAL)
+                    skip.append((action, res))
+
+                skipset = set()
+                if skip:
+                    differences[CREATE] = set(differences[CREATE])
+                    differences[DELETE] = set(differences[DELETE])
+
+                    for action, res in skip:
+                        for key in (tree_manager.AimHashTreeMaker.
+                                    aim_res_to_nodes(res)):
+                            differences[action].discard(key)
+                            skipset.add(key)
+                    differences[CREATE] = list(differences[CREATE])
+                    differences[DELETE] = list(differences[DELETE])
+                    # Need to rebuild results
+                    result = {
+                        CREATE: other_universe.get_resources(
+                            differences[CREATE]),
+                        DELETE: self.get_resources_for_delete(
+                            differences[DELETE])
+                    }
+                self.update_status_objects(my_tenant_state, differences,
+                                           skipset)
+                other_universe.update_status_objects(other_tenant_state,
+                                                     differences, skipset)
                 # Reconciliation method for pushing changes
                 self.push_resources(result)
             except Exception as e:
@@ -537,8 +539,7 @@ class HashTreeStoredUniverse(AimUniverse):
         pass
 
     def creation_succeeded(self, aim_object):
-        aim_id = self._get_aim_object_identifier(aim_object)
-        self.failure_log.pop(aim_id, None)
+        pass
 
     def creation_failed(self, context, aim_object, reason='unknown',
                         error=errors.UNKNOWN):
@@ -555,26 +556,9 @@ class HashTreeStoredUniverse(AimUniverse):
         return self.error_handlers.get(error, self._noop)(
             context, aim_object, operation, reason)
 
-    def _retry_until_max(self, context, aim_object, operation, reason):
-        aim_id = self._get_aim_object_identifier(aim_object)
-        failures, last = self.failure_log.get(aim_id, (0, None))
-        curr_time = time.time()
-        if not last or curr_time - last >= self.retry_cooldown:
-            self.failure_log[aim_id] = (failures + 1, curr_time)
-            if self.failure_log[aim_id][0] >= self.max_create_retry:
-                LOG.warn("AIM object %s failed %s more than %s times in %s, "
-                         "setting its state to Error" %
-                         (aim_id, operation, self.max_create_retry, self.name))
-                # Surrender
-                self.manager.set_resource_sync_error(context, aim_object,
-                                                     message=reason)
-                self.failure_log.pop(aim_id, None)
-
     def _surrender_operation(self, context, aim_object, operation, reason):
-        aim_id = self._get_aim_object_identifier(aim_object)
         self.manager.set_resource_sync_error(context, aim_object,
                                              message=reason)
-        self.failure_log.pop(aim_id, None)
 
     def _fail_agent(self, context, aim_object, operation, reason):
         utils.perform_harakiri(LOG, message=reason)
@@ -596,49 +580,70 @@ class HashTreeStoredUniverse(AimUniverse):
         Keep track of what the universe has been doing in the past few
         iterations. Keeping count of any operation repeated over time and
         decreasing count of actions that are not happening in this iteration.
-        :param actions: dictionary in the form {'create': [..], 'delete': [..]}
+        :param actions: dictionary in the form {'root': {'create': {'hash':},
+                                                         'delete': {}}}
         :param root: root under consideration
         :return:
         """
         # TODO(ivar): if tenant is unserved, its action track will leak until
         # AID is restarted. Be aware of this during tracking refactoring.
         curr_time = time.time()
-        reset = set()
-        purge = []
-        for action in [CREATE, DELETE]:
-            root_cache = {}
-            for res in self._action_items_to_aim_resources(actions, action):
-                # Same resource created twice in the same iteration is
-                # increased only once
-                if root != res.root:
-                    raise exceptions.BadTrackingArgument(
-                        exp=root, act=res.root, res=actions)
-                new = (root_cache.
-                       setdefault(res.hash, {'limit': self.reset_retry_limit,
-                                             'res': res, 'retries': 0,
-                                             'action': ACTION_RESET,
-                                             'last': curr_time}))
-                # Retrieve current object situation if any
-                curr = self._action_cache.get(action, {}).get(root, {}).get(
-                    res.hash, {})
-                if curr:
-                    new.update(curr)
-                    if curr_time - curr['last'] >= self.retry_cooldown:
-                        new['retries'] += 1
-                        new['last'] = curr_time
-                if new['retries'] > new['limit']:
-                    if new['action'] == ACTION_RESET:
-                        reset.add(root)
-                        new['limit'] = self.purge_retry_limit
-                        new['action'] = ACTION_PURGE
-                    else:
-                        new['limit'] += 5
-                        purge.append((action, res))
-            if not root_cache:
-                self._action_cache.setdefault(action, {}).pop(root, None)
-            else:
-                self._action_cache.setdefault(action, {})[root] = root_cache
-        return reset, purge
+        reset = False
+        seen = set()
+        fail = []
+        skip = []
+        # Think about non blocking lock acquisition, skipping resync entirely
+        # for this tenant whenere that happens
+        with utils.get_rlock(root):
+            root_state = self._sync_log.setdefault(
+                root, {'create': {}, 'delete': {}})
+            new_state = {'create': {}, 'delete': {}}
+            for action in [CREATE, DELETE]:
+                for res in self._action_items_to_aim_resources(actions,
+                                                               action):
+                    if res in seen:
+                        continue
+                    seen.add(res)
+                    # Same resource created twice in the same iteration is
+                    # increased only once
+                    if root != res.root:
+                        raise exceptions.BadTrackingArgument(
+                            exp=root, act=res.root, res=actions)
+                    new = (new_state[action].setdefault(
+                        res, {'limit': self.reset_retry_limit, 'res': res,
+                              'retries': -1, 'action': ACTION_RESET,
+                              'last': curr_time, 'next': curr_time}))
+                    curr = root_state[action].get(res, {})
+                    if curr:
+                        new.update(curr)
+                    curr = new
+                    if curr_time < curr['next']:
+                        # Let's not make any consideration about this object
+                        LOG.debug("AIM object %s is being re-tried too soon "
+                                  "(delta: %s secs). Skipping for now." %
+                                  (str(res), curr['next'] - curr_time))
+                        skip.append((action, res))
+                        continue
+
+                    curr['next'] = curr_time + utils.get_backoff_time(
+                        self.max_backoff_time, curr['retries'])
+                    curr['retries'] += 1
+                    if curr['retries'] > curr['limit']:
+                        if curr['action'] == ACTION_RESET:
+                            LOG.warn("AIM object %s failed %s more than %s "
+                                     "times, resetting its root" %
+                                     (str(res), action, curr['retries']))
+                            reset = True
+                            curr['limit'] = self.purge_retry_limit
+                            curr['action'] = ACTION_PURGE
+                        else:
+                            LOG.warn("AIM object %s failed %s more than %s "
+                                     "times, going to ERROR state" %
+                                     (str(res), action, curr['retries']))
+                            curr['limit'] += 5
+                            fail.append((action, res))
+            self._sync_log[root] = new_state
+            return reset, fail, skip
 
     @property
     def state(self):

@@ -14,7 +14,6 @@
 #    under the License.
 
 import json
-from requests import exceptions as rexc
 import time
 
 from apicapi import apic_client
@@ -1113,41 +1112,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self.aim_manager.update(self.ctx, tn)
             agent._reconciliation_cycle(self.ctx)
 
-            # OPERATION_TRANSIENT (fail object after max retries)
-            apic_client.ApicSession.post_body_dict = mock.Mock(
-                side_effect=aexc.ApicResponseNotOk(
-                    request='', status='400', reason='',
-                    err_text='', err_code='102'))
-            # Observe and Reconcile
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
-            self.assertEqual(
-                aim_status.AciStatus.SYNC_PENDING,
-                self.aim_manager.get_status(self.ctx, tn).sync_status)
-            # Another tentative, however, will fail the object
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
-            self.assertEqual(
-                aim_status.AciStatus.SYNC_FAILED,
-                self.aim_manager.get_status(self.ctx, tn).sync_status)
-            # Put tenant back in pending state
-            self.aim_manager.update(self.ctx, tn)
-
-            # SYSTEM_TRANSIENT (never fail the object)
-            apic_client.ApicSession.post_body_dict = mock.Mock(
-                side_effect=rexc.Timeout())
-            # This will not fail the object
-            for x in range(3):
-                # Observe and Reconcile
-                self._observe_aci_events(current_config)
-                agent._reconciliation_cycle(self.ctx)
-                # Tenant is still in SYNC_PENDING state
-                self.assertEqual(
-                    aim_status.AciStatus.SYNC_PENDING,
-                    self.aim_manager.get_status(self.ctx, tn).sync_status)
-
             # SYSTEM_CRITICAL perform harakiri
             apic_client.ApicSession.post_body_dict = mock.Mock(
                 side_effect=aexc.ApicResponseNoCookie(request=''))
@@ -1155,24 +1119,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._observe_aci_events(current_config)
             agent._reconciliation_cycle(self.ctx)
             self.assertEqual(1, harakiri.call_count)
-
-            # UNKNOWN (fail after max retries)
-            apic_client.ApicSession.post_body_dict = mock.Mock(
-                side_effect=Exception())
-            # Observe and Reconcile
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
-            self.assertEqual(
-                aim_status.AciStatus.SYNC_PENDING,
-                self.aim_manager.get_status(self.ctx, tn).sync_status)
-            # Another tentative, however, will fail the object
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
-            self.assertEqual(
-                aim_status.AciStatus.SYNC_FAILED,
-                self.aim_manager.get_status(self.ctx, tn).sync_status)
 
     @base.requires(['hooks'])
     def test_multi_context_session(self):
@@ -1444,7 +1390,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         desired_config = agent.multiverse[0]['desired']
         current_monitor = agent.multiverse[2]['current']
         desired_monitor = agent.multiverse[2]['desired']
-        current_config.retry_cooldown = -1
+        current_config.max_backoff_time = -1
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
@@ -1464,7 +1410,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(Exception,
                           self._assert_universe_sync, desired_config,
                           current_config)
-        self.assertEqual(1, len(current_config._action_cache['create']))
+        self.assertEqual(1, len(current_config._sync_log))
         current_config.reset = mock.Mock()
         desired_config.reset = mock.Mock()
         current_config.push_resources = mock.Mock()
@@ -1478,10 +1424,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         current_config.push_resources.reset_mock()
         agent._reconciliation_cycle(self.ctx)
-        current_config.reset.assert_called_once_with(set([tn.rn]))
-        desired_config.reset.assert_called_once_with(set([tn.rn]))
-        current_config.push_resources.assert_called_once_with(
-            {'create': [], 'delete': []})
+        current_config.reset.assert_called_once_with([tn.rn])
+        desired_config.reset.assert_called_once_with([tn.rn])
+        self.assertEqual(0, current_config.push_resources.call_count)
         # Still not in sync
         self.assertRaises(Exception,
                           self._assert_universe_sync, desired_config,
@@ -1607,7 +1552,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_reset_consistency(tn1.rn)
 
     def test_skip_monitored_root(self):
-        # Set retry to 1 to cause immediate creation surrender
         agent = self._create_agent()
         current_config = agent.multiverse[0]['current']
 
@@ -1629,13 +1573,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Tenant still exists
         self.assertIsNotNone(self.aim_manager.get(self.ctx, tn1))
         # Action cache is empty
-        self.assertEqual({}, desired_monitor._action_cache.get('create', {}))
-        self.assertEqual({}, desired_monitor._action_cache.get('delete', {}))
-        self.assertEqual({}, current_monitor._action_cache.get('create', {}))
-        self.assertEqual({}, current_monitor._action_cache.get('delete', {}))
+        self.assertEqual({}, desired_monitor._sync_log)
+        self.assertEqual({'create': {}, 'delete': {}},
+                         current_monitor._sync_log.values()[0])
 
     def test_tenant_delete_behavior(self):
-        tenant_name = 'test_skip_for_managed'
+        tenant_name = 'test_tenant_delete_behavior'
         self.set_override('max_operation_retry', 2, 'aim')
         self.set_override('retry_cooldown', -1, 'aim')
         agent = self._create_agent()
@@ -1658,10 +1601,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._reconciliation_cycle(self.ctx)
         # push config
         self._observe_aci_events(current_config)
-        # Will be out of sync until VRF goes in error state
-        for _ in range(3):
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn1.root])
@@ -1793,6 +1733,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                      app_profile_name='test', name='test')
         epg = self.aim_manager.get(self.ctx, epg)
         self.assertTrue(epg.monitored)
+        # Remove from sync log
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
         self.aim_manager.update(self.ctx, epg, sync=False)
         agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
