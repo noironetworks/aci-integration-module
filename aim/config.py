@@ -85,7 +85,10 @@ agent_opts = [
                     "If the former is chosen, a DB section needs to exist "
                     "with info on how to create a DB session. In the case of "
                     "the Kubernetes store, specify the config file path in "
-                    "the [aim_k8s] section")
+                    "the [aim_k8s] section"),
+    cfg.IntOpt('error_state_recovery_interval', default=3600,
+               help="Number of seconds (with a 20% random deviation) AIM "
+                    "waits before re-trying objects in error state."),
 ]
 
 # TODO(ivar): move into AIM section

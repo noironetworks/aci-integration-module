@@ -27,3 +27,5 @@ ACI_TREE_LOCK_NAME_PREFIX = "root_aci_tree_lock-"
 ACI_BACKLOG_LOCK_NAME_PREFIX = "backlog_aci_lock-"
 # Subscription lock
 ACI_WS_CONNECTION_LOCK = "aci_ws_connection_lock"
+# Sync log lock
+SYNC_LOG_LOCK = "sync_log_lock-"

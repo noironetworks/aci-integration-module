@@ -1089,6 +1089,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent = self._create_agent()
         tenant_name = 'test_manual_rs'
         current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
         tn = resource.Tenant(name=tenant_name)
         tn = self.aim_manager.create(self.ctx, tn)
         # Serve tenant
@@ -1109,9 +1110,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 aim_status.AciStatus.SYNC_FAILED,
                 self.aim_manager.get_status(self.ctx, tn).sync_status)
             # Put tenant back in pending state
-            self.aim_manager.update(self.ctx, tn)
+            desired_config._scheduled_recovery = 0
             agent._reconciliation_cycle(self.ctx)
-
+            self.assertEqual(
+                aim_status.AciStatus.SYNC_PENDING,
+                self.aim_manager.get_status(self.ctx, tn).sync_status)
             # SYSTEM_CRITICAL perform harakiri
             apic_client.ApicSession.post_body_dict = mock.Mock(
                 side_effect=aexc.ApicResponseNoCookie(request=''))
@@ -1119,6 +1122,53 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._observe_aci_events(current_config)
             agent._reconciliation_cycle(self.ctx)
             self.assertEqual(1, harakiri.call_count)
+
+    def test_aim_recovery(self):
+        agent = self._create_agent()
+        tenant_name = 'test_aim_recovery'
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        tn = resource.Tenant(name=tenant_name)
+        tn = self.aim_manager.create(self.ctx, tn)
+        # Serve tenant
+        self._first_serve(agent)
+        # Observe and Reconcile
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        # Put object in error state
+        self.aim_manager.set_resource_sync_error(self.ctx, tn)
+        # A cycle won't recover it
+        agent._reconciliation_cycle(self.ctx)
+        self.assertEqual(
+            aim_status.AciStatus.SYNC_FAILED,
+            self.aim_manager.get_status(self.ctx, tn).sync_status)
+        # Unless there's a scheduled recovery
+        desired_config._scheduled_recovery = 0
+        agent._reconciliation_cycle(self.ctx)
+        self.assertEqual(
+            aim_status.AciStatus.SYNC_PENDING,
+            self.aim_manager.get_status(self.ctx, tn).sync_status)
+        # A new update has been scheduled
+        self.assertNotEqual(0, desired_config._scheduled_recovery)
+        # Simulate leaking status
+        self.aim_manager.create(self.ctx, aim_status.AciStatus(
+            resource_type='VRF', resource_id='abcd',
+            resource_root=tn.root))
+        # Prevent normal operation to cleanup the status
+        self.aim_manager.delete_all(self.ctx, aim_tree.ActionLog)
+        # Normal cycle will not fix it
+        agent._reconciliation_cycle(self.ctx)
+        leaking_st = self.aim_manager.get(self.ctx, aim_status.AciStatus(
+            resource_type='VRF', resource_id='abcd',
+            resource_root=tn.root))
+        self.assertIsNotNone(leaking_st)
+        # Recovery will
+        desired_config._scheduled_recovery = 0
+        agent._reconciliation_cycle(self.ctx)
+        leaking_st = self.aim_manager.get(self.ctx, aim_status.AciStatus(
+            resource_type='VRF', resource_id='abcd',
+            resource_root=tn.root))
+        self.assertIsNone(leaking_st)
 
     @base.requires(['hooks'])
     def test_multi_context_session(self):

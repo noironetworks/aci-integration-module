@@ -23,6 +23,7 @@ from apicapi import apic_client
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
+from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes import errors
 from aim import aim_manager
 from aim.common.hashtree import structured_tree
@@ -279,7 +280,7 @@ class HashTreeStoredUniverse(AimUniverse):
         self._state = {}
         self.max_create_retry = self.conf_manager.get_option(
             'max_operation_retry', 'aim')
-        self.max_backoff_time = 60
+        self.max_backoff_time = 600
         self.reset_retry_limit = 2 * self.max_create_retry
         self.purge_retry_limit = 2 * self.reset_retry_limit
         self.error_handlers = {
@@ -333,7 +334,9 @@ class HashTreeStoredUniverse(AimUniverse):
         pass
 
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
-        pass
+        for root in delete_candidates:
+            with utils.get_rlock(lcon.SYNC_LOG_LOCK + root):
+                self._sync_log.pop(root, None)
 
     def _reconcile(self, other_universe):
         # "self" is always the current state, "other" the desired
@@ -592,9 +595,9 @@ class HashTreeStoredUniverse(AimUniverse):
         seen = set()
         fail = []
         skip = []
-        # Think about non blocking lock acquisition, skipping resync entirely
-        # for this tenant whenere that happens
-        with utils.get_rlock(root):
+        # TODO(ivar): we might try to acquire lock in a non-blocking fashion,
+        # and skip synchronization for this root if it fails.
+        with utils.get_rlock(lcon.SYNC_LOG_LOCK + root):
             root_state = self._sync_log.setdefault(
                 root, {'create': {}, 'delete': {}})
             new_state = {'create': {}, 'delete': {}}

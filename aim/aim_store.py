@@ -89,6 +89,9 @@ class AimStore(object):
         # Save (create/update) object to backend
         pass
 
+    def update_all(self, resource_klass, filters=None, **kwargs):
+        pass
+
     def delete(self, db_obj):
         # Delete object from backend if it exists
         pass
@@ -312,6 +315,16 @@ class SqlAlchemyStore(AimStore):
 
     def delete(self, db_obj):
         self.db_session.delete(db_obj)
+
+    def update_all(self, resource_klass, filters=None, **kwargs):
+        filters = filters or None
+        db_klass = self.db_model_map[resource_klass]
+        query = self._query(db_klass, resource_klass, **filters)
+        # Commit hook is not called after update call for some reason
+        for obj in query.all():
+            for k, v in kwargs.iteritems():
+                setattr(obj, k, v)
+            self.add(obj)
 
     def _query(self, db_obj_type, resource_klass, in_=None, notin_=None,
                order_by=None, lock_update=False, **filters):

@@ -68,7 +68,7 @@ def sleep(time_in_seconds):
 def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
                         notify_exceeding_timeout=True):
     # sleep till end of polling interval
-    elapsed = time.time() - start_time
+    elapsed = get_time() - start_time
     log.debug("%(caller)s loop - completed in %(time).3f. ",
               {'caller': readable_caller, 'time': elapsed})
     if elapsed < polling_interval:
@@ -247,8 +247,8 @@ class AIMThread(object):
             self._stop = True
             if wait:
                 tentative = None
-                curr_time = time.time()
-                while not self.dead and curr_time + timeout < time.time():
+                curr_time = get_time()
+                while not self.dead and curr_time + timeout < get_time():
                     exponential_backoff(timeout / 3, tentative)
                 if not self.dead:
                     raise
@@ -326,3 +326,12 @@ def json_loads(json_text):
 
 def json_dumps(dict):
     return json.dumps(dict)
+
+
+def schedule_next_event(interval, deviation):
+    return get_time() + interval + random.randrange(-interval * deviation,
+                                                    interval * deviation)
+
+
+def get_time():
+    return time.time()

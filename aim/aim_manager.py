@@ -393,6 +393,15 @@ class AimManager(object):
     def set_resource_sync_synced(self, context, resource):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
+    def recover_root_errors(self, context, root):
+        with context.store.begin(subtransactions=True):
+            context.store.update_all(
+                api_status.AciStatus,
+                filters={'sync_status': api_status.AciStatus.SYNC_FAILED,
+                         'resource_root': root},
+                sync_status=api_status.AciStatus.SYNC_PENDING,
+                sync_message='')
+
     def set_resource_sync_pending(self, context, resource, top=True,
                                   cascade=True):
         # When a resource goes in pending state, propagate to both parent

@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
 import traceback
 
 from oslo_log import log as logging
@@ -45,7 +46,14 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._served_tenants = set()
         self._monitored_state_update_failures = 0
         self._max_monitored_state_update_failures = 5
+        self._recovery_interval = conf_mgr.get_option(
+            'error_state_recovery_interval', 'aim')
+        self.schedule_next_recovery()
         return self
+
+    def schedule_next_recovery(self):
+        self._scheduled_recovery = utils.schedule_next_event(
+            self._recovery_interval, 0.2)
 
     def get_state_by_type(self, type):
         try:
@@ -77,9 +85,18 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def observe(self):
         # TODO(ivar): move this to a separate thread and add scheduled reset
         # mechanism
-        hashtree_db_listener.HashTreeDbListener(
-            self.manager).catch_up_with_action_log(self.context.store,
-                                                   self._served_tenants)
+        served_tenants = copy.deepcopy(self._served_tenants)
+        # TODO(ivar): object based reset scheduling would be more correct
+        # to prevent objects from being re-tried too soon.
+        # This will require working with the DB timestamp and proper range
+        # query design.
+        htdbl = hashtree_db_listener.HashTreeDbListener(self.manager)
+        if utils.get_time() > self._scheduled_recovery:
+            for root in served_tenants:
+                self.manager.recover_root_errors(self.context, root)
+            htdbl.cleanup_zombie_status_objects(self.context, served_tenants)
+            self.schedule_next_recovery()
+        htdbl.catch_up_with_action_log(self.context.store, served_tenants)
         # REVISIT(ivar): what if a root is marked as needs_reset? we could
         # avoid syncing it altogether
         self._state.update(self.get_optimized_state(self.state))
@@ -129,6 +146,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 delete_candidates.add(tenant)
 
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        super(AimDbUniverse, self).finalize_deletion_candidates(
+            other_universe, delete_candidates)
         other_state = other_universe.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -300,9 +319,18 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
 
 class AimDbOperationalUniverse(AimDbUniverse):
 
+    def initialize(self, conf_mgr, multiverse):
+        # Only one AIM universe does the recovery
+        super(AimDbOperationalUniverse, self).initialize(conf_mgr, multiverse)
+        self._scheduled_recovery = float('inf')
+        return self
+
     @property
     def name(self):
         return "AIM_Operational_Universe"
+
+    def schedule_next_recovery(self):
+        pass
 
     def get_relevant_state_for_read(self):
         return [self.state]
@@ -317,6 +345,8 @@ class AimDbOperationalUniverse(AimDbUniverse):
         pass
 
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        super(AimDbOperationalUniverse, self).finalize_deletion_candidates(
+            other_universe, delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -336,9 +366,18 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
 class AimDbMonitoredUniverse(AimDbUniverse):
 
+    def initialize(self, conf_mgr, multiverse):
+        # Only one AIM universe does the recovery
+        super(AimDbMonitoredUniverse, self).initialize(conf_mgr, multiverse)
+        self._scheduled_recovery = float('inf')
+        return self
+
     @property
     def name(self):
         return "AIM_Monitored_Universe"
+
+    def schedule_next_recovery(self):
+        pass
 
     def get_relevant_state_for_read(self):
         return [self.state, self.get_state_by_type(base.CONFIG_UNIVERSE)]
@@ -361,6 +400,8 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                 vetoes.add(tenant)
 
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        super(AimDbMonitoredUniverse, self).finalize_deletion_candidates(
+            other_universe, delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
