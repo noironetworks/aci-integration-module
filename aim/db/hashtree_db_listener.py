@@ -110,7 +110,8 @@ class HashTreeDbListener(object):
                     for obj in self.aim_manager.find(aim_ctx, klass,
                                                      **filters):
                         # Need all the faults and statuses as well
-                        stat = self.aim_manager.get_status(aim_ctx, obj)
+                        stat = self.aim_manager.get_status(
+                            aim_ctx, obj, create_if_absent=False)
                         if getattr(obj, 'sync', True):
                             if stat:
                                 log_by_root.setdefault(obj.root, []).append(
