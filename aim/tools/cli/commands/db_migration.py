@@ -75,7 +75,7 @@ def upgrade(ctx, version):
     _reset(aim_mgr)
 
 
-@utils.retry_loop(1, 3, 'reset hashtree', return_=True)
+@utils.retry_loop(60, 10, 'reset hashtree', return_=True)
 def _reset(aim_mgr):
     aim_ctx = context.AimContext(store=api.get_store(expire_on_commit=True))
     # reset hash-trees to account for schema/converter changes
