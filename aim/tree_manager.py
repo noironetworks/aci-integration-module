@@ -447,7 +447,7 @@ class HashTreeBuilder(object):
                         aim_ctx, res.parent_class, res.resource_id)
                     # Remove main object from config tree if in sync error
                     # during an update
-                    if parent:
+                    if parent and parent.root == res.resource_root:
                         if getattr(parent, 'sync', True):
                             if tree_index == 0:
                                 if res.sync_status == res.SYNC_FAILED:

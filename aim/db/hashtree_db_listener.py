@@ -19,6 +19,7 @@ from oslo_log import log as logging
 from oslo_utils import importutils
 
 from aim.api import resource
+from aim.api import status as api_status
 from aim.api import tree as aim_tree
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
@@ -127,9 +128,29 @@ class HashTreeDbListener(object):
             self._push_changes_to_trees(aim_ctx, log_by_root,
                                         delete_logs=False, check_reset=False)
 
+    def _cleanup_zombie_status_objects(self, aim_ctx, root=None):
+        with aim_ctx.store.begin(subtransactions=True):
+            # Retrieve objects
+            klass = api_status.AciStatus
+            filters = {}
+            if root:
+                filters['resource_root'] = root
+            to_delete = []
+            for stat in self.aim_manager.find(aim_ctx, klass, **filters):
+                parent = self.aim_manager.get_by_id(
+                    aim_ctx, stat.parent_class, stat.resource_id)
+                if not parent or parent.root != stat.resource_root:
+                    LOG.debug("Deleting parentless status object "
+                              "%s" % stat)
+                    to_delete.append(stat.id)
+            if to_delete:
+                self.aim_manager.delete_all(
+                    aim_ctx, klass, in_={'id': to_delete})
+
     def reset(self, store, root=None):
         aim_ctx = utils.FakeContext(store=store)
         with aim_ctx.store.begin(subtransactions=True):
+            self._cleanup_zombie_status_objects(aim_ctx, root=root)
             self._delete_trees(aim_ctx, root=root)
             self._recreate_trees(aim_ctx, root=root)
 

@@ -66,7 +66,7 @@ class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
                       model_base.to_tuple(model_base.Base.__table_args__))
 
     resource_type = sa.Column(sa.String(255), nullable=False)
-    resource_id = sa.Column(sa.Integer, nullable=False)
+    resource_id = sa.Column(sa.String(255), nullable=False)
     resource_root = model_base.name_column(nullable=False)
     sync_status = sa.Column(sa.String(50), nullable=True)
     sync_message = sa.Column(sa.TEXT, default='')

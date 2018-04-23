@@ -39,6 +39,11 @@ def dn_column(**kwargs):
     return sa.Column(mysql.VARCHAR(512, charset='latin1'), **kwargs)
 
 
+def id_column(**kwargs):
+    return sa.Column(sa.String(255), primary_key=True,
+                     default=utils.generate_uuid, **kwargs)
+
+
 class AimBase(object):
     """Base class for AIM DB models"""
 
@@ -57,14 +62,12 @@ class HasName(object):
 class HasId(object):
     """id mixin, add to subclasses that have an id."""
 
-    id = sa.Column(sa.String(255),
-                   primary_key=True,
-                   default=utils.generate_uuid)
+    id = id_column()
 
 
 class HasAimId(object):
     """Add to subclasses that have an internal-id."""
-    aim_id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    aim_id = id_column()
 
 
 class HasDisplayName(object):
