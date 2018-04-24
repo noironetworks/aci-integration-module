@@ -30,7 +30,7 @@ class DeviceClusterDevice(model_base.Base):
                           primary_key=True)
     name = model_base.name_column(primary_key=True)
     path = sa.Column(sa.String(512))
-    host = sa.Column(sa.String(1024), nullable=True, index=True)
+    host = sa.Column(sa.String(512), nullable=True, index=True)
 
 
 class DeviceCluster(model_base.Base, model_base.HasAimId,
@@ -161,7 +161,7 @@ class ConcreteDeviceInterface(model_base.Base, model_base.HasAimId,
     device_cluster_name = model_base.name_column(nullable=False)
     device_name = model_base.name_column(nullable=False)
     path = sa.Column(sa.String(512))
-    host = sa.Column(sa.String(1024), nullable=True, index=True)
+    host = sa.Column(sa.String(512), nullable=True, index=True)
 
 
 class ServiceGraphConnectionConnector(model_base.Base):
