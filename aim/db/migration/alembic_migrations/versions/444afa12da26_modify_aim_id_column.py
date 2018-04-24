@@ -114,16 +114,22 @@ def upgrade():
             pass
         with op.batch_alter_table(table) as batch_op:
             batch_op.alter_column(col, existing_type=sa.Integer,
-                                  type_=sa.String(255))
+                                  type_=sa.String(255),
+                                  existing_nullable=False,
+                                  nullable=False)
 
     for table in TABLES:
         with op.batch_alter_table(table) as batch_op:
             batch_op.alter_column("aim_id", existing_type=sa.Integer,
-                                  type_=sa.String(255))
+                                  type_=sa.String(255),
+                                  existing_nullable=False,
+                                  nullable=False)
 
     with op.batch_alter_table("aim_statuses") as batch_op:
         batch_op.alter_column("resource_id", existing_type=sa.Integer,
-                              type_=sa.String(255))
+                              type_=sa.String(255),
+                              existing_nullable=False,
+                              nullable=False)
 
     for table, other, col in TABLES_FKS:
         with op.batch_alter_table(table) as batch_op:
