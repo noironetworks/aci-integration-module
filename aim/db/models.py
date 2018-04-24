@@ -241,7 +241,7 @@ class EndpointGroupStaticPath(model_base.Base):
     # Use VARCHAR with ASCII encoding to work-around MySQL limitations
     # on the length of primary keys
     path = sa.Column(VARCHAR(512, charset='latin1'), primary_key=True)
-    host = sa.Column(sa.String(1024), nullable=True, index=True)
+    host = sa.Column(sa.String(512), nullable=True, index=True)
     encap = sa.Column(sa.String(24))
 
 
@@ -685,7 +685,7 @@ class L3OutInterface(model_base.Base, model_base.HasAimId,
     interface_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
     encap = sa.Column(sa.String(24), nullable=False)
     type = sa.Column(sa.String(16), nullable=False)
-    host = sa.Column(sa.String(1024), nullable=True, index=True)
+    host = sa.Column(sa.String(512), nullable=True, index=True)
     primary_addr_a = sa.Column(sa.String(64), nullable=False)
     primary_addr_b = sa.Column(sa.String(64))
     secondary_addr_a_list = orm.relationship(L3OutInterfaceSecondaryIpA,

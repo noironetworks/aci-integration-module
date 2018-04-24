@@ -36,19 +36,19 @@ from aim.db.migration.data_migration import add_host_column
 def upgrade():
     op.add_column(
         'aim_endpoint_group_static_paths',
-        sa.Column('host', sa.String(1024), nullable=True, index=True)
+        sa.Column('host', sa.String(512), nullable=True, index=True)
     )
     op.add_column(
         'aim_concrete_device_ifs',
-        sa.Column('host', sa.String(1024), nullable=True, index=True)
+        sa.Column('host', sa.String(512), nullable=True, index=True)
     )
     op.add_column(
         'aim_device_cluster_devices',
-        sa.Column('host', sa.String(1024), nullable=True, index=True)
+        sa.Column('host', sa.String(512), nullable=True, index=True)
     )
     op.add_column(
         'aim_l3out_interfaces',
-        sa.Column('host', sa.String(1024), nullable=True, index=True)
+        sa.Column('host', sa.String(512), nullable=True, index=True)
     )
     session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
     add_host_column.migrate(session)
