@@ -99,6 +99,55 @@ class TestAimManager(base.TestAimDBBase):
         self.assertRaises(exc.InvalidDNForAciResource,
                           bad_resource_3.from_dn, 'uni/tn-coke')
 
+    def test_recover_root_errors(self):
+        t1 = self.mgr.create(self.ctx, resource.Tenant(name='t1'))
+        t2 = self.mgr.create(self.ctx, resource.Tenant(name='t2'))
+        vmmp = self.mgr.create(self.ctx, resource.VMMPolicy(type='OpenStack'))
+
+        for tn in [t1, t2]:
+            ap = self.mgr.create(self.ctx, resource.ApplicationProfile(
+                tenant_name=tn.name, name='test'))
+            epg = self.mgr.create(self.ctx, resource.EndpointGroup(
+                tenant_name=tn.name, app_profile_name='test', name='test'))
+            self.mgr.create(self.ctx, resource.VRF(
+                tenant_name=tn.name, name='test'))
+            self.mgr.set_resource_sync_error(self.ctx, ap)
+            self.mgr.set_resource_sync_error(self.ctx, epg)
+        vmmd = self.mgr.create(self.ctx, resource.VMMDomain(type=vmmp.type,
+                                                            name='test'))
+        self.mgr.set_resource_sync_error(self.ctx, vmmd)
+        self.mgr.recover_root_errors(self.ctx, t1.root)
+
+        ap = self.mgr.get_status(self.ctx, resource.ApplicationProfile(
+            tenant_name=t1.name, name='test'))
+        epg = self.mgr.get_status(self.ctx, resource.EndpointGroup(
+            tenant_name=t1.name, app_profile_name='test', name='test'))
+        vrf = self.mgr.get_status(self.ctx, resource.VRF(tenant_name=t1.name,
+                                                         name='test'))
+        self.assertEqual(aim_status.AciStatus.SYNC_NA, vrf.sync_status)
+        self.assertEqual(aim_status.AciStatus.SYNC_PENDING, ap.sync_status)
+        self.assertEqual(aim_status.AciStatus.SYNC_PENDING, epg.sync_status)
+
+        # Other tenants are untouched
+        ap = self.mgr.get_status(self.ctx, resource.ApplicationProfile(
+            tenant_name=t2.name, name='test'))
+        epg = self.mgr.get_status(self.ctx, resource.EndpointGroup(
+            tenant_name=t2.name, app_profile_name='test', name='test'))
+        vrf = self.mgr.get_status(self.ctx, resource.VRF(tenant_name=t2.name,
+                                                         name='test'))
+        vmmd = self.mgr.get_status(self.ctx, resource.VMMDomain(type=vmmp.type,
+                                                                name='test'))
+        self.assertEqual(aim_status.AciStatus.SYNC_NA, vrf.sync_status)
+        self.assertEqual(aim_status.AciStatus.SYNC_FAILED, ap.sync_status)
+        self.assertEqual(aim_status.AciStatus.SYNC_FAILED, epg.sync_status)
+        self.assertEqual(aim_status.AciStatus.SYNC_FAILED, vmmd.sync_status)
+
+        # Fix VMM
+        self.mgr.recover_root_errors(self.ctx, vmmd.root)
+        vmmd = self.mgr.get_status(self.ctx, resource.VMMDomain(type=vmmp.type,
+                                                                name='test'))
+        self.assertEqual(aim_status.AciStatus.SYNC_PENDING, vmmd.sync_status)
+
 
 class TestResourceOpsBase(object):
     test_dn = None

@@ -15,7 +15,6 @@
 
 import copy
 import Queue
-import random
 import time
 import traceback
 
@@ -46,7 +45,6 @@ TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev', 'fabricTopology']
 CHILDREN_MOS_UNI = None
 CHILDREN_MOS_TOPOLOGY = None
 RESET_INTERVAL = 3600
-INTERVAL_DEVIATION = 600
 
 
 class ScheduledReset(Exception):
@@ -474,8 +472,7 @@ class AciTenantManager(utils.AIMThread):
 
     def _subscribe_tenant(self):
         self.ws_context.subscribe(self.tenant.urls)
-        self.scheduled_reset = time.time() + RESET_INTERVAL + random.randrange(
-            -INTERVAL_DEVIATION, INTERVAL_DEVIATION)
+        self.scheduled_reset = utils.schedule_next_event(RESET_INTERVAL, 0.2)
         self._event_loop()
         self._warm = True
 

@@ -14,7 +14,6 @@
 #    under the License.
 
 import json
-from requests import exceptions as rexc
 import time
 
 from apicapi import apic_client
@@ -1090,6 +1089,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent = self._create_agent()
         tenant_name = 'test_manual_rs'
         current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
         tn = resource.Tenant(name=tenant_name)
         tn = self.aim_manager.create(self.ctx, tn)
         # Serve tenant
@@ -1110,44 +1110,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                 aim_status.AciStatus.SYNC_FAILED,
                 self.aim_manager.get_status(self.ctx, tn).sync_status)
             # Put tenant back in pending state
-            self.aim_manager.update(self.ctx, tn)
+            desired_config._scheduled_recovery = 0
             agent._reconciliation_cycle(self.ctx)
-
-            # OPERATION_TRANSIENT (fail object after max retries)
-            apic_client.ApicSession.post_body_dict = mock.Mock(
-                side_effect=aexc.ApicResponseNotOk(
-                    request='', status='400', reason='',
-                    err_text='', err_code='102'))
-            # Observe and Reconcile
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
             self.assertEqual(
                 aim_status.AciStatus.SYNC_PENDING,
                 self.aim_manager.get_status(self.ctx, tn).sync_status)
-            # Another tentative, however, will fail the object
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
-            self.assertEqual(
-                aim_status.AciStatus.SYNC_FAILED,
-                self.aim_manager.get_status(self.ctx, tn).sync_status)
-            # Put tenant back in pending state
-            self.aim_manager.update(self.ctx, tn)
-
-            # SYSTEM_TRANSIENT (never fail the object)
-            apic_client.ApicSession.post_body_dict = mock.Mock(
-                side_effect=rexc.Timeout())
-            # This will not fail the object
-            for x in range(3):
-                # Observe and Reconcile
-                self._observe_aci_events(current_config)
-                agent._reconciliation_cycle(self.ctx)
-                # Tenant is still in SYNC_PENDING state
-                self.assertEqual(
-                    aim_status.AciStatus.SYNC_PENDING,
-                    self.aim_manager.get_status(self.ctx, tn).sync_status)
-
             # SYSTEM_CRITICAL perform harakiri
             apic_client.ApicSession.post_body_dict = mock.Mock(
                 side_effect=aexc.ApicResponseNoCookie(request=''))
@@ -1156,23 +1123,52 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             agent._reconciliation_cycle(self.ctx)
             self.assertEqual(1, harakiri.call_count)
 
-            # UNKNOWN (fail after max retries)
-            apic_client.ApicSession.post_body_dict = mock.Mock(
-                side_effect=Exception())
-            # Observe and Reconcile
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
-            self.assertEqual(
-                aim_status.AciStatus.SYNC_PENDING,
-                self.aim_manager.get_status(self.ctx, tn).sync_status)
-            # Another tentative, however, will fail the object
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
-            # Tenant is still in SYNC_PENDING state
-            self.assertEqual(
-                aim_status.AciStatus.SYNC_FAILED,
-                self.aim_manager.get_status(self.ctx, tn).sync_status)
+    def test_aim_recovery(self):
+        agent = self._create_agent()
+        tenant_name = 'test_aim_recovery'
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        tn = resource.Tenant(name=tenant_name)
+        tn = self.aim_manager.create(self.ctx, tn)
+        # Serve tenant
+        self._first_serve(agent)
+        # Observe and Reconcile
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        # Put object in error state
+        self.aim_manager.set_resource_sync_error(self.ctx, tn)
+        # A cycle won't recover it
+        agent._reconciliation_cycle(self.ctx)
+        self.assertEqual(
+            aim_status.AciStatus.SYNC_FAILED,
+            self.aim_manager.get_status(self.ctx, tn).sync_status)
+        # Unless there's a scheduled recovery
+        desired_config._scheduled_recovery = 0
+        agent._reconciliation_cycle(self.ctx)
+        self.assertEqual(
+            aim_status.AciStatus.SYNC_PENDING,
+            self.aim_manager.get_status(self.ctx, tn).sync_status)
+        # A new update has been scheduled
+        self.assertNotEqual(0, desired_config._scheduled_recovery)
+        # Simulate leaking status
+        self.aim_manager.create(self.ctx, aim_status.AciStatus(
+            resource_type='VRF', resource_id='abcd',
+            resource_root=tn.root))
+        # Prevent normal operation to cleanup the status
+        self.aim_manager.delete_all(self.ctx, aim_tree.ActionLog)
+        # Normal cycle will not fix it
+        agent._reconciliation_cycle(self.ctx)
+        leaking_st = self.aim_manager.get(self.ctx, aim_status.AciStatus(
+            resource_type='VRF', resource_id='abcd',
+            resource_root=tn.root))
+        self.assertIsNotNone(leaking_st)
+        # Recovery will
+        desired_config._scheduled_recovery = 0
+        agent._reconciliation_cycle(self.ctx)
+        leaking_st = self.aim_manager.get(self.ctx, aim_status.AciStatus(
+            resource_type='VRF', resource_id='abcd',
+            resource_root=tn.root))
+        self.assertIsNone(leaking_st)
 
     @base.requires(['hooks'])
     def test_multi_context_session(self):
@@ -1444,7 +1440,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         desired_config = agent.multiverse[0]['desired']
         current_monitor = agent.multiverse[2]['current']
         desired_monitor = agent.multiverse[2]['desired']
-        current_config.retry_cooldown = -1
+        current_config.max_backoff_time = -1
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
@@ -1464,7 +1460,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(Exception,
                           self._assert_universe_sync, desired_config,
                           current_config)
-        self.assertEqual(1, len(current_config._action_cache['create']))
+        self.assertEqual(1, len(current_config._sync_log))
         current_config.reset = mock.Mock()
         desired_config.reset = mock.Mock()
         current_config.push_resources = mock.Mock()
@@ -1478,10 +1474,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         current_config.push_resources.reset_mock()
         agent._reconciliation_cycle(self.ctx)
-        current_config.reset.assert_called_once_with(set([tn.rn]))
-        desired_config.reset.assert_called_once_with(set([tn.rn]))
-        current_config.push_resources.assert_called_once_with(
-            {'create': [], 'delete': []})
+        current_config.reset.assert_called_once_with([tn.rn])
+        desired_config.reset.assert_called_once_with([tn.rn])
+        self.assertEqual(0, current_config.push_resources.call_count)
         # Still not in sync
         self.assertRaises(Exception,
                           self._assert_universe_sync, desired_config,
@@ -1607,7 +1602,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_reset_consistency(tn1.rn)
 
     def test_skip_monitored_root(self):
-        # Set retry to 1 to cause immediate creation surrender
         agent = self._create_agent()
         current_config = agent.multiverse[0]['current']
 
@@ -1629,11 +1623,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Tenant still exists
         self.assertIsNotNone(self.aim_manager.get(self.ctx, tn1))
         # Action cache is empty
-        self.assertEqual({}, desired_monitor._action_cache)
-        self.assertEqual({}, current_monitor._action_cache)
+        self.assertEqual({}, desired_monitor._sync_log)
+        self.assertEqual({'create': {}, 'delete': {}},
+                         current_monitor._sync_log.values()[0])
 
     def test_tenant_delete_behavior(self):
-        tenant_name = 'test_skip_for_managed'
+        tenant_name = 'test_tenant_delete_behavior'
         self.set_override('max_operation_retry', 2, 'aim')
         self.set_override('retry_cooldown', -1, 'aim')
         agent = self._create_agent()
@@ -1656,10 +1651,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._reconciliation_cycle(self.ctx)
         # push config
         self._observe_aci_events(current_config)
-        # Will be out of sync until VRF goes in error state
-        for _ in range(3):
-            self._observe_aci_events(current_config)
-            agent._reconciliation_cycle(self.ctx)
+        agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn1.root])
@@ -1791,6 +1783,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                      app_profile_name='test', name='test')
         epg = self.aim_manager.get(self.ctx, epg)
         self.assertTrue(epg.monitored)
+        # Remove from sync log
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
         self.aim_manager.update(self.ctx, epg, sync=False)
         agent._reconciliation_cycle(self.ctx)
         self._observe_aci_events(current_config)
@@ -2096,6 +2091,53 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             desired_monitor.serving_tenants[tn.rn].aci_session,
             'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
 
+    def test_isolated_tenants(self):
+        agent = self._create_agent()
+        current_config = agent.multiverse[0]['current']
+        desired_config = agent.multiverse[0]['desired']
+        tenant_name1 = 'test_isolated_tenants1'
+        tenant_name2 = 'test_isolated_tenants2'
+        apic_client.ApicSession.post_body_dict = (
+            self._mock_current_manager_post)
+        apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+
+        tn1 = resource.Tenant(name=tenant_name1)
+        tn2 = resource.Tenant(name=tenant_name2)
+
+        # Create tenant in AIM to start serving it
+        self.aim_manager.create(self.ctx, tn1)
+        self.aim_manager.create(self.ctx, tn2)
+        self._first_serve(agent)
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+
+        ap1 = resource.ApplicationProfile(tenant_name=tenant_name1,
+                                          name='test')
+        ap2 = resource.ApplicationProfile(tenant_name=tenant_name2,
+                                          name='test')
+        self.aim_manager.create(self.ctx, ap1)
+        self.aim_manager.create(self.ctx, ap2)
+        # Disturb tenant2 sync
+        old_get_resources = desired_config.get_resources
+
+        def get_resources(diffs):
+            if diffs:
+                root = tree_manager.AimHashTreeMaker._extract_root_rn(diffs[0])
+                if tenant_name2 in root:
+                    raise Exception("disturbed!")
+            return old_get_resources(diffs)
+
+        desired_config.get_resources = get_resources
+        self._observe_aci_events(current_config)
+        agent._reconciliation_cycle(self.ctx)
+        self._observe_aci_events(current_config)
+        # Verify tenant 1 synced
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn1.root])
+        # Tenant 2 is not synced
+        self._assert_universe_sync(desired_config, current_config,
+                                   tenants=[tn2.root], negative=True)
+
     def _verify_get_relevant_state(self, agent):
         current_config = agent.multiverse[0]['current']
         desired_config = agent.multiverse[0]['desired']
@@ -2127,7 +2169,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._current_manager = tenant
             tenant._event_loop()
 
-    def _assert_universe_sync(self, desired, current, tenants=None):
+    def _assert_universe_sync(self, desired, current, tenants=None,
+                              negative=False):
 
         def printable_state(universe):
             return json.dumps({x: y.root.to_dict() if y.root else {}
@@ -2143,13 +2186,18 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                          (current.name, printable_state(current), desired.name,
                           printable_state(desired)))
         for tenant in (tenants or current.state):
-            self.assertEqual(
-                {"add": [], "remove": []},
-                desired.state[tenant].diff(current.state[tenant]),
-                'Not in sync:\n current(%s)\n: %s \n\n '
-                'desired(%s)\n: %s' %
-                (current.name, printable_state(current), desired.name,
-                 printable_state(desired)))
+            if negative:
+                self.assertNotEqual(
+                    {"add": [], "remove": []},
+                    desired.state[tenant].diff(current.state[tenant]))
+            else:
+                self.assertEqual(
+                    {"add": [], "remove": []},
+                    desired.state[tenant].diff(current.state[tenant]),
+                    'Not in sync:\n current(%s)\n: %s \n\n '
+                    'desired(%s)\n: %s' %
+                    (current.name, printable_state(current), desired.name,
+                     printable_state(desired)))
 
     def _assert_reset_consistency(self, tenant=None):
         ctx = mock.Mock()

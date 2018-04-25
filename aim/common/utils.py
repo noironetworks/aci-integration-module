@@ -68,7 +68,7 @@ def sleep(time_in_seconds):
 def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
                         notify_exceeding_timeout=True):
     # sleep till end of polling interval
-    elapsed = time.time() - start_time
+    elapsed = get_time() - start_time
     log.debug("%(caller)s loop - completed in %(time).3f. ",
               {'caller': readable_caller, 'time': elapsed})
     if elapsed < polling_interval:
@@ -85,8 +85,8 @@ def wait_for_next_cycle(start_time, polling_interval, log, readable_caller='',
 
 class Counter(object):
 
-    def __init__(self):
-        self.num = 0
+    def __init__(self, num=0):
+        self.num = num
 
     def get(self):
         return self.num
@@ -95,11 +95,14 @@ class Counter(object):
         self.num += 1
 
 
+def get_backoff_time(max_time, tentative_number):
+    return min(random.random() * (2 ** tentative_number), max_time)
+
+
 def exponential_backoff(max_time, tentative=None):
     tentative = tentative or Counter()
     try:
-        sleep_time_secs = min(random.random() * (2 ** tentative.get()),
-                              max_time)
+        sleep_time_secs = get_backoff_time(max_time, tentative.get())
     except OverflowError:
         sleep_time_secs = max_time
     LOG.debug('Sleeping for %s seconds' % sleep_time_secs)
@@ -244,8 +247,8 @@ class AIMThread(object):
             self._stop = True
             if wait:
                 tentative = None
-                curr_time = time.time()
-                while not self.dead and curr_time + timeout < time.time():
+                curr_time = get_time()
+                while not self.dead and curr_time + timeout < get_time():
                     exponential_backoff(timeout / 3, tentative)
                 if not self.dead:
                     raise
@@ -323,3 +326,12 @@ def json_loads(json_text):
 
 def json_dumps(dict):
     return json.dumps(dict)
+
+
+def schedule_next_event(interval, deviation):
+    return get_time() + interval + random.randrange(-interval * deviation,
+                                                    interval * deviation)
+
+
+def get_time():
+    return time.time()

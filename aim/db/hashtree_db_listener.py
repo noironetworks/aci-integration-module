@@ -128,29 +128,29 @@ class HashTreeDbListener(object):
             self._push_changes_to_trees(aim_ctx, log_by_root,
                                         delete_logs=False, check_reset=False)
 
-    def _cleanup_zombie_status_objects(self, aim_ctx, root=None):
+    def cleanup_zombie_status_objects(self, aim_ctx, roots=None):
         with aim_ctx.store.begin(subtransactions=True):
             # Retrieve objects
             klass = api_status.AciStatus
             filters = {}
-            if root:
-                filters['resource_root'] = root
+            if roots is not None:
+                filters['in_'] = {'resource_root': roots}
             to_delete = []
             for stat in self.aim_manager.find(aim_ctx, klass, **filters):
                 parent = self.aim_manager.get_by_id(
                     aim_ctx, stat.parent_class, stat.resource_id)
                 if not parent or parent.root != stat.resource_root:
-                    LOG.debug("Deleting parentless status object "
-                              "%s" % stat)
                     to_delete.append(stat.id)
             if to_delete:
+                LOG.info("Deleting parentless status objects "
+                         "%s" % to_delete)
                 self.aim_manager.delete_all(
                     aim_ctx, klass, in_={'id': to_delete})
 
     def reset(self, store, root=None):
         aim_ctx = utils.FakeContext(store=store)
         with aim_ctx.store.begin(subtransactions=True):
-            self._cleanup_zombie_status_objects(aim_ctx, root=root)
+            self.cleanup_zombie_status_objects(aim_ctx, roots=[root])
             self._delete_trees(aim_ctx, root=root)
             self._recreate_trees(aim_ctx, root=root)
 

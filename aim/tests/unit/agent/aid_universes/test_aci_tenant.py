@@ -206,7 +206,7 @@ class TestAciClientMixin(object):
                             else:
                                 raise apic_client.cexc.ApicResponseNotOk(
                                     status=400, reason='bad request',
-                                    request='create', err_code=400,
+                                    request='create', err_code=104,
                                     err_text='bad request')
                         else:
                             # Append newly created object
@@ -493,9 +493,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         manager.polling_yield = 0
         self.assertIsNone(getattr(manager, 'scheduled_reset', None))
         min = time.time() + (aci_tenant.RESET_INTERVAL -
-                             aci_tenant.INTERVAL_DEVIATION)
+                             aci_tenant.RESET_INTERVAL * 0.2)
         max = time.time() + (aci_tenant.RESET_INTERVAL +
-                             aci_tenant.INTERVAL_DEVIATION)
+                             aci_tenant.RESET_INTERVAL * 0.2) + 1
         manager._unsubscribe_tenant = mock.Mock()
         manager.num_loop_runs = 1
         manager._main_loop()

@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
 import traceback
 
 from oslo_log import log as logging
@@ -45,7 +46,14 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._served_tenants = set()
         self._monitored_state_update_failures = 0
         self._max_monitored_state_update_failures = 5
+        self._recovery_interval = conf_mgr.get_option(
+            'error_state_recovery_interval', 'aim')
+        self.schedule_next_recovery()
         return self
+
+    def schedule_next_recovery(self):
+        self._scheduled_recovery = utils.schedule_next_event(
+            self._recovery_interval, 0.2)
 
     def get_state_by_type(self, type):
         try:
@@ -77,9 +85,18 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def observe(self):
         # TODO(ivar): move this to a separate thread and add scheduled reset
         # mechanism
-        hashtree_db_listener.HashTreeDbListener(
-            self.manager).catch_up_with_action_log(self.context.store,
-                                                   self._served_tenants)
+        served_tenants = copy.deepcopy(self._served_tenants)
+        # TODO(ivar): object based reset scheduling would be more correct
+        # to prevent objects from being re-tried too soon.
+        # This will require working with the DB timestamp and proper range
+        # query design.
+        htdbl = hashtree_db_listener.HashTreeDbListener(self.manager)
+        if utils.get_time() > self._scheduled_recovery:
+            for root in served_tenants:
+                self.manager.recover_root_errors(self.context, root)
+            htdbl.cleanup_zombie_status_objects(self.context, served_tenants)
+            self.schedule_next_recovery()
+        htdbl.catch_up_with_action_log(self.context.store, served_tenants)
         # REVISIT(ivar): what if a root is marked as needs_reset? we could
         # avoid syncing it altogether
         self._state.update(self.get_optimized_state(self.state))
@@ -129,6 +146,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 delete_candidates.add(tenant)
 
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        super(AimDbUniverse, self).finalize_deletion_candidates(
+            other_universe, delete_candidates)
         other_state = other_universe.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -255,34 +274,33 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 else:
                     self.manager.delete(self.context, resource)
 
-    def _set_sync_pending_state(self, transformed_diff, raw_diff,
-                                other_universe, skip_roots=None):
-        skip_roots = skip_roots or []
-        aim_add = transformed_diff[base.CREATE]
-        # Set AIM differences to sync_pending
-        for obj in aim_add:
-            if obj.root not in skip_roots:
-                self.manager.set_resource_sync_pending(self.context, obj)
-
-    def _set_synced_state(self, my_state, raw_diff, skip_roots=None):
-        skip_roots = skip_roots or []
-        all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
+    def _get_state_pending_na_nodes(self, tenant_state):
         pending_nodes = []
-        for root, tree in my_state.iteritems():
-            if root not in skip_roots:
-                pending_nodes.extend(tree.find_by_metadata('pending', True))
-                pending_nodes.extend(tree.find_no_metadata('pending'))
-        keys_to_sync = set(pending_nodes) - all_modified_keys
+        na_nodes = []
+        pending_nodes.extend(tenant_state.find_by_metadata('pending', True))
+        na_nodes.extend(tenant_state.find_no_metadata('pending'))
+        return pending_nodes, na_nodes
+
+    def _set_sync_pending_state(self, raw_diff, pending_nodes):
+        all_modified_keys = set(raw_diff[base.CREATE])
+        keys_to_sync = all_modified_keys - set(pending_nodes)
+        aim_to_sync = self.get_resources(list(keys_to_sync))
+        for obj in aim_to_sync:
+            self.manager.set_resource_sync_pending(self.context, obj)
+
+    def _set_synced_state(self, raw_diff, unsynced_nodes, skip_keys):
+        all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
+        keys_to_sync = (set(unsynced_nodes) - all_modified_keys) - skip_keys
         aim_to_sync = self.get_resources(list(keys_to_sync))
         for obj in aim_to_sync:
             self.manager.set_resource_sync_synced(self.context, obj)
 
-    def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff, skip_roots=None):
+    def update_status_objects(self, tenant_state, raw_diff, skip_keys):
         # AIM Config Universe is the desired state
-        self._set_sync_pending_state(transformed_diff, raw_diff,
-                                     other_universe, skip_roots=skip_roots)
-        self._set_synced_state(my_state, raw_diff, skip_roots=skip_roots)
+        pending_nodes, na_nodes = self._get_state_pending_na_nodes(
+            tenant_state)
+        self._set_sync_pending_state(raw_diff, pending_nodes)
+        self._set_synced_state(raw_diff, pending_nodes + na_nodes, skip_keys)
 
     def _action_items_to_aim_resources(self, actions, action):
         if action == base.DELETE:
@@ -301,9 +319,18 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
 
 class AimDbOperationalUniverse(AimDbUniverse):
 
+    def initialize(self, conf_mgr, multiverse):
+        # Only one AIM universe does the recovery
+        super(AimDbOperationalUniverse, self).initialize(conf_mgr, multiverse)
+        self._scheduled_recovery = float('inf')
+        return self
+
     @property
     def name(self):
         return "AIM_Operational_Universe"
+
+    def schedule_next_recovery(self):
+        pass
 
     def get_relevant_state_for_read(self):
         return [self.state]
@@ -318,6 +345,8 @@ class AimDbOperationalUniverse(AimDbUniverse):
         pass
 
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        super(AimDbOperationalUniverse, self).finalize_deletion_candidates(
+            other_universe, delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -329,18 +358,26 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
     def reconcile(self, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(other_universe, delete_candidates)
+        return self._reconcile(other_universe)
 
-    def update_status_objects(self, my_state, other_state, other_universe,
-                              raw_diff, transformed_diff, skip_roots=None):
+    def update_status_objects(self, tenant_state, raw_diff, skip_keys):
         pass
 
 
 class AimDbMonitoredUniverse(AimDbUniverse):
 
+    def initialize(self, conf_mgr, multiverse):
+        # Only one AIM universe does the recovery
+        super(AimDbMonitoredUniverse, self).initialize(conf_mgr, multiverse)
+        self._scheduled_recovery = float('inf')
+        return self
+
     @property
     def name(self):
         return "AIM_Monitored_Universe"
+
+    def schedule_next_recovery(self):
+        pass
 
     def get_relevant_state_for_read(self):
         return [self.state, self.get_state_by_type(base.CONFIG_UNIVERSE)]
@@ -363,6 +400,8 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                 vetoes.add(tenant)
 
     def finalize_deletion_candidates(self, other_universe, delete_candidates):
+        super(AimDbMonitoredUniverse, self).finalize_deletion_candidates(
+            other_universe, delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -374,16 +413,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
 
     def reconcile(self, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(other_universe, delete_candidates)
-
-    def update_status_objects(self, my_state, other_universe, other_state,
-                              raw_diff, transformed_diff, skip_roots=None):
-        # AIM Monitored Universe is current state
-        add_diff = {
-            base.CREATE: self.get_resources(list(raw_diff[base.CREATE]))}
-        self._set_sync_pending_state(add_diff, raw_diff, other_universe,
-                                     skip_roots=skip_roots)
-        self._set_synced_state(my_state, raw_diff, skip_roots=skip_roots)
+        return self._reconcile(other_universe)
 
     def get_resources_for_delete(self, resource_keys):
         des_mon = self.multiverse[base.MONITOR_UNIVERSE]['desired'].state
