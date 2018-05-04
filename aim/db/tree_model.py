@@ -77,6 +77,7 @@ class ActionLog(model_base.Base, model_base.AttributeMixin):
     # to be bumped at the DB level.
     __mapper_args__ = {
         "version_id_col": model_base.AttributeMixin.epoch,
+        "confirm_deleted_rows": False,
     }
 
     id = sa.Column(sa.BigInteger().with_variant(sa.Integer(), 'sqlite'),

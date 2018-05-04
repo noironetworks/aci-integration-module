@@ -104,7 +104,8 @@ class AttributeMixin(object):
 
     __mapper_args__ = {
         "version_id_col": epoch,
-        "version_id_generator": False
+        "version_id_generator": False,
+        "confirm_deleted_rows": False,
     }
 
     def bump_epoch(self):
