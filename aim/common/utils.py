@@ -25,6 +25,7 @@ import threading
 import time
 import traceback
 import uuid
+import weakref
 
 from apicapi import apic_client
 from oslo_config import cfg
@@ -266,7 +267,9 @@ def spawn_thread(target, *args, **kwargs):
     return thd
 
 
-all_locks = {}
+# Key/Values will be garbage collected once al references are lost
+all_locks = weakref.WeakValueDictionary()
+_master_lock = threading.Lock()
 
 
 class LockNotAcquired(Exception):
@@ -274,7 +277,8 @@ class LockNotAcquired(Exception):
 
 
 def generate_rlock(lock_name):
-    return all_locks.setdefault(lock_name, threading.RLock())
+    with _master_lock:
+        return all_locks.setdefault(lock_name, threading.RLock())
 
 
 @contextmanager
