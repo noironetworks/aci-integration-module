@@ -540,6 +540,20 @@ class TestResourceOpsBase(object):
                 self.mgr)._retrieve_class_root_type(self.resource_class)
             self.assertEqual(self.resource_root_type, klass_type)
 
+    def test_delete_warning(self):
+        creation_attributes = {}
+        creation_attributes.update(self.test_required_attributes),
+        creation_attributes.update(self.test_identity_attributes)
+        res = self.resource_class(**creation_attributes)
+        self.mgr.create(self.ctx, res)
+        store2 = api.get_store()
+        store2.db_session.begin()
+        db_type = store2.resource_to_db_type(res.__class__)
+        db_obj = store2.query(db_type, res.__class__)[0]
+        self.mgr.delete(self.ctx, res)
+        store2.delete(db_obj)
+        store2.db_session.commit()
+
     @base.requires(['sql'])
     def test_race(self):
         def _test_race(res):
