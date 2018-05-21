@@ -72,7 +72,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def name(self):
         return "AIM_Config_Universe"
 
-    def serve(self, tenants):
+    def serve(self, context, tenants):
         tenants = set(tenants)
         new_state = {}
         if self._served_tenants != tenants:
@@ -82,7 +82,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             new_state.setdefault(tenant, self._state.get(tenant))
         self._state = new_state
 
-    def observe(self):
+    def observe(self, context):
         # TODO(ivar): move this to a separate thread and add scheduled reset
         # mechanism
         served_tenants = copy.deepcopy(self._served_tenants)
@@ -93,37 +93,36 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         htdbl = hashtree_db_listener.HashTreeDbListener(self.manager)
         if utils.get_time() > self._scheduled_recovery:
             for root in served_tenants:
-                self.manager.recover_root_errors(self.context, root)
-            htdbl.cleanup_zombie_status_objects(self.context, served_tenants)
+                self.manager.recover_root_errors(context, root)
+            htdbl.cleanup_zombie_status_objects(context, served_tenants)
             self.schedule_next_recovery()
-        htdbl.catch_up_with_action_log(self.context.store, served_tenants)
+        htdbl.catch_up_with_action_log(context.store, served_tenants)
         # REVISIT(ivar): what if a root is marked as needs_reset? we could
         # avoid syncing it altogether
-        self._state.update(self.get_optimized_state(self.state))
+        self._state.update(self.get_optimized_state(context, self.state))
 
-    def reset(self, tenants):
+    def reset(self, context, tenants):
         LOG.warn('Reset called for roots %s' % tenants)
         for root in tenants:
             hashtree_db_listener.HashTreeDbListener(
-                self.manager).tt_mgr.set_needs_reset_by_root_rn(
-                self.context, root)
+                self.manager).tt_mgr.set_needs_reset_by_root_rn(context, root)
 
-    def get_optimized_state(self, other_state, tree=tree_manager.CONFIG_TREE):
+    def get_optimized_state(self, context, other_state,
+                            tree=tree_manager.CONFIG_TREE):
         # TODO(ivar): make it tree-version based to reflect metadata changes
-        return self._get_state(tree=tree)
+        return self._get_state(context, tree=tree)
 
-    def cleanup_state(self, key):
+    def cleanup_state(self, context, key):
         # Only delete if state is still empty. Never remove a tenant if there
         # are leftovers.
-        with self.context.store.begin(subtransactions=True):
+        with context.store.begin(subtransactions=True):
             # There could still be logs, but they will re-create the
             # tenants in the next iteration.
-            self.tree_manager.delete_by_root_rn(self.context, key,
-                                                if_empty=True)
+            self.tree_manager.delete_by_root_rn(context, key, if_empty=True)
 
-    def _get_state(self, tree=tree_manager.CONFIG_TREE):
+    def _get_state(self, context, tree=tree_manager.CONFIG_TREE):
         return self.tree_manager.find_changed(
-            self.context, dict([(x, None) for x in self._served_tenants]),
+            context, dict([(x, None) for x in self._served_tenants]),
             tree=tree)
 
     @property
@@ -135,8 +134,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # Returns state for all the tenants regardless
         return self._state
 
-    def vote_deletion_candidates(self, other_universe, delete_candidates,
-                                 vetoes):
+    def vote_deletion_candidates(self, context, other_universe,
+                                 delete_candidates, vetoes):
         # Deletion candidates will be decided solely by the AIM configuration
         # universe.
         my_state = self.state
@@ -145,9 +144,10 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 # The desired state for this tentant is empty
                 delete_candidates.add(tenant)
 
-    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+    def finalize_deletion_candidates(self, context, other_universe,
+                                     delete_candidates):
         super(AimDbUniverse, self).finalize_deletion_candidates(
-            other_universe, delete_candidates)
+            context, other_universe, delete_candidates)
         other_state = other_universe.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -172,10 +172,10 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         return self._converter.convert(
             self._get_resources_for_delete(resource_keys, des_mon, action))
 
-    def push_resources(self, resources):
-        return self._push_resources(resources, monitored=False)
+    def push_resources(self, context, resources):
+        return self._push_resources(context, resources, monitored=False)
 
-    def _push_resources(self, resources, monitored=False):
+    def _push_resources(self, context, resources, monitored=False):
         for method in resources:
             if method == 'delete':
                 # Use ACI items directly
@@ -186,7 +186,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             for resource in items:
                 # Items are in the other universe's format unless deletion
                 try:
-                    self._push_resource(resource, method, monitored)
+                    self._push_resource(context, resource, method, monitored)
                 except aim_exc.InvalidMonitoredStateUpdate as e:
                     msg = ("Failed to %s object %s in AIM: %s." %
                            (method, resource, e.message))
@@ -196,26 +196,26 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                               (method, resource, e.message))
                     LOG.debug(traceback.format_exc())
                     if method == 'delete':
-                        self.deletion_failed(self.context, resource)
+                        self.deletion_failed(context, resource)
                 else:
                     self._monitored_state_update_failures = 0
 
-    def _push_resource(self, resource, method, monitored):
+    def _push_resource(self, context, resource, method, monitored):
         if isinstance(resource, aim_status.AciFault):
             # Retrieve fault's parent and set/unset the fault
             if method == 'create':
                 parents = utils.retrieve_fault_parent(
                     resource.external_identifier, converter.resource_map)
                 for parent in parents:
-                    if self.manager.get_status(self.context, parent):
+                    if self.manager.get_status(context, parent):
                         LOG.debug("%s for object %s: %s",
                                   self.manager.set_fault.__name__, parent,
                                   resource)
-                        self.manager.set_fault(self.context, resource=parent,
+                        self.manager.set_fault(context, resource=parent,
                                                fault=resource)
                         break
             else:
-                self.manager.delete(self.context, resource)
+                self.manager.delete(context, resource)
         else:
             LOG.debug("%s object in AIM %s" %
                       (method, resource))
@@ -228,7 +228,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         [resource])
                     resource = self._converter.convert(resource)[0]
                     resource.monitored = monitored
-                with self.context.store.begin(subtransactions=True):
+                with context.store.begin(subtransactions=True):
                     if isinstance(resource, aim_resource.AciRoot):
                         # Roots should not be created by the
                         # AIM monitored universe.
@@ -242,17 +242,16 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         # roots and never creating them, we give
                         # full control over which trees to monitor
                         # to the user.
-                        ext = self.context.store.extract_attributes
+                        ext = context.store.extract_attributes
                         obj = self.manager.update(
-                            self.context, resource,
-                            fix_ownership=monitored,
+                            context, resource, fix_ownership=monitored,
                             **ext(resource, "other"))
                         if obj:
                             # Declare victory for the update
                             self.creation_succeeded(resource)
                     else:
                         self.manager.create(
-                            self.context, resource, overwrite=True,
+                            context, resource, overwrite=True,
                             fix_ownership=monitored)
                         # Declare victory for the created object
                         self.creation_succeeded(resource)
@@ -265,14 +264,12 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     return
                 if monitored:
                     # Only delete a resource if monitored
-                    with self.context.store.begin(subtransactions=True):
-                        existing = self.manager.get(self.context,
-                                                    resource)
+                    with context.store.begin(subtransactions=True):
+                        existing = self.manager.get(context, resource)
                         if existing and existing.monitored:
-                            self.manager.delete(self.context,
-                                                resource)
+                            self.manager.delete(context, resource)
                 else:
-                    self.manager.delete(self.context, resource)
+                    self.manager.delete(context, resource)
 
     def _get_state_pending_na_nodes(self, tenant_state):
         pending_nodes = []
@@ -281,26 +278,28 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         na_nodes.extend(tenant_state.find_no_metadata('pending'))
         return pending_nodes, na_nodes
 
-    def _set_sync_pending_state(self, raw_diff, pending_nodes):
+    def _set_sync_pending_state(self, context, raw_diff, pending_nodes):
         all_modified_keys = set(raw_diff[base.CREATE])
         keys_to_sync = all_modified_keys - set(pending_nodes)
         aim_to_sync = self.get_resources(list(keys_to_sync))
         for obj in aim_to_sync:
-            self.manager.set_resource_sync_pending(self.context, obj)
+            self.manager.set_resource_sync_pending(context, obj)
 
-    def _set_synced_state(self, raw_diff, unsynced_nodes, skip_keys):
+    def _set_synced_state(self, context, raw_diff, unsynced_nodes, skip_keys):
         all_modified_keys = set(raw_diff[base.CREATE] + raw_diff[base.DELETE])
         keys_to_sync = (set(unsynced_nodes) - all_modified_keys) - skip_keys
         aim_to_sync = self.get_resources(list(keys_to_sync))
         for obj in aim_to_sync:
-            self.manager.set_resource_sync_synced(self.context, obj)
+            self.manager.set_resource_sync_synced(context, obj)
 
-    def update_status_objects(self, tenant_state, raw_diff, skip_keys):
+    def update_status_objects(self, context, tenant_state, raw_diff,
+                              skip_keys):
         # AIM Config Universe is the desired state
         pending_nodes, na_nodes = self._get_state_pending_na_nodes(
             tenant_state)
-        self._set_sync_pending_state(raw_diff, pending_nodes)
-        self._set_synced_state(raw_diff, pending_nodes + na_nodes, skip_keys)
+        self._set_sync_pending_state(context, raw_diff, pending_nodes)
+        self._set_synced_state(context, raw_diff, pending_nodes + na_nodes,
+                               skip_keys)
 
     def _action_items_to_aim_resources(self, actions, action):
         if action == base.DELETE:
@@ -335,18 +334,19 @@ class AimDbOperationalUniverse(AimDbUniverse):
     def get_relevant_state_for_read(self):
         return [self.state]
 
-    def get_optimized_state(
-            self, other_state, tree=tree_manager.OPERATIONAL_TREE):
+    def get_optimized_state(self, context, other_state,
+                            tree=tree_manager.OPERATIONAL_TREE):
         return super(AimDbOperationalUniverse, self).get_optimized_state(
-            other_state, tree=tree)
+            context, other_state, tree=tree)
 
-    def vote_deletion_candidates(self, other_universe, delete_candidates,
-                                 vetoes):
+    def vote_deletion_candidates(self, context, other_universe,
+                                 delete_candidates, vetoes):
         pass
 
-    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+    def finalize_deletion_candidates(self, context, other_universe,
+                                     delete_candidates):
         super(AimDbOperationalUniverse, self).finalize_deletion_candidates(
-            other_universe, delete_candidates)
+            context, other_universe, delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -356,11 +356,12 @@ class AimDbOperationalUniverse(AimDbUniverse):
                 # AIM monitored DB still has stuff to delete
                 delete_candidates.discard(tenant)
 
-    def reconcile(self, other_universe, delete_candidates):
+    def reconcile(self, context, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(other_universe)
+        return self._reconcile(context, other_universe)
 
-    def update_status_objects(self, tenant_state, raw_diff, skip_keys):
+    def update_status_objects(self, context, tenant_state, raw_diff,
+                              skip_keys):
         pass
 
 
@@ -382,16 +383,16 @@ class AimDbMonitoredUniverse(AimDbUniverse):
     def get_relevant_state_for_read(self):
         return [self.state, self.get_state_by_type(base.CONFIG_UNIVERSE)]
 
-    def get_optimized_state(
-            self, other_state, tree=tree_manager.MONITORED_TREE):
+    def get_optimized_state(self, context, other_state,
+                            tree=tree_manager.MONITORED_TREE):
         return super(AimDbMonitoredUniverse, self).get_optimized_state(
-            other_state, tree=tree)
+            context, other_state, tree=tree)
 
-    def push_resources(self, resources):
-        self._push_resources(resources, monitored=True)
+    def push_resources(self, context, resources):
+        self._push_resources(context, resources, monitored=True)
 
-    def vote_deletion_candidates(self, other_universe, delete_candidates,
-                                 vetoes):
+    def vote_deletion_candidates(self, context, other_universe,
+                                 delete_candidates, vetoes):
         my_state = self.state
         # Veto tenants with non-dummy roots
         for tenant, tree in my_state.iteritems():
@@ -399,9 +400,10 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                 delete_candidates.discard(tenant)
                 vetoes.add(tenant)
 
-    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+    def finalize_deletion_candidates(self, context, other_universe,
+                                     delete_candidates):
         super(AimDbMonitoredUniverse, self).finalize_deletion_candidates(
-            other_universe, delete_candidates)
+            context, other_universe, delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -411,9 +413,9 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                 # AIM monitored DB still has stuff to delete
                 delete_candidates.discard(tenant)
 
-    def reconcile(self, other_universe, delete_candidates):
+    def reconcile(self, context, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(other_universe)
+        return self._reconcile(context, other_universe)
 
     def get_resources_for_delete(self, resource_keys):
         des_mon = self.multiverse[base.MONITOR_UNIVERSE]['desired'].state

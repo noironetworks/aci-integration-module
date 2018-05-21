@@ -45,6 +45,8 @@ CURRENT = 'current'
 AID_EXIT_CHECK_INTERVAL = 5
 DAEMON_LOOP_MAX_WAIT = 5
 DAEMON_LOOP_MAX_RETRIES = 5
+HB_LOOP_MAX_WAIT = 60
+HB_LOOP_MAX_RETRY = 10
 
 logging.register_options(aim_cfg.CONF)
 
@@ -112,14 +114,13 @@ class AID(object):
         self.max_down_time = 4 * self.report_interval
 
     def daemon_loop(self):
-        aim_ctx = context.AimContext(store=api.get_store())
         # Serve tenants the very first time regardless of the events received
         self.events.serve()
-        self._daemon_loop(aim_ctx)
+        self._daemon_loop()
 
     @utils.retry_loop(DAEMON_LOOP_MAX_WAIT, DAEMON_LOOP_MAX_RETRIES, 'AID',
                       fail=True)
-    def _daemon_loop(self, aim_ctx):
+    def _daemon_loop(self):
         serve = False
         # wait first event
         first_event_time = None
@@ -142,19 +143,24 @@ class AID(object):
                     # Serving tenants is required as well
                     serve = True
         start_time = time.time()
-        self._reconciliation_cycle(aim_ctx, serve)
+        self._reconciliation_cycle(serve)
         utils.wait_for_next_cycle(start_time, self.polling_interval,
                                   LOG, readable_caller='AID',
                                   notify_exceeding_timeout=False)
 
-    def _reconciliation_cycle(self, aim_ctx, serve=True):
+    @utils.retry_loop(DAEMON_LOOP_MAX_WAIT, DAEMON_LOOP_MAX_RETRIES, 'AID-REC',
+                      fail=False, return_=True)
+    def _reconciliation_cycle(self, serve=True):
+        # Regenerate context at each reconciliation cycle
+        # TODO(ivar): set request-id so that oslo log can track it
+        aim_ctx = context.AimContext(store=api.get_store())
         if serve:
             LOG.info("Start serving cycle.")
             tenants = self._calculate_tenants(aim_ctx)
             # Serve tenants
             for pair in self.multiverse:
-                pair[DESIRED].serve(tenants)
-                pair[CURRENT].serve(tenants)
+                pair[DESIRED].serve(aim_ctx, tenants)
+                pair[CURRENT].serve(aim_ctx, tenants)
             LOG.info("AID %s is currently serving: "
                      "%s" % (self.agent.id, tenants))
 
@@ -165,28 +171,28 @@ class AID(object):
         # Observe the two universes to fix their current state
         with utils.get_rlock(lcon.AID_OBSERVER_LOCK):
             for pair in self.multiverse:
-                pair[DESIRED].observe()
-                pair[CURRENT].observe()
+                pair[DESIRED].observe(aim_ctx)
+                pair[CURRENT].observe(aim_ctx)
 
         delete_candidates = set()
         vetoes = set()
         for pair in self.multiverse:
             pair[DESIRED].vote_deletion_candidates(
-                pair[CURRENT], delete_candidates, vetoes)
+                aim_ctx, pair[CURRENT], delete_candidates, vetoes)
             pair[CURRENT].vote_deletion_candidates(
-                pair[DESIRED], delete_candidates, vetoes)
+                aim_ctx, pair[DESIRED], delete_candidates, vetoes)
         # Reconcile everything
         changes = False
         for pair in self.multiverse:
-            changes |= pair[CURRENT].reconcile(pair[DESIRED],
+            changes |= pair[CURRENT].reconcile(aim_ctx, pair[DESIRED],
                                                delete_candidates)
         if not changes:
             LOG.info("Congratulations! your multiverse is nice and synced :)")
 
         for pair in self.multiverse:
-            pair[DESIRED].finalize_deletion_candidates(pair[CURRENT],
+            pair[DESIRED].finalize_deletion_candidates(aim_ctx, pair[CURRENT],
                                                        delete_candidates)
-            pair[CURRENT].finalize_deletion_candidates(pair[DESIRED],
+            pair[CURRENT].finalize_deletion_candidates(aim_ctx, pair[DESIRED],
                                                        delete_candidates)
 
         # Delete tenants if there's consensus
@@ -196,25 +202,25 @@ class AID(object):
                 for universe in pair.values():
                     LOG.info("%s removing tenant from AID %s" %
                              (universe.name, tenant))
-                    universe.cleanup_state(tenant)
+                    universe.cleanup_state(aim_ctx, tenant)
 
     def _spawn_heartbeat_loop(self):
         utils.spawn_thread(self._heartbeat_loop)
 
+    @utils.retry_loop(HB_LOOP_MAX_WAIT, HB_LOOP_MAX_WAIT, 'AID-HB', fail=True)
     def _heartbeat_loop(self):
+        start_time = time.time()
         aim_ctx = context.AimContext(store=api.get_store())
-        while True:
-            start = time.time()
-            self._send_heartbeat(aim_ctx)
-            time.sleep(
-                max(0, self.report_interval - (time.time() - start)))
+        self._send_heartbeat(aim_ctx)
+        utils.wait_for_next_cycle(start_time, self.report_interval,
+                                  LOG, readable_caller='AID-HB',
+                                  notify_exceeding_timeout=False)
 
     def _send_heartbeat(self, aim_ctx):
         LOG.info("Sending Heartbeat for agent %s" % self.agent_id)
         self.agent = self.manager.update(aim_ctx, self.agent)
 
     def _calculate_tenants(self, aim_ctx):
-        # REVISIT(ivar): should we lock the Agent table?
         with aim_ctx.store.begin(subtransactions=True):
             # Refresh this agent
             self.agent = self.manager.get(aim_ctx, self.agent)

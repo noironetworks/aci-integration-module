@@ -41,7 +41,7 @@ class TestAimDbUniverseBase(object):
     def test_serve(self):
         # Serve the first batch of tenants
         tenants = ['tn%s' % x for x in range(10)]
-        self.universe.serve(tenants)
+        self.universe.serve(self.ctx, tenants)
         self.assertEqual(set(tenants), set(self.universe._served_tenants))
 
     def test_state(self, tree_type=tree_manager.CONFIG_TREE):
@@ -61,9 +61,9 @@ class TestAimDbUniverseBase(object):
         self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
                                   tree=tree_type)
         # Serve tnA, tnA2 and tnExtra
-        self.universe.serve(['tn-tnA', 'tn-tnA2', 'tn-tnExtra'])
+        self.universe.serve(self.ctx, ['tn-tnA', 'tn-tnA2', 'tn-tnExtra'])
         # Now observe
-        self.universe.observe()
+        self.universe.observe(self.ctx)
         state = self.universe.state
         # tnA and tnA2 have updated values, tnExtra is still empty
         self.assertEqual(data1, state['tn-tnA'])
@@ -75,7 +75,7 @@ class TestAimDbUniverseBase(object):
         self.tree_mgr.update_bulk(self.ctx, [data1], tree=tree_type)
         # Observe and verify that trees are back in sync
         self.assertNotEqual(data1, state['tn-tnA'])
-        self.universe.observe()
+        self.universe.observe(self.ctx)
         state = self.universe.state
         self.assertEqual(data1, state['tn-tnA'])
 
@@ -98,14 +98,16 @@ class TestAimDbUniverseBase(object):
         self.tree_mgr.update_bulk(self.ctx, [data1, data2, data3],
                                   tree=tree_type)
 
-        self.universe.serve(['tn-tnA', 'tn-tnA1', 'tn-tnA2', 'tn-tnA3'])
+        self.universe.serve(self.ctx,
+                            ['tn-tnA', 'tn-tnA1', 'tn-tnA2', 'tn-tnA3'])
         # Other state is in sync
         other_state = {
             'tn-tnA': tree.StructuredHashTree().from_string(str(data1)),
             'tn-tnA1': tree.StructuredHashTree().from_string(str(data2)),
             'tn-tnA2': tree.StructuredHashTree().from_string(str(data3))}
         # Optimized state is empty
-        self.assertEqual({}, self.universe.get_optimized_state(other_state))
+        self.assertEqual({}, self.universe.get_optimized_state(self.ctx,
+                                                               other_state))
 
         # Add a new tenant
         data4 = tree.StructuredHashTree().include(
@@ -114,13 +116,15 @@ class TestAimDbUniverseBase(object):
              {'key': ('fvTenant|tnA3', 'keyC', 'keyD')}])
         self.tree_mgr.update_bulk(self.ctx, [data4], tree=tree_type)
         self.assertEqual({'tn-tnA3': data4},
-                         self.universe.get_optimized_state(other_state))
+                         self.universe.get_optimized_state(self.ctx,
+                                                           other_state))
         # Modify data1
         data1.add(('fvTenant|tnA', 'keyZ'), attribute='something')
         self.tree_mgr.update_bulk(self.ctx, [data1], tree=tree_type)
         # Now Data1 is included too
         self.assertEqual({'tn-tnA3': data4, 'tn-tnA': data1},
-                         self.universe.get_optimized_state(other_state))
+                         self.universe.get_optimized_state(self.ctx,
+                                                           other_state))
 
     def test_get_aim_resources(self, tree_type=tree_manager.CONFIG_TREE):
         tree_mgr = tree_manager.HashTreeManager()
@@ -271,7 +275,7 @@ class TestAimDbUniverseBase(object):
         self.assertEqual(1, len(trees))
         aim_mgr.clear_fault(self.ctx, bd1_fault)
         aim_mgr.delete(self.ctx, resource.Tenant(name='t1'), cascade=True)
-        self.universe.cleanup_state('tn-t1')
+        self.universe.cleanup_state(self.ctx, 'tn-t1')
         trees = tree_mgr.find(self.ctx, tree=tree_type)
         self.assertEqual(0, len(trees))
 
@@ -287,8 +291,8 @@ class TestAimDbUniverseBase(object):
         faul_aim = aim_status.AciFault(
             fault_code='951',
             external_identifier='uni/tn-t1/ap-a1/epg-test/fault-951')
-        self.universe.push_resources({'create': [ap, epg, fault],
-                                      'delete': []})
+        self.universe.push_resources(self.ctx, {'create': [ap, epg, fault],
+                                                'delete': []})
         res = aim_mgr.get(self.ctx, resource.EndpointGroup(
             tenant_name='t1', app_profile_name='a1', name='test'))
         status = aim_mgr.get_status(self.ctx, res)
@@ -296,8 +300,8 @@ class TestAimDbUniverseBase(object):
         self.assertEqual('951', status.faults[0].fault_code)
 
         # Unset fault
-        self.universe.push_resources({'create': [],
-                                      'delete': [faul_aim]})
+        self.universe.push_resources(self.ctx, {'create': [],
+                                                'delete': [faul_aim]})
         status = aim_mgr.get_status(self.ctx, res)
         self.assertEqual(0, len(status.faults))
 
@@ -314,8 +318,8 @@ class TestAimDbUniverseBase(object):
             self._get_example_aci_fault(
                 dn='uni/tn-t1/brc-c/subj-s2/rssubjFiltAtt-h/fault-F1113',
                 code='F1113')]
-        self.universe.push_resources({'create': filter_objs,
-                                      'delete': []})
+        self.universe.push_resources(self.ctx, {'create': filter_objs,
+                                                'delete': []})
         subj = resource.ContractSubject(tenant_name='t1', contract_name='c',
                                         name='s2')
         status = aim_mgr.get_status(self.ctx, subj)
@@ -324,8 +328,8 @@ class TestAimDbUniverseBase(object):
                          [f.fault_code for f in status.faults])
 
         # delete filter faults
-        self.universe.push_resources({'create': [],
-                                      'delete': status.faults})
+        self.universe.push_resources(self.ctx, {'create': [],
+                                                'delete': status.faults})
         status = aim_mgr.get_status(self.ctx, subj)
         self.assertEqual(0, len(status.faults))
         # Managed epg
@@ -333,8 +337,8 @@ class TestAimDbUniverseBase(object):
             tenant_name='t1', app_profile_name='a1', name='managed')
         aim_mgr.create(self.ctx, managed_epg)
         # EPG cannot be deleted since is managed
-        self.universe.push_resources({'create': [],
-                                      'delete': [ap_aim, managed_epg]})
+        self.universe.push_resources(
+            self.ctx, {'create': [], 'delete': [ap_aim, managed_epg]})
         res = aim_mgr.get(self.ctx, managed_epg)
         if self.monitor_universe:
             self.assertIsNotNone(res)
@@ -350,8 +354,8 @@ class TestAimDbUniverseBase(object):
             # create object and faults
             to_create = [aci_obj]
             to_create.extend(aci_faults)
-            self.universe.push_resources({'create': to_create,
-                                          'delete': []})
+            self.universe.push_resources(self.ctx, {'create': to_create,
+                                                    'delete': []})
 
             self.assertIsNotNone(aim_mgr.get(self.ctx, aim_obj))
             status = aim_mgr.get_status(self.ctx, aim_obj)
@@ -361,8 +365,8 @@ class TestAimDbUniverseBase(object):
                              sorted([f.fault_code for f in status.faults]))
 
             # delete filter faults
-            self.universe.push_resources({'create': [],
-                                          'delete': status.faults})
+            self.universe.push_resources(self.ctx, {'create': [],
+                                                    'delete': status.faults})
             status = aim_mgr.get_status(self.ctx, aim_obj)
             self.assertEqual(0, len(status.faults))
 

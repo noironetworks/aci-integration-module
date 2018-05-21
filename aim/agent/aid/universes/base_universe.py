@@ -28,8 +28,6 @@ from aim.agent.aid.universes import errors
 from aim import aim_manager
 from aim.common.hashtree import structured_tree
 from aim.common import utils
-from aim import context
-from aim.db import api
 from aim import exceptions
 from aim import tree_manager
 
@@ -71,7 +69,7 @@ class BaseUniverse(object):
         """
 
     @abc.abstractmethod
-    def observe(self):
+    def observe(self, context):
         """Observes the current state of the Universe
 
         This method is used to refresh the current state. Some Universes might
@@ -81,7 +79,7 @@ class BaseUniverse(object):
         """
 
     @abc.abstractmethod
-    def reconcile(self, other_universe, delete_candidates):
+    def reconcile(self, context, other_universe, delete_candidates):
         """State reconciliation method.
 
         When an universe's reconcile method is called, the state of the passed
@@ -91,6 +89,7 @@ class BaseUniverse(object):
         keep its own existing state. The ideal scenario is that after
         reconciliation the desired state is a subset of the current one.
 
+        :param context:
         :param other_universe: universe to which we want to converge
         :param delete_candidates: dictionary that each universe can use to
                vote for tenant deletion. Dictionary keys will be the tenant
@@ -101,12 +100,13 @@ class BaseUniverse(object):
         """
 
     @abc.abstractmethod
-    def reset(self, tenants):
+    def reset(self, context, tenants):
         """Tenant state reset method
 
         Whenever one or multiple tenants are found to be consistently divergent
         from the desired state, this reset method will be called so that the
         universe can put its tenant in a clean state.
+        :param context:
         :param tenants: list of tenants that need reset
         :return:
         """
@@ -176,42 +176,46 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def push_resources(self, resources):
+    def push_resources(self, context, resources):
         """Given a resource map, push it in the current Universe
 
         This method will transform the desired Universe's resources into a
         format that the current Universe understands, and the push them.
+        :param context:
         :param resources: The resource map to be pushed. map will organize
         the resources by "create" and "delete"
         :return:
         """
 
     @abc.abstractmethod
-    def serve(self, tenants):
+    def serve(self, context, tenants):
         """Set the current Universe to serve a number of tenants
 
         When the list of served tenants changes, resources for previously
         served ones need to be freed.
+        :param context:
         :param tenants: List of tenant identifiers
         :return:
         """
 
     @abc.abstractmethod
-    def cleanup_state(self, key):
+    def cleanup_state(self, context, key):
         """Cleanup state entry
 
-        :param key: tenant id
+        :param context:
+        :param key: root id
         :return:
         """
 
     @abc.abstractmethod
-    def vote_deletion_candidates(self, other_universe, delete_candidates,
-                                 vetoes):
+    def vote_deletion_candidates(self, context, other_universe,
+                                 delete_candidates, vetoes):
         """Vote deletion candidates
 
         Decide whether the cleanup process should be initiated for a specific
         candidate.
 
+        :param context:
         :param other_universe
         :param delete_candidates: set that each universe can use to
                vote for tenant deletion.
@@ -220,25 +224,28 @@ class AimUniverse(BaseUniverse):
         """
 
     @abc.abstractmethod
-    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+    def finalize_deletion_candidates(self, context, other_universe,
+                                     delete_candidates):
         """Finalize deletion candidates
 
         After one reconciliation cycle, decide whether the tenant should be
         completely deleted. Universes can only *remove* candidates at this
         point from the list.
 
+        :param context:
         :param other_universe:
         :param delete_candidates:
         :return:
         """
 
     @abc.abstractmethod
-    def update_status_objects(self, my_state, raw_diff, skip_keys):
+    def update_status_objects(self, context, my_state, raw_diff, skip_keys):
         """Update status objects
 
         Given the current state of the tenant, update the proper status objects
         to reflect their sync situation.
 
+        :param context:
         :param my_state: state of the universe
         :param raw_diff: difference dictionary listing hashtree keys
         :return:
@@ -273,8 +280,6 @@ class HashTreeStoredUniverse(AimUniverse):
     def initialize(self, conf_mgr, multiverse):
         super(HashTreeStoredUniverse, self).initialize(conf_mgr, multiverse)
         self.multiverse = multiverse
-        self.store = api.get_store()
-        self.context = context.AimContext(store=self.store)
         self.manager = aim_manager.AimManager()
         self.conf_manager = conf_mgr
         self._state = {}
@@ -323,22 +328,23 @@ class HashTreeStoredUniverse(AimUniverse):
                 other_universe.state[tenant] = (
                     structured_tree.StructuredHashTree())
 
-    def observe(self):
+    def observe(context, self):
         pass
 
-    def reconcile(self, other_universe, delete_candidates):
-        return self._reconcile(other_universe)
+    def reconcile(self, context, other_universe, delete_candidates):
+        return self._reconcile(context, other_universe)
 
-    def vote_deletion_candidates(self, other_universe, delete_candidates,
-                                 vetoes):
+    def vote_deletion_candidates(self, context, other_universe,
+                                 delete_candidates, vetoes):
         pass
 
-    def finalize_deletion_candidates(self, other_universe, delete_candidates):
+    def finalize_deletion_candidates(self, context, other_universe,
+                                     delete_candidates):
         for root in delete_candidates:
             with utils.get_rlock(lcon.SYNC_LOG_LOCK + root):
                 self._sync_log.pop(root, None)
 
-    def _reconcile(self, other_universe):
+    def _reconcile(self, context, other_universe):
         # "self" is always the current state, "other" the desired
         my_state = self.state
         other_state = other_universe.state
@@ -366,27 +372,27 @@ class HashTreeStoredUniverse(AimUniverse):
 
                 reset, fail, skip = self._track_universe_actions(result,
                                                                  tenant)
-                LOG.debug('Sync log cache for %s (%s): %s' %
-                          (self.name, tenant, self._sync_log))
+                if (self._sync_log.get(tenant, {}).get('create') or
+                        self._sync_log.get(tenant, {}).get('delete')):
+                    LOG.debug('Sync log cache for %s (%s): %s' %
+                              (self.name, tenant, self._sync_log))
 
                 if reset:
-                    self.reset([tenant])
-                    other_universe.reset([tenant])
+                    self.reset(context, [tenant])
+                    other_universe.reset(context, [tenant])
                     # Don't synchronize resetting roots
                     continue
 
                 for action, res in fail:
                     if action == CREATE:
                         self.creation_failed(
-                            self.context,
-                            res, reason='Divergence detected on this '
-                                        'object.',
+                            context, res,
+                            reason='Divergence detected on this object.',
                             error=errors.OPERATION_CRITICAL)
                     if action == DELETE:
                         self.deletion_failed(
-                            self.context,
-                            res, reason='Divergence detected on this '
-                                        'object.',
+                            context, res,
+                            reason='Divergence detected on this object.',
                             error=errors.OPERATION_CRITICAL)
                     skip.append((action, res))
 
@@ -409,12 +415,12 @@ class HashTreeStoredUniverse(AimUniverse):
                         DELETE: self.get_resources_for_delete(
                             differences[DELETE])
                     }
-                self.update_status_objects(my_tenant_state, differences,
-                                           skipset)
-                other_universe.update_status_objects(other_tenant_state,
-                                                     differences, skipset)
+                self.update_status_objects(context, my_tenant_state,
+                                           differences, skipset)
+                other_universe.update_status_objects(
+                    context, other_tenant_state, differences, skipset)
                 # Reconciliation method for pushing changes
-                self.push_resources(result)
+                self.push_resources(context, result)
             except Exception as e:
                 LOG.error("An unexpected error has occurred while "
                           "reconciling tenant %s: %s" % (tenant, e.message))
@@ -423,7 +429,7 @@ class HashTreeStoredUniverse(AimUniverse):
                 diff = True
         return diff
 
-    def reset(self, tenants):
+    def reset(self, context, tenants):
         pass
 
     def get_resource_for_delete(self, resource_key):
@@ -535,10 +541,10 @@ class HashTreeStoredUniverse(AimUniverse):
             if not parent_node.dummy:
                 resource_keys.append(parent_node.key)
 
-    def serve(self, tenants):
+    def serve(self, context, tenants):
         pass
 
-    def cleanup_state(self, key):
+    def cleanup_state(self, context, key):
         pass
 
     def creation_succeeded(self, aim_object):
