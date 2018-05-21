@@ -60,7 +60,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
     def test_serve(self):
         tenant_list = ['tn-%s' % x for x in range(10)]
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         # List of serving tenant correctly updated
         self.assertEqual(set(tenant_list),
                          set(self.universe.serving_tenants.keys()))
@@ -69,14 +69,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         tenant_list.extend(['tn-%s' % x for x in range(15, 20)])
         self.assertNotEqual(set(tenant_list),
                             set(self.universe.serving_tenants.keys()))
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         self.assertEqual(set(tenant_list),
                          set(self.universe.serving_tenants.keys()))
 
         # Test same tenants cause a noop
         serving_tenants_copy = dict(
             [(k, v) for k, v in self.universe.serving_tenants.iteritems()])
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         for k, v in serving_tenants_copy.iteritems():
             # Serving tenant values are the same
             self.assertIs(v, self.universe.serving_tenants[k])
@@ -85,7 +85,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         # serve
         self.universe.serving_tenants['tn-19'].is_dead = mock.Mock(
             return_value=True)
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         for k, v in serving_tenants_copy.iteritems():
             if k != 'tn-19':
                 # Serving tenant values are the same
@@ -96,9 +96,9 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
     def test_observe(self):
         tenant_list = ['tn-%s' % x for x in range(10)]
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         self.assertEqual({}, self.universe.state)
-        self.universe.observe()
+        self.universe.observe(self.ctx)
         for tenant in tenant_list:
             self.assertTrue(tenant in self.universe.state)
             self.assertTrue(isinstance(self.universe.state[tenant],
@@ -106,14 +106,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         # Remove some tenants and add more
         tenant_list = tenant_list[5:]
         tenant_list.extend(['tn-%s' % x for x in range(15, 20)])
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         # Old state is popped
         for tenant in ['tn-%s' % x for x in range(5)]:
             self.assertFalse(tenant in self.universe.state)
         # New state not present yet
         for tenant in ['tn-%s' % x for x in range(15, 20)]:
             self.assertFalse(tenant in self.universe.state)
-        self.universe.observe()
+        self.universe.observe(self.ctx)
         # Now the new state is fully there
         for tenant in tenant_list:
             self.assertTrue(tenant in self.universe.state)
@@ -122,13 +122,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
     def test_serve_exception(self):
         tenant_list = ['tn-%s' % x for x in range(10)]
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         # Remove some tenants
         tenant_list_new = tenant_list[5:]
         old = self.universe.serving_tenants['tn-9'].is_dead
         self.universe.serving_tenants['tn-9'].is_dead = mock.Mock(
             side_effect=KeyError)
-        self.assertRaises(KeyError, self.universe.serve, tenant_list_new)
+        self.assertRaises(KeyError, self.universe.serve, self.ctx,
+                          tenant_list_new)
         self.universe.serving_tenants['tn-9'].is_dead = old
         # List of serving tenant back to the initial one
         self.assertEqual(set(tenant_list),
@@ -140,7 +141,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         for tenant in tenant_list[5:]:
             self.assertFalse(self.universe.serving_tenants[tenant].is_dead())
         # With a new serve, dead ones are regenerated
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         for tenant in tenant_list:
             self.assertFalse(self.universe.serving_tenants[tenant].is_dead())
 
@@ -148,7 +149,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.serving_tenants['tn-1'].kill = mock.Mock(
             side_effect=ValueError)
         # Serve happens without problems
-        self.universe.serve(tenant_list_new)
+        self.universe.serve(self.ctx, tenant_list_new)
         self.assertEqual(set(tenant_list_new),
                          set(self.universe.serving_tenants.keys()))
 
@@ -163,10 +164,10 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         bd2_tn2 = self._get_example_aim_bd(tenant_name='tn2',
                                            name='bd2')
 
-        self.universe.serve(['tn-tn1', 'tn-tn2'])
+        self.universe.serve(self.ctx, ['tn-tn1', 'tn-tn2'])
         self.universe.push_resources(
-            {'create': [bd1_tn1, bd2_tn1, bd2_tn2],
-             'delete': [bd1_tn2]})
+            self.ctx, {'create': [bd1_tn1, bd2_tn1, bd2_tn2],
+                       'delete': [bd1_tn2]})
         # Verify that the requests are filled properly
         tn1 = self.universe.serving_tenants[
             'tn-tn1'].object_backlog.get_nowait()
@@ -431,7 +432,7 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
         operational = aci_universe.AciOperationalUniverse().initialize(
             aim_cfg.ConfigManager(self.ctx, ''), [])
         tenant_list = ['tn-%s' % x for x in range(10)]
-        self.universe.serve(tenant_list)
+        self.universe.serve(self.ctx, tenant_list)
         self.assertIs(self.universe.serving_tenants,
                       operational.serving_tenants)
         for key, value in self.universe.serving_tenants.iteritems():

@@ -314,7 +314,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         global serving_tenants
         return serving_tenants
 
-    def serve(self, tenants):
+    def serve(self, context, tenants):
         # Verify differences
         global serving_tenants
         try:
@@ -379,7 +379,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         context = aim_ctx.AimContext(store=store)
         self.creation_failed(context, aim_object, reason=reason, error=error)
 
-    def observe(self):
+    def observe(self, context):
         # Copy state accumulated so far
         global serving_tenants
         new_state = {}
@@ -389,7 +389,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 new_state[tenant] = self._get_state_copy(tenant)
         self._state = new_state
 
-    def reset(self, tenants):
+    def reset(self, context, tenants):
         # Reset can only be called during reconciliation. serving_tenants
         # can't be modified meanwhile
         global serving_tenants
@@ -402,7 +402,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     LOG.error(traceback.format_exc())
                     LOG.error('Failed to reset tenant %s' % root)
 
-    def push_resources(self, resources):
+    def push_resources(self, context, resources):
         # Organize by tenant, and push into APIC
         global serving_tenants
         by_tenant = {}
@@ -483,7 +483,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
             sign_hash=apic_config.get_option(
                 'signature_hash_type', group='apic'))
 
-    def update_status_objects(self, my_state, raw_diff, skip_keys):
+    def update_status_objects(self, context, my_state, raw_diff, skip_keys):
         pass
 
     def _action_items_to_aim_resources(self, actions, action):

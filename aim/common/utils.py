@@ -158,6 +158,7 @@ class StopLoop(Exception):
 
 def retry_loop(max_wait, max_retries, name, fail=False, return_=False):
     def wrap(func):
+        @functools.wraps(func)
         def inner(*args, **kwargs):
             recovery_retries = None
             while True:
@@ -294,6 +295,7 @@ def get_rlock(lock_name, blocking=True):
 
 def rlock(lock_name):
     def wrap(func):
+        @functools.wraps(func)
         def inner(*args, **kwargs):
             # setdefault is atomic
             lock = generate_rlock(lock_name)
