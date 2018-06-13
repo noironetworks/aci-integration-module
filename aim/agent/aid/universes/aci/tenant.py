@@ -301,41 +301,45 @@ class AciTenantManager(utils.AIMThread):
         # iteration.
         self._push_aim_resources()
         if self.ws_context.has_event(self.tenant.urls):
-            # Continuously check for events
-            events = self.ws_context.get_event_data(self.tenant.urls)
-            for event in events:
-                # REVISIT(ivar): remove vmmDomP once websocket ACI bug is fixed
-                if (event.keys()[0] in [self.tenant.type, 'vmmDomP'] and not
-                        event[event.keys()[0]]['attributes'].get(
-                            STATUS_FIELD)):
-                    LOG.info("Resetting Tree %s" % self.tenant_name)
-                    # REVISIT(ivar): on subscription to VMMPolicy objects, aci
-                    # doesn't return the root object itself because of a bug.
-                    # Let's craft a fake root to work around this problem
-                    if self.tenant_name.startswith('vmmp-'):
-                        LOG.debug('Faking vmmProvP %s' % self.tenant_name)
-                        events.append({'vmmProvP': {
-                            'attributes': {'dn': self.tenant.dn}}})
-                    # This is a full resync, trees need to be reset
-                    self._state = structured_tree.StructuredHashTree()
-                    self._operational_state = (
-                        structured_tree.StructuredHashTree())
-                    self._monitored_state = (
-                        structured_tree.StructuredHashTree())
-                    self.tag_set = set()
-                    break
-            # REVISIT(ivar): there's already a debug log in acitoolkit listing
-            # all the events received one by one. The following would be more
-            # compact, we need to choose which to keep.
-            # LOG.debug("received events for root %s: %s" %
-            #           (self.tenant_name, events))
-            # Make events list flat
-            self.flat_events(events)
-            # Pull incomplete objects
-            events = self._fill_events(events)
-            # Manage Tags
-            events = self._filter_ownership(events)
-            self._event_to_tree(events)
+            with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
+                                 self.tenant_name):
+                events = self.ws_context.get_event_data(self.tenant.urls)
+                for event in events:
+                    # REVISIT(ivar): remove vmmDomP once websocket ACI bug is
+                    # fixed
+                    if (event.keys()[0] in [self.tenant.type,
+                                            'vmmDomP'] and not
+                            event[event.keys()[0]]['attributes'].get(
+                                STATUS_FIELD)):
+                        LOG.info("Resetting Tree %s" % self.tenant_name)
+                        # REVISIT(ivar): on subscription to VMMPolicy objects,
+                        # aci doesn't return the root object itself because of
+                        # a bug. Let's craft a fake root to work around this
+                        # problem
+                        if self.tenant_name.startswith('vmmp-'):
+                            LOG.debug('Faking vmmProvP %s' % self.tenant_name)
+                            events.append({'vmmProvP': {
+                                'attributes': {'dn': self.tenant.dn}}})
+                        # This is a full resync, trees need to be reset
+                        self._state = structured_tree.StructuredHashTree()
+                        self._operational_state = (
+                            structured_tree.StructuredHashTree())
+                        self._monitored_state = (
+                            structured_tree.StructuredHashTree())
+                        self.tag_set = set()
+                        break
+                # REVISIT(ivar): there's already a debug log in acitoolkit
+                # listing all the events received one by one. The following
+                # would be more compact, we need to choose which to keep.
+                # LOG.debug("received events for root %s: %s" %
+                #           (self.tenant_name, events))
+                # Make events list flat
+                self.flat_events(events)
+                # Pull incomplete objects
+                events = self._fill_events(events)
+                # Manage Tags
+                events = self._filter_ownership(events)
+                self._event_to_tree(events)
         time.sleep(max(0, self.polling_yield - (time.time() - start_time)))
 
     def push_aim_resources(self, resources):

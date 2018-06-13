@@ -383,10 +383,11 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # Copy state accumulated so far
         global serving_tenants
         new_state = {}
-        for tenant in serving_tenants:
+        for tenant in serving_tenants.keys():
             # Only copy state if the tenant is warm
-            if serving_tenants[tenant].is_warm():
-                new_state[tenant] = self._get_state_copy(tenant)
+            with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX + tenant):
+                if serving_tenants[tenant].is_warm():
+                    new_state[tenant] = self._get_state_copy(tenant)
         self._state = new_state
 
     def reset(self, context, tenants):
