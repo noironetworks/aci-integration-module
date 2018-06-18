@@ -148,6 +148,31 @@ class TestAimManager(base.TestAimDBBase):
                                                                 name='test'))
         self.assertEqual(aim_status.AciStatus.SYNC_PENDING, vmmd.sync_status)
 
+    def test_multiple_statuses(self):
+        t1 = self.mgr.create(self.ctx, resource.Tenant(name='t1'))
+        t2 = self.mgr.create(self.ctx, resource.Tenant(name='t2'))
+        t1_res = [t1]
+        t2_res = [t2]
+        for tn, container in [(t1, t1_res), (t2, t2_res)]:
+            ap = self.mgr.create(self.ctx, resource.ApplicationProfile(
+                tenant_name=tn.name, name='test'))
+            epg = self.mgr.create(self.ctx, resource.EndpointGroup(
+                tenant_name=tn.name, app_profile_name='test', name='test'))
+            vrf = self.mgr.create(self.ctx, resource.VRF(
+                tenant_name=tn.name, name='test'))
+            container += [ap, epg, vrf]
+        # Create status
+        statuses = set()
+        for res in t1_res + t2_res:
+            st = self.mgr.get_status(self.ctx, res, create_if_absent=True)
+            statuses.add(st)
+        statuses2 = self.mgr.get_statuses(self.ctx, t1_res + t2_res)
+        self.assertEqual(statuses, set(statuses2))
+        statusest1 = self.mgr.get_statuses(self.ctx, t1_res)
+        self.assertEqual(
+            set((x for x in statuses if x.resource_root == 'tn-t1')),
+            set(statusest1))
+
 
 class TestResourceOpsBase(object):
     test_dn = None
@@ -374,6 +399,7 @@ class TestResourceOpsBase(object):
         if self.test_epoch:
             res2 = self.mgr.get(self.ctx, res)
             self.assertEqual(res2.epoch, res.epoch)
+        self.assertEqual(res.dn, status.resource_dn)
         self.assertTrue(isinstance(status, aim_status.AciStatus))
         # Sync status not available
         self.assertEqual(status.SYNC_NA, status.sync_status)
@@ -455,6 +481,11 @@ class TestResourceOpsBase(object):
         self.mgr.clear_fault(self.ctx, fault_2)
         status = self.mgr.get_status(self.ctx, res)
         self.assertEqual(0, len(status.faults))
+
+        # Verify get statuses
+        status = self.mgr.get_statuses(self.ctx, [res])[0]
+        self.assertIsNotNone(status)
+        self.assertEqual(res.dn, status.resource_dn)
 
         # Delete resource and verify that status is deleted as well
         self.mgr.set_fault(self.ctx, res, fault_2)

@@ -419,7 +419,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
     def test_leaked_status(self):
         # Create parentless status object
         status = aim_status.AciStatus(resource_type='Tenant',
-                                      resource_id='none', resource_root='tn-1')
+                                      resource_id='none', resource_root='tn-1',
+                                      resource_dn='uni/tn-1')
         # During creation, the builder will try to delete the parentless status
         # however, that has not been committed yet to the deletion has no
         # effect. giving the status another builder round will make sure it is
