@@ -311,6 +311,23 @@ class TestNatStrategyBase(object):
         self._check_connect_vrfs('stage4')
 
     @base.requires(['foreign_keys'])
+    def test_set_unset_bd_l3out(self):
+        l3out = a_res.L3Outside(tenant_name='t1', name='o1',
+                                display_name='OUT')
+        bd1 = a_res.BridgeDomain(tenant_name=self.bd1_tenant_name, name='bd1',
+                                 limit_ip_learn_to_subnets=True,
+                                 vrf_name='vrf1')
+        self.mgr.create(self.ctx, bd1)
+        self.ns.set_bd_l3out(self.ctx, bd1, l3out)
+        self._check_bd_l3out(bd1, l3out)
+        # add the same l3out again
+        self.ns.set_bd_l3out(self.ctx, bd1, l3out)
+        self._check_bd_l3out(bd1, l3out)
+        self.ns.unset_bd_l3out(self.ctx, bd1, l3out)
+        bd1 = self.mgr.get(self.ctx, bd1)
+        self.assertEqual([], bd1.l3out_names)
+
+    @base.requires(['foreign_keys'])
     def test_vrf_contract_update(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
@@ -492,6 +509,11 @@ class TestNatStrategyBase(object):
 
         self.ns.delete_l3outside(self.ctx, l3out)
         self._check_delete_l3outside_with_vrf('stage2')
+
+    # This will be invoked for non-NoNat strategies
+    def _check_bd_l3out(self, bridge_domain, l3outside):
+        bridge_domain = self.mgr.get(self.ctx, bridge_domain)
+        self.assertEqual([], bridge_domain.l3out_names)
 
 
 class TestDistributedNatStrategy(TestNatStrategyBase,
@@ -735,6 +757,10 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             'ext_sub_1': a_res.ExternalSubnet(
                 tenant_name='t2', l3out_name='o2',
                 external_network_name='inet2', cidr='0.0.0.0/0')}
+
+    def _check_bd_l3out(self, bridge_domain, l3outside):
+        bridge_domain = self.mgr.get(self.ctx, bridge_domain)
+        self.assertEqual([l3outside.name], bridge_domain.l3out_names)
 
     def _check_connect_vrfs(self, stage):
         objs = self._get_vrf_1_ext_net_1_objects()
