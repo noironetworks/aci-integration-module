@@ -223,6 +223,28 @@ class NatStrategy(object):
         :param external_network: AIM ExternalNetwork
         """
 
+    @abc.abstractmethod
+    def set_bd_l3out(self, ctx, bridge_domain, l3outside):
+        """Add the l3out to the BD's associated l3out list if needed.
+
+        Right now only NoNat needs to do this.
+
+        :param ctx: AIM context
+        :param bridge_domain: BridgeDomain AIM resource
+        :param l3outside: L3Outside AIM resource
+        """
+
+    @abc.abstractmethod
+    def unset_bd_l3out(self, ctx, bridge_domain, l3outside):
+        """Remove the l3out from the BD's associated l3out list if needed.
+
+        Right now only NoNat needs to do this.
+
+        :param ctx: AIM context
+        :param bridge_domain: BridgeDomain AIM resource
+        :param l3outside: L3Outside AIM resource
+        """
+
 
 class NatStrategyMixin(NatStrategy):
     """Implements common functionality between different NAT strategies."""
@@ -292,6 +314,14 @@ class NatStrategyMixin(NatStrategy):
         ext_net_db = self.mgr.get(ctx, external_network)
         if ext_net_db:
             self._manage_external_subnets(ctx, ext_net_db, external_cidrs)
+
+    # This is only needed for NoNat
+    def set_bd_l3out(self, ctx, bridge_domain, l3outside):
+        pass
+
+    # This is only needed for NoNat
+    def unset_bd_l3out(self, ctx, bridge_domain, l3outside):
+        pass
 
     def _create_l3out(self, ctx, l3out, vmm_domains=None, phys_domains=None):
         """Create NAT EPG etc. in addition to creating L3Out."""
@@ -634,6 +664,20 @@ class NoNatStrategy(NatStrategyMixin):
                              self._ext_net_to_l3out(external_network))
         vrf = self._vrf_by_name(ctx, l3out.vrf_name, l3out.tenant_name)
         return [vrf] if vrf else []
+
+    def set_bd_l3out(self, ctx, bridge_domain, l3outside):
+        bridge_domain = self.mgr.get(ctx, bridge_domain)
+        if bridge_domain and l3outside.name not in bridge_domain.l3out_names:
+            self.mgr.update(
+                ctx, bridge_domain,
+                l3out_names=bridge_domain.l3out_names + [l3outside.name])
+
+    def unset_bd_l3out(self, ctx, bridge_domain, l3outside):
+        bridge_domain = self.mgr.get(ctx, bridge_domain)
+        if bridge_domain and l3outside.name in bridge_domain.l3out_names:
+            bridge_domain.l3out_names.remove(l3outside.name)
+            self.mgr.update(ctx, bridge_domain,
+                            l3out_names=bridge_domain.l3out_names)
 
     def _get_bds_in_vrf_for_l3out(self, ctx, vrf, l3out):
         if vrf.tenant_name == 'common' and l3out.tenant_name == 'common':
