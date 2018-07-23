@@ -16,7 +16,9 @@
 from contextlib import contextmanager
 import copy
 from oslo_log import log as logging
+from sqlalchemy import and_
 from sqlalchemy import event as sa_event
+from sqlalchemy import or_
 from sqlalchemy.sql.expression import func
 
 from aim.agent.aid.event_services import rpc
@@ -129,6 +131,9 @@ class AimStore(object):
         if include_aim_id and hasattr(db_obj, 'aim_id'):
             res._aim_id = db_obj.aim_id
         return res
+
+    def query_statuses(self, resources):
+        raise NotImplementedError('query_statuses not implemented')
 
     def register_before_session_flush_callback(self, name, func):
         """Register callback for update to AIM objects.
@@ -345,6 +350,26 @@ class SqlAlchemyStore(AimStore):
         if lock_update:
             query = query.with_lockmode('update')
         return query
+
+    def query_statuses(self, resources):
+        db_ids_by_type = {}
+        for res in resources:
+            db_ids_by_type.setdefault(self.db_model_map[type(res)], []).append(
+                self.extract_attributes(res, "id"))
+        query = self.db_session.query(status_model.Status)
+        in_query = []
+        for klass in db_ids_by_type:
+            subq = self.db_session.query(getattr(klass, 'aim_id'))
+            subq = subq.filter(
+                or_(*[
+                    and_(*[getattr(klass, k) == v for k, v in ids.iteritems()])
+                    for ids in db_ids_by_type[klass]]))
+            in_query.append(subq)
+        query = query.filter(or_(*[status_model.Status.resource_id.in_(sub)
+                                   for sub in in_query]))
+        db_statuses = query.all()
+        return [self.make_resource(api_status.AciStatus, x)
+                for x in db_statuses]
 
     def query(self, db_obj_type, resource_klass, in_=None, notin_=None,
               order_by=None, lock_update=False, **filters):

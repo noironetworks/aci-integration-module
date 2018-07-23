@@ -1151,21 +1151,21 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Simulate leaking status
         self.aim_manager.create(self.ctx, aim_status.AciStatus(
             resource_type='VRF', resource_id='abcd',
-            resource_root=tn.root))
+            resource_root=tn.root, resource_dn='uni/some/dn'))
         # Prevent normal operation to cleanup the status
         self.aim_manager.delete_all(self.ctx, aim_tree.ActionLog)
         # Normal cycle will not fix it
         agent._reconciliation_cycle()
         leaking_st = self.aim_manager.get(self.ctx, aim_status.AciStatus(
             resource_type='VRF', resource_id='abcd',
-            resource_root=tn.root))
+            resource_root=tn.root, resource_dn='uni/some/dn'))
         self.assertIsNotNone(leaking_st)
         # Recovery will
         desired_config._scheduled_recovery = 0
         agent._reconciliation_cycle()
         leaking_st = self.aim_manager.get(self.ctx, aim_status.AciStatus(
             resource_type='VRF', resource_id='abcd',
-            resource_root=tn.root))
+            resource_root=tn.root, resource_dn='uni/some/dn'))
         self.assertIsNone(leaking_st)
 
     @base.requires(['hooks'])

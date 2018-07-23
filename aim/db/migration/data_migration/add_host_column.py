@@ -76,6 +76,19 @@ L3OutInterface = sa.Table(
 )
 
 
+Status = sa.Table(
+    'aim_statuses', sa.MetaData(),
+    sa.Column('resource_type', sa.String(255), nullable=False),
+    sa.Column('resource_id', sa.Integer, nullable=False),
+    sa.Column('resource_root', sa.String(255), nullable=False),
+    sa.Column('sync_status', sa.String(50), nullable=True),
+    sa.Column('sync_message', sa.TEXT, default=''),
+    sa.Column('health_score', sa.Integer, nullable=False),
+    sa.Column('id', sa.String(255), primary_key=True),
+
+)
+
+
 def migrate(session):
     with session.begin(subtransactions=True):
         host_links = session.query(HostLink).all()

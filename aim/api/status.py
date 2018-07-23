@@ -56,7 +56,8 @@ class AciStatus(resource.ResourceBase, OperationalResource):
         ('sync_status', t.enum(SYNCED, SYNC_PENDING, SYNC_FAILED)),
         ('sync_message', t.string()),
         ('health_score', t.number),
-        ('faults', t.list_of_strings))
+        ('faults', t.list_of_strings),
+        ('resource_dn', t.string()))
     db_attributes = t.db(('id', t.string(36)))
 
     HEALTH_POOR = "Poor Health Score"

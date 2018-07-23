@@ -71,3 +71,4 @@ class Status(model_base.Base, model_base.HasId, model_base.AttributeMixin):
     sync_status = sa.Column(sa.String(50), nullable=True)
     sync_message = sa.Column(sa.TEXT, default='')
     health_score = sa.Column(sa.Integer, nullable=False)
+    resource_dn = model_base.dn_column(nullable=False)

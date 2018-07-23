@@ -125,3 +125,20 @@ class TestDataMigration(base.TestAimDBBase):
         self.assertIsNone(self.mgr.get(self.ctx, hm2))
         new_mappings = self.mgr.find(self.ctx, infra.HostDomainMappingV2)
         self.assertEqual(3, len(new_mappings))
+
+    def test_status_add_dn(self):
+        for res_klass in self.mgr.aim_resources:
+            if res_klass in [aim_status.AciStatus, aim_status.AciFault,
+                             resource.Agent, infra.HostDomainMappingV2,
+                             infra.HostDomainMapping, tree.ActionLog]:
+                continue
+            res = self.mgr.create(
+                self.ctx, res_klass(
+                    **{k: utils.generate_uuid()
+                       for k in res_klass.identity_attributes.keys()}))
+            status = self.mgr.get_status(self.ctx, res)
+            if not status:
+                continue
+            status_add_tenant.migrate(self.ctx.db_session)
+            status = self.mgr.get_status(self.ctx, res)
+            self.assertEqual(res.dn, status.resource_dn)

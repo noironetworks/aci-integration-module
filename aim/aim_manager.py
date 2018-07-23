@@ -354,11 +354,16 @@ class AimManager(object):
                         return self.update_status(
                             context, resource, api_status.AciStatus(
                                 resource_type=res_type, resource_id=res_id,
-                                resource_root=resource.root))
+                                resource_root=resource.root,
+                                resource_dn=resource.dn))
                     status.faults = self.find(context, api_status.AciFault,
                                               status_id=status.id)
                     return status
         return None
+
+    def get_statuses(self, context, resources):
+        with context.store.begin(subtransactions=True):
+            return context.store.query_statuses(resources)
 
     @utils.log
     def update_status(self, context, resource, status):
@@ -486,7 +491,7 @@ class AimManager(object):
 
     def _get_status_params(self, context, resource):
         res_type = type(resource).__name__
-        # Try to avoid BD call
+        # Try to avoid DB call
         inj_id = getattr(resource, '_injected_aim_id',
                          getattr(resource, '_aim_id', None))
         if inj_id:
