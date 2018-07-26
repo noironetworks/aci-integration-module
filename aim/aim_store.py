@@ -357,16 +357,18 @@ class SqlAlchemyStore(AimStore):
             db_ids_by_type.setdefault(self.db_model_map[type(res)], []).append(
                 self.extract_attributes(res, "id"))
         query = self.db_session.query(status_model.Status)
-        in_query = []
+        in_query = {}
         for klass in db_ids_by_type:
             subq = self.db_session.query(getattr(klass, 'aim_id'))
             subq = subq.filter(
                 or_(*[
                     and_(*[getattr(klass, k) == v for k, v in ids.iteritems()])
                     for ids in db_ids_by_type[klass]]))
-            in_query.append(subq)
-        query = query.filter(or_(*[status_model.Status.resource_id.in_(sub)
-                                   for sub in in_query]))
+            in_query[klass.__name__] = subq
+        query = query.filter(
+            or_(*[and_(status_model.Status.resource_type == klass,
+                       status_model.Status.resource_id.in_(sub))
+                  for klass, sub in in_query.iteritems()]))
         db_statuses = query.all()
         return [self.make_resource(api_status.AciStatus, x)
                 for x in db_statuses]
