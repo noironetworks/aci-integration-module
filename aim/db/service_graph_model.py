@@ -44,9 +44,12 @@ class DeviceCluster(model_base.Base, model_base.HasAimId,
         model_base.uniq_column(__tablename__, 'tenant_name', 'name') +
         model_base.to_tuple(model_base.Base.__table_args__))
 
-    device_type = sa.Column(sa.Enum("PHYSICAL", "VIRTUAL"))
-    service_type = sa.Column(sa.Enum("ADC", "FW", "OTHERS", "IDSIPS", "COPY"))
-    context_aware = sa.Column(sa.Enum("single-Context", "multi-Context"))
+    device_type = sa.Column(sa.Enum("PHYSICAL", "VIRTUAL",
+                                    name='enum_device_type'))
+    service_type = sa.Column(sa.Enum("ADC", "FW", "OTHERS", "IDSIPS", "COPY",
+                                     name='enum_service_type'))
+    context_aware = sa.Column(sa.Enum("single-Context", "multi-Context",
+                                      name='enum_context_aware'))
     managed = sa.Column(sa.Boolean)
     physical_domain_name = model_base.name_column()
     vmm_domain_type = model_base.name_column()
@@ -192,9 +195,12 @@ class ServiceGraphConnection(model_base.Base, model_base.HasAimId,
         model_base.to_tuple(model_base.Base.__table_args__))
 
     service_graph_name = model_base.name_column(nullable=False)
-    adjacency_type = sa.Column(sa.Enum('L2', 'L3'))
-    connector_direction = sa.Column(sa.Enum('consumer', 'provider'))
-    connector_type = sa.Column(sa.Enum('internal', 'external'))
+    adjacency_type = sa.Column(sa.Enum('L2', 'L3',
+                                       name='enum_adjacency_type'))
+    connector_direction = sa.Column(sa.Enum('consumer', 'provider',
+                                            name='enum_connector_direction'))
+    connector_type = sa.Column(sa.Enum('internal', 'external',
+                                       name='enum_connector_type'))
     direct_connect = sa.Column(sa.Boolean)
     unicast_route = sa.Column(sa.Boolean)
 
@@ -247,9 +253,11 @@ class ServiceGraphNode(model_base.Base, model_base.HasAimId,
         model_base.to_tuple(model_base.Base.__table_args__))
 
     service_graph_name = model_base.name_column(nullable=False)
-    function_type = sa.Column(sa.Enum('GoTo', 'GoThrough'))
+    function_type = sa.Column(sa.Enum('GoTo', 'GoThrough',
+                                      name='enum_function_type'))
     managed = sa.Column(sa.Boolean)
-    routing_mode = sa.Column(sa.Enum('unspecified', 'Redirect'))
+    routing_mode = sa.Column(sa.Enum('unspecified', 'Redirect',
+                                     name='enum_routing_mode'))
     device_cluster_name = model_base.name_column()
     device_cluster_tenant_name = model_base.name_column()
     sequence_number = sa.Column(sa.Integer)

@@ -30,16 +30,27 @@ depends_on = None
 from alembic import op
 import sqlalchemy as sa
 
+from sqlalchemy.dialects import postgresql
+
 
 def upgrade():
 
     op.add_column(
         'aim_device_clusters',
         sa.Column('vmm_domain_name', sa.String(64)))
+
+    try:
+        domain_type = postgresql.ENUM('OpenStack', 'Kubernetes' 'VMware', '',
+                                      name='enum_vmm_domain_type')
+        domain_type.create(op.get_bind())
+    except Exception:
+        # DB other than postgresql can fail here.
+        pass
     op.add_column(
         'aim_device_clusters',
         sa.Column('vmm_domain_type', sa.Enum('OpenStack', 'Kubernetes',
-                                             'VMware', '')))
+                                             'VMware', '',
+                                             name='enum_vmm_domain_type')))
 
 
 def downgrade():
