@@ -36,6 +36,8 @@ from aim.api import resource
 from aim import context
 from aim.db import api
 
+from oslo_db.exception import DBError
+
 
 def upgrade():
 
@@ -59,12 +61,16 @@ def upgrade():
     new_vmms = []
     new_phys = []
     with session.begin(subtransactions=True):
-        for vmm in session.query(old_vmm_table).all():
-            new_vmms.append(resource.VMMDomain(type=vmm.type, name=vmm.name,
-                                               monitored=True))
-        for phys in session.query(old_phys_table).all():
-            new_phys.append(resource.PhysicalDomain(name=phys.name,
-                                                    monitored=True))
+        try:
+            for vmm in session.query(old_vmm_table).all():
+                new_vmms.append(resource.VMMDomain(type=vmm.type, name=vmm.name,
+                                                   monitored=True))
+            for phys in session.query(old_phys_table).all():
+                new_phys.append(resource.PhysicalDomain(name=phys.name,
+                                                        monitored=True))
+        except DBError:
+            # We can fail if the tables are not yet there
+            pass
 
     op.drop_table('aim_vmm_domains')
     op.drop_table('aim_physical_domains')
