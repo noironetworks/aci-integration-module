@@ -46,7 +46,7 @@ class Tree(model_base.Base, model_base.AttributeMixin):
     agents = orm.relationship(AgentToHashTreeAssociation,
                               backref='hash_trees',
                               cascade='all, delete-orphan',
-                              lazy="joined")
+                              lazy="subquery")
 
 
 class TypeTreeBase(object):
