@@ -398,12 +398,26 @@ class AciTenantManager(utils.AIMThread):
                 request = self.object_backlog.get()
                 for method, aim_objects in request.iteritems():
                     # Method will be either "create" or "delete"
-                    for aim_object in aim_objects:
+                    # sort the aim_objects based on DN first for DELETE method
+                    sorted_aim_objs = aim_objects
+                    if method == base_universe.DELETE:
+                        sorted_aim_objs = sorted(
+                            aim_objects,
+                            key=lambda x: x.values()[0]['attributes']['dn'])
+                    potential_parent_dn = ' '
+                    for aim_object in sorted_aim_objs:
                         # get MO from ACI client, identify it via its DN parts
                         # and push the new body
-                        LOG.debug('%s AIM object %s in APIC' % (
-                            method, repr(aim_object)))
                         if method == base_universe.DELETE:
+                            # If a parent is also being deleted then we don't
+                            # have to send those children requests to APIC
+                            dn = aim_object.values()[0]['attributes']['dn']
+                            index = dn.rfind('/')
+                            parent_dn = dn[:index]
+                            if parent_dn.startswith(potential_parent_dn):
+                                continue
+                            else:
+                                potential_parent_dn = dn
                             to_push = [copy.deepcopy(aim_object)]
                         else:
                             if getattr(aim_object, 'monitored', False):
@@ -413,6 +427,8 @@ class AciTenantManager(utils.AIMThread):
                                 aim_object.pre_existing = True
                             to_push = self.to_aci_converter.convert(
                                 [aim_object])
+                        LOG.debug('%s AIM object %s in APIC' % (
+                            method, repr(aim_object)))
                         # Set TAGs before pushing the request
                         tags = []
                         if method == base_universe.CREATE:

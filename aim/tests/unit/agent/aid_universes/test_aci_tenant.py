@@ -514,7 +514,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         bd1 = self._get_example_aim_bd()
         bd2 = self._get_example_aim_bd(name='test2')
         bda1 = self._get_example_aci_bd()
-        bda2 = self._get_example_aci_bd(descr='test2')
+        bda2 = self._get_example_aci_bd(dn='uni/tn-test-tenant/BD-test2',
+                                        descr='test2')
         subj1 = a_res.ContractSubject(tenant_name='test-tenant',
                                       contract_name='c', name='s',
                                       in_filters=['i1', 'i2'],
@@ -540,15 +541,29 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             'dn': 'uni/tn-test-tenant/brc-c/subj-s/intmnl/rsfiltAtt-i1'}}}
         f2 = {'vzRsFiltAtt__Out': {'attributes': {
             'dn': 'uni/tn-test-tenant/brc-c/subj-s/outtmnl/rsfiltAtt-o1'}}}
-        self.manager.push_aim_resources({'delete': [bda1, bda2, f1, f2]})
+        # We should only send the delete request of 2 SGs below to APIC since
+        # all others are just children of first SG
+        sg1 = {'hostprotPol': {'attributes': {
+            'dn': 'uni/tn-test-tenant/pol-sg'}}}
+        sg2 = {'hostprotPol': {'attributes': {
+            'dn': 'uni/tn-test-tenant/pol-sg2'}}}
+        sg_subj = {'hostprotSubj': {'attributes': {
+            'dn': 'uni/tn-test-tenant/pol-sg/subj-default'}}}
+        sg_rule1 = {'hostprotRule': {'attributes': {
+            'dn': 'uni/tn-test-tenant/pol-sg/subj-default/rule-r1'}}}
+        sg_rule2 = {'hostprotRule': {'attributes': {
+            'dn': 'uni/tn-test-tenant/pol-sg/subj-default/rule-r2'}}}
+        self.manager.push_aim_resources({'delete': [
+            bda1, bda2, f1, f2, sg_rule2, sg_rule1, sg_subj, sg2, sg1]})
         self.manager._push_aim_resources()
         # Verify expected calls, add deleted status
-        transactions = self._objects_transaction_delete([bda1, bda2, f1, f2])
         exp_calls = [
             mock.call('/mo/' + bda1.values()[0]['attributes']['dn'] + '.json'),
             mock.call('/mo/' + bda2.values()[0]['attributes']['dn'] + '.json'),
             mock.call('/mo/' + f1.values()[0]['attributes']['dn'] + '.json'),
-            mock.call('/mo/' + f2.values()[0]['attributes']['dn'] + '.json')]
+            mock.call('/mo/' + f2.values()[0]['attributes']['dn'] + '.json'),
+            mock.call('/mo/' + sg1.values()[0]['attributes']['dn'] + '.json'),
+            mock.call('/mo/' + sg2.values()[0]['attributes']['dn'] + '.json')]
         self._check_call_list(exp_calls, self.manager.aci_session.DELETE)
 
         # Create AND delete aim resources
