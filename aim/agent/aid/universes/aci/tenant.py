@@ -392,93 +392,99 @@ class AciTenantManager(utils.AIMThread):
             pass
 
     def _push_aim_resources(self):
+        final_request = {}
         with utils.get_rlock(lcon.ACI_BACKLOG_LOCK_NAME_PREFIX +
                              self.tenant_name):
+            # Consolidate all the requests into one
             while not self.object_backlog.empty():
                 request = self.object_backlog.get()
                 for method, aim_objects in request.iteritems():
-                    # Method will be either "create" or "delete"
-                    # sort the aim_objects based on DN first for DELETE method
-                    sorted_aim_objs = aim_objects
+                    final_request.setdefault(method, [])
+                    final_request[method].extend(aim_objects)
+
+            for method, aim_objects in final_request.iteritems():
+                # Method will be either "create" or "delete"
+                # sort the aim_objects based on DN first for DELETE method
+                sorted_aim_objs = aim_objects
+                if method == base_universe.DELETE:
+                    sorted_aim_objs = sorted(
+                        aim_objects,
+                        key=lambda x: x.values()[0]['attributes']['dn'])
+                potential_parent_dn = ' '
+                for aim_object in sorted_aim_objs:
+                    # get MO from ACI client, identify it via its DN parts
+                    # and push the new body
                     if method == base_universe.DELETE:
-                        sorted_aim_objs = sorted(
-                            aim_objects,
-                            key=lambda x: x.values()[0]['attributes']['dn'])
-                    potential_parent_dn = ' '
-                    for aim_object in sorted_aim_objs:
-                        # get MO from ACI client, identify it via its DN parts
-                        # and push the new body
-                        if method == base_universe.DELETE:
-                            # If a parent is also being deleted then we don't
-                            # have to send those children requests to APIC
-                            dn = aim_object.values()[0]['attributes']['dn']
-                            index = dn.rfind('/')
-                            parent_dn = dn[:index]
-                            if parent_dn.startswith(potential_parent_dn):
-                                continue
-                            else:
-                                potential_parent_dn = dn
-                            to_push = [copy.deepcopy(aim_object)]
+                        # If a parent is also being deleted then we don't
+                        # have to send those children requests to APIC
+                        dn = aim_object.values()[0]['attributes']['dn']
+                        index = dn.rfind('/')
+                        parent_dn = dn[:index]
+                        if parent_dn.startswith(potential_parent_dn):
+                            continue
                         else:
-                            if getattr(aim_object, 'monitored', False):
-                                # When pushing to APIC, treat monitored
-                                # objects as pre-existing
-                                aim_object.monitored = False
-                                aim_object.pre_existing = True
-                            to_push = self.to_aci_converter.convert(
-                                [aim_object])
-                        LOG.debug('%s AIM object %s in APIC' % (
-                            method, repr(aim_object)))
-                        # Set TAGs before pushing the request
-                        tags = []
-                        if method == base_universe.CREATE:
-                            # No need to deal with tags on deletion
-                            for obj in to_push:
-                                if not obj.keys()[0].startswith(TAG_KEY):
-                                    dn = obj.values()[0]['attributes']['dn']
-                                    dn += '/tag-%s' % self.tag_name
-                                    tags.append({"tagInst__%s" % obj.keys()[0]:
-                                                 {"attributes": {"dn": dn}}})
-                        LOG.debug("Pushing %s into APIC: %s" %
-                                  (method, to_push + tags))
-                        # Multiple objects could result from a conversion, push
-                        # them in a single transaction
-                        dn_mgr = apic_client.DNManager()
-                        decompose = dn_mgr.aci_decompose_dn_guess
-                        try:
-                            if method == base_universe.DELETE:
+                            potential_parent_dn = dn
+                        to_push = [copy.deepcopy(aim_object)]
+                    else:
+                        if getattr(aim_object, 'monitored', False):
+                            # When pushing to APIC, treat monitored
+                            # objects as pre-existing
+                            aim_object.monitored = False
+                            aim_object.pre_existing = True
+                        to_push = self.to_aci_converter.convert(
+                            [aim_object])
+                    LOG.debug('%s AIM object %s in APIC' % (
+                        method, repr(aim_object)))
+                    # Set TAGs before pushing the request
+                    tags = []
+                    if method == base_universe.CREATE:
+                        # No need to deal with tags on deletion
+                        for obj in to_push:
+                            if not obj.keys()[0].startswith(TAG_KEY):
+                                dn = obj.values()[0]['attributes']['dn']
+                                dn += '/tag-%s' % self.tag_name
+                                tags.append({"tagInst__%s" % obj.keys()[0]:
+                                             {"attributes": {"dn": dn}}})
+                    LOG.debug("Pushing %s into APIC: %s" %
+                              (method, to_push + tags))
+                    # Multiple objects could result from a conversion, push
+                    # them in a single transaction
+                    dn_mgr = apic_client.DNManager()
+                    decompose = dn_mgr.aci_decompose_dn_guess
+                    try:
+                        if method == base_universe.DELETE:
+                            for obj in to_push + tags:
+                                attr = obj.values()[0]['attributes']
+                                self.aci_session.DELETE(
+                                    '/mo/%s.json' % attr.pop('dn'))
+                        else:
+                            with self.aci_session.transaction(
+                                    top_send=True) as trs:
                                 for obj in to_push + tags:
                                     attr = obj.values()[0]['attributes']
-                                    self.aci_session.DELETE(
-                                        '/mo/%s.json' % attr.pop('dn'))
-                            else:
-                                with self.aci_session.transaction(
-                                        top_send=True) as trs:
-                                    for obj in to_push + tags:
-                                        attr = obj.values()[0]['attributes']
-                                        mo, parents_rns = decompose(
-                                            attr.pop('dn'), obj.keys()[0])
-                                        rns = dn_mgr.filter_rns(parents_rns)
-                                        getattr(getattr(self.aci_session, mo),
-                                                method)(*rns, transaction=trs,
-                                                        **attr)
-                                # Object creation was successful, change object
-                                # state
-                                self.creation_succeeded(aim_object)
-                        except Exception as e:
-                            LOG.debug(traceback.format_exc())
-                            LOG.error("An error has occurred during %s for "
-                                      "object %s: %s" % (method, aim_object,
-                                                         e.message))
-                            if method == base_universe.CREATE:
-                                err_type = (
-                                    self.error_handler.analyze_exception(e))
-                                # REVISIT(ivar): for now, treat UNKNOWN errors
-                                # the same way as OPERATION_TRANSIENT.
-                                # Investigate a way to understand when such
-                                # errors might require agent restart.
-                                self.creation_failed(aim_object, e.message,
-                                                     err_type)
+                                    mo, parents_rns = decompose(
+                                        attr.pop('dn'), obj.keys()[0])
+                                    rns = dn_mgr.filter_rns(parents_rns)
+                                    getattr(getattr(self.aci_session, mo),
+                                            method)(*rns, transaction=trs,
+                                                    **attr)
+                            # Object creation was successful, change object
+                            # state
+                            self.creation_succeeded(aim_object)
+                    except Exception as e:
+                        LOG.debug(traceback.format_exc())
+                        LOG.error("An error has occurred during %s for "
+                                  "object %s: %s" % (method, aim_object,
+                                                     e.message))
+                        if method == base_universe.CREATE:
+                            err_type = (
+                                self.error_handler.analyze_exception(e))
+                            # REVISIT(ivar): for now, treat UNKNOWN errors
+                            # the same way as OPERATION_TRANSIENT.
+                            # Investigate a way to understand when such
+                            # errors might require agent restart.
+                            self.creation_failed(aim_object, e.message,
+                                                 err_type)
 
     def _unsubscribe_tenant(self, kill=False):
         LOG.info("Unsubscribing tenant websocket %s" % self.tenant_name)

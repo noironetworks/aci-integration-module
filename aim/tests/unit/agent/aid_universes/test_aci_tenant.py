@@ -520,7 +520,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                                       contract_name='c', name='s',
                                       in_filters=['i1', 'i2'],
                                       out_filters=['o1', 'o2'])
-        self.manager.push_aim_resources({'create': [bd1, bd2, subj1]})
+        self.manager.push_aim_resources({'create': [bd1]})
+        self.manager.push_aim_resources({'create': [bd2, subj1]})
         self.manager._push_aim_resources()
         # Verify expected calls
         transactions = self._objects_transaction_create([bd1, bd2, subj1],
@@ -554,7 +555,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         sg_rule2 = {'hostprotRule': {'attributes': {
             'dn': 'uni/tn-test-tenant/pol-sg/subj-default/rule-r2'}}}
         self.manager.push_aim_resources({'delete': [
-            bda1, bda2, f1, f2, sg_rule2, sg_rule1, sg_subj, sg2, sg1]})
+            bda1, bda2, f1, f2, sg_rule2]})
+        self.manager.push_aim_resources({'delete': [
+            sg_rule1, sg_subj, sg2, sg1]})
         self.manager._push_aim_resources()
         # Verify expected calls, add deleted status
         exp_calls = [
