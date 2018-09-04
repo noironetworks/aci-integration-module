@@ -392,6 +392,8 @@ class AciTenantManager(utils.AIMThread):
             pass
 
     def _push_aim_resources(self):
+        dn_mgr = apic_client.DNManager()
+        decompose = dn_mgr.aci_decompose_dn_guess
         with utils.get_rlock(lcon.ACI_BACKLOG_LOCK_NAME_PREFIX +
                              self.tenant_name):
             while not self.object_backlog.empty():
@@ -412,8 +414,9 @@ class AciTenantManager(utils.AIMThread):
                             # If a parent is also being deleted then we don't
                             # have to send those children requests to APIC
                             dn = aim_object.values()[0]['attributes']['dn']
-                            index = dn.rfind('/')
-                            parent_dn = dn[:index]
+                            res_type = aim_object.keys()[0]
+                            decomposed = decompose(dn, res_type)
+                            parent_dn = dn_mgr.build(decomposed[1][:-1])
                             if parent_dn.startswith(potential_parent_dn):
                                 continue
                             else:
@@ -443,8 +446,6 @@ class AciTenantManager(utils.AIMThread):
                                   (method, to_push + tags))
                         # Multiple objects could result from a conversion, push
                         # them in a single transaction
-                        dn_mgr = apic_client.DNManager()
-                        decompose = dn_mgr.aci_decompose_dn_guess
                         try:
                             if method == base_universe.DELETE:
                                 for obj in to_push + tags:

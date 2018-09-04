@@ -231,6 +231,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         result = self.universe.get_resources(keys)
         self.assertEqual(sorted(objs), sorted(result))
 
+    # TODO(kentwu): need to enable this test case
     @base.requires(['skip'])
     def test_get_resources_for_delete(self):
         objs = [
