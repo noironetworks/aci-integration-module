@@ -455,7 +455,35 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     'dn'] + '/tag-' + self.aim_system_id
                 result.append({aci_type: {'attributes': {'dn': dn}}})
             else:
-                result.append(aci_object)
+                # If the parent object was already deleted in the config
+                # desired tree then we don't have to send this child deletion
+                # to APIC
+                dn = aci_object.values()[0]['attributes']['dn']
+                res_type = aci_object.keys()[0]
+                dn_mgr = apic_client.DNManager()
+                mo, rns = dn_mgr.aci_decompose_dn_guess(dn, res_type)
+                if len(rns) > 1:
+                    parent_dn = dn_mgr.build(rns[:-1])
+                    parent_type, xxx = rns[-2]
+                    parent_key = tree_manager.AimHashTreeMaker._dn_to_key(
+                        parent_type, parent_dn)
+                    root = tree_manager.AimHashTreeMaker._extract_root_rn(
+                        parent_key)
+                    config_desire = self.multiverse[
+                        base.CONFIG_UNIVERSE]['desired'].state
+                    node = config_desire[root].find(parent_key)
+                    if node:
+                        result.append(aci_object)
+                    # Also has to make sure the parent is not in the monitor
+                    # desired tree before we skip it
+                    else:
+                        mon_desire = self.multiverse[
+                            base.MONITOR_UNIVERSE]['desired'].state
+                        node = mon_desire[root].find(parent_key)
+                        if node:
+                            result.append(aci_object)
+                else:
+                    result.append(aci_object)
         return self._get_resources_for_delete(resource_keys, curr_mon, action)
 
     def _get_state_copy(self, tenant):
@@ -514,8 +542,24 @@ class AciOperationalUniverse(AciUniverse):
         global serving_tenants
         return serving_tenants[tenant].get_operational_state_copy()
 
+    def get_resources_for_delete(self, resource_keys):
+        curr_mon = self.multiverse[base.MONITOR_UNIVERSE]['current'].state
 
-class AciMonitoredUniverse(AciUniverse):
+        def action(result, aci_object, node):
+            if node and not node.dummy:
+                # Monitored state transition -> Delete the TAG instead
+                LOG.debug("Deleting tag for transitioning object %s",
+                          aci_object.values()[0]['attributes']['dn'])
+                aci_type = 'tagInst'
+                dn = aci_object.values()[0]['attributes'][
+                    'dn'] + '/tag-' + self.aim_system_id
+                result.append({aci_type: {'attributes': {'dn': dn}}})
+            else:
+                result.append(aci_object)
+        return self._get_resources_for_delete(resource_keys, curr_mon, action)
+
+
+class AciMonitoredUniverse(AciOperationalUniverse):
     """ACI Universe for monitored state."""
 
     @property
