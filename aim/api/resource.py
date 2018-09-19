@@ -1013,6 +1013,22 @@ class SecurityGroupRule(AciResourceBase):
              'monitored': False}, **kwargs)
 
 
+class SecurityGroupRuleRemoteIp(ResourceBase):
+    """Resource representing a SG subject's rule in ACI.
+
+    Identity attributes: name of ACI tenant, name of security group, name of
+    subject and name of rule
+    """
+    identity_attributes = t.identity(
+        ('security_group_rule_aim_id', t.string()))
+    other_attributes = t.other(
+        ('cidr', t.ip_cidr))
+
+    def __init__(self, **kwargs):
+        super(SecurityGroupRuleRemoteIp, self).__init__({'monitored': False},
+                                                         **kwargs)
+
+
 class Configuration(ResourceBase):
 
     identity_attributes = t.identity(

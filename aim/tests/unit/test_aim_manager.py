@@ -1345,11 +1345,10 @@ class TestSecurityGroupRuleMixin(object):
                                 'security_group_name': 'sg1',
                                 'security_group_subject_name': 'subject1',
                                 'name': 'rule1',
-                                'direction': 'ingress',
-                                'remote_ips': ['10.0.0.1/30',
-                                               '192.168.0.0/24']}
+                                'direction': 'ingress'
+                                }
     test_search_attributes = {'direction': 'ingress'}
-    test_update_attributes = {'remote_ips': [], 'from_port': '80',
+    test_update_attributes = {'from_port': '80',
                               'to_port': '443'}
     test_dn = 'uni/tn-tenant1/pol-sg1/subj-subject1/rule-rule1'
     res_command = 'security-group-rule'

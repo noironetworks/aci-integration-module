@@ -85,6 +85,7 @@ class AimManager(object):
                      api_res.SecurityGroup,
                      api_res.SecurityGroupSubject,
                      api_res.SecurityGroupRule,
+                     api_res.SecurityGroupRuleRemoteIp,
                      api_res.Configuration,
                      api_service_graph.DeviceCluster,
                      api_service_graph.DeviceClusterInterface,

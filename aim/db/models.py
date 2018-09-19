@@ -810,13 +810,20 @@ class SecurityGroupSubject(model_base.Base, model_base.HasAimId,
     security_group_name = model_base.name_column(nullable=False)
 
 
-class SecurityGroupRuleRemoteIp(model_base.Base):
+class SecurityGroupRuleRemoteIp(model_base.Base,
+                                model_base.AttributeMixin):
     __tablename__ = 'aim_security_group_rule_remote_ips'
 
     security_group_rule_aim_id = sa.Column(
         sa.Integer, sa.ForeignKey('aim_security_group_rules.aim_id'),
         primary_key=True)
     cidr = sa.Column(sa.String(64), nullable=False, primary_key=True)
+
+    def to_attr(self, session):
+        res_attr = super(SecurityGroupRuleRemoteIp, self).to_attr(session)
+        res_attr['security_group_rule_aim_id'] = (
+            self.security_group_rule_aim_id)
+        return res_attr
 
 
 class SecurityGroupRule(model_base.Base, model_base.HasAimId,
@@ -833,10 +840,6 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
         model_base.to_tuple(model_base.Base.__table_args__))
     security_group_name = model_base.name_column(nullable=False)
     security_group_subject_name = model_base.name_column(nullable=False)
-    remote_ips = orm.relationship(SecurityGroupRuleRemoteIp,
-                                  backref='security_group_rule',
-                                  cascade='all, delete-orphan',
-                                  lazy='joined')
     direction = sa.Column(sa.String(16))
     ethertype = sa.Column(sa.String(16))
     ip_protocol = sa.Column(sa.String(16))
@@ -856,7 +859,7 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
 
     def to_attr(self, session):
         res_attr = super(SecurityGroupRule, self).to_attr(session)
-        res_attr['remote_ips'] = [x.cidr for x in res_attr['remote_ips']]
+        res_attr['remote_ips'] = []
         return res_attr
 
 

@@ -2869,7 +2869,6 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                     get_example_aim_security_group_rule(
                         security_group_name='sg2', ip_protocol=115,
                         from_port='80', to_port='443',
-                        remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
                         direction='egress', ethertype='1',
                         conn_track='normal')]
 
