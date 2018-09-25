@@ -447,12 +447,23 @@ class SqlAlchemyStore(AimStore):
         for mod_set, res_list in modified:
             for db_obj in mod_set:
                 if isinstance(db_obj, model_base.AttributeMixin):
-                    # SQL alchemy will add a where clause to the query
-                    # to perform a compare & swap operation. If some other
-                    # session concurrently updated the same object changing
-                    # che version, a StaleDataError would be raised.
-                    # http://docs.sqlalchemy.org/en/latest/orm/versioning.html
-                    SqlAlchemyStore._bump_epoch(db_obj)
+                    # REVISIT: This removes epoch updates, which serialized
+                    # concurrent updates to the DB and their associated changes
+                    # to the action log. A follow-on change is needed to use
+                    # the state from the DB instead of the action logs in order
+                    # to ensure correctness when propagating the state from the
+                    # DB to APIC.
+                    # REVISIT: This may be applicable to all collections.
+                    if not (mod_set == session.dirty and
+                            isinstance(db_obj, models.SecurityGroupRule) and
+                            not session.is_modified(
+                                db_obj, include_collections=False)):
+                        # SQL alchemy will add a where clause to the query
+                        # to perform a compare & swap operation. If some other
+                        # session concurrently updated the same object changing
+                        # che version, a StaleDataError would be raised.
+                        # http://docs.sqlalchemy.org/en/latest/orm/versioning.html
+                        SqlAlchemyStore._bump_epoch(db_obj)
                 res_cls = store.resource_map.get(type(db_obj))
                 if res_cls:
                     res = store.make_resource(res_cls, db_obj)
