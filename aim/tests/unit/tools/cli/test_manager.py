@@ -25,6 +25,13 @@ from aim.tests.unit.tools.cli import test_shell as base
 from aim.tools.cli.commands import manager as climanager
 
 
+def _get_output_bytes(result):
+    if hasattr(result, 'output_bytes'):
+        return result.output_bytes
+    else:
+        return result.stdout_bytes
+
+
 class TestManager(base.TestShell):
 
     def setUp(self):
@@ -324,7 +331,7 @@ class TestManager(base.TestShell):
         self._test_load_mappings_preexisting_mappings(replace=True)
 
     def _parse_sync_find_output(self, result):
-        res = result.output_bytes.split('\n')[1:-1]
+        res = _get_output_bytes(result).split('\n')[1:-1]
         output = []
         for token in res:
             output.append(tuple(filter(None, token.split(' '))))
@@ -415,9 +422,10 @@ class TestManagerResourceOpsBase(object):
                 identity + other) + ' -p')
 
     def _parse(self, res, klass=None):
-        if not res.output_bytes:
+        output_bytes = _get_output_bytes(res)
+        if not output_bytes:
             return None
-        res = [' '.join(x.split()) for x in res.output_bytes.split('\n')][1:]
+        res = [' '.join(x.split()) for x in output_bytes.split('\n')][1:]
         res = [[x[:x.find(' ')], x[x.find(' ') + 1:]] for x in res if x]
         if ['Property', 'Value'] in res:
             # Remove additional tables
