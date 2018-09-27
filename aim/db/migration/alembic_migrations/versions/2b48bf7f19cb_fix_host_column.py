@@ -13,17 +13,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Modify host column size
+"""Support utf-8 constrained indexed columns
 
-Revision ID: fabed2911290
-Revises: 2c47aab91fff
-Create Date: 2018-04-23 15:30:10.357536
+Revision ID: 2b48bf7f19cb
+Revises: f1ca776aafab
+Create Date: 2018-03-12 12:23:39.608507
 
 """
 
 # revision identifiers, used by Alembic.
-revision = 'fabed2911290'
-down_revision = '444afa12da26'
+revision = '2b48bf7f19cb'
+down_revision = 'bcdef2211410'
 branch_labels = None
 depends_on = None
 
