@@ -45,6 +45,7 @@ TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev', 'fabricTopology']
 CHILDREN_MOS_UNI = None
 CHILDREN_MOS_TOPOLOGY = None
 RESET_INTERVAL = 3600
+DEFAULT_WS_TO = '900'
 
 
 class ScheduledReset(Exception):
@@ -115,6 +116,7 @@ class Root(acitoolkit.BaseACIObject):
     def __init__(self, *args, **kwargs):
         self.filtered_children = kwargs.pop('filtered_children', [])
         rn = kwargs.pop('rn')
+        ws_subscription_to = kwargs.pop('ws_subscription_to')
         super(Root, self).__init__(*args, **kwargs)
         try:
             rn_base = apic_client.DNManager().get_rn_base(rn)
@@ -126,13 +128,17 @@ class Root(acitoolkit.BaseACIObject):
             self.dn = apic_client.DN_BASE + 'rn'
         self.type = apic_client.ManagedObjectClass.prefix_to_mos[
             rn.split('-')[0]]
-        self.urls = self._get_instance_subscription_urls()
+        self.urls = self._get_instance_subscription_urls(
+            ws_subscription_to=ws_subscription_to)
 
-    def _get_instance_subscription_urls(self):
+    def _get_instance_subscription_urls(self,
+                                        ws_subscription_to=DEFAULT_WS_TO):
         if not self.dn.startswith('topology'):
             url = ('/api/node/mo/{}.json?query-target=subtree&'
                    'rsp-prop-include=config-only&rsp-subtree-include=faults&'
                    'subscription=yes'.format(self.dn))
+            if ws_subscription_to != '0':
+                url += '&refresh-timeout={}'.format(ws_subscription_to)
             # TODO(amitbose) temporary workaround for ACI bug,
             # remove when ACI is fixed
             url = url.replace('&rsp-prop-include=config-only', '')
@@ -144,9 +150,11 @@ class Root(acitoolkit.BaseACIObject):
         else:
             urls = []
             for child in self.filtered_children:
-                urls.append(
-                    '/api/node/class/{}.json?subscription=yes&'
-                    'rsp-subtree-include=faults'.format(child))
+                url = ('/api/node/class/{}.json?subscription=yes&'
+                       'rsp-subtree-include=faults'.format(child))
+                if ws_subscription_to != '0':
+                    url += '&refresh-timeout={}'.format(ws_subscription_to)
+                urls.append(url)
             return urls
 
 
@@ -164,8 +172,11 @@ class AciTenantManager(utils.AIMThread):
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
         children_mos = get_children_mos(self.aci_session, self.tenant_name)
+        ws_subscription_to = self.apic_config.get_option(
+            'websocket_subscription_timeout', 'aim') or DEFAULT_WS_TO
         self.tenant = Root(self.tenant_name, filtered_children=children_mos,
-                           rn=self.tenant_name)
+                           rn=self.tenant_name,
+                           ws_subscription_to=ws_subscription_to)
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
         self._monitored_state = structured_tree.StructuredHashTree()
