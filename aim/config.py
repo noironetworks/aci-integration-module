@@ -89,6 +89,19 @@ agent_opts = [
     cfg.IntOpt('error_state_recovery_interval', default=3600,
                help="Number of seconds (with a 20% random deviation) AIM "
                     "waits before re-trying objects in error state."),
+    cfg.StrOpt('websocket_subscription_timeout', default=None,
+               help=("Number of seconds that APIC should wait before timing "
+                     "out a subscription on a websocket connection. If not "
+                     "explicitly set, then a default of 900 seconds will "
+                     "be sent in websocket subscriptions. If it is set to 0, "
+                     "then a timeout will not be sent in websocket "
+                     "subscriptions, and APIC will use it's default timeout "
+                     "of 80 seconds. If set to a non-zero value, then the "
+                     "timeout value will be provided when AID subscribes to "
+                     "a URL on APIC. NOTE: the subscription timeout is not "
+                     "supported by APIC versions before 3.2(3), so this "
+                     "value must not be set when used with APIC versions "
+                     "older than that release.")),
 ]
 
 # TODO(ivar): move into AIM section
