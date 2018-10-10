@@ -178,11 +178,11 @@ class HashTreeDbListener(object):
                 kwargs['in_'] = {'root_rn': served_tenants}
             logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
             LOG.debug('Processing action logs: %s' % logs)
-            log_by_root, resetting_roots = self._preprocess_logs(logs)
+            log_by_root, resetting_roots = self._preprocess_logs(ctx, logs)
             self._cleanup_resetting_roots(ctx, log_by_root, resetting_roots)
             self._push_changes_to_trees(ctx, log_by_root)
 
-    def _preprocess_logs(self, logs):
+    def _preprocess_logs(self, ctx, logs):
         resetting_roots = set()
         log_by_root = {}
         resource_paths = ('resource', 'service_graph', 'infra', 'tree',
@@ -202,6 +202,33 @@ class HashTreeDbListener(object):
             if not aim_res:
                 LOG.warn('Aim resource for event %s not found' % log)
                 continue
+            # REVISIT: We currently only query the DB for
+            # SecurityGroupRule resources, but should treat all
+            # resource types uniformly, and therefore should do this
+            # for all resource types. This will also allow elimination
+            # of the epoch bumping when modifying list attributes of
+            # other resource types. But we probably will want to
+            # optimize this quering to avoid a roundtrip to the DB
+            # server for each action log item, by making one find()
+            # call for each resource type, filtering with the
+            # identities from all the action log items being
+            # processed.
+            if isinstance(aim_res, resource.SecurityGroupRule):
+                db_aim_res = self.aim_manager.get(ctx, aim_res)
+                if db_aim_res:
+                    if action == aim_tree.ActionLog.DELETE:
+                        LOG.warn("AIM resource %s exists in DB for delete "
+                                 "action" % db_aim_res)
+                    else:
+                        # Use current resource from DB so that list
+                        # attributes do no need to be protected from
+                        # concurrent updates by bumping the resource's
+                        # epoch.
+                        aim_res = db_aim_res
+                else:
+                    if action != aim_tree.ActionLog.DELETE:
+                        LOG.warn("AIM resource %s does not exist in DB for "
+                                 "create/update action" % aim_res)
             log_by_root.setdefault(log.root_rn, []).append(
                 (action, aim_res, log))
         return log_by_root, resetting_roots
