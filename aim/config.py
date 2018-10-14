@@ -102,6 +102,14 @@ agent_opts = [
                      "supported by APIC versions before 3.2(3), so this "
                      "value must not be set when used with APIC versions "
                      "older than that release.")),
+    cfg.BoolOpt('validate_config_trees', default=False,
+                help=("(Temporary) Set to True if you want the agents to "
+                      "recreate and validate config trees after catching up "
+                      "with the action log.")),
+    cfg.BoolOpt('fetch_sgr_from_db', default=True,
+                help=("(Temporary) Set to False if you want the agents to "
+                      "use SecurityGroupRule state from the action log "
+                      "rather than fetching it from the DB.")),
 ]
 
 # TODO(ivar): move into AIM section
