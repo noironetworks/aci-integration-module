@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
 import traceback
 
 from oslo_log import log as logging
@@ -24,6 +25,7 @@ from aim.api import tree as aim_tree
 from aim.common.hashtree import exceptions as hexc
 from aim.common.hashtree import structured_tree as htree
 from aim.common import utils
+from aim import config as aim_cfg
 from aim import tree_manager
 
 MAX_EVENTS_PER_ROOT = 10000
@@ -181,6 +183,10 @@ class HashTreeDbListener(object):
             log_by_root, resetting_roots = self._preprocess_logs(ctx, logs)
             self._cleanup_resetting_roots(ctx, log_by_root, resetting_roots)
             self._push_changes_to_trees(ctx, log_by_root)
+            # REVISIT: This is temporary code for verifying solutions
+            # to concurrency issues. Remove when no longer needed.
+            if aim_cfg.CONF.aim.validate_config_trees:
+                self._validate_config_trees(ctx, log_by_root.keys())
 
     def _preprocess_logs(self, ctx, logs):
         resetting_roots = set()
@@ -214,21 +220,22 @@ class HashTreeDbListener(object):
             # identities from all the action log items being
             # processed.
             if isinstance(aim_res, resource.SecurityGroupRule):
-                db_aim_res = self.aim_manager.get(ctx, aim_res)
-                if db_aim_res:
-                    if action == aim_tree.ActionLog.DELETE:
-                        LOG.warn("AIM resource %s exists in DB for delete "
-                                 "action" % db_aim_res)
+                if aim_cfg.CONF.aim.fetch_sgr_from_db:
+                    db_aim_res = self.aim_manager.get(ctx, aim_res)
+                    if db_aim_res:
+                        if action == aim_tree.ActionLog.DELETE:
+                            LOG.warn("AIM resource %s exists in DB for delete "
+                                     "action" % db_aim_res)
+                        else:
+                            # Use current resource from DB so that list
+                            # attributes do no need to be protected from
+                            # concurrent updates by bumping the resource's
+                            # epoch.
+                            aim_res = db_aim_res
                     else:
-                        # Use current resource from DB so that list
-                        # attributes do no need to be protected from
-                        # concurrent updates by bumping the resource's
-                        # epoch.
-                        aim_res = db_aim_res
-                else:
-                    if action != aim_tree.ActionLog.DELETE:
-                        LOG.warn("AIM resource %s does not exist in DB for "
-                                 "create/update action" % aim_res)
+                        if action != aim_tree.ActionLog.DELETE:
+                            LOG.warn("AIM resource %s does not exist in DB "
+                                     "for create/update action" % aim_res)
             log_by_root.setdefault(log.root_rn, []).append(
                 (action, aim_res, log))
         return log_by_root, resetting_roots
@@ -297,3 +304,21 @@ class HashTreeDbListener(object):
                 LOG.error('Failed to update root %s '
                           'tree for: %s' % (root_rn, e.message))
                 LOG.debug(traceback.format_exc())
+
+    def _validate_config_trees(self, ctx, roots):
+        LOG.info("validating config trees for roots: %s" % roots)
+        for root in roots:
+            LOG.info("validating config tree for root: %s" % root)
+            with ctx.store.begin(subtransactions=True):
+                before = copy.deepcopy(
+                    self.tt_mgr.get(
+                        ctx, root, tree=tree_manager.CONFIG_TREE))
+                self.cleanup_zombie_status_objects(ctx, roots=[root])
+                self._delete_trees(ctx, root=root)
+                self._recreate_trees(ctx, root=root)
+                after = self.tt_mgr.get(
+                    ctx, root, tree=tree_manager.CONFIG_TREE)
+                if before.root_full_hash != after.root_full_hash:
+                    LOG.warning("invalid config tree for root: %s" % root)
+                    LOG.warning(" before recreating: %s" % before)
+                    LOG.warning(" after recreating: %s" % after)
