@@ -846,10 +846,22 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
 
     def from_attr(self, session, res_attr):
         if 'remote_ips' in res_attr:
-            self.remote_ips = []
-            for f in (res_attr.pop('remote_ips', []) or []):
+            # list of IPs has same order as DB objects
+            old_ip_list = [x.cidr for x in self.remote_ips]
+            # Use sets to calculate additions and deletions
+            old_set = set(old_ip_list)
+            new_set = set(res_attr['remote_ips'])
+            # For deletions, start from the end of the list to preserve order
+            deletion_indexes = [old_ip_list.index(ip)
+                                for ip in (old_set - new_set)]
+            deletion_indexes.sort()
+            if deletion_indexes:
+                for index in deletion_indexes[::-1]:
+                    self.remote_ips.pop(index)
+            for ip in (new_set - old_set):
                 self.remote_ips.append(
-                    SecurityGroupRuleRemoteIp(cidr=f))
+                    SecurityGroupRuleRemoteIp(cidr=ip))
+            res_attr.pop('remote_ips')
 
         # map remaining attributes to model
         super(SecurityGroupRule, self).from_attr(session, res_attr)
