@@ -121,9 +121,8 @@ class WebSocketContext(object):
                 while retries < max_retries:
                     if self.session and self.session.session:
                         self.session.close()
-                    LOG.info('Establishing WS connection with parameters: %s',
-                             [self.ws_urls[0], self.apic_username,
-                              self.apic_password, self.verify_ssl_certificate])
+                    LOG.info('Establishing WS connection with url: %s',
+                             self.ws_urls[0])
                     self.session = acitoolkit.Session(
                         self.ws_urls[0], self.apic_username,
                         self.apic_password,
