@@ -996,6 +996,8 @@ class SecurityGroupRule(AciResourceBase):
         ('from_port', t.port),
         ('to_port', t.port),
         ('conn_track', t.enum('normal', 'reflexive')),
+        ('icmp_code', t.icmpv4_code),
+        ('icmp_type', t.icmpv4_type),
         ('monitored', t.bool))
 
     _aci_mo_name = 'hostprotRule'
@@ -1009,6 +1011,8 @@ class SecurityGroupRule(AciResourceBase):
              'ip_protocol': self.UNSPECIFIED,
              'from_port': self.UNSPECIFIED,
              'to_port': self.UNSPECIFIED,
+             'icmp_code': self.UNSPECIFIED,
+             'icmp_type': self.UNSPECIFIED,
              'conn_track': 'reflexive',
              'monitored': False}, **kwargs)
 
