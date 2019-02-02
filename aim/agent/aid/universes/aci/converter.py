@@ -766,9 +766,9 @@ resource_map = {
                        'converter': port},
             'ethertype': {'other': 'ethertype',
                           'converter': ethertype},
-            'icmpType': {'other': 'icmpv4_type',
+            'icmpType': {'other': 'icmp_type',
                           'converter': icmpv4_type},
-            'icmpCode': {'other': 'icmpv4_code',
+            'icmpCode': {'other': 'icmp_code',
                           'converter': icmpv4_code},
         }
     }],
@@ -854,7 +854,6 @@ resource_map = {
 }
 
 resource_map.update(service_graph.resource_map)
-
 # Build the reverse map for reverse translation
 reverse_resource_map = {}
 for apic_type, rule_list in resource_map.iteritems():
