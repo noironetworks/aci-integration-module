@@ -1096,6 +1096,10 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
                           'converter': converter.port},
             'to_port': {'other': 'toPort',
                         'converter': converter.port},
+            'icmp_type': {'other': 'icmpType',
+                          'converter': converter.icmpv4_type},
+            'icmp_code': {'other': 'icmpCode',
+                          'converter': converter.icmpv4_code},
             'ethertype': {'other': 'ethertype',
                           'converter': converter.ethertype}},
          'skip': ['remoteIps'],
@@ -1106,17 +1110,18 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
     sample_input = [get_example_aci_security_group_rule(),
                     get_example_aci_security_group_rule(
                         dn='uni/tn-t1/pol-sg1/subj-sgs2/rule-rule1',
-                        connTrack='normal')]
+                        connTrack='normal', icmpType='0xffff', icmpCode='0')]
 
     sample_output = [
         resource.SecurityGroupRule(
             tenant_name='t1', security_group_name='sg1',
             security_group_subject_name='sgs1', name='rule1',
-            conn_track='reflexive'),
+            conn_track='reflexive', icpm_code='unspecified',
+            icmp_type='unspecified'),
         resource.SecurityGroupRule(
             tenant_name='t1', security_group_name='sg1',
             security_group_subject_name='sgs2', name='rule1',
-            conn_track='normal')
+            conn_track='normal', icmp_type='0xffff', icmp_code='0')
     ]
 
 
@@ -2871,18 +2876,21 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                         from_port='80', to_port='443',
                         remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
                         direction='egress', ethertype='1',
-                        conn_track='normal')]
+                        conn_track='normal', icmp_type='255',
+                        icmp_code='0xffff')]
 
     sample_output = [
         [_aci_obj('hostprotRule',
                   dn='uni/tn-t1/pol-sg1/subj-sgs1/rule-rule1',
                   direction='ingress', protocol='unspecified',
                   fromPort='unspecified', toPort='unspecified',
-                  ethertype='undefined', nameAlias='', connTrack='reflexive')],
+                  ethertype='undefined', nameAlias='', connTrack='reflexive',
+                  icmpCode='unspecified', icmpType='unspecified')],
         [_aci_obj('hostprotRule', dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1',
                   protocol='l2tp', fromPort='http', toPort='https',
                   direction='egress', ethertype='ipv4', nameAlias='',
-                  connTrack='normal'),
+                  connTrack='normal',
+                  icmpCode='unspecified', icmpType='unspecified'),
          _aci_obj(
              'hostprotRemoteIp',
              dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/ip-[10.0.1.0/24]',
