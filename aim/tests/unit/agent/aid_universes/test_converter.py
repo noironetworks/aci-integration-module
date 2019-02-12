@@ -1110,18 +1110,20 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
     sample_input = [get_example_aci_security_group_rule(),
                     get_example_aci_security_group_rule(
                         dn='uni/tn-t1/pol-sg1/subj-sgs2/rule-rule1',
-                        connTrack='normal', icmpType='0xffff', icmpCode='0')]
+                        connTrack='normal', icmpType='0xffff',
+                        protocol='eigrp', ethertype='ipv4', icmpCode='0')]
 
     sample_output = [
         resource.SecurityGroupRule(
             tenant_name='t1', security_group_name='sg1',
             security_group_subject_name='sgs1', name='rule1',
             conn_track='reflexive', icpm_code='unspecified',
-            icmp_type='unspecified'),
+            icmp_type='unspecified', ethertype='undefined'),
         resource.SecurityGroupRule(
             tenant_name='t1', security_group_name='sg1',
             security_group_subject_name='sgs2', name='rule1',
-            conn_track='normal', icmp_type='0xffff', icmp_code='0')
+            conn_track='normal', icmp_type='0xffff', icmp_code='0',
+            ip_protocol='eigrp', ethertype='ipv4')
     ]
 
 
@@ -2874,10 +2876,22 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                     get_example_aim_security_group_rule(
                         security_group_name='sg2', ip_protocol=115,
                         from_port='80', to_port='443',
+                        direction='egress', ethertype='1',
+                        conn_track='normal', icmp_type='3',
+                        icmp_code='0'),
+                    get_example_aim_security_group_rule(
+                        security_group_name='sg3', ip_protocol=1,
+                        from_port='80', to_port='443',
                         remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
                         direction='egress', ethertype='1',
                         conn_track='normal', icmp_type='255',
-                        icmp_code='0xffff')]
+                        icmp_code='0xffff'),
+                    get_example_aim_security_group_rule(
+                        security_group_name='sg4', ip_protocol=6,
+                        from_port='80', to_port='443',
+                        direction='egress', ethertype='2',
+                        conn_track='normal', icmp_type='unspecified',
+                        icmp_code='unspecified')]
 
     sample_output = [
         [_aci_obj('hostprotRule',
@@ -2886,19 +2900,32 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                   fromPort='unspecified', toPort='unspecified',
                   ethertype='undefined', nameAlias='', connTrack='reflexive',
                   icmpCode='unspecified', icmpType='unspecified')],
-        [_aci_obj('hostprotRule', dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1',
-                  protocol='l2tp', fromPort='http', toPort='https',
-                  direction='egress', ethertype='ipv4', nameAlias='',
-                  connTrack='normal',
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1',
+                  protocol='l2tp', direction='egress',
+                  fromPort='http', toPort='https',
+                  ethertype='ipv4', nameAlias='', connTrack='normal',
+                  icmpCode='no-code', icmpType='dst-unreach')],
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-t1/pol-sg3/subj-sgs1/rule-rule1',
+                  protocol='icmp', direction='egress',
+                  fromPort='http', toPort='https',
+                  ethertype='ipv4', nameAlias='', connTrack='normal',
                   icmpCode='unspecified', icmpType='unspecified'),
          _aci_obj(
              'hostprotRemoteIp',
-             dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/ip-[10.0.1.0/24]',
+             dn='uni/tn-t1/pol-sg3/subj-sgs1/rule-rule1/ip-[10.0.1.0/24]',
              addr='10.0.1.0/24'),
          _aci_obj(
              'hostprotRemoteIp',
-             dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/ip-[192.168.0.0/24]',
-             addr='192.168.0.0/24')]]
+             dn='uni/tn-t1/pol-sg3/subj-sgs1/rule-rule1/ip-[192.168.0.0/24]',
+             addr='192.168.0.0/24')],
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-t1/pol-sg4/subj-sgs1/rule-rule1',
+                  protocol='tcp', direction='egress',
+                  fromPort='http', toPort='https',
+                  ethertype='ipv6', nameAlias='', connTrack='normal',
+                  icmpCode='unspecified', icmpType='unspecified')]]
 
 
 def get_example_aim_device_cluster(**kwargs):
