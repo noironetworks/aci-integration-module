@@ -1117,7 +1117,7 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
         resource.SecurityGroupRule(
             tenant_name='t1', security_group_name='sg1',
             security_group_subject_name='sgs1', name='rule1',
-            conn_track='reflexive', icpm_code='unspecified',
+            conn_track='reflexive', icmp_code='unspecified',
             icmp_type='unspecified', ethertype='undefined'),
         resource.SecurityGroupRule(
             tenant_name='t1', security_group_name='sg1',
