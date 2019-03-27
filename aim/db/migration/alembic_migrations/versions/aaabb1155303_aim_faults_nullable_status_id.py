@@ -16,7 +16,7 @@
 """Drop FK constraint in aim faults table
 
 Revision ID: aaabb1155303
-Revises:
+Revises: 5d975a5c2d60
 
 """
 

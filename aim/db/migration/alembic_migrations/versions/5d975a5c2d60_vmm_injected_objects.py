@@ -16,7 +16,7 @@
 """Tables for VMM injected objects
 
 Revision ID: 5d975a5c2d60
-Revises: 32e4c4d73dfc
+Revises: aabce110030f
 Create Date: 2017-04-17 16:07:35.571565
 
 """

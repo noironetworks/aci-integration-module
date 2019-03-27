@@ -16,7 +16,7 @@
 """Table for OpflexDevice
 
 Revision ID: 7838968744ce
-Revises: babbefa38870
+Revises: dc598e78e318
 Create Date: 2017-04-06 12:31:28.953422
 
 """

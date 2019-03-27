@@ -16,7 +16,7 @@
 """Add name column to service redirect destinations
 
 Revision ID: 2c47aab91fff
-Revises: f1ca776aafab
+Revises: 7ba6b6346710
 Create Date: 2018-03-12 12:23:39.608507
 
 """

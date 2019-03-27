@@ -15,7 +15,7 @@
 """Add epoch column
 
 Revision ID: 32e5974ada25
-Revises: f1ca776aafab
+Revises: 1b58ffa871bb
 Create Date: 2018-03-15 00:22:47.618593
 
 """

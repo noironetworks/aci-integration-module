@@ -15,8 +15,8 @@
 
 """Tables for L3out clones in AIM LIB
 
-Revision ID: 8e313fbeb93b
-Revises: 74f15b6aee51
+Revision ID: 07113feba145
+Revises: 8e313fbeb93b
 Create Date: 2016-08-08 16:23:26.119724
 
 """

@@ -16,6 +16,8 @@
 """Add icmp_type amd icmp_code column
 
 Revision ID: 308d91b3dadf
+Revises: 2b48bf7f19cb
+Create Date: 2019-03-12 12:23:39.608507
 
 """
 

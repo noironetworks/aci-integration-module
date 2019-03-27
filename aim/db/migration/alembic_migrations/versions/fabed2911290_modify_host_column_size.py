@@ -16,7 +16,7 @@
 """Modify host column size
 
 Revision ID: fabed2911290
-Revises: 2c47aab91fff
+Revises: 444afa12da26
 Create Date: 2018-04-23 15:30:10.357536
 
 """

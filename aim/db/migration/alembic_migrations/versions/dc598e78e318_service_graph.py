@@ -16,7 +16,7 @@
 """Add tables for service graph
 
 Revision ID: dc598e78e318
-Revises: abf7bb5a4100
+Revises: babbefa38870
 Create Date: 2017-03-15 12:33:07.716431
 
 """
