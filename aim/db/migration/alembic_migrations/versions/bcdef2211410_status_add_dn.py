@@ -1,3 +1,4 @@
+
 # Copyright (c) 2018 Cisco Systems
 # All Rights Reserved.
 #
@@ -14,11 +15,9 @@
 #    under the License.
 
 """Add dn column to status model
-
 Revision ID: bcdef2211410
 Revises: fabed2911290
 Create Date: 2016-03-15 16:29:57.408348
-
 """
 
 # revision identifiers, used by Alembic.
@@ -31,17 +30,19 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.mysql import VARCHAR
 
+from aim.db import api
 from aim.db.migration.data_migration import status_add_dn
 
 
 def upgrade():
 
-    op.add_column(
-        'aim_statuses',
-        sa.Column('resource_dn', VARCHAR(512, charset='latin1'),
-                  nullable=False, server_default=''))
-    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
-    status_add_dn.migrate(session)
+    session = api.get_session(expire_on_commit=True)
+    with session.begin(subtransactions=True):
+        op.add_column(
+            'aim_statuses',
+            sa.Column('resource_dn', VARCHAR(512, charset='latin1'),
+                      nullable=False, server_default=''))
+        status_add_dn.migrate(session)
 
 
 def downgrade():

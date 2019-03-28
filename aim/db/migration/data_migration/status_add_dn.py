@@ -56,6 +56,9 @@ def migrate(session):
             res_table, res_class = get_resource_class(st.resource_type)
             db_res = session.query(res_table).filter_by(
                 aim_id=st.resource_id).first()
-            res = store.make_resource(res_class, db_res)
-            session.execute(update(Status).where(
-                Status.c.id == st.id).values(resource_dn=res.dn))
+            try:
+                res = store.make_resource(res_class, db_res)
+                session.execute(update(Status).where(
+                    Status.c.id == st.id).values(resource_dn=res.dn))
+            except Exception:
+                pass
