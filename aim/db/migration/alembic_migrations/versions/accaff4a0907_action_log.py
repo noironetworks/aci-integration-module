@@ -16,7 +16,7 @@
 """Create Action Log Table
 
 Revision ID: accaff4a0907
-Revises:
+Revises: aaabb1155303
 
 """
 

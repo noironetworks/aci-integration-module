@@ -15,8 +15,8 @@
 
 """Add root column to status model
 
-Revision ID: accfe645090a
-Revises: abf7bb5a4100
+Revision ID: aabce110030f
+Revises: 616344837614
 Create Date: 2016-03-15 16:29:57.408348
 
 """

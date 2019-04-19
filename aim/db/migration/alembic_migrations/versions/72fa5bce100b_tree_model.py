@@ -16,7 +16,7 @@
 """Create TenantTree table
 
 Revision ID: 72fa5bce100b
-Revises:
+Revises: 40855b7eb958
 Create Date: 2016-03-15 16:29:57.408348
 
 """

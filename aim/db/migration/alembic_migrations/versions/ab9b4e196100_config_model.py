@@ -16,7 +16,7 @@
 """Create Config Model
 
 Revision ID: ab9b4e196100
-Revises:
+Revises: 74f15b6aee51
 Create Date: 2016-01-08 16:29:57.408348
 
 """

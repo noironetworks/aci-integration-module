@@ -16,7 +16,7 @@
 """Support utf-8 constrained indexed columns
 
 Revision ID: 2b48bf7f19cb
-Revises: f1ca776aafab
+Revises: bcdef2211410
 Create Date: 2018-03-12 12:23:39.608507
 
 """

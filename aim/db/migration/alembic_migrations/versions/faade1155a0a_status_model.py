@@ -15,8 +15,8 @@
 
 """Create Status and Fault model
 
-Revision ID: accfe645090a
-Revises:
+Revision ID: faade1155a0a
+Revises: 7349fa0a2ad8
 Create Date: 2016-03-15 16:29:57.408348
 
 """

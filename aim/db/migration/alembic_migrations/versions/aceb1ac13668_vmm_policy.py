@@ -16,7 +16,7 @@
 """Create tables for VMM Policies.
 
 Revision ID: aceb1ac13668
-Revises: abf7bb5a4100
+Revises: 7838968744ce
 
 Create Date: 2016-08-11 17:59:18.910872
 
