@@ -146,12 +146,13 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
 
     def finalize_deletion_candidates(self, context, other_universe,
                                      delete_candidates):
-        super(AimDbUniverse, self).finalize_deletion_candidates(
-            context, other_universe, delete_candidates)
+        self._pop_up_sync_log(delete_candidates)
         other_state = other_universe.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
-            if tenant not in other_state or not other_state[tenant].root:
+            # This means the tenant has been created then deleted
+            if (tenant in other_state and not other_state[tenant].root and
+                    other_state[tenant].has_populated is True):
                 pass
             else:
                 delete_candidates.discard(tenant)
@@ -345,8 +346,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
     def finalize_deletion_candidates(self, context, other_universe,
                                      delete_candidates):
-        super(AimDbOperationalUniverse, self).finalize_deletion_candidates(
-            context, other_universe, delete_candidates)
+        self._pop_up_sync_log(delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
@@ -402,8 +402,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
 
     def finalize_deletion_candidates(self, context, other_universe,
                                      delete_candidates):
-        super(AimDbMonitoredUniverse, self).finalize_deletion_candidates(
-            context, other_universe, delete_candidates)
+        self._pop_up_sync_log(delete_candidates)
         my_state = self.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.

@@ -229,7 +229,8 @@ class AciTenantManager(utils.AIMThread):
         with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
                              self.tenant_name):
             return structured_tree.StructuredHashTree.from_string(
-                str(self._state), root_key=self._state.root_key)
+                str(self._state), root_key=self._state.root_key,
+                has_populated=self._state.has_populated)
 
     def get_operational_state_copy(self):
         with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
