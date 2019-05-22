@@ -427,7 +427,7 @@ class HashTreeStoredUniverse(AimUniverse):
             except Exception as e:
                 LOG.error("An unexpected error has occurred while "
                           "reconciling tenant %s: %s" % (tenant, e.message))
-                LOG.debug(traceback.format_exc())
+                LOG.error(traceback.format_exc())
                 # Guess we can't consider the multiverse synced if this happens
                 diff = True
         return diff
