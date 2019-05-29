@@ -38,6 +38,11 @@ class TestUtils(base.TestAimDBBase):
             'some' * 14 + 'som',
             utils.sanitize_display_name('some' * 15))
 
+    def test_get_backoff_time_with_big_tentative(self):
+        tentative = 10240
+        tentative = internal_utils.get_backoff_time(600, tentative)
+        self.assertEqual(600, tentative)
+
     def test_exponential_backoff(self):
         with mock.patch.object(internal_utils.random, 'random',
                                return_value=1):
