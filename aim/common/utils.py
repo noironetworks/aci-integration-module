@@ -97,15 +97,15 @@ class Counter(object):
 
 
 def get_backoff_time(max_time, tentative_number):
-    return min(random.random() * (2 ** tentative_number), max_time)
+    try:
+        return min(random.random() * (2 ** tentative_number), max_time)
+    except OverflowError:
+        return max_time
 
 
 def exponential_backoff(max_time, tentative=None):
     tentative = tentative or Counter()
-    try:
-        sleep_time_secs = get_backoff_time(max_time, tentative.get())
-    except OverflowError:
-        sleep_time_secs = max_time
+    sleep_time_secs = get_backoff_time(max_time, tentative.get())
     LOG.debug('Sleeping for %s seconds' % sleep_time_secs)
     sleep(sleep_time_secs)
     tentative.increment()
