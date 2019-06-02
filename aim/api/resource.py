@@ -869,6 +869,11 @@ class L3OutInterfaceBgpPeerP(AciResourceBase):
     _tree_parent = L3OutInterface
 
     def __init__(self, **kwargs):
+        asn = kwargs.get('asn')
+        if asn and (int(asn) < 0 or int(asn) > 4294967295):
+            raise exc.AciResourceValueError(klass=type(self).__name__,
+                                            value=asn,
+                                            attr='asn')
         super(L3OutInterfaceBgpPeerP, self).__init__(
             {'asn': "0", 'monitored': False}, **kwargs)
 

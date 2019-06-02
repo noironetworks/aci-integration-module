@@ -2669,6 +2669,40 @@ class TestBgpPeerP(TestBgpPeerPMixin, TestAciResourceOpsBase,
     pass
 
 
+class TestInvalidBgpPeerP(base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestInvalidBgpPeerP, self).setUp()
+        self.mgr = aim_manager.AimManager()
+
+    def test_invalid_bgp_asns(self):
+        # Verify that invalid ASNs trigger exceptions
+        asn = -1
+        self.assertRaises(
+            exc.AciResourceValueError,
+            resource.L3OutInterfaceBgpPeerP,
+            tenant_name='t1',
+            l3out_name='testOut1',
+            node_profile_name='testNP1',
+            interface_profile_name='testLifP1',
+            interface_path='topology/pod-1/'
+            'paths-101/pathep-[eth1/1]',
+            addr='1.1.1.0/24',
+            asn=asn)
+        asn = 4294967296
+        self.assertRaises(
+            exc.AciResourceValueError,
+            resource.L3OutInterfaceBgpPeerP,
+            tenant_name='t1',
+            l3out_name='testOut1',
+            node_profile_name='testNP1',
+            interface_profile_name='testLifP1',
+            interface_path='topology/pod-1/'
+            'paths-101/pathep-[eth1/1]',
+            addr='1.1.1.0/24',
+            asn=asn)
+
+
 class TestServiceRedirectMonitoringPolicy(
         TestServiceRedirectMonitoringPolicyMixin, TestAciResourceOpsBase,
         base.TestAimDBBase):

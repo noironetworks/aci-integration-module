@@ -1100,7 +1100,7 @@ class L3OutInterfaceBgpPeerP(model_base.Base, model_base.HasAimId,
     interface_profile_name = model_base.name_column(nullable=False)
     interface_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
     addr = sa.Column(sa.String(64), nullable=False)
-    asn = sa.Column(sa.Integer)
+    asn = sa.Column(sa.BigInteger)
 
     def to_attr(self, session):
         res_attr = super(L3OutInterfaceBgpPeerP, self).to_attr(session)
