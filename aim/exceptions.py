@@ -54,6 +54,11 @@ class InvalidDNForAciResource(AimException):
     message = ("DN %(dn)s is not valid for resource %(cls)s.")
 
 
+class AciResourceValueError(AimException):
+    message = ("Value %(value)s for resource attribute %(attr)s not defined "
+               "for resource %(klass)s.")
+
+
 class ConfigurationUndefined(AimException):
     message = ("Configuration %(conf)s undefined in group %(group)s for host "
                "%(host)s")
