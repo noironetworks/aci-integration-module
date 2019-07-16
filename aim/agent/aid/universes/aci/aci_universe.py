@@ -71,6 +71,7 @@ class WebSocketContext(object):
         self.apic_config = apic_config
         self.session = None
         self.ws_urls = collections.deque()
+        self.is_ws_urls_rotated = False
         self.monitor_runs = {'monitor_runs': float('inf')}
         self.monitor_sleep_time = 10
         self.monitor_max_backoff = 30
@@ -138,6 +139,8 @@ class WebSocketContext(object):
                         continue
                     LOG.info('Websocket connection succeeded.')
                     self._spawn_monitors()
+                    if retries > 0:
+                        self.is_ws_urls_rotated = True
                     return self.session
                 utils.perform_harakiri(LOG, "Cannot establish WS connection "
                                             "after %s retries." % retries)
@@ -214,8 +217,6 @@ class WebSocketContext(object):
     def has_event(self, urls):
         if urls == self.EMPTY_URLS:
             return False
-        # Will be noop if already subscribed.
-        self.subscribe(urls)
         return any(self.session.has_events(url) for url in urls)
 
     def _thread_monitor(self, flag):
@@ -316,6 +317,11 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def serve(self, context, tenants):
         # Verify differences
         global serving_tenants
+        # Reset all the tenants due to a new ACI connection
+        if self.ws_context.is_ws_urls_rotated is True:
+            self.reset(context, serving_tenants)
+            self.ws_context.is_ws_urls_rotated = False
+            return
         try:
             serving_tenant_copy = serving_tenants
             serving_tenants = {}
