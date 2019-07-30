@@ -173,11 +173,6 @@ class TestAimManager(base.TestAimDBBase):
             set((x for x in statuses if x.resource_root == 'tn-t1')),
             set(statusest1))
 
-    def test_multiple_statuses_with_no_resource(self):
-        expected_statuses = []
-        statuses = self.mgr.get_statuses(self.ctx, [])
-        self.assertEqual(expected_statuses, statuses)
-
 
 class TestResourceOpsBase(object):
     test_dn = None

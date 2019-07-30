@@ -352,8 +352,6 @@ class SqlAlchemyStore(AimStore):
         return query
 
     def query_statuses(self, resources):
-        if not resources:
-            return []
         db_ids_by_type = {}
         for res in resources:
             db_ids_by_type.setdefault(self.db_model_map[type(res)], []).append(
