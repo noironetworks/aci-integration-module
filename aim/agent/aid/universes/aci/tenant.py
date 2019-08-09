@@ -226,25 +226,19 @@ class AciTenantManager(utils.AIMThread):
         return self._warm
 
     def get_state_copy(self):
-        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
-                             self.tenant_name):
-            return structured_tree.StructuredHashTree.from_string(
-                str(self._state), root_key=self._state.root_key,
-                has_populated=self._state.has_populated)
+        return structured_tree.StructuredHashTree.from_string(
+            str(self._state), root_key=self._state.root_key,
+            has_populated=self._state.has_populated)
 
     def get_operational_state_copy(self):
-        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
-                             self.tenant_name):
-            return structured_tree.StructuredHashTree.from_string(
-                str(self._operational_state),
-                root_key=self._operational_state.root_key)
+        return structured_tree.StructuredHashTree.from_string(
+            str(self._operational_state),
+            root_key=self._operational_state.root_key)
 
     def get_monitored_state_copy(self):
-        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
-                             self.tenant_name):
-            return structured_tree.StructuredHashTree.from_string(
-                str(self._monitored_state),
-                root_key=self._monitored_state.root_key)
+        return structured_tree.StructuredHashTree.from_string(
+            str(self._monitored_state),
+            root_key=self._monitored_state.root_key)
 
     def run(self):
         LOG.debug("Starting main loop for tenant %s" % self.tenant_name)
@@ -517,76 +511,74 @@ class AciTenantManager(utils.AIMThread):
         :param events: an ACI event in the form of a list of objects
         :return:
         """
-        with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
-                             self.tenant_name):
-            removed, updated = [], []
-            removing_dns = set()
-            filtered_events = []
-            # Set the owned events
-            for event in events:
-                # Exclude some events from monitored objects.
-                # Some RS objects can be set from AIM even for monitored
-                # objects, therefore we need to exclude events regarding those
-                # RS objects when we don't own them. One example is fvRsProv on
-                # external networks
-                type = event.keys()[0]
-                if type in ACI_TYPES_NOT_CONVERT_IF_MONITOR:
-                    # Check that the object is indeed correct looking at the
-                    # parent
-                    if self._check_parent_type(
-                            event,
-                            ACI_TYPES_NOT_CONVERT_IF_MONITOR[type]):
-                        if not self._is_owned(event):
-                            # For an RS object like fvRsProv we check the
-                            # parent ownership as well.
-                            continue
-                # Exclude from conversion those list RS objects that we want
-                # allow to be manually configured in ACI
-                if type in ACI_TYPES_SKIP_ON_MANAGES:
-                    if self._check_parent_type(
-                            event, ACI_TYPES_SKIP_ON_MANAGES[type]):
-                        # Check whether the event is owned, and whether its
-                        # parent is.
-                        if (not self._is_owned(event, check_parent=False) and
-                                self._is_owned(event)):
-                            continue
-                if self.is_child_object(type) and self._is_deleting(event):
-                    # Can be excluded, we expect parent objects
-                    continue
+        removed, updated = [], []
+        removing_dns = set()
+        filtered_events = []
+        # Set the owned events
+        for event in events:
+            # Exclude some events from monitored objects.
+            # Some RS objects can be set from AIM even for monitored
+            # objects, therefore we need to exclude events regarding those
+            # RS objects when we don't own them. One example is fvRsProv on
+            # external networks
+            type = event.keys()[0]
+            if type in ACI_TYPES_NOT_CONVERT_IF_MONITOR:
+                # Check that the object is indeed correct looking at the
+                # parent
+                if self._check_parent_type(
+                        event,
+                        ACI_TYPES_NOT_CONVERT_IF_MONITOR[type]):
+                    if not self._is_owned(event):
+                        # For an RS object like fvRsProv we check the
+                        # parent ownership as well.
+                        continue
+            # Exclude from conversion those list RS objects that we want
+            # allow to be manually configured in ACI
+            if type in ACI_TYPES_SKIP_ON_MANAGES:
+                if self._check_parent_type(
+                        event, ACI_TYPES_SKIP_ON_MANAGES[type]):
+                    # Check whether the event is owned, and whether its
+                    # parent is.
+                    if (not self._is_owned(event, check_parent=False) and
+                            self._is_owned(event)):
+                        continue
+            if self.is_child_object(type) and self._is_deleting(event):
+                # Can be excluded, we expect parent objects
+                continue
 
-                if self._is_deleting(event):
-                    dn = event.values()[0]['attributes']['dn']
-                    removing_dns.add(dn)
-                filtered_events.append(event)
-            for event in self.to_aim_converter.convert(filtered_events):
-                if event.dn not in self.tag_set:
-                    event.monitored = True
-                if event.dn in removing_dns:
-                    LOG.info('ACI event: REMOVED %s' % event)
-                    removed.append(event)
-                else:
-                    LOG.info('ACI event: ADDED %s' % event)
-                    updated.append(event)
-            upd_trees, upd_op_trees, upd_mon_trees = self.tree_builder.build(
-                [], updated, removed,
-                {self.tree_builder.CONFIG: {self.tenant_name: self._state},
-                 self.tree_builder.MONITOR:
-                     {self.tenant_name: self._monitored_state},
-                 self.tree_builder.OPER:
-                     {self.tenant_name: self._operational_state}})
+            if self._is_deleting(event):
+                dn = event.values()[0]['attributes']['dn']
+                removing_dns.add(dn)
+            filtered_events.append(event)
+        for event in self.to_aim_converter.convert(filtered_events):
+            if event.dn not in self.tag_set:
+                event.monitored = True
+            if event.dn in removing_dns:
+                LOG.info('ACI event: REMOVED %s' % event)
+                removed.append(event)
+            else:
+                LOG.info('ACI event: ADDED %s' % event)
+                updated.append(event)
+        upd_trees, upd_op_trees, upd_mon_trees = self.tree_builder.build(
+            [], updated, removed,
+            {self.tree_builder.CONFIG: {self.tenant_name: self._state},
+             self.tree_builder.MONITOR:
+                 {self.tenant_name: self._monitored_state},
+             self.tree_builder.OPER:
+                 {self.tenant_name: self._operational_state}})
 
-            # Send events on update
-            modified = False
-            for upd, tree, readable in [
-                    (upd_trees, self._state, "configuration"),
-                    (upd_op_trees, self._operational_state, "operational"),
-                    (upd_mon_trees, self._monitored_state, "monitored")]:
-                if upd:
-                    modified = True
-                    LOG.debug("New %s tree for tenant %s: %s" %
-                              (readable, self.tenant_name, tree))
-            if modified:
-                event_handler.EventHandler.reconcile()
+        # Send events on update
+        modified = False
+        for upd, tree, readable in [
+                (upd_trees, self._state, "configuration"),
+                (upd_op_trees, self._operational_state, "operational"),
+                (upd_mon_trees, self._monitored_state, "monitored")]:
+            if upd:
+                modified = True
+                LOG.debug("New %s tree for tenant %s: %s" %
+                          (readable, self.tenant_name, tree))
+        if modified:
+            event_handler.EventHandler.reconcile()
 
     def _fill_events(self, events):
         """Gets incomplete objects from APIC if needed

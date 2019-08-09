@@ -23,7 +23,6 @@ import semantic_version
 from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes import aim_universe
-from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
 from aim.api import resource
@@ -169,10 +168,9 @@ class AID(object):
         # time for events to happen
 
         # Observe the two universes to fix their current state
-        with utils.get_rlock(lcon.AID_OBSERVER_LOCK):
-            for pair in self.multiverse:
-                pair[DESIRED].observe(aim_ctx)
-                pair[CURRENT].observe(aim_ctx)
+        for pair in self.multiverse:
+            pair[DESIRED].observe(aim_ctx)
+            pair[CURRENT].observe(aim_ctx)
 
         delete_candidates = set()
         vetoes = set()
