@@ -640,8 +640,8 @@ class VMMDomain(AciResourceBase):
         ('enforcement_pref', t.enum('sw', 'hw', 'unknown')),
         ('mode', t.enum('default', 'n1kv', 'unknown', 'ovs', 'k8s')),
         ('mcast_address', t.string()),
-        ('encap_mode', t.enum('unknown', 'vlan', 'vxlan')),
-        ('pref_encap_mode', t.enum('unspecified', 'vlan', 'vxlan')),
+        ('encap_mode', t.enum('unknown', 'vlan', 'vxlan', 'ivxlan')),
+        ('pref_encap_mode', t.enum('unspecified', 'vlan', 'vxlan', 'ivxlan')),
         ('vlan_pool_name', t.name),
         ('vlan_pool_type', t.enum('static', 'dynamic')),
         ('mcast_addr_pool_name', t.name))

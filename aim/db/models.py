@@ -162,8 +162,9 @@ class VMMDomain(model_base.Base, model_base.HasDisplayName,
     enforcement_pref = sa.Column(sa.Enum('sw', 'hw', 'unknown'))
     mode = sa.Column(sa.Enum('default', 'n1kv', 'unknown', 'ovs', 'k8s'))
     mcast_address = sa.Column(sa.String(64))
-    encap_mode = sa.Column(sa.Enum('unknown', 'vlan', 'vxlan'))
-    pref_encap_mode = sa.Column(sa.Enum('unspecified', 'vlan', 'vxlan'))
+    encap_mode = sa.Column(sa.Enum('unknown', 'vlan', 'vxlan', 'ivxlan'))
+    pref_encap_mode = sa.Column(sa.Enum('unspecified', 'vlan',
+                                        'vxlan', 'ivxlan'))
     vlan_pool_name = model_base.name_column()
     vlan_pool_type = sa.Column(sa.Enum('static', 'dynamic'))
     mcast_addr_pool_name = model_base.name_column()
