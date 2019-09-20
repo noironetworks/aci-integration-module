@@ -14,6 +14,7 @@
 #    under the License.
 
 import collections
+import random
 import time
 import traceback
 
@@ -26,13 +27,18 @@ from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes import errors
+from aim.api import infra as api_infra
 from aim.api import resource
 from aim.common import utils
+from aim import config as aim_cfg
 from aim import context as aim_ctx
 from aim.db import api
 from aim import exceptions
 from aim import tree_manager
 
+NORMAL_PURPOSE = 'normal'
+BACKUP_PURPOSE = 'backup'
+RECOVERY_PURPOSE = 'recovery'
 
 LOG = logging.getLogger(__name__)
 
@@ -67,17 +73,22 @@ class WebSocketContext(object):
     """Placeholder for websocket session"""
     EMPTY_URLS = ["empty/url"]
 
-    def __init__(self, apic_config):
+    def __init__(self, apic_config, aim_manager):
         self.apic_config = apic_config
         self.session = None
         self.ws_urls = collections.deque()
-        self.is_ws_urls_rotated = False
+        self.is_session_reconnected = False
         self.monitor_runs = {'monitor_runs': float('inf')}
         self.monitor_sleep_time = 10
         self.monitor_max_backoff = 30
         self.login_thread = None
         self.subs_thread = None
         self.monitor_thread = None
+        self.agent_id = 'aid-%s' % aim_cfg.CONF.aim.aim_service_identifier
+        self.apic_assign_obj = None
+        self.need_recovery = False
+        self.recovery_max_backoff = 600
+        self.manager = aim_manager
         self.establish_ws_session()
 
     def _spawn_monitors(self):
@@ -113,37 +124,135 @@ class WebSocketContext(object):
         if set(ws_urls) != set(self.ws_urls):
             self.ws_urls = ws_urls
 
-    def establish_ws_session(self, max_retries=None):
+    def _update_apic_assign_db(self, aim_context, apic_assign,
+                               apic_assign_obj):
+        try:
+            if apic_assign_obj is None:
+                apic_assign.aim_aid_id = self.agent_id
+                return self.manager.create(aim_context, apic_assign)
+
+            if apic_assign_obj.aim_aid_id != self.agent_id:
+                obj = self.manager.update(aim_context, apic_assign_obj,
+                                          aim_aid_id=self.agent_id)
+            else:
+                # This will update the last_update_timestamp
+                # automatically
+                obj = self.manager.update(aim_context, apic_assign_obj)
+            return obj
+        # This means another controller is also adding/updating
+        # the same entry at the same time and he has beat us.
+        except Exception as e:
+            LOG.info(e)
+            return None
+
+    def _ws_session_login(self, url, url_max_retries, purpose,
+                          aim_context=None, apic_assign=None,
+                          apic_assign_obj=None):
+        retries = 0
+        LOG.info('Establishing %s WS connection with url: %s',
+                 purpose, url)
+        valid_session = None
+        while retries < url_max_retries:
+            session = acitoolkit.Session(
+                url, self.apic_username,
+                self.apic_password,
+                verify_ssl=self.verify_ssl_certificate,
+                cert_name=self.cert_name,
+                key=self.private_key_file)
+            resp = session.login()
+            if not resp.ok:
+                LOG.warn('%s Websocket connection failed: %s',
+                         purpose, resp.text)
+                retries += 1
+                if session.session:
+                    session.close()
+                continue
+            LOG.info('%s Websocket connection succeeded with url: %s',
+                     purpose, url)
+            valid_session = session
+            break
+
+        if valid_session:
+            # We don't need to claim the ownership if we are just
+            # picking up a backup APIC.
+            if purpose != BACKUP_PURPOSE:
+                obj = self._update_apic_assign_db(
+                    aim_context, apic_assign, apic_assign_obj)
+                if obj is None:
+                    valid_session.close()
+                    return False
+            if purpose == BACKUP_PURPOSE or obj:
+                if self.session and self.session.session:
+                    self.session.close()
+                    self.is_session_reconnected = True
+                self.session = valid_session
+                self._spawn_monitors()
+                if purpose == BACKUP_PURPOSE:
+                    self.need_recovery = True
+                else:
+                    self.apic_assign_obj = obj
+                    self.need_recovery = False
+                return True
+
+        return False
+
+    def establish_ws_session(self, max_retries=None, recovery_mode=False):
         try:
             with utils.get_rlock(lcon.ACI_WS_CONNECTION_LOCK, blocking=False):
-                retries = 0
-                self._reload_websocket_config()
+                if not recovery_mode:
+                    purpose = NORMAL_PURPOSE
+                    self._reload_websocket_config()
+                    self.need_recovery = False
+                else:
+                    purpose = RECOVERY_PURPOSE
+                backup_urls = collections.deque()
                 max_retries = max_retries or 2 * len(self.ws_urls)
-                while retries < max_retries:
-                    if self.session and self.session.session:
-                        self.session.close()
-                    LOG.info('Establishing WS connection with url: %s',
-                             self.ws_urls[0])
-                    self.session = acitoolkit.Session(
-                        self.ws_urls[0], self.apic_username,
-                        self.apic_password,
-                        verify_ssl=self.verify_ssl_certificate,
-                        cert_name=self.cert_name, key=self.private_key_file)
-                    resp = self.session.login()
-                    if not resp.ok:
-                        LOG.warn('Websocket connection failed: %s' % resp.text)
-                        self.ws_urls.rotate(-1)
-                        LOG.info('Rotating websocket URL, '
-                                 'using: %s' % self.ws_urls[0])
-                        retries += 1
+                url_max_retries = max(1, max_retries / len(self.ws_urls))
+                aim_context = aim_ctx.AimContext(store=api.get_store())
+                for url in self.ws_urls:
+                    apic_assign = api_infra.ApicAssignment(apic_host=url)
+                    apic_assign_obj = self.manager.get(aim_context,
+                                                       apic_assign)
+                    if (apic_assign_obj and
+                        apic_assign_obj.aim_aid_id != self.agent_id and
+                            not apic_assign_obj.is_available(aim_context)):
+                        backup_urls.append(url)
                         continue
-                    LOG.info('Websocket connection succeeded.')
-                    self._spawn_monitors()
-                    if retries > 0:
-                        self.is_ws_urls_rotated = True
-                    return self.session
+
+                    # This means the original aim-aid owner might have
+                    # crashed or something. We will just take it!
+                    if (recovery_mode and apic_assign_obj and
+                            self.session.ipaddr in url):
+                        obj = self._update_apic_assign_db(
+                            aim_context, apic_assign, apic_assign_obj)
+                        if obj is None:
+                            continue
+                        self.need_recovery = False
+                        self.apic_assign_obj = obj
+                        return
+
+                    is_conn_successful = self._ws_session_login(
+                        url, url_max_retries, purpose,
+                        aim_context, apic_assign, apic_assign_obj)
+                    if is_conn_successful:
+                        return
+                    else:
+                        backup_urls.append(url)
+
+                if recovery_mode:
+                    return
+                # Try the backup urls. Randomly rotate the list first so that
+                # the extra aim-aids won't all go for the same backup url.
+                backup_urls_len = len(backup_urls)
+                if backup_urls_len > 1:
+                    backup_urls.rotate(random.randint(1, backup_urls_len))
+                for url in backup_urls:
+                    is_conn_successful = self._ws_session_login(
+                        url, url_max_retries, BACKUP_PURPOSE)
+                    if is_conn_successful:
+                        return
                 utils.perform_harakiri(LOG, "Cannot establish WS connection "
-                                            "after %s retries." % retries)
+                                            "after %s retries." % max_retries)
         except utils.LockNotAcquired:
             # Some other thread is trying to reconnect
             return
@@ -225,6 +334,9 @@ class WebSocketContext(object):
         name_to_retry = {login_thread_name: None,
                          subscription_thread_name: None}
         max_retries = len(self.ws_urls)
+        recovery_timer = utils.get_time()
+        recovery_retry = 0
+        aim_context = aim_ctx.AimContext(store=api.get_store())
         LOG.debug("Monitoring threads login and subscription")
         try:
             while flag['monitor_runs']:
@@ -254,6 +366,31 @@ class WebSocketContext(object):
                     elif thd:
                         LOG.debug("Thread %s is in good shape" % name)
                         name_to_retry[name] = None
+
+                if self.need_recovery:
+                    # No point to do any recovery session if we
+                    # only have 1 ws_url.
+                    if (len(self.ws_urls) > 1 and
+                            utils.get_time() > recovery_timer):
+                        self.establish_ws_session(recovery_mode=True)
+                        # Still fail to recover
+                        if self.need_recovery:
+                            recovery_retry += 1
+                            recovery_timer = (
+                                utils.get_time() + utils.get_backoff_time(
+                                    self.recovery_max_backoff, recovery_retry))
+                        else:
+                            recovery_retry = 0
+                else:
+                    # Update the last_update_timestamp
+                    if self.apic_assign_obj:
+                        self.apic_assign_obj = self.manager.update(
+                            aim_context, self.apic_assign_obj)
+                    else:
+                        # This should never happen
+                        LOG.error('There is no such apic_assign_obj exist '
+                                  'for %s!' % self.session.ipaddr)
+
                 time.sleep(self.monitor_sleep_time)
                 # for testing purposes
                 flag['monitor_runs'] -= 1
@@ -263,10 +400,12 @@ class WebSocketContext(object):
             utils.perform_harakiri(LOG, msg)
 
 
-def get_websocket_context(apic_config):
+# REVIST: see if there is a way that we don't have to pass aim_manager in
+# to get the WebSocketContext object initialized.
+def get_websocket_context(apic_config, aim_manager):
     global ws_context
     if not ws_context:
-        ws_context = WebSocketContext(apic_config)
+        ws_context = WebSocketContext(apic_config, aim_manager)
     return ws_context
 
 
@@ -285,7 +424,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # any bug or network partition.
         aci_tenant.get_children_mos(self.aci_session, 'tn-common')
         aci_tenant.get_children_mos(self.aci_session, 'pod-1')
-        self.ws_context = get_websocket_context(self.conf_manager)
+        self.ws_context = get_websocket_context(self.conf_manager,
+                                                self.manager)
         self.aim_system_id = self.conf_manager.get_option('aim_system_id',
                                                           'aim')
         return self
@@ -317,10 +457,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def serve(self, context, tenants):
         # Verify differences
         global serving_tenants
-        # Reset all the tenants due to a new ACI connection
-        if self.ws_context.is_ws_urls_rotated is True:
+        if self.ws_context.is_session_reconnected is True:
             self.reset(context, serving_tenants)
-            self.ws_context.is_ws_urls_rotated = False
+            self.ws_context.is_session_reconnected = False
             return
         try:
             serving_tenant_copy = serving_tenants
