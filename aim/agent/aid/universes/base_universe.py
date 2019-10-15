@@ -23,7 +23,6 @@ from apicapi import apic_client
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
-from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes import errors
 from aim import aim_manager
 from aim.common.hashtree import structured_tree
@@ -340,8 +339,7 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def _pop_up_sync_log(self, delete_candidates):
         for root in delete_candidates:
-            with utils.get_rlock(lcon.SYNC_LOG_LOCK + root):
-                self._sync_log.pop(root, None)
+            self._sync_log.pop(root, None)
 
     def finalize_deletion_candidates(self, context, other_universe,
                                      delete_candidates):
@@ -604,58 +602,55 @@ class HashTreeStoredUniverse(AimUniverse):
         seen = set()
         fail = []
         skip = []
-        # TODO(ivar): we might try to acquire lock in a non-blocking fashion,
-        # and skip synchronization for this root if it fails.
-        with utils.get_rlock(lcon.SYNC_LOG_LOCK + root):
-            root_state = self._sync_log.setdefault(
-                root, {'create': {}, 'delete': {}})
-            new_state = {'create': {}, 'delete': {}}
-            for action in [CREATE, DELETE]:
-                for res in self._action_items_to_aim_resources(actions,
-                                                               action):
-                    if res in seen:
-                        continue
-                    seen.add(res)
-                    # Same resource created twice in the same iteration is
-                    # increased only once
-                    if root != res.root:
-                        raise exceptions.BadTrackingArgument(
-                            exp=root, act=res.root, res=actions)
-                    new = (new_state[action].setdefault(
-                        res, {'limit': self.reset_retry_limit, 'res': res,
-                              'retries': -1, 'action': ACTION_RESET,
-                              'last': curr_time, 'next': curr_time}))
-                    curr = root_state[action].get(res, {})
-                    if curr:
-                        new.update(curr)
-                    curr = new
-                    if curr_time < curr['next']:
-                        # Let's not make any consideration about this object
-                        LOG.debug("AIM object %s is being re-tried too soon "
-                                  "(delta: %s secs). Skipping for now." %
-                                  (str(res), curr['next'] - curr_time))
-                        skip.append((action, res))
-                        continue
+        root_state = self._sync_log.setdefault(
+            root, {'create': {}, 'delete': {}})
+        new_state = {'create': {}, 'delete': {}}
+        for action in [CREATE, DELETE]:
+            for res in self._action_items_to_aim_resources(actions,
+                                                           action):
+                if res in seen:
+                    continue
+                seen.add(res)
+                # Same resource created twice in the same iteration is
+                # increased only once
+                if root != res.root:
+                    raise exceptions.BadTrackingArgument(
+                        exp=root, act=res.root, res=actions)
+                new = (new_state[action].setdefault(
+                    res, {'limit': self.reset_retry_limit, 'res': res,
+                          'retries': -1, 'action': ACTION_RESET,
+                          'last': curr_time, 'next': curr_time}))
+                curr = root_state[action].get(res, {})
+                if curr:
+                    new.update(curr)
+                curr = new
+                if curr_time < curr['next']:
+                    # Let's not make any consideration about this object
+                    LOG.debug("AIM object %s is being re-tried too soon "
+                              "(delta: %s secs). Skipping for now." %
+                              (str(res), curr['next'] - curr_time))
+                    skip.append((action, res))
+                    continue
 
-                    curr['next'] = curr_time + utils.get_backoff_time(
-                        self.max_backoff_time, curr['retries'])
-                    curr['retries'] += 1
-                    if curr['retries'] > curr['limit']:
-                        if curr['action'] == ACTION_RESET:
-                            LOG.warn("AIM object %s failed %s more than %s "
-                                     "times, resetting its root" %
-                                     (str(res), action, curr['retries']))
-                            reset = True
-                            curr['limit'] = self.purge_retry_limit
-                            curr['action'] = ACTION_PURGE
-                        else:
-                            LOG.warn("AIM object %s failed %s more than %s "
-                                     "times, going to ERROR state" %
-                                     (str(res), action, curr['retries']))
-                            curr['limit'] += 5
-                            fail.append((action, res))
-            self._sync_log[root] = new_state
-            return reset, fail, skip
+                curr['next'] = curr_time + utils.get_backoff_time(
+                    self.max_backoff_time, curr['retries'])
+                curr['retries'] += 1
+                if curr['retries'] > curr['limit']:
+                    if curr['action'] == ACTION_RESET:
+                        LOG.warn("AIM object %s failed %s more than %s "
+                                 "times, resetting its root" %
+                                 (str(res), action, curr['retries']))
+                        reset = True
+                        curr['limit'] = self.purge_retry_limit
+                        curr['action'] = ACTION_PURGE
+                    else:
+                        LOG.warn("AIM object %s failed %s more than %s "
+                                 "times, going to ERROR state" %
+                                 (str(res), action, curr['retries']))
+                        curr['limit'] += 5
+                        fail.append((action, res))
+        self._sync_log[root] = new_state
+        return reset, fail, skip
 
     @property
     def state(self):
