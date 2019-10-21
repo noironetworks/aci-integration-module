@@ -800,10 +800,12 @@ class TestEndpointGroupMixin(object):
                                 'static_paths': [{'path': 'topology/pod-1/'
                                                           'paths-101/pathep-'
                                                           '[eth1/2]',
+                                                  'mode': 'untagged',
                                                   'encap': 'vlan-2'},
                                                  {'path': 'topology/pod-1/'
                                                           'paths-102/pathep-'
                                                           '[eth1/5]',
+                                                  'mode': 'untagged',
                                                   'encap': 'vlan-5',
                                                   'host': 'h1'}],
                                 'physical_domains': [{'name': 'phys'}],
@@ -822,6 +824,7 @@ class TestEndpointGroupMixin(object):
                               'static_paths': [{'path': ('topology/pod-1/'
                                                          'paths-101/pathep-'
                                                          '[eth1/2]'),
+                                                'mode': 'untagged',
                                                 'encap': 'vlan-22',
                                                 'host': 'h2'}],
                               'epg_contract_masters': [
