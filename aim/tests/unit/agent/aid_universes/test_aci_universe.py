@@ -292,7 +292,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
     def test_ws_config_changed(self):
         # Refresh subscriptions
         self.universe.ws_context = aci_universe.WebSocketContext(
-            aim_cfg.ConfigManager(self.ctx, 'h1'))
+            aim_cfg.ConfigManager(self.ctx, 'h1'), self.universe.manager)
         current_ws = self.universe.ws_context.session
         self.set_override('apic_hosts', ['3.1.1.1'], 'apic', poll=True)
         # Callback modified parameters

@@ -225,12 +225,14 @@ class SqlAlchemyStore(AimStore):
                     api_res.ExternalNetwork: models.ExternalNetwork,
                     api_res.ExternalSubnet: models.ExternalSubnet,
                     api_infra.HostLink: infra_model.HostLink,
+                    api_infra.OpflexDevice: infra_model.OpflexDevice,
                     api_infra.HostDomainMapping: (
                         infra_model.HostDomainMapping),
                     api_infra.HostDomainMappingV2: (
                         infra_model.HostDomainMappingV2),
                     api_infra.HostLinkNetworkLabel: (
                         infra_model.HostLinkNetworkLabel),
+                    api_infra.ApicAssignment: infra_model.ApicAssignment,
                     api_res.SecurityGroup: models.SecurityGroup,
                     api_res.SecurityGroupSubject: models.SecurityGroupSubject,
                     api_res.SecurityGroupRule: models.SecurityGroupRule,
@@ -263,7 +265,6 @@ class SqlAlchemyStore(AimStore):
                         service_graph_model.ServiceRedirectMonitoringPolicy),
                     api_service_graph.ServiceRedirectHealthGroup: (
                         service_graph_model.ServiceRedirectHealthGroup),
-                    api_infra.OpflexDevice: infra_model.OpflexDevice,
                     api_res.VMMPolicy: models.VMMPolicy,
                     api_res.Pod: models.Pod,
                     api_res.Topology: models.Topology,

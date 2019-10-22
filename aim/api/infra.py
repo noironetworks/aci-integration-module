@@ -13,10 +13,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import datetime
+
+from oslo_config import cfg
+from oslo_log import log as logging
+
 from aim.api import resource
 from aim.api import types as t
 
 WILDCARD_HOST = '*'
+LOG = logging.getLogger(__name__)
 
 
 class HostLink(resource.ResourceBase):
@@ -116,3 +122,35 @@ class HostLinkNetworkLabel(resource.ResourceBase):
 
     def __init__(self, **kwargs):
         super(HostLinkNetworkLabel, self).__init__({}, **kwargs)
+
+
+class ApicAssignment(resource.ResourceBase):
+    """Track the APIC to aim-aid mapping"""
+
+    identity_attributes = t.identity(
+        ('apic_host', t.string(128)))
+    other_attributes = t.other(
+        ('aim_aid_id', t.string(64)))
+    db_attributes = t.db(
+        ('last_update_timestamp', t.string()))
+
+    def __init__(self, **kwargs):
+        super(ApicAssignment, self).__init__({'aim_aid_id': ''},
+                                             **kwargs)
+
+    def is_available(self, context):
+        current = context.store.current_timestamp
+        # When the store doesn't support time stamp, the APIC can never
+        # be considered available.
+        if current is None:
+            return False
+        result = current - self.last_update_timestamp >= datetime.timedelta(
+            seconds=cfg.CONF.aim.apic_available_time)
+        if result:
+            LOG.info("APIC %s is available. Last update time was %s" %
+                     (self.apic_host, self.last_update_timestamp))
+            return True
+        else:
+            LOG.debug("APIC %s is not available. Last update time was %s" %
+                      (self.apic_host, self.last_update_timestamp))
+            return False

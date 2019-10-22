@@ -110,6 +110,10 @@ agent_opts = [
                 help=("(Temporary) Set to False if you want the agents to "
                       "use SecurityGroupRule state from the action log "
                       "rather than fetching it from the DB.")),
+    cfg.IntOpt('apic_available_time', default=600,
+               help=("Seconds to consider that this APIC can be assigned to "
+                     "another aim-aid since its last update time in the "
+                     "ApicAssignment DB table.")),
 ]
 
 # TODO(ivar): move into AIM section

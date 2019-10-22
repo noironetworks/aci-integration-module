@@ -15,6 +15,7 @@
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.sql.expression import func
 
 from aim.api import infra
 from aim.db import model_base
@@ -154,3 +155,12 @@ class HostLinkNetworkLabel(model_base.Base, model_base.AttributeMixin):
     host_name = sa.Column(sa.String(128), primary_key=True)
     network_label = sa.Column(sa.String(64), primary_key=True)
     interface_name = sa.Column(sa.String(32), primary_key=True)
+
+
+class ApicAssignment(model_base.Base, model_base.AttributeMixin):
+    __tablename__ = 'aim_apic_assignment'
+
+    apic_host = sa.Column(sa.String(128), primary_key=True)
+    aim_aid_id = sa.Column(sa.String(64))
+    last_update_timestamp = sa.Column(sa.TIMESTAMP, server_default=func.now(),
+                                      onupdate=func.now())
