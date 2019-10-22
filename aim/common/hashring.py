@@ -129,10 +129,9 @@ class ConsistentHashRing(object):
         :return:
         """
         for node in nodes:
-            weight = self._nodes.pop(node, None)
-            if weight is None:
-                # Node didn't exist in a first place
+            if node not in self._nodes:
                 continue
+            weight = self._nodes.pop(node, None)
             for x in self._hashi(node, weight):
                 try:
                     self._ring.remove(Star(x))

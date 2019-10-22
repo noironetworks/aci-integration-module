@@ -35,29 +35,44 @@ class TestHashRing(base.BaseTestCase):
         ring = hashring.ConsistentHashRing(
             dict((str(x), None) for x in range(10)))
         self.assertEqual(10, len(ring))
+        self.assertEqual(400, len(ring._ring))
 
     def test_proportional_weight(self):
+        ring = hashring.ConsistentHashRing({'a': None, 'b': None, 'c': None})
+        a_count = self._count_replicas(ring, 'a')
+        b_count = self._count_replicas(ring, 'b')
+        c_count = self._count_replicas(ring, 'c')
+        self.assertEqual(a_count, b_count)
+        self.assertEqual(a_count, c_count)
+        self.assertEqual(a_count, 40)
+
         ring = hashring.ConsistentHashRing({'a': 1, 'b': 2, 'c': 3})
         a_count = self._count_replicas(ring, 'a')
         b_count = self._count_replicas(ring, 'b')
         c_count = self._count_replicas(ring, 'c')
-
         self.assertEqual(a_count * 2, b_count)
         self.assertEqual(a_count * 3, c_count)
+        self.assertEqual(a_count, 40)
 
     def test_replicas(self):
         # One one, only one replica regardless
         ring = hashring.ConsistentHashRing({'a': None}, replicas=2)
+        self.assertEqual(1, len(ring))
+        self.assertEqual(40, len(ring._ring))
         allocation = ring.assign_key('somekey')
         self.assertEqual(allocation, ['a'])
 
         # Add a node and recheck the allocation
         ring.add_node('b', None)
+        self.assertEqual(2, len(ring))
+        self.assertEqual(80, len(ring._ring))
         allocation = ring.assign_key('somekey')
         self.assertEqual(set(allocation), set(['a', 'b']))
 
         # Add another node, result is always 2
         ring.add_node('c', None)
+        self.assertEqual(3, len(ring))
+        self.assertEqual(120, len(ring._ring))
         allocation = ring.assign_key('somekey')
         self.assertEqual(2, len(allocation))
 
@@ -89,11 +104,46 @@ class TestHashRing(base.BaseTestCase):
             self.assertEqual(1, len(result))
             self.assertEqual(2, len(result.pop()))
 
-    def test_remove_non_existing_node(self):
-        ring = hashring.ConsistentHashRing({'a': None})
-        ring.remove_node('b')
-        # Nothing happened
+    def test_remove_existing_node(self):
+        ring = hashring.ConsistentHashRing({'a': None, 'b': None})
+        self.assertEqual(2, len(ring))
+        self.assertEqual(80, len(ring._ring))
+        ring.remove_nodes(['c', 'a'])
         self.assertEqual(1, len(ring))
+        self.assertEqual(40, len(ring._ring))
+
+        ring = hashring.ConsistentHashRing({'a': 3, 'b': 2})
+        self.assertEqual(2, len(ring))
+        self.assertEqual(200, len(ring._ring))
+        ring.remove_nodes(['b', 'c'])
+        self.assertEqual(1, len(ring))
+        self.assertEqual(120, len(ring._ring))
+
+    def test_remove_non_existing_node(self):
+        ring = hashring.ConsistentHashRing({'a': None, 'b': None})
+        self.assertEqual(2, len(ring))
+        self.assertEqual(80, len(ring._ring))
+        ring.remove_node('c')
+        # Nothing happened
+        self.assertEqual(2, len(ring))
+        self.assertEqual(80, len(ring._ring))
+
+        ring = hashring.ConsistentHashRing({'a': 3, 'b': 2})
+        self.assertEqual(2, len(ring))
+        self.assertEqual(200, len(ring._ring))
+        ring.remove_node('c')
+        # Nothing happened
+        self.assertEqual(2, len(ring))
+        self.assertEqual(200, len(ring._ring))
+
+    def test_distribution(self):
+        results = set()
+        ring = hashring.ConsistentHashRing({'a': None, 'b': None, 'c': None})
+        for x in range(15):
+            key = str(uuid.uuid4())
+            result = ring.assign_key(key)
+            results.add(result[0])
+        self.assertEqual(results, set(['a', 'b', 'c']))
 
     def test_update_weight(self):
         ring = hashring.ConsistentHashRing({'a': 1, 'b': 2, 'c': 3})
