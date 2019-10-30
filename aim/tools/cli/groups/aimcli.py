@@ -20,21 +20,27 @@ import click
 from click import exceptions as exc
 import logging
 
+AVAILABLE_FORMATS = ['table', 'json']
+DEFAULT_FORMAT = 'tables'
 
 global_opts = [
     config.cfg.StrOpt('apic_system_id',
                       help="Prefix for APIC domain/names/profiles created"),
 ]
 config.CONF.register_opts(global_opts)
+curr_format = DEFAULT_FORMAT
 
 
 @click.group()
 @click.option('--config-file', '-c', multiple=True,
               default=['/etc/aim/aim.conf', '/etc/aim/aimctl.conf'],
               help='AIM static configuration file')
+@click.option('--fmt', '-f', multiple=False,
+              default='tables',
+              help='AIM output format. One of: tables, json')
 @click.option('--debug', '-d', is_flag=True)
 @click.pass_context
-def aim(ctx, config_file, debug):
+def aim(ctx, config_file, fmt, debug):
     """Group for AIM cli."""
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -54,4 +60,11 @@ def aim(ctx, config_file, debug):
                 "search paths (~/.aim/, ~/, /etc/aim/, /etc/) and "
                 "the '--config-file' option %s!" % config_file)
         ctx.obj['conf'] = config.CONF
+
+    ctx.obj['fmt'] = DEFAULT_FORMAT
+    if fmt in AVAILABLE_FORMATS:
+        global curr_format
+        curr_format = fmt
+        ctx.obj['fmt'] = fmt
+
     api.get_store()
