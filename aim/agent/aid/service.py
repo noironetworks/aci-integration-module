@@ -46,6 +46,7 @@ DAEMON_LOOP_MAX_WAIT = 5
 DAEMON_LOOP_MAX_RETRIES = 5
 HB_LOOP_MAX_WAIT = 60
 HB_LOOP_MAX_RETRY = 10
+DEADLOCK_TIME = 300
 
 logging.register_options(aim_cfg.CONF)
 
@@ -111,6 +112,7 @@ class AID(object):
         self.events = event_handler.EventHandler().initialize(
             self.conf_manager)
         self.max_down_time = 4 * self.report_interval
+        self.daemon_loop_time = time.time()
 
     def daemon_loop(self):
         # Serve tenants the very first time regardless of the events received
@@ -201,6 +203,7 @@ class AID(object):
                     LOG.info("%s removing tenant from AID %s" %
                              (universe.name, tenant))
                     universe.cleanup_state(aim_ctx, tenant)
+        self.daemon_loop_time = time.time()
 
     def _spawn_heartbeat_loop(self):
         utils.spawn_thread(self._heartbeat_loop)
@@ -210,6 +213,14 @@ class AID(object):
         start_time = time.time()
         aim_ctx = context.AimContext(store=api.get_store())
         self._send_heartbeat(aim_ctx)
+        # REVISIT: This code should be removed once we've
+        #          removed all the locking in AID.
+        if start_time > self.daemon_loop_time:
+            down_time = start_time - self.daemon_loop_time
+            if down_time > DEADLOCK_TIME:
+                utils.perform_harakiri(LOG, "Agent has been down for %s "
+                                       "seconds." % down_time)
+
         utils.wait_for_next_cycle(start_time, self.report_interval,
                                   LOG, readable_caller='AID-HB',
                                   notify_exceeding_timeout=False)
