@@ -187,7 +187,8 @@ class TestResourceOpsBase(object):
     def setUp(self):
         super(TestResourceOpsBase, self).setUp()
         attr = self.resource_class.attributes()
-        self.test_default_values = {}
+        if not hasattr(self, 'test_default_values'):
+            self.test_default_values = {}
         if 'monitored' in attr:
             self.test_default_values.setdefault('monitored', False)
         if 'display_name' in attr:
@@ -2661,7 +2662,7 @@ class TestBgpPeerPMixin(object):
                                 'asn': '1'}
     test_update_attributes = {'asn': '2'}
     test_search_attributes = {'addr': '1.1.1.0/24'}
-    test_default_values = {'asn': '1'}
+    test_default_values = {'asn': '0'}
     test_dn = ('uni/tn-tn1/out-testOut1/lnodep-testNP1/lifp-testLifP1/'
                'rspathL3OutAtt-[topology/pod-1/paths-101/pathep-[eth1/1]]/'
                'peerP-[1.1.1.0/24]')
