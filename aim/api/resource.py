@@ -833,6 +833,7 @@ class L3OutInterface(AciResourceBase):
         ('primary_addr_b', t.ip_cidr),
         ('secondary_addr_b_list', t.list_of_ip_cidr_obj),
         ('encap', t.string()),
+        ('mode', t.enum(*t.spmodes.values())),
         ('host', t.string()),
         ('type', t.enum("ext-svi")),
         ('monitored', t.bool))
@@ -844,7 +845,7 @@ class L3OutInterface(AciResourceBase):
         super(L3OutInterface, self).__init__(
             {'primary_addr_a': '', 'secondary_addr_a_list': [],
              'primary_addr_b': '', 'secondary_addr_b_list': [],
-             'encap': '', 'type': 'ext-svi',
+             'encap': '', 'type': 'ext-svi', 'mode': 'regular',
              'monitored': False, 'host': ''}, **kwargs)
 
 

@@ -242,6 +242,7 @@ class EndpointGroupStaticPath(model_base.Base):
     # on the length of primary keys
     path = sa.Column(VARCHAR(512, charset='latin1'), primary_key=True)
     host = sa.Column(sa.String(255), nullable=True, index=True)
+    mode = sa.Column(sa.Enum('regular', 'native', 'untagged'))
     encap = sa.Column(sa.String(24))
 
 
@@ -342,7 +343,7 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                 if p.get('path') and p.get('encap'):
                     static_paths.append(EndpointGroupStaticPath(
                         path=p['path'], encap=p['encap'],
-                        host=p.get('host', '')))
+                        mode=p.get('mode', 'regular'), host=p.get('host', '')))
             self.static_paths = static_paths
 
         if 'epg_contract_masters' in res_attr:
@@ -376,6 +377,8 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
             static_path = {'path': p.path, 'encap': p.encap}
             if p.host:
                 static_path['host'] = p.host
+            if p.mode and p.mode != 'regular':
+                static_path['mode'] = p.mode
             res_attr.setdefault('static_paths', []).append(static_path)
         for p in res_attr.pop('epg_contract_masters', []):
             res_attr.setdefault('epg_contract_masters', []).append(
@@ -684,6 +687,7 @@ class L3OutInterface(model_base.Base, model_base.HasAimId,
     # on the length of primary keys
     interface_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
     encap = sa.Column(sa.String(24), nullable=False)
+    mode = sa.Column(sa.Enum('regular', 'native', 'untagged'))
     type = sa.Column(sa.String(16), nullable=False)
     host = sa.Column(sa.String(255), nullable=True, index=True)
     primary_addr_a = sa.Column(sa.String(64), nullable=False)

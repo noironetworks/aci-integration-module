@@ -384,7 +384,7 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                               dn='uni/tn-t1/ap-a1/epg-test/rspathAtt-'
                                  '[topology/pod-1/paths-102/pathep-[eth1/2]]',
                               tDn='topology/pod-1/paths-102/pathep-[eth1/2]',
-                              encap='vlan-39'),
+                              encap='vlan-39', mode='untagged'),
                      _aci_obj('fvRsSecInherited',
                               dn='uni/tn-t1/ap-a1/epg-test/rssecInherited-'
                                  '[uni/tn-t1/ap-masterap1/epg-masterepg1]',
@@ -410,10 +410,12 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                                physical_domains=[{'name': 'phys'}],
                                static_paths=[{'path': 'topology/pod-1/paths'
                                                       '-202/pathep-[eth1/7]',
-                                              'encap': 'vlan-33'},
+                                              'encap': 'vlan-33',
+                                              'mode': 'regular'},
                                              {'path': 'topology/pod-1/paths'
                                                       '-102/pathep-[eth1/2]',
-                                             'encap': 'vlan-39'}],
+                                              'encap': 'vlan-39',
+                                              'mode': 'untagged'}],
                                epg_contract_masters=[
                                    {'app_profile_name': 'masterap1',
                                     'name': 'masterepg1'}],
@@ -933,6 +935,7 @@ class TestAciToAimConverterL3OutInterface(TestAciToAimConverterBase,
                     [get_example_aci_l3out_interface(
                         addr='0.0.0.0',
                         encap='vlan-1002',
+                        mode='native',
                         dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
                            'rspathL3OutAtt-[topology/pod-1/paths-101/'
                            'pathep-[eth1/2]]'),
@@ -977,6 +980,7 @@ class TestAciToAimConverterL3OutInterface(TestAciToAimConverterBase,
             secondary_addr_a_list=[{'addr': '1.1.1.2/24'},
                                    {'addr': '1.1.1.3/24'}],
             encap='vlan-1001',
+            mode='regular',
             type='ext-svi',
             display_name='alias'),
         resource.L3OutInterface(
@@ -990,6 +994,7 @@ class TestAciToAimConverterL3OutInterface(TestAciToAimConverterBase,
             secondary_addr_b_list=[{'addr': '1.1.1.13/24'},
                                    {'addr': '1.1.1.14/24'}],
             encap='vlan-1002',
+            mode='native',
             type='ext-svi')]
 
 
@@ -2118,9 +2123,10 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                                                'name': 'masterepg2'}],
                         static_paths=[{'path': 'topology/pod-1/paths-202/'
                                                'pathep-[eth1/7]',
-                                       'encap': 'vlan-33'},
-                                      {'path': 'topology/pod-1/paths-102/'
-                                               'pathep-[eth1/2]',
+                                       'encap': 'vlan-33', 'mode': 'untagged'},
+                                      {'path': 'topology/pod-1/'
+                                       'protpaths-501-502/pathep-'
+                                       '[sauto-po-501-1-48-and-502-1-48]',
                                        'encap': 'vlan-39'}],
                         display_name='alias'),
                     base.TestAimDBBase._get_example_aim_epg(
@@ -2187,12 +2193,14 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                      dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
                         '[topology/pod-1/paths-202/pathep-[eth1/7]]',
                      tDn='topology/pod-1/paths-202/pathep-[eth1/7]',
-                     encap='vlan-33'),
+                     encap='vlan-33', mode='untagged'),
             _aci_obj('fvRsPathAtt',
                      dn='uni/tn-t1/ap-a1/epg-test-1/rspathAtt-'
-                        '[topology/pod-1/paths-102/pathep-[eth1/2]]',
-                     tDn='topology/pod-1/paths-102/pathep-[eth1/2]',
-                     encap='vlan-39'),
+                        '[topology/pod-1/protpaths-501-502/'
+                        'pathep-[sauto-po-501-1-48-and-502-1-48]]',
+                     tDn='topology/pod-1/protpaths-501-502/'
+                         'pathep-[sauto-po-501-1-48-and-502-1-48]',
+                     encap='vlan-39', mode='regular'),
             _aci_obj('fvRsSecInherited',
                      dn='uni/tn-t1/ap-a1/epg-test-1/rssecInherited-'
                         '[uni/tn-t1/ap-masterap1/epg-masterepg1]',
@@ -2657,6 +2665,8 @@ class TestAimToAciConverterL3OutInterface(TestAimToAciConverterBase,
             pre_existing=True),
         get_example_aim_l3out_interface(
             primary_addr_a='1.1.1.101/24',
+            encap='vlan-1002',
+            mode='native',
             secondary_addr_a_list=[{'addr': '1.1.1.11/24'},
                                    {'addr': '1.1.1.12/24'}],
             primary_addr_b='1.1.1.102/24',
@@ -2667,6 +2677,7 @@ class TestAimToAciConverterL3OutInterface(TestAimToAciConverterBase,
         [_aci_obj('l3extRsPathL3OutAtt',
                   addr='1.1.1.1/24',
                   encap='vlan-1001',
+                  mode='regular',
                   ifInstT='ext-svi',
                   dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
                      '[topology/pod-1/paths-101/pathep-[eth1/2]]'),
@@ -2683,7 +2694,8 @@ class TestAimToAciConverterL3OutInterface(TestAimToAciConverterBase,
         [],
         [_aci_obj('l3extRsPathL3OutAtt',
                   addr='1.1.1.101/24',
-                  encap='vlan-1001',
+                  encap='vlan-1002',
+                  mode='native',
                   ifInstT='ext-svi',
                   dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/rspathL3OutAtt-'
                      '[topology/pod-1/paths-101/pathep-[eth1/1]]'),
@@ -2723,6 +2735,7 @@ class TestAimToAciConverterL3OutInterface(TestAimToAciConverterBase,
     missing_ref_output = [_aci_obj('l3extRsPathL3OutAtt',
                                    addr='1.1.1.1/24',
                                    encap='vlan-1001',
+                                   mode='regular',
                                    ifInstT='ext-svi',
                                    dn='uni/tn-t1/out-l1/lnodep-np1/lifp-ip1/'
                                       'rspathL3OutAtt-[topology/pod-1'

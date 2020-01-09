@@ -41,6 +41,7 @@ ip_protocol = {'0': UNSPECIFIED, '1': 'icmp', '2': 'igmp', '6': 'tcp',
                '88': 'eigrp', '89': 'ospfigp', '103': 'pim', '115': 'l2tp'}
 
 ethertype = {'0': UNSPECIFIED, '1': 'ipv4', '2': 'ipv6'}
+spmodes = {'0': 'regular', '1': 'native', '2': 'untagged'}
 
 
 def identity(*identity_attributes):
@@ -142,6 +143,8 @@ static_path = {
     "type": "object",
     "properties": {"encap": {"type": "string"},
                    "path": {"type": "string"},
+                   "mode": {"type": "string",
+                            "oneOf": [enum(*spmodes.values())]},
                    "host": {"type": "string"}}}
 list_of_static_paths = {"type": "array", "items": static_path}
 ip_cidr_obj = {

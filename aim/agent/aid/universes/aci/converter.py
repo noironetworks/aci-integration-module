@@ -182,6 +182,8 @@ def fv_rs_path_att_converter(object_dict, otype, helper,
             res_dict[attr] = id[index]
         if object_dict.get('tDn') and object_dict.get('encap'):
             res_dict['static_paths'] = [{'path': object_dict['tDn'],
+                                         'mode': object_dict.get('mode',
+                                                                 'regular'),
                                          'encap': object_dict['encap']}]
         result.append(default_to_resource(res_dict, helper, to_aim=True))
     else:
@@ -193,6 +195,9 @@ def fv_rs_path_att_converter(object_dict, otype, helper,
                 result.append({helper['resource']: {'attributes':
                                                     {'dn': dn,
                                                      'tDn': p['path'],
+                                                     'mode':
+                                                         p.get('mode',
+                                                               'regular'),
                                                      'encap': p['encap']}}})
     return result
 
