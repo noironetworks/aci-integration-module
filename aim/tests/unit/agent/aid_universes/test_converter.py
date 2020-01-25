@@ -1095,8 +1095,7 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
     resource_type = resource.SecurityGroupRule
     reverse_map_output = [
         {'exceptions': {
-            'ip_protocol': {'other': 'protocol',
-                            'converter': converter.ip_protocol},
+            'ip_protocol': {'other': 'protocol'},
             'from_port': {'other': 'fromPort',
                           'converter': converter.port},
             'to_port': {'other': 'toPort',
@@ -1116,7 +1115,7 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
                     get_example_aci_security_group_rule(
                         dn='uni/tn-t1/pol-sg1/subj-sgs2/rule-rule1',
                         connTrack='normal', icmpType='0xffff',
-                        protocol='eigrp', ethertype='ipv4', icmpCode='0')]
+                        protocol='icmp', ethertype='ipv4', icmpCode='0')]
 
     sample_output = [
         resource.SecurityGroupRule(
@@ -1128,7 +1127,7 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
             tenant_name='t1', security_group_name='sg1',
             security_group_subject_name='sgs2', name='rule1',
             conn_track='normal', icmp_type='0xffff', icmp_code='0',
-            ip_protocol='eigrp', ethertype='ipv4')
+            ip_protocol='icmp', ethertype='ipv4')
     ]
 
 
@@ -2887,20 +2886,20 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                                              base.TestAimDBBase):
     sample_input = [get_example_aim_security_group_rule(),
                     get_example_aim_security_group_rule(
-                        security_group_name='sg2', ip_protocol=115,
+                        security_group_name='sg6', ip_protocol='ah',
                         from_port='80', to_port='443',
                         direction='egress', ethertype='1',
                         conn_track='normal', icmp_type='3',
                         icmp_code='0'),
                     get_example_aim_security_group_rule(
-                        security_group_name='sg3', ip_protocol=1,
+                        security_group_name='sg3', ip_protocol='icmp',
                         from_port='80', to_port='443',
                         remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
                         direction='egress', ethertype='1',
                         conn_track='normal', icmp_type='255',
                         icmp_code='0xffff'),
                     get_example_aim_security_group_rule(
-                        security_group_name='sg4', ip_protocol=6,
+                        security_group_name='sg4', ip_protocol='tcp',
                         from_port='80', to_port='443',
                         direction='egress', ethertype='2',
                         conn_track='normal', icmp_type='unspecified',
@@ -2914,8 +2913,8 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                   ethertype='undefined', nameAlias='', connTrack='reflexive',
                   icmpCode='unspecified', icmpType='unspecified')],
         [_aci_obj('hostprotRule',
-                  dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1',
-                  protocol='l2tp', direction='egress',
+                  dn='uni/tn-t1/pol-sg6/subj-sgs1/rule-rule1',
+                  protocol='ah', direction='egress',
                   fromPort='http', toPort='https',
                   ethertype='ipv4', nameAlias='', connTrack='normal',
                   icmpCode='no-code', icmpType='dst-unreach')],

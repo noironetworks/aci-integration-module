@@ -763,8 +763,7 @@ resource_map = {
         'resource': resource.SecurityGroupRule,
         'skip': ['remote_ips'],
         'exceptions': {
-            'protocol': {'other': 'ip_protocol',
-                         'converter': ip_protocol},
+            'protocol': {'other': 'ip_protocol'},
             'fromPort': {'other': 'from_port',
                          'converter': port},
             'toPort': {'other': 'to_port',
