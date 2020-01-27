@@ -2904,7 +2904,11 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                         from_port='80', to_port='443',
                         direction='egress', ethertype='2',
                         conn_track='normal', icmp_type='unspecified',
-                        icmp_code='unspecified')]
+                        icmp_code='unspecified'),
+                    get_example_aim_security_group_rule(
+                        security_group_name='sg5', ip_protocol=51,
+                        direction='egress', ethertype='2',
+                        conn_track='normal')]
 
     sample_output = [
         [_aci_obj('hostprotRule',
@@ -2937,6 +2941,12 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                   dn='uni/tn-t1/pol-sg4/subj-sgs1/rule-rule1',
                   protocol='tcp', direction='egress',
                   fromPort='http', toPort='https',
+                  ethertype='ipv6', nameAlias='', connTrack='normal',
+                  icmpCode='unspecified', icmpType='unspecified')],
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-t1/pol-sg5/subj-sgs1/rule-rule1',
+                  protocol='ah', direction='egress',
+                  fromPort='unspecified', toPort='unspecified',
                   ethertype='ipv6', nameAlias='', connTrack='normal',
                   icmpCode='unspecified', icmpType='unspecified')]]
 
