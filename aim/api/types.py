@@ -157,3 +157,8 @@ next_hop = {
                    "preference": {"type": "string"}}}
 list_of_next_hop = {"type": "array", "items": next_hop}
 epoch = integer
+vlan_range = {
+    "type": "object",
+    "properties": {"start": string(),
+                   "end": string()}}
+list_of_vlan_range = {"type": "array", "items": vlan_range}

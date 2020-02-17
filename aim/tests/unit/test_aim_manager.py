@@ -242,13 +242,19 @@ class TestResourceOpsBase(object):
         # Verify successful creation
         r1 = self.mgr.create(self.ctx, res)
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr_canonical(r1, k))
+            if isinstance(v, list):
+                self.assertEqual(sorted(v), sorted(getattr_canonical(r1, k)))
+            else:
+                self.assertEqual(v, getattr_canonical(r1, k))
         self.assertEqual(len(self.mgr.find(self.ctx, resource)),
                          self.mgr.count(self.ctx, resource))
         # Verify get
         r1 = self.mgr.get(self.ctx, res)
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr_canonical(r1, k))
+            if isinstance(v, list):
+                self.assertEqual(sorted(v), sorted(getattr_canonical(r1, k)))
+            else:
+                self.assertEqual(v, getattr_canonical(r1, k))
 
         if ('object_uid' in self.ctx.store.features and
                 'guid' in resource.db_attributes):
@@ -270,18 +276,30 @@ class TestResourceOpsBase(object):
         rs1 = self.mgr.find(self.ctx, resource, **test_identity_attributes)
         self.assertEqual(1, len(rs1))
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr_canonical(rs1[0], k))
+            if isinstance(v, list):
+                self.assertEqual(sorted(v),
+                                 sorted(getattr_canonical(rs1[0], k)))
+            else:
+                self.assertEqual(v, getattr_canonical(rs1[0], k))
 
         # Test search by other attributes
         rs2 = self.mgr.find(self.ctx, resource, **test_search_attributes)
         self.assertEqual(1, len(rs2))
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr_canonical(rs2[0], k))
+            if isinstance(v, list):
+                self.assertEqual(sorted(v),
+                                 sorted(getattr_canonical(rs2[0], k)))
+            else:
+                self.assertEqual(v, getattr_canonical(rs2[0], k))
 
         # Test update
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
         for k, v in test_update_attributes.iteritems():
-            self.assertEqual(v, getattr_canonical(r3, k))
+            if isinstance(v, list):
+                self.assertEqual(sorted(v),
+                                 sorted(getattr_canonical(r3, k)))
+            else:
+                self.assertEqual(v, getattr_canonical(r3, k))
         if self.test_epoch:
             self.assertNotEqual(old_epoch, r3.epoch)
             r3_1 = self.mgr.create(self.ctx, r3, overwrite=True)
@@ -1311,6 +1329,132 @@ class TestHostLinkNetworkLabelMixin(object):
     res_command = 'host-link-network-label'
 
 
+class TestNestedParameterMixin(object):
+    resource_class = infra.NestedParameter
+    test_identity_attributes = {'project_id': 't1',
+                                'cluster_name': 'openshift'}
+    test_required_attributes = {'project_id': 't1',
+                                'cluster_name': 'openshift',
+                                'domain_infra_vlan': '2',
+                                'domain_service_vlan': '3',
+                                'domain_node_vlan': '4',
+                                'vlan_range_list':
+                                    [{'start': '0', 'end': '5'},
+                                     {'start': '10', 'end': '4095'}]}
+    test_search_attributes = {'project_id': 't1',
+                              'cluster_name': 'openshift'}
+    test_update_attributes = {'domain_infra_vlan': '5',
+                              'domain_service_vlan': '6',
+                              'domain_node_vlan': '7',
+                              'vlan_range_list':
+                                  [{'start': '5', 'end': '5'},
+                                   {'start': '11', 'end': '4094'}]}
+    test_default_values = {'domain_type': 'k8s',
+                           'domain_infra_vlan': '0',
+                           'domain_service_vlan': '0',
+                           'domain_node_vlan': '0'}
+    res_command = 'nested-parameter'
+
+
+class TestInvalidNestedParameter(base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestInvalidNestedParameter, self).setUp()
+        self.mgr = aim_manager.AimManager()
+
+    def test_invalid_nested_parameter(self):
+        # The valid vlan range is 0-4095
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='4096',
+            domain_service_vlan='0',
+            domain_node_vlan='4095')
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='-1',
+            domain_service_vlan='0',
+            domain_node_vlan='4095')
+
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='4096',
+            domain_node_vlan='4095')
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='-1',
+            domain_node_vlan='4095')
+
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='4095',
+            domain_node_vlan='4096')
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='4095',
+            domain_node_vlan='-1')
+
+        # Test the invalid vlan range
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='4',
+            domain_node_vlan='8',
+            vlan_range_list=[{'start': '5', 'end': '4'}])
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='4',
+            domain_node_vlan='8',
+            vlan_range_list=[{'start': '-1', 'end': '4095'}])
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='4',
+            domain_node_vlan='8',
+            vlan_range_list=[{'start': '0', 'end': '4096'}])
+        self.assertRaises(
+            exc.AciResourceValueError,
+            infra.NestedParameter,
+            project_id='t1',
+            cluster_name='openshift',
+            domain_infra_vlan='0',
+            domain_service_vlan='4',
+            domain_node_vlan='8',
+            vlan_range_list=[{'start': '2', 'end': '3'},
+                             {'start': '4', 'end': '4096'}])
+
+
 class TestSecurityGroupMixin(object):
     resource_class = resource.SecurityGroup
     resource_root_type = resource.Tenant._aci_mo_name
@@ -2303,6 +2447,11 @@ class TestHostDomainMappingV2(TestHostDomainMappingV2Mixin,
 
 class TestHostLinkNetworkLabel(TestHostLinkNetworkLabelMixin,
                                TestResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestNestedParameter(TestNestedParameterMixin,
+                          TestResourceOpsBase, base.TestAimDBBase):
     pass
 
 

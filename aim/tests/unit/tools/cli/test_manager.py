@@ -520,19 +520,34 @@ class TestManagerResourceOpsBase(object):
         # Verify successful creation
         r1 = self.create(res_command, creation_attributes)
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+            if isinstance(v, list):
+                self.assertEqual(
+                    sorted(v),
+                    sorted(test_aim_manager.getattr_canonical(r1, k)))
+            else:
+                self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
         id_attr_val = {k: v for k, v in test_identity_attributes.iteritems()
                        if k in r1.identity_attributes}
         # Verify get
         r1 = self.get(res_command, id_attr_val)
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+            if isinstance(v, list):
+                self.assertEqual(
+                    sorted(v),
+                    sorted(test_aim_manager.getattr_canonical(r1, k)))
+            else:
+                self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
         # Verify show
         r1 = self.show(res_command, id_attr_val)
         for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+            if isinstance(v, list):
+                self.assertEqual(
+                    sorted(v),
+                    sorted(test_aim_manager.getattr_canonical(r1, k)))
+            else:
+                self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
         # Test update
         updates = {}
@@ -540,7 +555,12 @@ class TestManagerResourceOpsBase(object):
         updates.update(test_update_attributes)
         r1 = self.update(res_command, updates)
         for k, v in test_update_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+            if isinstance(v, list):
+                self.assertEqual(
+                    sorted(v),
+                    sorted(test_aim_manager.getattr_canonical(r1, k)))
+            else:
+                self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
 
         # Test delete
         self.delete(res_command, id_attr_val)
@@ -697,6 +717,11 @@ class TestHostDomainMappingV2(test_aim_manager.TestHostDomainMappingV2Mixin,
 
 class TestHostLinkNetworkLabel(test_aim_manager.TestHostLinkNetworkLabelMixin,
                                TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestNestedParameter(test_aim_manager.TestNestedParameterMixin,
+                          TestManagerResourceOpsBase, base.TestShell):
     pass
 
 

@@ -84,6 +84,7 @@ class AimManager(object):
                      api_infra.HostDomainMappingV2,
                      api_infra.HostLinkNetworkLabel,
                      api_infra.ApicAssignment,
+                     api_infra.NestedParameter,
                      api_res.SecurityGroup,
                      api_res.SecurityGroupSubject,
                      api_res.SecurityGroupRule,
