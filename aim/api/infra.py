@@ -20,7 +20,6 @@ from oslo_log import log as logging
 
 from aim.api import resource
 from aim.api import types as t
-from aim import exceptions as exc
 
 WILDCARD_HOST = '*'
 LOG = logging.getLogger(__name__)
@@ -155,46 +154,3 @@ class ApicAssignment(resource.ResourceBase):
             LOG.debug("APIC %s is not available. Last update time was %s" %
                       (self.apic_host, self.last_update_timestamp))
             return False
-
-
-# REVISIT(kentwu): We will need to deprecate this once there is
-# a proper fix in the openShift IPI installer.
-class NestedParameter(resource.ResourceBase):
-    """Nested parameters needed for openShift on openStack install"""
-
-    identity_attributes = t.identity(
-        ('project_id', t.name),
-        ('cluster_name', t.name))
-    other_attributes = t.other(
-        ('domain_name', t.name),
-        ('domain_type', t.string(32)),
-        ('domain_infra_vlan', t.string()),
-        ('domain_service_vlan', t.string()),
-        ('domain_node_vlan', t.string()),
-        ('vlan_range_list', t.list_of_vlan_range))
-
-    def __init__(self, **kwargs):
-        for vlan_type in ['domain_infra_vlan', 'domain_service_vlan',
-                          'domain_node_vlan']:
-            vlan = kwargs.get(vlan_type)
-            if vlan and (int(vlan) < 0 or int(vlan) > 4095):
-                raise exc.AciResourceValueError(klass=type(self).__name__,
-                                                value=vlan,
-                                                attr=vlan_type)
-        vlan_range_list = kwargs.get('vlan_range_list', [])
-        for vlan_range in vlan_range_list:
-            if 'start' not in vlan_range or 'end' not in vlan_range:
-                continue
-            start = int(vlan_range['start'])
-            end = int(vlan_range['end'])
-            if (start > end or start < 0 or start > 4095 or
-                    end < 0 or end > 4095):
-                raise exc.AciResourceValueError(klass=type(self).__name__,
-                                                value=vlan_range,
-                                                attr='vlan_range_list')
-        super(NestedParameter, self).__init__({'domain_type': 'k8s',
-                                               'domain_infra_vlan': '0',
-                                               'domain_service_vlan': '0',
-                                               'domain_node_vlan': '0',
-                                               'vlan_range_list': []},
-                                              **kwargs)

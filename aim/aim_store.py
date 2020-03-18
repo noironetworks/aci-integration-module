@@ -233,7 +233,6 @@ class SqlAlchemyStore(AimStore):
                     api_infra.HostLinkNetworkLabel: (
                         infra_model.HostLinkNetworkLabel),
                     api_infra.ApicAssignment: infra_model.ApicAssignment,
-                    api_infra.NestedParameter: infra_model.NestedParameter,
                     api_res.SecurityGroup: models.SecurityGroup,
                     api_res.SecurityGroupSubject: models.SecurityGroupSubject,
                     api_res.SecurityGroupRule: models.SecurityGroupRule,
