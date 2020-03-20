@@ -15,7 +15,6 @@
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.mysql import VARCHAR
-from sqlalchemy import orm
 from sqlalchemy.sql.expression import func
 
 from aim.api import infra
@@ -165,63 +164,3 @@ class ApicAssignment(model_base.Base, model_base.AttributeMixin):
     aim_aid_id = sa.Column(sa.String(64))
     last_update_timestamp = sa.Column(sa.TIMESTAMP, server_default=func.now(),
                                       onupdate=func.now())
-
-
-# REVISIT(kentwu): We will need to deprecate this class along with
-# NestedParameter class once there is a proper fix in the openShift
-# IPI installer.
-class VlanRange(model_base.Base):
-    """DB model for vlan ranges under a NestedParameter."""
-
-    __tablename__ = 'aim_vlan_ranges'
-
-    nested_parameter_aim_id = sa.Column(
-        sa.Integer, sa.ForeignKey('aim_nested_parameter.aim_id'),
-        primary_key=True)
-    start = sa.Column(sa.Integer, primary_key=True)
-    end = sa.Column(sa.Integer, nullable=False)
-
-
-class NestedParameter(model_base.Base, model_base.HasAimId,
-                      model_base.AttributeMixin):
-    __tablename__ = 'aim_nested_parameter'
-
-    project_id = model_base.name_column(nullable=False)
-    cluster_name = model_base.name_column(nullable=False)
-    __table_args__ = (model_base.uniq_column(__tablename__, 'project_id',
-                                             'cluster_name') +
-                      model_base.to_tuple(model_base.Base.__table_args__))
-
-    domain_name = model_base.name_column()
-    domain_type = sa.Column(sa.String(32), nullable=False)
-    domain_infra_vlan = sa.Column(sa.Integer, nullable=False)
-    domain_service_vlan = sa.Column(sa.Integer, nullable=False)
-    domain_node_vlan = sa.Column(sa.Integer, nullable=False)
-
-    vlan_range_list = orm.relationship(VlanRange,
-                                       backref='nested_parameter',
-                                       cascade='all, delete-orphan',
-                                       lazy='joined')
-
-    def from_attr(self, session, res_attr):
-        if 'vlan_range_list' in res_attr:
-            vlan_range_list = []
-            for p in (res_attr.pop('vlan_range_list', []) or []):
-                if p.get('start') and p.get('end'):
-                    vlan_range_list.append(VlanRange(
-                        start=int(p['start']), end=int(p['end'])))
-            self.vlan_range_list = vlan_range_list
-
-        # map remaining attributes to model
-        super(NestedParameter, self).from_attr(session, res_attr)
-
-    def to_attr(self, session):
-        res_attr = super(NestedParameter, self).to_attr(session)
-        for vlan_type in ['domain_infra_vlan', 'domain_service_vlan',
-                          'domain_node_vlan']:
-            if vlan_type in res_attr:
-                res_attr[vlan_type] = str(res_attr[vlan_type])
-        for p in res_attr.pop('vlan_range_list', []):
-            res_attr.setdefault('vlan_range_list', []).append(
-                {'start': str(p.start), 'end': str(p.end)})
-        return res_attr
