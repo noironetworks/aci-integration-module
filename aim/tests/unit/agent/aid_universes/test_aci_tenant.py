@@ -374,7 +374,6 @@ class TestAciClientMixin(object):
                             item.values()[0]['attributes']['status'] = (
                                 'deleted')
                             event_list.append(item)
-
         manager.ws_context.session.subscription_thread._events.setdefault(
             manager.tenant._get_instance_subscription_urls()[0], []).extend([
                 dict([('imdata', [x])]) for x in event_list])
@@ -698,7 +697,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                     'limitIpLearnToSubnets': 'no', 'nameAlias': '',
                     'unicastRoute': 'yes', 'unkMacUcastAct': 'proxy'}}}
         self._add_data_to_tree([parent_bd, complete], self.backend_state)
-        events = self.manager._filter_ownership(
+        events = self.manager.ownership_mgr.filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted([complete, parent_bd]), sorted(events))
 
@@ -708,7 +707,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             "dn": "uni/tn-test-tenant/BD-test", "status": "modified"}}}]
         parent_bd['fvBD']['attributes'].update(events[0]['fvBD']['attributes'])
         parent_bd['fvBD']['attributes'].pop('status')
-        events = self.manager._filter_ownership(
+        events = self.manager.ownership_mgr.filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted([parent_bd, complete]), sorted(events))
 
@@ -718,7 +717,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 "dn": "uni/tn-test-tenant/BD-test/rsctx",
                 "tnFvCtxName": "test", "status": "modified"}}},
         ]
-        events = self.manager._filter_ownership(
+        events = self.manager.ownership_mgr.filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual([], events)
 
@@ -868,8 +867,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                 'ack': 'no', 'delegated': 'no',
                 'code': 'F0952', 'type': 'config'}}}
         ]
-        result = self.manager._filter_ownership(events)
-        self.assertEqual(set(), self.manager.tag_set)
+        result = self.manager.ownership_mgr.filter_ownership(events)
+        self.assertEqual(set(), self.manager.ownership_mgr.owned_set)
         self.assertEqual(events, result)
 
         # Now a tag is added to set ownership of one of the to contexts
@@ -878,15 +877,15 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                    'dn': 'uni/tn-ivar-wstest/BD-test-2/rsctx/'
                          'tag-' + self.sys_id}}}
         events_with_tag = events + [tag]
-        result = self.manager._filter_ownership(events_with_tag)
+        result = self.manager.ownership_mgr.filter_ownership(events_with_tag)
         self.assertEqual(set(['uni/tn-ivar-wstest/BD-test-2/rsctx']),
-                         self.manager.tag_set)
+                         self.manager.ownership_mgr.owned_set)
         self.assertEqual(events, result)
 
         # Now delete the tag
         tag['tagInst']['attributes']['status'] = 'deleted'
-        result = self.manager._filter_ownership(events_with_tag)
-        self.assertEqual(set(), self.manager.tag_set)
+        result = self.manager.ownership_mgr.filter_ownership(events_with_tag)
+        self.assertEqual(set(), self.manager.ownership_mgr.owned_set)
         self.assertEqual(events, result)
 
     def test_fill_events_fault(self):
@@ -915,7 +914,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
              'code': 'F0952'}}},
         ]
         self._add_data_to_tree(complete, self.backend_state)
-        events = self.manager._filter_ownership(
+        events = self.manager.ownership_mgr.filter_ownership(
             self.manager._fill_events(events))
         self.assertEqual(sorted(complete), sorted(events))
 
