@@ -47,7 +47,7 @@ class AIDEventRpcApi(object):
                 oslo_messaging.InvalidTransportURL) as ex:
             LOG.debug(traceback.format_exc())
             LOG.debug("Couldn't initialize RPC transport, this API will be a "
-                      "noop: %s" % ex.message)
+                      "noop: %s" % str(ex))
             self.client = None
 
     def serve(self, context, server=None):

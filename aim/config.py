@@ -211,8 +211,8 @@ class ConfigManager(object):
         host = host or ''
         # Create a DB session
         result = {}
-        for group, congifs in self.map.iteritems():
-            for k, v in congifs.iteritems():
+        for group, congifs in self.map.items():
+            for k, v in congifs.items():
                 try:
                     if group == 'default':
                         value = getattr(cfg_obj, k)
@@ -484,7 +484,7 @@ class ConfigSubscriber(utils.AIMThread):
         call_id = self._get_call_id(callback)
         # Copy to avoid runtime changes
         for group, items in copy.deepcopy(self.map_by_callback_id.get(
-                call_id, {})).iteritems():
+                call_id, {})).items():
             for item in items:
                 self.unregister_callback_option(callback, item, group)
 
@@ -503,16 +503,16 @@ class ConfigSubscriber(utils.AIMThread):
                                       readable_caller='Config Subscriber')
         except Exception as e:
             LOG.error("An exception has occurred in config subscriber thread "
-                      "%s" % e.message)
+                      "%s" % str(e))
             LOG.error(traceback.format_exc())
 
     def _poll_and_execute(self):
         # prepare call
         configs = {}
         # Copy the sub dictionary which might change during the iteration
-        for group, items in copy.copy(self.subscription_map).iteritems():
-            for item, callbacks in copy.copy(items).iteritems():
-                for call_id, values in copy.copy(callbacks).iteritems():
+        for group, items in copy.copy(self.subscription_map).items():
+            for item, callbacks in copy.copy(items).items():
+                for call_id, values in copy.copy(callbacks).items():
                     for host in values['hosts']:
                         try:
                             # TODO(ivar): optimize to make a single DB call
@@ -535,7 +535,7 @@ class ConfigSubscriber(utils.AIMThread):
                             LOG.error(
                                 "An exception has occurred while "
                                 "executing callback %s: %s" % (
-                                    values['callback'], e.message))
+                                    values['callback'], str(e)))
                             LOG.error(traceback.format_exc())
 
     def _get_call_id(self, callback):

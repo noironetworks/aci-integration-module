@@ -48,10 +48,10 @@ class APICErrorHandler(object):
         elif isinstance(e, request_exc.InvalidURL):
             return errors.OPERATION_CRITICAL
         elif isinstance(e, request_exc.RequestException):
-            LOG.warn("A generic request exception occurred: %s", e.message)
+            LOG.warn("A generic request exception occurred: %s", str(e))
             return errors.OPERATION_TRANSIENT
         else:
-            LOG.warn("An unknown error occurred: %s", e.message)
+            LOG.warn("An unknown error occurred: %s", str(e))
             return errors.UNKNOWN
 
     def analyze_apic_error(self, error_status, error_code):

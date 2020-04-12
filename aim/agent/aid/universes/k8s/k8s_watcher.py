@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import Queue as queue
+from six.moves import queue
 import time
 import traceback
 
@@ -125,7 +125,7 @@ class K8sWatcher(object):
         except Exception as e:
             LOG.error(traceback.format_exc())
             utils.perform_harakiri(LOG, "%s thread stopped "
-                                        "unexpectedly: %s" % (name, e.message))
+                                        "unexpectedly: %s" % (name, str(e)))
 
     def _pod_event_filter(self, event):
         obj = event.get('object', {})

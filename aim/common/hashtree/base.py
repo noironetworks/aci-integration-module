@@ -17,6 +17,8 @@ import abc
 import bisect
 import six
 
+from aim.common import utils
+
 
 @six.add_metaclass(abc.ABCMeta)
 class ComparableCollection(object):
@@ -181,7 +183,16 @@ class OrderedList(object):
         return len(self._stash)
 
     def __cmp__(self, other):
-        return cmp(self._stash, other._stash)
+        return utils.cmp(self._stash, other._stash)
+
+    # In Py3, all objects that implemented __cmp__ must be updated to
+    # implement some of the rich methods instead like __eq__, __lt__, etc.
+    # Here, __eq__ and __lt__ are sufficient for comparison.
+    def __eq__(self, other):
+        return (self._stash == other._stash)
+
+    def __lt__(self, other):
+        return (self._stash < other._stash)
 
     def __nonzero__(self):
         return len(self) != 0

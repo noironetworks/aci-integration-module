@@ -361,7 +361,7 @@ class WebSocketContext(object):
                                     "Will retry %s more times: %s" %
                                     (name,
                                      max_retries - name_to_retry[name].get(),
-                                     e.message))
+                                     str(e)))
                                 continue
                     elif thd:
                         LOG.debug("Thread %s is in good shape" % name)
@@ -395,7 +395,7 @@ class WebSocketContext(object):
                 # for testing purposes
                 flag['monitor_runs'] -= 1
         except Exception as e:
-            msg = ("Unknown error in thread monitor: %s" % e.message)
+            msg = ("Unknown error in thread monitor: %s" % str(e))
             LOG.error(msg)
             utils.perform_harakiri(LOG, msg)
 
@@ -475,7 +475,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 except Exception as e:
                     LOG.debug(traceback.format_exc())
                     LOG.error('Killing manager failed for tenant %s: %s' %
-                              (removed, e.message))
+                              (removed, str(e)))
                     continue
             for added in tenants:
                 if added in serving_tenant_copy:
@@ -551,14 +551,14 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # Organize by tenant, and push into APIC
         global serving_tenants
         by_tenant = {}
-        for method, objects in resources.iteritems():
+        for method, objects in resources.items():
             for data in objects:
                 tenant_name = self._retrieve_tenant_rn(data)
                 if tenant_name:
                     by_tenant.setdefault(tenant_name, {}).setdefault(
                         method, []).append(data)
 
-        for tenant, conf in by_tenant.iteritems():
+        for tenant, conf in by_tenant.items():
             try:
                 serving_tenants[tenant]
             except KeyError:
@@ -570,9 +570,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
 
     def _retrieve_tenant_rn(self, data):
         if isinstance(data, dict):
-            if data.keys()[0] == 'tagInst':
+            if list(data.keys())[0] == 'tagInst':
                 # Retrieve tag parent
-                dn = data.values()[0]['attributes']['dn']
+                dn = list(data.values())[0]['attributes']['dn']
                 decomposed = apic_client.DNManager().aci_decompose_dn_guess(
                     dn, 'tagInst')
                 parent_type = decomposed[1][-2][0]
@@ -593,17 +593,17 @@ class AciUniverse(base.HashTreeStoredUniverse):
             if node and not node.dummy:
                 # Monitored state transition -> Delete the TAG instead
                 LOG.debug("Deleting tag for transitioning object %s",
-                          aci_object.values()[0]['attributes']['dn'])
+                          list(aci_object.values())[0]['attributes']['dn'])
                 aci_type = 'tagInst'
-                dn = aci_object.values()[0]['attributes'][
+                dn = list(aci_object.values())[0]['attributes'][
                     'dn'] + '/tag-' + self.aim_system_id
                 result.append({aci_type: {'attributes': {'dn': dn}}})
             else:
                 # If the parent object was already deleted in the config
                 # desired tree then we don't have to send this child deletion
                 # to APIC
-                dn = aci_object.values()[0]['attributes']['dn']
-                res_type = aci_object.keys()[0]
+                dn = list(aci_object.values())[0]['attributes']['dn']
+                res_type = list(aci_object.keys())[0]
                 dn_mgr = apic_client.DNManager()
                 mo, rns = dn_mgr.aci_decompose_dn_guess(dn, res_type)
                 if len(rns) > 1:
@@ -672,7 +672,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         else:
             # it's in ACI format
             return tree_manager.AimHashTreeMaker._extract_root_from_dn(
-                res.values()[0]['attributes']['dn'])
+                list(res.values())[0]['attributes']['dn'])
 
 
 class AciOperationalUniverse(AciUniverse):
@@ -693,9 +693,9 @@ class AciOperationalUniverse(AciUniverse):
             if node and not node.dummy:
                 # Monitored state transition -> Delete the TAG instead
                 LOG.debug("Deleting tag for transitioning object %s",
-                          aci_object.values()[0]['attributes']['dn'])
+                          list(aci_object.values())[0]['attributes']['dn'])
                 aci_type = 'tagInst'
-                dn = aci_object.values()[0]['attributes'][
+                dn = list(aci_object.values())[0]['attributes'][
                     'dn'] + '/tag-' + self.aim_system_id
                 result.append({aci_type: {'attributes': {'dn': dn}}})
             else:

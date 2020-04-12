@@ -94,7 +94,7 @@ def filter_kwargs(klass, kwargs):
     res = {}
     LOG.debug('args: %s', kwargs)
     dummy = klass(**{k: kwargs[k] for k in klass.identity_attributes})
-    for k, v in kwargs.iteritems():
+    for k, v in kwargs.items():
         if v is not ATTR_UNSPECIFIED:
             try:
                 attr_type = klass.other_attributes.get(k)
@@ -168,7 +168,7 @@ def update(klass):
         aim_ctx = ctx.obj['aim_ctx']
         id = {}
         mod = {}
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             if k in klass.identity_attributes:
                 id[k] = v
             else:
@@ -256,7 +256,7 @@ def get_domains(aim_ctx, manager, create_doms=True):
             res = resource.VMMPolicy(type=type_, monitored=True)
             if create_doms:
                 print_resource(manager.create(aim_ctx, res, overwrite=True))
-        for vmm_name, cfg in vmms.iteritems():
+        for vmm_name, cfg in vmms.items():
             res = resource.VMMDomain(
                 type=vmm_types.get(
                     cfg.get('apic_vmm_type', 'openstack').lower()),
@@ -414,7 +414,7 @@ def sync_state_recover(ctx):
                 manager.update(aim_ctx, aim_res)
             except Exception as e:
                 click.echo("Failed to recover %s: %s" %
-                           (str(aim_res), e.message))
+                           (str(aim_res), str(e)))
 
 
 @manager.command(name='schema-get')

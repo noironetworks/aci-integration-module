@@ -94,7 +94,7 @@ def default_to_resource(converted, helper, to_aim=True):
         # APIC to AIM
         return klass(
             _set_default=False,
-            **dict([(k, v) for k, v in converted.iteritems() if k in
+            **dict([(k, v) for k, v in converted.items() if k in
                     klass.attributes() and k not in skip]))
     else:
         for s in default_skip + skip:
@@ -109,7 +109,7 @@ def default_to_resource_strict(converted, helper, to_aim=True):
     else:
         # Only include explicitly mentioned attributes
         values = {}
-        for k, v in helper.get('exceptions', {}).iteritems():
+        for k, v in helper.get('exceptions', {}).items():
             attr = v.get('other') or k
             skip_if_empty = v.get('skip_if_empty', False)
             conv_value = converted.get(attr)
@@ -218,7 +218,7 @@ def default_converter(object_dict, otype, helper,
             others = do_attribute_conversion(object_dict, attribute,
                                              helper.get('exceptions', {}),
                                              to_aim=to_aim)
-            for other_k, other_v in others.iteritems():
+            for other_k, other_v in others.items():
                 # Identity was already converted
                 if other_k not in destination_identity_attributes:
                     res_dict[other_k] = other_v
@@ -259,7 +259,7 @@ def child_list(aim_attr, aci_attr, aci_mo=None):
 
 def reverse_attribute_mapping_info(mapping_info, to_aim=True):
     result = {}
-    for exception, value in mapping_info.iteritems():
+    for exception, value in mapping_info.items():
         other_name = value.get(
             'other', convert_attribute(exception, to_aim=to_aim))
         result[other_name] = {'other': exception}
@@ -305,14 +305,14 @@ def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None, requires=None):
             for aim_list_item in object_dict[aim_attr]:
                 req = set(requires or [])
                 aim_list_item = copy.copy(aim_list_item)
-                for k, v in aim_list_item.iteritems():
+                for k, v in aim_list_item.items():
                     if k in req and not v:
                         break
                     req.discard(k)
                 if req:
                     continue
                 # fill out the defaults
-                for aim_d_a, map_info in mapping_info.iteritems():
+                for aim_d_a, map_info in mapping_info.items():
                     if aim_d_a not in aim_list_item and 'default' in map_info:
                         aim_list_item[aim_d_a] = map_info['default']
                 extra_attr = []
@@ -322,7 +322,7 @@ def list_dict(aim_attr, mapping_info, id_attr, aci_mo=None, requires=None):
                                                        mapping_info,
                                                        to_aim=False)
                         if conv:
-                            extra_attr.append(conv.values()[0])
+                            extra_attr.append(list(conv.values())[0])
                 if len(extra_attr) == len(id_attr):
                     dn = id_conv(object_dict, otype, helper,
                                  extra_attributes=extra_attr,

@@ -13,9 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import base64
 import bisect
 from hashlib import md5
+from oslo_serialization import base64 as b64
 
 
 class Star:
@@ -30,6 +30,9 @@ class Star:
 
     def __eq__(self, other):
         return self.h4sh == other.h4sh
+
+    def __lt__(self, other):
+        return self.h4sh < other.h4sh
 
     def __str__(self):
         return str(self.node)
@@ -82,11 +85,11 @@ class ConsistentHashRing(object):
         """
         weight = weight if weight is not None else self._default_weight
         vnodes = self._vnodes * weight
-        for x in xrange(vnodes):
+        for x in range(vnodes):
             yield self._hash(str(node) + str(x))
 
     def _hash(self, key):
-        return int(md5(base64.b64encode(key)).hexdigest(), 16)
+        return int(md5(b64.encode_as_bytes(key)).hexdigest(), 16)
 
     def add_node(self, node, weight=None):
         """Add a node to the ring
@@ -109,7 +112,7 @@ class ConsistentHashRing(object):
         # Remove nodes already in the ring, this could be a weight update
         # operation
         self.remove_nodes(set(self._nodes.keys()) & set(nodes.keys()))
-        for node, weight in nodes.iteritems():
+        for node, weight in nodes.items():
             for h4sh in self._hashi(node, weight):
                 bisect.insort(self._ring, Star(h4sh, node))
         self._nodes.update(nodes)
@@ -149,7 +152,7 @@ class ConsistentHashRing(object):
             index = 0
         result = [self._ring[index].node]
         # Replicate across the ring in anti clockwise motion
-        for x in xrange(len(self._ring)):
+        for x in range(len(self._ring)):
             if len(result) == self._replicas:
                 # We have enough candidates
                 break

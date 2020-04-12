@@ -25,6 +25,7 @@ import copy
 from aim.aim_lib import nat_strategy
 from aim import aim_manager
 from aim.api import resource as a_res
+from aim.common import utils
 from aim.tests import base
 
 
@@ -44,7 +45,7 @@ class TestNatStrategyBase(object):
 
     def _assert_res_eq(self, lhs, rhs):
         def sort_if_list(obj):
-            return sorted(obj) if isinstance(obj, list) else obj
+            return utils.deep_sort(obj)
 
         self.assertEqual(type(lhs), type(rhs))
         for attr in lhs.user_attributes():
@@ -778,19 +779,19 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                                  limit_ip_learn_to_subnets=True,
                                  l3out_names=['o1'])
         if stage == 'stage1':
-            self._verify(present=objs.values() + l3out_objs + [bd1])
+            self._verify(present=list(objs.values()) + l3out_objs + [bd1])
         elif stage == 'stage2' or stage == 'stage3':
             l3out.vrf_name = 'vrf2'
             ext_net.provided_contract_names = ['EXT-o1', 'p1_vrf2', 'p2_vrf2']
             ext_net.consumed_contract_names = ['EXT-o1', 'c1_vrf2', 'c2_vrf2']
-            self._verify(present=objs.values() + l3out_objs + [bd1, bd2])
+            self._verify(present=list(objs.values()) + l3out_objs + [bd1, bd2])
         elif stage == 'stage4':
             bd2.l3out_names = []
             nat_bd.vrf_name = 'EXT-o1'
             l3out.vrf_name = 'vrf2'
             ext_net.provided_contract_names = ['EXT-o1']
             ext_net.consumed_contract_names = ['EXT-o1']
-            self._verify(present=objs.values() + l3out_objs + [bd1, bd2])
+            self._verify(present=list(objs.values()) + l3out_objs + [bd1, bd2])
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
@@ -799,7 +800,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         objs.pop('ext_sub_1')
         objs.pop('ext_sub_2')
         e1 = objs.pop('ext_net')
-        objs = objs.values()
+        objs = list(objs.values())
 
         e2 = copy.deepcopy(e1)
         e2.provided_contract_names = ['EXT-o1', 'arp', 'p2_vrf1']
@@ -850,7 +851,7 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             v1_e2 = self._get_vrf_1_ext_net_2_objects(connected=False).values()
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
-        self._verify(present=(v1_e1 + v1_e2))
+        self._verify(present=(list(v1_e1) + list(v1_e2)))
 
     def _check_delete_ext_net_with_vrf(self, stage):
         if stage == 'stage1':
@@ -860,22 +861,22 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                                                        'p2_vrf2']
             objs['ext_net'].consumed_contract_names = ['EXT-o1', 'c1_vrf2',
                                                        'c2_vrf2']
-            self._verify(present=objs.values())
+            self._verify(present=list(objs.values()))
         elif stage == 'stage2':
             objs = self._get_vrf_1_ext_net_1_objects(connected=False)
             l3out = objs.pop('l3out')
             nat_bd = objs.pop('nat_bd')
             l3out.vrf_name = 'vrf2'
-            self._verify(present=[l3out, nat_bd], absent=objs.values())
+            self._verify(present=[l3out, nat_bd], absent=list(objs.values()))
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
     def _check_delete_l3outside_with_vrf(self, stage):
         objs = self._get_vrf_1_ext_net_1_objects()
         if stage == 'stage1':
-            self._verify(present=objs.values())
+            self._verify(present=list(objs.values()))
         elif stage == 'stage2':
-            self._verify(absent=objs.values())
+            self._verify(absent=list(objs.values()))
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 

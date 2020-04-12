@@ -16,6 +16,7 @@
 from contextlib import contextmanager
 import copy
 from oslo_log import log as logging
+import six
 from sqlalchemy import and_
 from sqlalchemy import event as sa_event
 from sqlalchemy import or_
@@ -125,7 +126,7 @@ class AimStore(object):
         pass
 
     def make_resource(self, cls, db_obj, include_aim_id=False):
-        attr_val = {k: v for k, v in self.to_attr(cls, db_obj).iteritems()
+        attr_val = {k: v for k, v in self.to_attr(cls, db_obj).items()
                     if k in cls.attributes()}
         res = cls(**attr_val)
         if include_aim_id and hasattr(db_obj, 'aim_id'):
@@ -280,7 +281,7 @@ class SqlAlchemyStore(AimStore):
                     api_tree.ActionLog: tree_model.ActionLog}
 
     resource_map = {}
-    for k, v in db_model_map.iteritems():
+    for k, v in db_model_map.items():
         resource_map[v] = k
 
     def __init__(self, db_session):
@@ -328,16 +329,16 @@ class SqlAlchemyStore(AimStore):
         query = self._query(db_klass, resource_klass, **filters)
         # Commit hook is not called after update call for some reason
         for obj in query.all():
-            for k, v in kwargs.iteritems():
+            for k, v in kwargs.items():
                 setattr(obj, k, v)
             self.add(obj)
 
     def _query(self, db_obj_type, resource_klass, in_=None, notin_=None,
                order_by=None, lock_update=False, **filters):
         query = self.db_session.query(db_obj_type)
-        for k, v in (in_ or {}).iteritems():
+        for k, v in (in_ or {}).items():
             query = query.filter(getattr(db_obj_type, k).in_(v))
-        for k, v in (notin_ or {}).iteritems() or {}:
+        for k, v in (notin_ or {}).items() or {}:
             query = query.filter(getattr(db_obj_type, k).notin_(
                 [(x or '') for x in v]))
         if filters:
@@ -365,7 +366,7 @@ class SqlAlchemyStore(AimStore):
             subq = self.db_session.query(getattr(klass, 'aim_id'))
             subq = subq.filter(
                 or_(*[
-                    and_(*[getattr(klass, k) == v for k, v in ids.iteritems()])
+                    and_(*[getattr(klass, k) == v for k, v in ids.items()])
                     for ids in db_ids_by_type[klass]]))
             in_query.append(subq)
         query = query.filter(or_(*[status_model.Status.resource_id.in_(sub)
@@ -537,7 +538,7 @@ class SqlAlchemyStore(AimStore):
                 f(added, updated, deleted)
             except Exception as ex:
                 LOG.error("An error occurred during aim manager postcommit "
-                          "execution: %s" % ex.message)
+                          "execution: %s" % str(ex))
         del session._aim_stash
 
 
@@ -631,7 +632,7 @@ class K8sStore(AimStore):
                     api_v1.AciContainersObject, self.namespace,
                     label_selector=','.join(
                         ['%s=%s' % (k, v) for k, v in
-                         db_obj['metadata']['labels'].iteritems()]))
+                         db_obj['metadata']['labels'].items()]))
             else:
                 self.klient.delete(type(db_obj), db_obj['metadata']['name'],
                                    obj_ns, {})
@@ -689,7 +690,7 @@ class K8sStore(AimStore):
             db_obj.update(item)
             if aim_id_val is not None and db_obj.aim_id != aim_id_val:
                 continue
-            for aux_a, aux_kls in db_obj_type.aux_objects.iteritems():
+            for aux_a, aux_kls in db_obj_type.aux_objects.items():
                 try:
                     aux_item_raw = self.klient.read(
                         aux_kls,
@@ -704,15 +705,15 @@ class K8sStore(AimStore):
             item_attr = db_obj.to_attr(resource_klass,
                                        defaults=self.attribute_defaults)
             if filters or in_ or notin_:
-                for k, v in filters.iteritems():
+                for k, v in filters.items():
                     if item_attr.get(k) != v:
                         break
                 else:
-                    for k, v in (in_ or {}).iteritems():
+                    for k, v in (in_ or {}).items():
                         if item_attr.get(k) not in v:
                             break
                     else:
-                        for k, v in (notin_ or {}).iteritems():
+                        for k, v in (notin_ or {}).items():
                             if item_attr.get(k) in v:
                                 break
                         else:
@@ -720,7 +721,7 @@ class K8sStore(AimStore):
             else:
                 result.append(db_obj)
         if order_by:
-            if isinstance(order_by, basestring):
+            if isinstance(order_by, six.string_types):
                 order_by = [order_by]
             result = sorted(result,
                             key=lambda x: tuple([x[k] for k in order_by]))

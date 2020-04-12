@@ -15,6 +15,7 @@
 
 import ast
 import mock
+import six
 
 from aim import aim_manager
 from aim.api import infra
@@ -27,8 +28,12 @@ from aim.tools.cli.commands import manager as climanager
 
 def _get_output_bytes(result):
     if hasattr(result, 'output_bytes'):
+        if six.PY3:
+            return result.output_bytes.decode('utf-8')
         return result.output_bytes
     else:
+        if six.PY3:
+            return result.stdout_bytes.decode('utf-8')
         return result.stdout_bytes
 
 
@@ -114,22 +119,22 @@ class TestManager(base.TestShell):
         def get_phys(name):
             return {'name': name}
 
-        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
-                                 get_vmm('OpenStack', 'ostack2'),
-                                 get_vmm('VMware', 'vmware'),
-                                 get_vmm('VMware', 'vmware2')]),
-                         sorted(pre_epg1.vmm_domains))
-        self.assertEqual(sorted([get_phys('phys'),
-                                 get_phys('phys2')]),
-                         sorted(pre_epg1.physical_domains))
-        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
-                                 get_vmm('OpenStack', 'ostack2'),
-                                 get_vmm('VMware', 'vmware'),
-                                 get_vmm('VMware', 'vmware2')]),
-                         sorted(pre_epg2.vmm_domains))
-        self.assertEqual(sorted([get_phys('phys'),
-                                 get_phys('phys2')]),
-                         sorted(pre_epg2.physical_domains))
+        self.assertEqual(utils.deep_sort([get_vmm('OpenStack', 'ostack'),
+                                          get_vmm('OpenStack', 'ostack2'),
+                                          get_vmm('VMware', 'vmware'),
+                                          get_vmm('VMware', 'vmware2')]),
+                         utils.deep_sort(pre_epg1.vmm_domains))
+        self.assertEqual(utils.deep_sort([get_phys('phys'),
+                                          get_phys('phys2')]),
+                         utils.deep_sort(pre_epg1.physical_domains))
+        self.assertEqual(utils.deep_sort([get_vmm('OpenStack', 'ostack'),
+                                          get_vmm('OpenStack', 'ostack2'),
+                                          get_vmm('VMware', 'vmware'),
+                                          get_vmm('VMware', 'vmware2')]),
+                         utils.deep_sort(pre_epg2.vmm_domains))
+        self.assertEqual(utils.deep_sort([get_phys('phys'),
+                                          get_phys('phys2')]),
+                         utils.deep_sort(pre_epg2.physical_domains))
 
         # re-run the command, but populate the  domain mappings
         self.run_command('manager load-domains --replace --enforce')
@@ -173,22 +178,23 @@ class TestManager(base.TestShell):
             except Exception:
                 self.assertFalse(True)
 
-        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
-                                 get_vmm('OpenStack', 'ostack2'),
-                                 get_vmm('VMware', 'vmware'),
-                                 get_vmm('VMware', 'vmware2')]),
-                         sorted(pre_epg1.vmm_domains))
-        self.assertEqual(sorted([get_phys('phys'),
-                                 get_phys('phys2')]),
-                         sorted(pre_epg1.physical_domains))
-        self.assertEqual(sorted([get_vmm('OpenStack', 'ostack'),
-                                 get_vmm('OpenStack', 'ostack2'),
-                                 get_vmm('VMware', 'vmware'),
-                                 get_vmm('VMware', 'vmware2')]),
-                         sorted(pre_epg2.vmm_domains))
-        self.assertEqual(sorted([get_phys('phys'),
-                                 get_phys('phys2')]),
-                         sorted(pre_epg2.physical_domains))
+        self.assertEqual(utils.deep_sort(
+                         [get_vmm('OpenStack', 'ostack'),
+                          get_vmm('OpenStack', 'ostack2'),
+                          get_vmm('VMware', 'vmware'),
+                          get_vmm('VMware', 'vmware2')]),
+                         utils.deep_sort(pre_epg1.vmm_domains))
+        self.assertEqual(utils.deep_sort([get_phys('phys'),
+                                          get_phys('phys2')]),
+                         utils.deep_sort(pre_epg1.physical_domains))
+        self.assertEqual(utils.deep_sort([get_vmm('OpenStack', 'ostack'),
+                                          get_vmm('OpenStack', 'ostack2'),
+                                          get_vmm('VMware', 'vmware'),
+                                          get_vmm('VMware', 'vmware2')]),
+                         utils.deep_sort(pre_epg2.vmm_domains))
+        self.assertEqual(utils.deep_sort([get_phys('phys'),
+                                          get_phys('phys2')]),
+                         utils.deep_sort(pre_epg2.physical_domains))
 
         # re-run the command, with host-specific domain mappings populated.
         # This should cause an exception
@@ -407,7 +413,7 @@ class TestManagerResourceOpsBase(object):
             if k == 'static_paths' or is_list_of_dicts:
                 return "'%s'" % ' '.join(
                     [','.join(x) for x in
-                     [['%s=%s' % (key, v) for key, v in y.iteritems()]
+                     [['%s=%s' % (key, v) for key, v in y.items()]
                       for y in li]])
             elif isinstance(li, list):
                 return ','.join(li) if li else "''"
@@ -415,7 +421,7 @@ class TestManagerResourceOpsBase(object):
         identity = [attributes[k] for k in
                     klass.identity_attributes]
         other = ['--%s %s' % (k, transform_list(k, v))
-                 for k, v in attributes.iteritems()
+                 for k, v in attributes.items()
                  if k in klass.other_attributes]
         return self.run_command(
             'manager ' + res_command + '-%s ' % command + ' '.join(
@@ -519,28 +525,32 @@ class TestManagerResourceOpsBase(object):
 
         # Verify successful creation
         r1 = self.create(res_command, creation_attributes)
-        for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+        for k, v in creation_attributes.items():
+            self.assertTrue(utils.is_equal(
+                            v, test_aim_manager.getattr_canonical(r1, k)))
 
-        id_attr_val = {k: v for k, v in test_identity_attributes.iteritems()
+        id_attr_val = {k: v for k, v in test_identity_attributes.items()
                        if k in r1.identity_attributes}
         # Verify get
         r1 = self.get(res_command, id_attr_val)
-        for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+        for k, v in creation_attributes.items():
+            self.assertTrue(utils.is_equal(
+                            v, test_aim_manager.getattr_canonical(r1, k)))
 
         # Verify show
         r1 = self.show(res_command, id_attr_val)
-        for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+        for k, v in creation_attributes.items():
+            self.assertTrue(utils.is_equal(
+                            v, test_aim_manager.getattr_canonical(r1, k)))
 
         # Test update
         updates = {}
         updates.update(id_attr_val)
         updates.update(test_update_attributes)
         r1 = self.update(res_command, updates)
-        for k, v in test_update_attributes.iteritems():
-            self.assertEqual(v, test_aim_manager.getattr_canonical(r1, k))
+        for k, v in test_update_attributes.items():
+            self.assertTrue(utils.is_equal(
+                            v, test_aim_manager.getattr_canonical(r1, k)))
 
         # Test delete
         self.delete(res_command, id_attr_val)

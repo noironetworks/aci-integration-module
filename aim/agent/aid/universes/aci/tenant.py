@@ -14,7 +14,7 @@
 #    under the License.
 
 import copy
-import Queue
+from six.moves import queue as Queue
 import time
 import traceback
 
@@ -39,7 +39,8 @@ TAG_KEY = 'tagInst'
 STATUS_FIELD = 'status'
 SEVERITY_FIELD = 'severity'
 CHILDREN_FIELD = 'children'
-CHILDREN_LIST = set(converter.resource_map.keys() + ['fvTenant', 'tagInst'])
+CHILDREN_LIST = set(list(converter.resource_map.keys()) + ['fvTenant',
+                                                           'tagInst'])
 # TODO(ivar): get right children from APICAPI client
 TOPOLOGY_CHILDREN_LIST = ['fabricPod', 'opflexODev', 'fabricTopology']
 CHILDREN_MOS_UNI = None
@@ -196,15 +197,15 @@ class OwnershipManager(object):
         result = to_push
         if self.use_annotation:
             for obj in to_push:
-                obj.values()[0]['attributes']['annotation'] = (
+                list(obj.values())[0]['attributes']['annotation'] = (
                     self.annotation_key)
         else:
             tags = []
             for obj in to_push:
-                if not obj.keys()[0].startswith(TAG_KEY):
-                    dn = obj.values()[0]['attributes']['dn']
+                if not list(obj.keys())[0].startswith(TAG_KEY):
+                    dn = list(obj.values())[0]['attributes']['dn']
                     dn += '/tag-%s' % self.tag_key
-                    tags.append({"%s__%s" % (TAG_KEY, obj.keys()[0]):
+                    tags.append({"%s__%s" % (TAG_KEY, list(obj.keys())[0]):
                                  {"attributes": {"dn": dn}}})
             result.extend(tags)
         return result
@@ -213,11 +214,11 @@ class OwnershipManager(object):
         to_update = []
         if self.use_annotation:
             for obj in to_push:
-                if obj.keys()[0].startswith(TAG_KEY):
-                    dn = obj.values()[0]['attributes']['dn']
+                if list(obj.keys())[0].startswith(TAG_KEY):
+                    dn = list(obj.values())[0]['attributes']['dn']
                     if dn.endswith('/tag-%s' % self.tag_key):
                         dec = apic_client.DNManager().aci_decompose_dn_guess(
-                            dn, obj.keys()[0])
+                            dn, list(obj.keys())[0])
                         parent_dec = dec[1][:-1]
                         parent_dn = apic_client.DNManager().build(parent_dec)
                         parent_type = parent_dec[-1][0]
@@ -230,7 +231,7 @@ class OwnershipManager(object):
         managed = []
         if self.use_annotation:
             for event in events:
-                attrs = event.values()[0]['attributes']
+                attrs = list(event.values())[0]['attributes']
                 if AciTenantManager.is_deleting(event):
                     self.owned_by_annotation.discard(attrs['dn'])
                 elif attrs.get('annotation') == self.annotation_key:
@@ -238,13 +239,13 @@ class OwnershipManager(object):
                 elif 'annotation' in attrs:
                     # Has a different annotation
                     self.owned_by_annotation.discard(attrs['dn'])
-                if event.keys()[0] != TAG_KEY:
+                if list(event.keys())[0] != TAG_KEY:
                     managed.append(event)
         # Tags might still be in the system, use them with annotations to
         # discern ownership
         for event in events:
-            if event.keys()[0] == TAG_KEY:
-                decomposed = event.values()[0][
+            if list(event.keys())[0] == TAG_KEY:
+                decomposed = list(event.values())[0][
                     'attributes']['dn'].split('/')
                 if decomposed[-1] == 'tag-' + self.tag_key:
                     parent_dn = '/'.join(decomposed[:-1])
@@ -257,13 +258,13 @@ class OwnershipManager(object):
         for event in managed:
             if AciTenantManager.is_deleting(event):
                 self.owned_by_tag.discard(
-                    event.values()[0]['attributes']['dn'])
+                    list(event.values())[0]['attributes']['dn'])
         return managed
 
     def is_owned(self, aci_object, check_parent=True):
         # An RS whose parent is owned is an owned object.
-        dn = aci_object.values()[0]['attributes']['dn']
-        type = aci_object.keys()[0]
+        dn = list(aci_object.values())[0]['attributes']['dn']
+        type = list(aci_object.keys())[0]
         if type in apic_client.MULTI_PARENT:
             decomposed = dn.split('/')
             # Check for parent ownership
@@ -350,7 +351,7 @@ class AciTenantManager(utils.AIMThread):
             self._unsubscribe_tenant(kill=True)
         except Exception as e:
             LOG.warn("Failed to unsubscribe tenant during kill "
-                     "procedure: %s %s" % (self.tenant_name, e.message))
+                     "procedure: %s %s" % (self.tenant_name, str(e)))
         finally:
             super(AciTenantManager, self).kill(*args, **kwargs)
 
@@ -384,13 +385,13 @@ class AciTenantManager(utils.AIMThread):
         except Exception as e:
             LOG.error(traceback.format_exc())
             LOG.error("Exiting thread for tenant %s: %s" %
-                      (self.tenant_name, e.message))
+                      (self.tenant_name, str(e)))
             try:
                 self._unsubscribe_tenant()
             except Exception as e:
                 LOG.error("An exception has occurred while exiting thread "
                           "for tenant %s: %s" % (self.tenant_name,
-                                                 e.message))
+                                                 str(e)))
             finally:
                 # We need to make sure that this thread dies upon
                 # GreenletExit
@@ -425,7 +426,7 @@ class AciTenantManager(utils.AIMThread):
             self._unsubscribe_tenant()
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
-                      "%s, error: %s" % (self.tenant_name, e.message))
+                      "%s, error: %s" % (self.tenant_name, str(e)))
             LOG.error(traceback.format_exc())
             self._unsubscribe_tenant()
             self.recovery_retries = utils.exponential_backoff(
@@ -449,9 +450,9 @@ class AciTenantManager(utils.AIMThread):
                 for event in events:
                     # REVISIT(ivar): remove vmmDomP once websocket ACI bug is
                     # fixed
-                    if (event.keys()[0] in [self.tenant.type,
-                                            'vmmDomP'] and not
-                            event[event.keys()[0]]['attributes'].get(
+                    if (list(event.keys())[0] in [self.tenant.type,
+                                                  'vmmDomP'] and not
+                            event[list(event.keys())[0]]['attributes'].get(
                                 STATUS_FIELD)):
                         LOG.info("Resetting Tree %s" % self.tenant_name)
                         # REVISIT(ivar): on subscription to VMMPolicy objects,
@@ -511,9 +512,9 @@ class AciTenantManager(utils.AIMThread):
                                     new_dn = new.dn
                                 else:
                                     # Delete items are in ACI format
-                                    req_dn = req.values()[0][
+                                    req_dn = list(req.values())[0][
                                         'attributes']['dn']
-                                    new_dn = new.values()[0][
+                                    new_dn = list(new.values())[0][
                                         'attributes']['dn']
                                 if req_dn == new_dn:
                                     # Replace old with new
@@ -541,11 +542,11 @@ class AciTenantManager(utils.AIMThread):
         with self.aci_session.transaction(
                 top_send=True) as trs:
             for obj in to_push:
-                attr = obj.values()[0]['attributes']
+                attr = list(obj.values())[0]['attributes']
                 if modified:
                     attr['status'] = converter.MODIFIED_STATUS
                 mo, parents_rns = decompose(
-                    attr.pop('dn'), obj.keys()[0])
+                    attr.pop('dn'), list(obj.keys())[0])
                 rns = dn_mgr.filter_rns(parents_rns)
                 getattr(self.aci_session, mo).create(*rns, transaction=trs,
                                                      **attr)
@@ -557,14 +558,15 @@ class AciTenantManager(utils.AIMThread):
                              self.tenant_name):
             while not self.object_backlog.empty():
                 request = self.object_backlog.get()
-                for method, aim_objects in request.iteritems():
+                for method, aim_objects in request.items():
                     # Method will be either "create" or "delete"
                     # sort the aim_objects based on DN first for DELETE method
                     sorted_aim_objs = aim_objects
                     if method == base_universe.DELETE:
                         sorted_aim_objs = sorted(
                             aim_objects,
-                            key=lambda x: x.values()[0]['attributes']['dn'])
+                            key=lambda x: list(
+                                x.values())[0]['attributes']['dn'])
                     potential_parent_dn = ' '
                     for aim_object in sorted_aim_objs:
                         # get MO from ACI client, identify it via its DN parts
@@ -572,8 +574,9 @@ class AciTenantManager(utils.AIMThread):
                         if method == base_universe.DELETE:
                             # If a parent is also being deleted then we don't
                             # have to send those children requests to APIC
-                            dn = aim_object.values()[0]['attributes']['dn']
-                            res_type = aim_object.keys()[0]
+                            dn = list(aim_object.values())[
+                                0]['attributes']['dn']
+                            res_type = list(aim_object.keys())[0]
                             decomposed = decompose(dn, res_type)
                             parent_dn = dn_mgr.build(decomposed[1][:-1])
                             if parent_dn.startswith(potential_parent_dn):
@@ -605,7 +608,7 @@ class AciTenantManager(utils.AIMThread):
                                         to_push))
                                 LOG.debug("DELETING from APIC: %s" % to_delete)
                                 for obj in to_delete:
-                                    attr = obj.values()[0]['attributes']
+                                    attr = list(obj.values())[0]['attributes']
                                     self.aci_session.DELETE(
                                         '/mo/%s.json' % attr.pop('dn'))
                                 LOG.debug("UPDATING in APIC: %s" % to_update)
@@ -618,7 +621,7 @@ class AciTenantManager(utils.AIMThread):
                             LOG.debug(traceback.format_exc())
                             LOG.error("An error has occurred during %s for "
                                       "object %s: %s" % (method, aim_object,
-                                                         e.message))
+                                                         str(e)))
                             if method == base_universe.CREATE:
                                 err_type = (
                                     self.error_handler.analyze_exception(e))
@@ -626,7 +629,7 @@ class AciTenantManager(utils.AIMThread):
                                 # the same way as OPERATION_TRANSIENT.
                                 # Investigate a way to understand when such
                                 # errors might require agent restart.
-                                self.creation_failed(aim_object, e.message,
+                                self.creation_failed(aim_object, str(e),
                                                      err_type)
 
     def _unsubscribe_tenant(self, kill=False):
@@ -663,7 +666,7 @@ class AciTenantManager(utils.AIMThread):
             # objects, therefore we need to exclude events regarding those
             # RS objects when we don't own them. One example is fvRsProv on
             # external networks
-            type = event.keys()[0]
+            type = list(event.keys())[0]
             if type in ACI_TYPES_NOT_CONVERT_IF_MONITOR:
                 # Check that the object is indeed correct looking at the
                 # parent
@@ -690,7 +693,7 @@ class AciTenantManager(utils.AIMThread):
                 continue
 
             if self.is_deleting(event):
-                dn = event.values()[0]['attributes']['dn']
+                dn = list(event.values())[0]['attributes']['dn']
                 removing_dns.add(dn)
             filtered_events.append(event)
         for event in self.to_aim_converter.convert(filtered_events):
@@ -749,8 +752,8 @@ class AciTenantManager(utils.AIMThread):
         result = {}
 
         for event in events:
-            resource = event.values()[0]
-            res_type = event.keys()[0]
+            resource = list(event.values())[0]
+            res_type = list(event.keys())[0]
             status = (resource['attributes'].get(STATUS_FIELD) or '').lower()
             raw_dn = resource['attributes'].get('dn')
             if self.is_child_object(res_type) and res_type != FAULT_KEY:
@@ -788,12 +791,13 @@ class AciTenantManager(utils.AIMThread):
                 # Add to the result but keep evaluating
                 result[raw_dn] = event
             if status == converter.MODIFIED_STATUS:
-                event_attrs = copy.deepcopy(event.values()[0]['attributes'])
+                event_attrs = copy.deepcopy(list(
+                    event.values())[0]['attributes'])
                 event_attrs.pop(STATUS_FIELD)
                 apnf = event_attrs.pop('_avoid_print_not_found', False)
                 if raw_dn in result:
                     # Update with changes
-                    result[raw_dn].values()[0]['attributes'].update(
+                    list(result[raw_dn].values())[0]['attributes'].update(
                         event_attrs)
                 key = tree_manager.AimHashTreeMaker._dn_to_key(res_type,
                                                                raw_dn)
@@ -806,28 +810,28 @@ class AciTenantManager(utils.AIMThread):
                 if not data and not apnf:
                     LOG.debug("Resource %s not found or not supported", raw_dn)
                 for item in data:
-                    dn = item.values()[0]['attributes']['dn']
+                    dn = list(item.values())[0]['attributes']['dn']
                     if dn not in result:
                         result[dn] = item
                         if dn == raw_dn:
-                            result[raw_dn].values()[0]['attributes'].update(
-                                event_attrs)
+                            list(result[raw_dn].values())[
+                                0]['attributes'].update(event_attrs)
             if not status or status == converter.CREATED_STATUS:
                 result[raw_dn] = event
         LOG.debug("Result for retrieving ACI resources: %s\n %s" %
                   (events, result))
-        return result.values()
+        return list(result.values())
 
     @staticmethod
     def flat_events(events):
         # If there are children objects, put them at the top level
         for event in events:
-            if event.values()[0].get(CHILDREN_FIELD):
+            if list(event.values())[0].get(CHILDREN_FIELD):
                 # Rebuild the DN
-                children = event.values()[0].pop(CHILDREN_FIELD)
+                children = list(event.values())[0].pop(CHILDREN_FIELD)
                 valid_children = []
                 for child in children:
-                    attrs = child.values()[0]['attributes']
+                    attrs = list(child.values())[0]['attributes']
                     rn = attrs.get('rn')
                     name_or_code = attrs.get('name', attrs.get('code'))
                     # Set DN of this object the the parent DN plus
@@ -835,23 +839,23 @@ class AciTenantManager(utils.AIMThread):
                     # of faultInst)
                     try:
                         prefix = apic_client.ManagedObjectClass.mos_to_prefix[
-                            child.keys()[0]]
+                            list(child.keys())[0]]
                     except KeyError:
                         # We don't manage this object type
-                        LOG.debug(
-                            "Unmanaged object type: %s" % child.keys()[0])
+                        LOG.debug("Unmanaged object type: %s" % list(
+                            child.keys())[0])
                         continue
 
                     attrs['dn'] = (
-                        event.values()[0]['attributes']['dn'] + '/' +
+                        list(event.values())[0]['attributes']['dn'] + '/' +
                         (rn or (prefix + (('-' + name_or_code)
                                           if name_or_code else ''))))
                     valid_children.append(child)
                 events.extend(valid_children)
 
     def _check_parent_type(self, aci_object, parent_types):
-        dn = aci_object.values()[0]['attributes']['dn']
-        type = aci_object.keys()[0]
+        dn = list(aci_object.values())[0]['attributes']['dn']
+        type = list(aci_object.keys())[0]
         try:
             decomposed = (
                 apic_client.DNManager().aci_decompose_dn_guess(
@@ -866,7 +870,7 @@ class AciTenantManager(utils.AIMThread):
 
     @staticmethod
     def is_deleting(aci_object):
-        attrs = aci_object.values()[0]['attributes']
+        attrs = list(aci_object.values())[0]['attributes']
         status = attrs.get(STATUS_FIELD, attrs.get(SEVERITY_FIELD))
         return status in [converter.DELETED_STATUS, converter.CLEARED_SEVERITY]
 

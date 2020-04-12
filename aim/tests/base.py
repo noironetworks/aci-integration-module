@@ -14,9 +14,9 @@
 # under the License.
 
 import logging  # noqa
+import mock
 import os
 
-import mock
 from oslo_config import cfg
 from oslo_log import log as o_log
 from oslo_utils import uuidutils
@@ -53,10 +53,6 @@ def etcdir(*p):
     return os.path.join(ETCDIR, *p)
 
 
-def sort_if_list(attr):
-    return sorted(attr) if isinstance(attr, list) else attr
-
-
 def resource_equal(self, other):
 
     if type(self) != type(other):
@@ -65,8 +61,8 @@ def resource_equal(self, other):
         if getattr(self, attr) != getattr(other, attr):
             return False
     for attr in self.other_attributes:
-        if (sort_if_list(getattr(self, attr, None)) !=
-                sort_if_list(getattr(other, attr, None))):
+        if (utils.deep_sort(getattr(self, attr, None)) !=
+                utils.deep_sort(getattr(other, attr, None))):
             return False
     return True
 

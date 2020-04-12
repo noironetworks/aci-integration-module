@@ -27,6 +27,7 @@ from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.api import infra as api_infra
 from aim.api import resource as a_res
 from aim.common.hashtree import structured_tree
+from aim.common import utils
 from aim import config as aim_cfg
 from aim.tests import base
 from aim import tree_manager
@@ -45,7 +46,7 @@ class FakeResponse(object):
 def _flat_result(result):
     flattened = []
     result = copy.deepcopy(result)
-    children = result.values()[0].pop('children', [])
+    children = list(result.values())[0].pop('children', [])
     flattened.append(result)
     for child in children:
         flattened.extend(_flat_result(child))
@@ -104,8 +105,8 @@ def mock_get_data(inst, dn, **kwargs):
                     '-' + decomposed[index + 1][1])
             else:
                 partial_dn = dn_mgr.build(decomposed[:index + 2])
-            for child in curr.values()[0]['children']:
-                if child.values()[0]['attributes']['dn'] == partial_dn:
+            for child in list(curr.values())[0]['children']:
+                if list(child.values())[0]['attributes']['dn'] == partial_dn:
                     curr = child
                     break
             else:
@@ -123,9 +124,9 @@ def mock_get_data(inst, dn, **kwargs):
             else:
                 # Only return the expected objects
                 return [x for x in _flat_result(curr) if
-                        x.keys()[0] in target_subtree_class]
+                        list(x.keys())[0] in target_subtree_class]
         else:
-            curr.values()[0].pop('children', [])
+            list(curr.values())[0].pop('children', [])
             return [curr]
     except KeyError:
         # Simulate 404
@@ -158,12 +159,12 @@ class TestAciClientMixin(object):
 
         dn_mgr = apic_client.DNManager()
         for resource in copy.deepcopy(data):
-            resource.values()[0]['attributes'].pop('status', None)
-            data_type = resource.keys()[0]
+            list(resource.values())[0]['attributes'].pop('status', None)
+            data_type = list(resource.keys())[0]
             if data_type == 'tagInst' and tag and add:
                 continue
             decomposed = dn_mgr.aci_decompose_dn_guess(
-                resource.values()[0]['attributes']['dn'], data_type)[1]
+                list(resource.values())[0]['attributes']['dn'], data_type)[1]
             if add:
                 curr = manager.aci_session._data_stash.setdefault(
                     decomposed[0][1], [])
@@ -187,10 +188,11 @@ class TestAciClientMixin(object):
                     partial_dn = dn_mgr.build(decomposed[:out_index + 1])
 
                 for index, child in enumerate(curr):
-                    if child.values()[0]['attributes']['dn'] == partial_dn:
+                    if list(child.values())[0]['attributes'][
+                            'dn'] == partial_dn:
                         child_index = index
                         prev = curr
-                        curr = child.values()[0]['children']
+                        curr = list(child.values())[0]['children']
                         break
                 else:
                     if add:
@@ -216,8 +218,8 @@ class TestAciClientMixin(object):
                                           'children': [] if not tag else
                                           [_tag_format(partial_dn)]}}
                             curr.append(obj)
-                            resource.values()[0].pop('children', None)
-                            obj[part[0]].update(resource.values()[0])
+                            list(resource.values())[0].pop('children', None)
+                            obj[part[0]].update(list(resource.values())[0])
                             is_new = True
                     else:
                         # Not found
@@ -235,9 +237,9 @@ class TestAciClientMixin(object):
                     removed = manager.aci_session._data_stash.pop(
                         decomposed[0][1])
             elif child_index is not None and not is_new:
-                children = prev[child_index].values()[0]['children']
+                children = list(prev[child_index].values())[0]['children']
                 prev[child_index].update(resource)
-                prev[child_index].values()[0]['children'] = children
+                list(prev[child_index].values())[0]['children'] = children
         return removed
 
     def _add_server_data(self, data, manager=None, tag=True,
@@ -253,7 +255,7 @@ class TestAciClientMixin(object):
         by_root = {}
         for res in aim_res:
             by_root.setdefault(res.root, []).append(res)
-        for root, updates in by_root.iteritems():
+        for root, updates in by_root.items():
             tree_manager.AimHashTreeMaker().update(
                 state.setdefault(root, structured_tree.StructuredHashTree()),
                 updates)
@@ -263,7 +265,7 @@ class TestAciClientMixin(object):
         by_root = {}
         for res in aim_res:
             by_root.setdefault(res.root, []).append(res)
-        for root, updates in by_root.iteritems():
+        for root, updates in by_root.items():
             tree_manager.AimHashTreeMaker().delete(
                 state.setdefault(root, structured_tree.StructuredHashTree()),
                 updates)
@@ -284,17 +286,17 @@ class TestAciClientMixin(object):
             tags = []
             if create:
                 for item in conversion:
-                    dn = item.values()[0]['attributes']['dn']
+                    dn = list(item.values())[0]['attributes']['dn']
                     dn += '/tag-%s' % tag
-                    tags.append({"tagInst__%s" % item.keys()[0]:
+                    tags.append({"tagInst__%s" % list(item.keys())[0]:
                                  {"attributes": {"dn": dn}}})
 
             for item in conversion + tags:
-                getattr(transaction, item.keys()[0]).add(
+                getattr(transaction, list(item.keys())[0]).add(
                     *self._extract_rns(
-                        item.values()[0]['attributes'].pop('dn'),
-                        item.keys()[0]),
-                    **item.values()[0]['attributes'])
+                        list(item.values())[0]['attributes'].pop('dn'),
+                        list(item.keys())[0]),
+                    **list(item.values())[0]['attributes'])
             result.append(transaction)
         return result
 
@@ -303,10 +305,10 @@ class TestAciClientMixin(object):
         for obj in objs:
             transaction = apic_client.Transaction(mock.Mock())
             item = copy.deepcopy(obj)
-            getattr(transaction, obj.keys()[0]).remove(
+            getattr(transaction, list(obj.keys())[0]).remove(
                 *self._extract_rns(
-                    item.values()[0]['attributes'].pop('dn'),
-                    item.keys()[0]))
+                    list(item.values())[0]['attributes'].pop('dn'),
+                    list(item.keys())[0]))
             result.append(transaction)
         return result
 
@@ -356,12 +358,13 @@ class TestAciClientMixin(object):
         manager = manager if manager is not None else self.manager
         # Add events to server
         aci_tenant.AciTenantManager.flat_events(event_list_copy)
-        deleted_dns = set([x.values()[0]['attributes']['dn']
-                           for x in event_list_copy
-                           if x.values()[0]['attributes'].get('status') ==
-                           'deleted'])
+        deleted_dns = set([list(x.values())[0]['attributes']['dn']
+                          for x in event_list_copy
+                          if list(x.values())[0]['attributes'].get('status') ==
+                          'deleted'])
         for event in event_list_copy:
-            if event.values()[0]['attributes'].get('status') != 'deleted':
+            if list(event.values())[0]['attributes'].get(
+                    'status') != 'deleted':
                 self._add_server_data([event], manager=manager, tag=tag,
                                       create_parents=create_parents)
             else:
@@ -369,9 +372,9 @@ class TestAciClientMixin(object):
                 if removed[0]:
                     aci_tenant.AciTenantManager.flat_events(removed)
                     for item in removed:
-                        if (item.values()[0]['attributes']['dn'] not in
+                        if (list(item.values())[0]['attributes']['dn'] not in
                                 deleted_dns):
-                            item.values()[0]['attributes']['status'] = (
+                            list(item.values())[0]['attributes']['status'] = (
                                 'deleted')
                             event_list.append(item)
         manager.ws_context.session.subscription_thread._events.setdefault(
@@ -607,12 +610,18 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.manager._push_aim_resources()
         # Verify expected calls, add deleted status
         exp_calls = [
-            mock.call('/mo/' + bda1.values()[0]['attributes']['dn'] + '.json'),
-            mock.call('/mo/' + bda2.values()[0]['attributes']['dn'] + '.json'),
-            mock.call('/mo/' + f1.values()[0]['attributes']['dn'] + '.json'),
-            mock.call('/mo/' + f2.values()[0]['attributes']['dn'] + '.json'),
-            mock.call('/mo/' + sg1.values()[0]['attributes']['dn'] + '.json'),
-            mock.call('/mo/' + sg2.values()[0]['attributes']['dn'] + '.json')]
+            mock.call('/mo/' + list(bda1.values())[0]['attributes']['dn']
+                      + '.json'),
+            mock.call('/mo/' + list(bda2.values())[0]['attributes']['dn']
+                      + '.json'),
+            mock.call('/mo/' + list(f1.values())[0]['attributes']['dn']
+                      + '.json'),
+            mock.call('/mo/' + list(f2.values())[0]['attributes']['dn']
+                      + '.json'),
+            mock.call('/mo/' + list(sg1.values())[0]['attributes']['dn']
+                      + '.json'),
+            mock.call('/mo/' + list(sg2.values())[0]['attributes']['dn']
+                      + '.json')]
         self._check_call_list(exp_calls, self.manager.aci_session.DELETE)
 
         # Create AND delete aim resources
@@ -640,7 +649,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         events = self._init_event()
         events_copy = copy.deepcopy(events)
         events = self.manager._fill_events(events)
-        self.assertEqual(sorted(events), sorted(events_copy))
+        self.assertEqual(utils.deep_sort(events),
+                         utils.deep_sort(events_copy))
 
     def test_get_unsupported_faults(self):
         objs = [
@@ -699,7 +709,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self._add_data_to_tree([parent_bd, complete], self.backend_state)
         events = self.manager.ownership_mgr.filter_ownership(
             self.manager._fill_events(events))
-        self.assertEqual(sorted([complete, parent_bd]), sorted(events))
+        self.assertEqual(utils.deep_sort([complete, parent_bd]),
+                         utils.deep_sort(events))
 
         # Now start from BD
         events = [{"fvBD": {"attributes": {
@@ -709,7 +720,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         parent_bd['fvBD']['attributes'].pop('status')
         events = self.manager.ownership_mgr.filter_ownership(
             self.manager._fill_events(events))
-        self.assertEqual(sorted([parent_bd, complete]), sorted(events))
+        self.assertEqual(utils.deep_sort([parent_bd, complete]),
+                         utils.deep_sort(events))
 
     def test_fill_events_not_found(self):
         events = [
@@ -916,7 +928,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self._add_data_to_tree(complete, self.backend_state)
         events = self.manager.ownership_mgr.filter_ownership(
             self.manager._fill_events(events))
-        self.assertEqual(sorted(complete), sorted(events))
+        self.assertEqual(utils.deep_sort(complete),
+                         utils.deep_sort(events))
 
     def test_squash_operations(self):
         # Craft some objects and push them

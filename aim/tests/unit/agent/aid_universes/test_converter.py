@@ -87,7 +87,7 @@ class TestAciToAimConverterBase(object):
 
     def _test_deleted_object(self, example, expected):
         for item in example:
-            item.values()[0]['status'] = 'deleted'
+            list(item.values())[0]['status'] = 'deleted'
         for item in expected:
             item._status = 'deleted'
         result = self.converter.convert(example)
@@ -105,7 +105,7 @@ class TestAciToAimConverterBase(object):
                          '\nExpected:\n%s\nFound:\n%s' %
                             (pprint.pformat(expected),
                              pprint.pformat(reverse)))
-        for idx in xrange(len(expected)):
+        for idx in range(len(expected)):
             self.assertTrue(expected[idx] in reverse,
                             '\nExpected:\n%s\nnot in\n%s' %
                             (pprint.pformat(expected[idx]),

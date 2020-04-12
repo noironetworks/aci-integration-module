@@ -489,7 +489,7 @@ class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
         self.assertEqual(1, len(self.universe._sync_log['tn-t1']['create']))
         # BD counted only once
         self.assertEqual(
-            0, self.universe._sync_log['tn-t1']['create'].values()[0][
+            0, list(self.universe._sync_log['tn-t1']['create'].values())[0][
                 'retries'])
         actions = {
             'create': [
@@ -520,10 +520,10 @@ class TestAimDbUniverse(TestAimDbUniverseBase, base.TestAimDBBase):
                                                                    'tn-t1')
         # BD count increased
         self.assertEqual(
-            1, self.universe._sync_log['tn-t1']['create'].values()[0][
+            1, list(self.universe._sync_log['tn-t1']['create'].values())[0][
                 'retries'])
         self.assertEqual(
-            0, self.universe._sync_log[ctrl.root]['delete'].values()[0][
+            0, list(self.universe._sync_log[ctrl.root]['delete'].values())[0][
                 'retries'])
         # Retry the above until t1 needs reset
         for _ in range(reset_limit - 1):

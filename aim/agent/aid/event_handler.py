@@ -15,8 +15,8 @@
 
 import abc
 import os
-import Queue as queue
 import six
+from six.moves import queue
 import socket
 import time
 import traceback
@@ -139,6 +139,7 @@ class EventHandler(EventHandlerBase):
 
     def _recv_loop(self):
         event = self.sock.recv(PAYLOAD_MAX_LEN)
+        event = event.decode('utf-8')
         LOG.debug("Received event %s" % event)
         if event.lower() in EVENTS:
             self._put_event(event)
@@ -197,10 +198,10 @@ class EventSender(SenderBase):
     def _send(self, event):
         LOG.debug("Sending %s event" % event)
         try:
-            self.sock.send(event)
+            self.sock.send(event.encode('utf-8'))
         except Exception as e:
             LOG.debug(traceback.format_exc())
             LOG.error("An error as occurred in the event sender "
-                      "thread: %s" % e.message)
+                      "thread: %s" % str(e))
             self.sock.close()
             self.initialize(self.conf_manager)

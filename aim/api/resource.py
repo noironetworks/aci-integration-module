@@ -16,7 +16,8 @@
 import base64
 import datetime
 from hashlib import md5
-import json
+import oslo_serialization
+import six
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -58,9 +59,9 @@ class ResourceBase(object):
             raise exc.IdentityAttributesMissing(klass=type(self).__name__,
                                                 attr=unset_attr)
         if kwargs.pop('_set_default', True):
-            for k, v in defaults.iteritems():
+            for k, v in defaults.items():
                 setattr(self, k, v)
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
     def __getattr__(self, item):
@@ -74,16 +75,20 @@ class ResourceBase(object):
 
     @classmethod
     def attributes(cls):
-        return (cls.identity_attributes.keys() + cls.other_attributes.keys() +
-                cls.db_attributes.keys() + cls.common_db_attributes.keys())
+        return (list(cls.identity_attributes.keys()) +
+                list(cls.other_attributes.keys()) +
+                list(cls.db_attributes.keys()) +
+                list(cls.common_db_attributes.keys()))
 
     @classmethod
     def user_attributes(cls):
-        return cls.identity_attributes.keys() + cls.other_attributes.keys()
+        return list(cls.identity_attributes.keys()) + list(
+            cls.other_attributes.keys())
 
     @classmethod
     def non_user_attributes(cls):
-        return cls.db_attributes.keys() + cls.common_db_attributes.keys()
+        return list(cls.db_attributes.keys()) + list(
+            cls.common_db_attributes.keys())
 
     @property
     def members(self):
@@ -97,7 +102,7 @@ class ResourceBase(object):
                 return sorted(make_serializable(None, x) for x in attr)
             if isinstance(attr, dict):
                 return sorted([(k, make_serializable(k, v))
-                               for k, v in attr.iteritems()])
+                               for k, v in attr.items()])
             if isinstance(attr, set):
                 return sorted([(make_serializable(None, x) for x in attr)])
             if isinstance(attr, (int, float, bool, type(None))):
@@ -106,16 +111,28 @@ class ResourceBase(object):
             return str(attr)
         serializable = make_serializable(None, self.members)
         return int(md5(base64.b64encode(
-            json.dumps(serializable, sort_keys=True))).hexdigest(), 16)
+            oslo_serialization.jsonutils.dump_as_bytes(
+                serializable, sort_keys=True))).hexdigest(), 16)
 
     def user_equal(self, other):
         def sort_if_list(key, attr):
+            # In Py3, sorting a dict w.r.t. keys first & then its values
+            # natively is not available. So this is a fix for that.
+            if six.PY3:
+                if isinstance(attr,
+                              list) and key not in self.sorted_attributes:
+                    if attr and isinstance(attr[0], dict):
+                        return sorted(attr, key=lambda d: sorted(d.items()))
+                    return sorted(attr)
+                return attr
             return (sorted(attr) if isinstance(attr, list) and
                     key not in self.sorted_attributes else attr)
+
         missing = object()
 
         if type(self) != type(other):
             return False
+
         for attr in self.user_attributes():
             if (sort_if_list(attr, getattr(self, attr, missing)) !=
                     sort_if_list(attr, getattr(other, attr, missing))):
@@ -134,6 +151,15 @@ class ResourceBase(object):
     def __repr__(self):
         return '%s(%s)' % (super(ResourceBase, self).__repr__(), self.members)
 
+    # An object is hashable if it has a hash value which never changes during
+    # its lifetime (it needs a __hash__() method), and can be compared to
+    # other objects (it needs an __eq__() or __cmp__() method).
+    # Hashable objects which compare equal must have the same hash value.
+    #
+    # If you define __eq__() , the default __hash__() (namely, hashing the
+    # address of the object in memory) goes away.
+    # So for each class defining __eq__() we must also
+    # define __hash__() even though parent class has __hash__().
     def __hash__(self):
         return self.hash
 
@@ -192,7 +218,7 @@ class AciResourceBase(ResourceBase):
 
     @classmethod
     def root_ref_attribute(cls):
-        return cls.identity_attributes.keys()[0]
+        return list(cls.identity_attributes.keys())[0]
 
 
 class AciRoot(AciResourceBase):
@@ -281,6 +307,18 @@ class Agent(ResourceBase):
 
     def __eq__(self, other):
         return self.id == other.id
+
+    # An object is hashable if it has a hash value which never changes during
+    # its lifetime (it needs a __hash__() method), and can be compared to
+    # other objects (it needs an __eq__() or __cmp__() method).
+    # Hashable objects which compare equal must have the same hash value.
+    #
+    # If you define __eq__() , the default __hash__() (namely, hashing the
+    # address of the object in memory) goes away.
+    # So for each class defining __eq__() we must also
+    # define __hash__() even though parent class has __hash__().
+    def __hash__(self):
+        return super(Agent, self).__hash__()
 
     def is_down(self, context):
         current = context.store.current_timestamp
