@@ -51,11 +51,20 @@ class StructuredTreeNode(object):
         self.metadata = metadata or KeyValueStore()
         if isinstance(self.metadata, dict):
             self.metadata = KeyValueStore().include(
-                [KeyValue(k, v) for k, v in self.metadata.iteritems()])
+                [KeyValue(k, v) for k, v in self.metadata.items()])
         self.error = error
 
     def __cmp__(self, other):
-        return cmp(self.key, getattr(other, 'key', other))
+        return utils.cmp(self.key, getattr(other, 'key', other))
+
+    # In Py3, all objects that implemented __cmp__ must be updated to
+    # implement some of the rich methods instead like __eq__, __lt__, etc.
+    # Here, __eq__ and __lt__ are sufficient for comparison.
+    def __eq__(self, other):
+        return self.key == getattr(other, 'key', other)
+
+    def __lt__(self, other):
+        return (self.key < getattr(other, 'key', other))
 
     def set_child(self, key, default=None):
         return self._children.setdefault(key, default)
@@ -107,7 +116,16 @@ class KeyValue(object):
         self.value = value
 
     def __cmp__(self, other):
-        return cmp(self.key, other.key)
+        return utils.cmp(self.key, other.key)
+
+    # In Py3, all objects that implemented __cmp__ must be updated to
+    # implement some of the rich methods instead like __eq__, __lt__, etc.
+    # Here, __eq__ and __lt__ are sufficient for comparison.
+    def __lt__(self, other):
+        return (self.key < other.key)
+
+    def __eq__(self, other):
+        return (self.key == other.key)
 
     def __str__(self):
         return "(%s, %s)" % (self.key, self.value)
@@ -132,8 +150,19 @@ class KeyValueStore(base.OrderedList):
         if isinstance(other, dict):
             return super(KeyValueStore, self).__cmp__(
                 KeyValueStore().include([KeyValue(k, v) for k, v in
-                                         other.iteritems()]))
+                                         other.items()]))
         return False
+
+    # In Py3, all objects that implemented __cmp__ must be updated to
+    # implement some of the rich methods instead like __eq__, __lt__, etc.
+    # Here, __eq__ and __lt__ are sufficient for comparison.
+    def __eq__(self, other):
+        if isinstance(other, KeyValueStore):
+            return super(KeyValueStore, self).__eq__(other)
+        if isinstance(other, dict):
+            return super(KeyValueStore, self).__eq__(
+                KeyValueStore().include([KeyValue(k, v) for k, v in
+                                         other.items()]))
 
     def __str__(self):
         return json.dumps(self.to_dict())
@@ -229,7 +258,7 @@ class StructuredHashTree(base.ComparableCollection):
         has_metadata = '_metadata' in kwargs
         metadata_dict = kwargs.pop('_metadata', {})
         metadata = KeyValueStore().include(
-            KeyValue(k, v) for k, v in (metadata_dict or {}).iteritems())
+            KeyValue(k, v) for k, v in (metadata_dict or {}).items())
         error = kwargs.pop('_error', False)
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
@@ -426,7 +455,10 @@ class StructuredHashTree(base.ComparableCollection):
             sorted(kwargs.items(), key=lambda t: t[0]))))
 
     def _hash(self, string):
-        return hashlib.sha256(string).hexdigest()
+        # To avoid error in Py3:
+        # Unicode-objects must be encoded before hashing
+        # We encode the string to bytes
+        return hashlib.sha256(string.encode('utf-8')).hexdigest()
 
     def __str__(self):
         return str(self.root or '{}')

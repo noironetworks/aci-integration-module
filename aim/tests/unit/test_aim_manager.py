@@ -26,6 +26,7 @@ import time
 import jsonschema
 from jsonschema import exceptions as schema_exc
 import mock
+import six
 from sqlalchemy.orm import exc as sql_exc
 
 from aim import aim_manager
@@ -48,7 +49,7 @@ from aim import tree_manager
 
 
 def getattr_canonical(obj, attr):
-    return base.sort_if_list(getattr(obj, attr))
+    return getattr(obj, attr)
 
 
 class TestAimManager(base.TestAimDBBase):
@@ -231,7 +232,7 @@ class TestResourceOpsBase(object):
         creation_attributes.update(test_identity_attributes)
         res = resource(**creation_attributes)
 
-        for k, v in test_default_values.iteritems():
+        for k, v in test_default_values.items():
             self.assertEqual(v, getattr_canonical(res, k))
 
         if test_dn:
@@ -241,13 +242,13 @@ class TestResourceOpsBase(object):
         res = resource(**creation_attributes)
         # Verify successful creation
         r1 = self.mgr.create(self.ctx, res)
-        for k, v in creation_attributes.iteritems():
-            self.assertEqual(v, getattr_canonical(r1, k))
+        for k, v in creation_attributes.items():
+            self.assertTrue(utils.is_equal(v, getattr_canonical(r1, k)))
         self.assertEqual(len(self.mgr.find(self.ctx, resource)),
                          self.mgr.count(self.ctx, resource))
         # Verify get
         r1 = self.mgr.get(self.ctx, res)
-        for k, v in creation_attributes.iteritems():
+        for k, v in creation_attributes.items():
             self.assertEqual(v, getattr_canonical(r1, k))
 
         if ('object_uid' in self.ctx.store.features and
@@ -256,31 +257,31 @@ class TestResourceOpsBase(object):
 
         old_epoch = res.epoch
         # Verify overwrite
-        for k, v in test_search_attributes.iteritems():
+        for k, v in test_search_attributes.items():
             setattr(res, k, v)
         if not getattr(self, 'skip_overwrite', False):
             r2 = self.mgr.create(self.ctx, res, overwrite=True)
             if self.test_epoch:
                 self.assertNotEqual(old_epoch, r2.epoch)
             old_epoch = r2.epoch
-            for k, v in test_search_attributes.iteritems():
+            for k, v in test_search_attributes.items():
                 self.assertEqual(v, getattr_canonical(r2, k))
 
         # Test search by identity
         rs1 = self.mgr.find(self.ctx, resource, **test_identity_attributes)
         self.assertEqual(1, len(rs1))
-        for k, v in creation_attributes.iteritems():
+        for k, v in creation_attributes.items():
             self.assertEqual(v, getattr_canonical(rs1[0], k))
 
         # Test search by other attributes
         rs2 = self.mgr.find(self.ctx, resource, **test_search_attributes)
         self.assertEqual(1, len(rs2))
-        for k, v in creation_attributes.iteritems():
+        for k, v in creation_attributes.items():
             self.assertEqual(v, getattr_canonical(rs2[0], k))
 
         # Test update
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
-        for k, v in test_update_attributes.iteritems():
+        for k, v in test_update_attributes.items():
             self.assertEqual(v, getattr_canonical(r3, k))
         if self.test_epoch:
             self.assertNotEqual(old_epoch, r3.epoch)
@@ -288,9 +289,9 @@ class TestResourceOpsBase(object):
             self.assertEqual(r3.epoch, r3_1.epoch)
         # check other attributes are unaffected
         for attr in r1.attributes():
-            if attr not in (test_update_attributes.keys() +
-                            res.db_attributes.keys() +
-                            res.common_db_attributes.keys()):
+            if attr not in (list(test_update_attributes.keys()) +
+                            list(res.db_attributes.keys()) +
+                            list(res.common_db_attributes.keys())):
                 self.assertEqual(getattr_canonical(r1, attr),
                                  getattr_canonical(r3, attr))
 
@@ -319,7 +320,7 @@ class TestResourceOpsBase(object):
                             self.schema_dict)
         if res.identity_attributes:
             attributes = copy.deepcopy(res.__dict__)
-            attributes.pop(res.identity_attributes.keys()[0])
+            attributes.pop(list(res.identity_attributes.keys())[0])
             # Verify that removing a required attribute will fail
             self.assertRaises(
                 schema_exc.ValidationError, jsonschema.validate,
@@ -595,8 +596,8 @@ class TestResourceOpsBase(object):
     def test_race(self):
         def _test_race(res):
             updates = []
-            for k, v in self.test_update_attributes.iteritems():
-                if isinstance(v, basestring):
+            for k, v in self.test_update_attributes.items():
+                if isinstance(v, six.string_types):
                     updates.append((k, v))
             if len(updates) < 2:
                 # Not enough updates available to test
@@ -634,7 +635,7 @@ class TestResourceOpsBase(object):
 class TestAciResourceOpsBase(TestResourceOpsBase):
 
     def test_status(self):
-        attr = {k: v for k, v in self.test_identity_attributes.iteritems()}
+        attr = {k: v for k, v in self.test_identity_attributes.items()}
         attr.update(self.test_required_attributes)
         self._test_resource_status(self.resource_class, attr)
 

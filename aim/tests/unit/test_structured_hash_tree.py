@@ -205,7 +205,7 @@ class TestStructuredHashTree(base.BaseTestCase):
             return False
         if any(not self._tree_deep_check(root1.get_children()[x],
                                          root2.get_children()[x])
-               for x in xrange(len(root1.get_children()))):
+               for x in range(len(root1.get_children()))):
             return False
         return True
 
@@ -748,7 +748,7 @@ class TestHashTreeManager(base.TestAimDBBase):
                        data2.root.key[0]: data2.root.full_hash,
                        data3.root.key[0]: data3.root.full_hash})
         self.assertEqual(1, len(changed))
-        self.assertEqual(data1.root.key, changed.values()[0].root.key)
+        self.assertEqual(data1.root.key, list(changed.values())[0].root.key)
 
     def test_get_tenants(self):
         data1 = tree.StructuredHashTree().include(
@@ -882,12 +882,12 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         self.assertEqual(exp_tree, htree)
         self.assertEqual(
             {"attributes": mock.ANY, "monitored": False},
-            htree.find(bd_key).metadata.to_dict())
+            htree.find(bd_key).metadata)
         self.assertEqual({'related': True, "attributes": mock.ANY,
                           "monitored": False},
-                         htree.find(rsctx_key).metadata.to_dict())
+                         htree.find(rsctx_key).metadata)
         self.assertEqual({"attributes": mock.ANY, "monitored": False},
-                         htree.find(subnet_key).metadata.to_dict())
+                         htree.find(subnet_key).metadata)
 
         bd.name = 'bd2'
         subnet.bd_name = 'bd2'
@@ -913,12 +913,12 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         self.assertEqual(exp_tree, htree)
         self.assertEqual(exp_tree, htree)
         self.assertEqual({"attributes": mock.ANY, "monitored": False},
-                         htree.find(bd_key).metadata.to_dict())
+                         htree.find(bd_key).metadata)
         self.assertEqual(
             {"attributes": mock.ANY, "monitored": False, 'related': True},
-            htree.find(rsctx_key).metadata.to_dict())
+            htree.find(rsctx_key).metadata)
         self.assertEqual({"attributes": mock.ANY, "monitored": False},
-                         htree.find(subnet_key).metadata.to_dict())
+                         htree.find(subnet_key).metadata)
 
     def test_update_1(self):
         htree = tree.StructuredHashTree()

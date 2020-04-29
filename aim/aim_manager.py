@@ -194,11 +194,11 @@ class AimManager(object):
                 if (fix_ownership and old_monitored is not None and
                         old_monitored != new_monitored):
                     raise exc.InvalidMonitoredStateUpdate(object=resource)
-                attr_val = {k: v for k, v in update_attr_val.iteritems()
+                attr_val = {k: v for k, v in update_attr_val.items()
                             if k in resource.other_attributes.keys()}
                 if attr_val:
                     old_resource_copy = copy.deepcopy(old_resource)
-                    for k, v in attr_val.iteritems():
+                    for k, v in attr_val.items():
                         setattr(old_resource, k, v)
                     if old_resource.user_equal(
                             old_resource_copy) and not force_update:
@@ -206,7 +206,7 @@ class AimManager(object):
                         return old_resource
                 elif resource.identity_attributes:
                     # force update
-                    id_attr_0 = resource.identity_attributes.keys()[0]
+                    id_attr_0 = list(resource.identity_attributes.keys())[0]
                     attr_val = {id_attr_0: getattr(resource, id_attr_0)}
                 context.store.from_attr(db_obj, type(resource), attr_val)
                 context.store.add(db_obj)
@@ -265,7 +265,7 @@ class AimManager(object):
         Returns a list of resources that match.
         """
         self._validate_resource_class(resource_class)
-        attr_val = {k: v for k, v in kwargs.iteritems()
+        attr_val = {k: v for k, v in kwargs.items()
                     if k in resource_class.attributes() +
                     ['in_', 'notin_', 'order_by']}
         return self._delete_db(context.store, resource_class, **attr_val)
@@ -310,7 +310,7 @@ class AimManager(object):
         Returns a list of resources that match.
         """
         self._validate_resource_class(resource_class)
-        attr_val = {k: v for k, v in kwargs.iteritems()
+        attr_val = {k: v for k, v in kwargs.items()
                     if k in resource_class.attributes() +
                     ['in_', 'notin_', 'order_by']}
         result = []
@@ -323,7 +323,7 @@ class AimManager(object):
 
     def count(self, context, resource_class, **kwargs):
         self._validate_resource_class(resource_class)
-        attr_val = {k: v for k, v in kwargs.iteritems()
+        attr_val = {k: v for k, v in kwargs.items()
                     if k in resource_class.attributes() +
                     ['in_', 'notin_', 'order_by']}
         return self._count_db(context.store, resource_class, **attr_val)
@@ -517,7 +517,7 @@ class AimManager(object):
 
         def get_subtree_klasses(klass):
             for child_klass in self._model_tree.get(klass, []):
-                id = {child_klass.identity_attributes.keys()[i]: v
+                id = {list(child_klass.identity_attributes.keys())[i]: v
                       for i, v in enumerate(identity)}
                 # Extra search attributes
                 id.update(kwargs)

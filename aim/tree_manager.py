@@ -50,11 +50,11 @@ class TreeManager(object):
         trees = {self.root_rn_funct(x): x for x in hash_trees}
         with context.store.begin(subtransactions=True):
             db_objs = self._find_query(context, tree, lock_update=True,
-                                       in_={'root_rn': trees.keys()})
+                                       in_={'root_rn': list(trees.keys())})
             for obj in db_objs:
                 hash_tree = trees.pop(obj.root_rn)
                 obj.root_full_hash = hash_tree.root_full_hash
-                obj.tree = str(hash_tree)
+                obj.tree = str(hash_tree).encode('utf-8')
                 context.store.add(obj)
 
             for hash_tree in trees.values():
@@ -68,13 +68,13 @@ class TreeManager(object):
                         # Then put the updated tree in it
                         self._create_if_not_exist(
                             context, tree_klass, root_rn,
-                            tree=str(hash_tree),
+                            tree=str(hash_tree).encode('utf-8'),
                             root_full_hash=hash_tree.root_full_hash or 'none')
                     else:
                         # Attempt to create an empty tree:
                         self._create_if_not_exist(
                             context, tree_klass, root_rn,
-                            tree=str(empty_tree),
+                            tree=str(empty_tree).encode('utf-8'),
                             root_full_hash=empty_tree.root_full_hash or 'none')
 
     def get_base_tree(self, context, root_rn, lock_update=False):
@@ -126,7 +126,7 @@ class TreeManager(object):
                 obj = self._find_query(context, tree_type, root_rn=root_rn,
                                        lock_update=True)
                 if obj:
-                    obj[0].tree = str(empty_tree)
+                    obj[0].tree = str(empty_tree).encode('utf-8')
                     context.store.add(obj[0])
             obj = self._find_query(context, ROOT_TREE, root_rn=root_rn,
                                    lock_update=True)
@@ -142,7 +142,7 @@ class TreeManager(object):
                 db_objs = self._find_query(context, tree_type,
                                            lock_update=True)
                 for db_obj in db_objs:
-                    db_obj.tree = str(empty_tree)
+                    db_obj.tree = str(empty_tree).encode('utf-8')
                     context.store.add(db_obj)
             db_objs = self._find_query(context, ROOT_TREE, lock_update=True)
             for db_obj in db_objs:
@@ -153,14 +153,15 @@ class TreeManager(object):
     def find(self, context, tree=CONFIG_TREE, **kwargs):
         result = self._find_query(context, tree, in_=kwargs)
         return [self.tree_klass.from_string(
-            str(x.tree), self.root_key_funct(x.root_rn)) for x in result]
+            str(x.tree.decode('utf-8')),
+            self.root_key_funct(x.root_rn)) for x in result]
 
     @utils.log
     def get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
         try:
             return self.tree_klass.from_string(str(
                 self._find_query(context, tree, lock_update=lock_update,
-                                 root_rn=root_rn)[0].tree),
+                                 root_rn=root_rn)[0].tree.decode('utf-8')),
                 self.root_key_funct(root_rn))
         except IndexError:
             raise exc.HashTreeNotFound(root_rn=root_rn)
@@ -169,12 +170,13 @@ class TreeManager(object):
     def find_changed(self, context, root_map, tree=CONFIG_TREE):
         if not root_map:
             return {}
-        return dict((x.root_rn,
-                     self.tree_klass.from_string(
-                         str(x.tree), self.root_key_funct(x.root_rn)))
-                    for x in self._find_query(
-                        context, tree, in_={'root_rn': root_map.keys()},
-                        notin_={'root_full_hash': root_map.values()}))
+        return dict((
+            x.root_rn,
+            self.tree_klass.from_string(
+                str(x.tree.decode('utf-8')), self.root_key_funct(x.root_rn)))
+            for x in self._find_query(
+                context, tree, in_={'root_rn': list(root_map.keys())},
+                notin_={'root_full_hash': list(root_map.values())}))
 
     @utils.log
     def get_roots(self, context):
@@ -207,7 +209,8 @@ class TreeManager(object):
             if obj:
                 if if_empty:
                     tree = self.tree_klass.from_string(
-                        str(obj[0].tree), self.root_key_funct(root_rn))
+                        str(obj[0].tree.decode('utf-8')),
+                        self.root_key_funct(root_rn))
                     if tree.root:
                         # Raise a error to rollback any ongoing transaction
                         raise exc.HashTreeNotEmpty(root_rn=root_rn)
@@ -316,7 +319,7 @@ class AimHashTreeMaker(object):
         pending = getattr(aim_res, '_pending', None)
         to_aci = converter.AimToAciModelConverter()
         for obj in to_aci.convert([aim_res]):
-            for mo, v in obj.iteritems():
+            for mo, v in obj.items():
                 attr = v.get('attributes', {})
                 dn = attr.pop('dn', None)
                 key = AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
@@ -342,7 +345,7 @@ class AimHashTreeMaker(object):
         to_update = {}
         for aim_res in updates:
             to_update.update(self._prepare_aim_resource(tree, aim_res))
-        for k, v in to_update.iteritems():
+        for k, v in to_update.items():
             tree.add(k, **v)
         return tree
 
@@ -371,7 +374,7 @@ class AimHashTreeMaker(object):
         """
         to_aci = converter.AimToAciModelConverter()
         for obj in to_aci.convert(resources):
-            for mo, v in obj.iteritems():
+            for mo, v in obj.items():
                 attr = v.get('attributes', {})
                 dn = attr.pop('dn', None)
                 key = AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
@@ -484,7 +487,7 @@ class HashTreeBuilder(object):
                         except Exception as e:
                             LOG.warning("An exception has occurred while "
                                         "trying to delete status object "
-                                        "%s: %s" % (res, e.message))
+                                        "%s: %s" % (res, str(e)))
                         continue
                 key = self.tt_maker.get_root_key(res)
                 if not key:
@@ -510,7 +513,7 @@ class HashTreeBuilder(object):
                     updates_by_root[key][conf][tree_index].append(res)
 
         upd_trees, udp_op_trees, udp_mon_trees = [], [], []
-        for root, upd in updates_by_root.iteritems():
+        for root, upd in updates_by_root.items():
             try:
                 ttree = tree_map[self.CONFIG][root]
                 ttree_operational = tree_map[self.OPER][root]

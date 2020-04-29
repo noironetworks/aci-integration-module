@@ -424,7 +424,7 @@ class HashTreeStoredUniverse(AimUniverse):
                 self.push_resources(context, result)
             except Exception as e:
                 LOG.error("An unexpected error has occurred while "
-                          "reconciling tenant %s: %s" % (tenant, e.message))
+                          "reconciling tenant %s: %s" % (tenant, str(e)))
                 LOG.error(traceback.format_exc())
                 # Guess we can't consider the multiverse synced if this happens
                 diff = True
@@ -461,8 +461,8 @@ class HashTreeStoredUniverse(AimUniverse):
                 related = attr.pop('related', False)
                 attr = attr.get('attributes', {})
                 aci_object = self._keys_to_bare_aci_objects([key])[0]
-                aci_object.values()[0]['attributes'].update(attr)
-                dn = aci_object.values()[0]['attributes']['dn']
+                list(aci_object.values())[0]['attributes'].update(attr)
+                dn = list(aci_object.values())[0]['attributes']['dn']
                 # Capture related objects
                 if desired_state:
                     self._fill_related_nodes(resource_keys, key,

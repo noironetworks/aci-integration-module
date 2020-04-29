@@ -157,7 +157,7 @@ def service_graph_converter(object_dict, otype, helper,
         lc_nodes = [n for n in object_dict['linear_chain_nodes']
                     if n.get('name')]
 
-        prev_conn = term_cons.values()[0]['attributes']['dn']
+        prev_conn = list(term_cons.values())[0]['attributes']['dn']
         cntr = 0
         for fn in lc_nodes:
             cntr = cntr + 1
@@ -182,8 +182,9 @@ def service_graph_converter(object_dict, otype, helper,
             cxn = service_graph.ServiceGraphConnection(
                 tenant_name=tn, service_graph_name=gr, name='C%s' % (cntr + 1),
                 unicast_route=True,
-                connector_dns=[prev_conn,
-                               term_prov.values()[0]['attributes']['dn']])
+                connector_dns=[
+                    prev_conn,
+                    list(term_prov.values())[0]['attributes']['dn']])
             result.append(cxn)
     return result
 

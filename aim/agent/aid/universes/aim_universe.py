@@ -139,7 +139,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # Deletion candidates will be decided solely by the AIM configuration
         # universe.
         my_state = self.state
-        for tenant, tree in my_state.iteritems():
+        for tenant, tree in my_state.items():
             if not tree.root and tenant not in vetoes:
                 # The desired state for this tentant is empty
                 delete_candidates.add(tenant)
@@ -190,11 +190,11 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     self._push_resource(context, resource, method, monitored)
                 except aim_exc.InvalidMonitoredStateUpdate as e:
                     msg = ("Failed to %s object %s in AIM: %s." %
-                           (method, resource, e.message))
+                           (method, resource, str(e)))
                     LOG.warn(msg)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
-                              (method, resource, e.message))
+                              (method, resource, str(e)))
                     LOG.debug(traceback.format_exc())
                     if method == 'delete':
                         self.deletion_failed(context, resource)
@@ -314,7 +314,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         else:
             # it's in ACI format
             return tree_manager.AimHashTreeMaker._extract_root_from_dn(
-                res.values()[0]['attributes']['dn'])
+                list(res.values())[0]['attributes']['dn'])
 
 
 class AimDbOperationalUniverse(AimDbUniverse):
@@ -395,7 +395,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                                  delete_candidates, vetoes):
         my_state = self.state
         # Veto tenants with non-dummy roots
-        for tenant, tree in my_state.iteritems():
+        for tenant, tree in my_state.items():
             if tree.root and not tree.root.dummy:
                 delete_candidates.discard(tenant)
                 vetoes.add(tenant)
@@ -421,8 +421,8 @@ class AimDbMonitoredUniverse(AimDbUniverse):
 
         def action(result, aci_object, node):
             key = tree_manager.AimHashTreeMaker._dn_to_key(
-                aci_object.keys()[0],
-                aci_object.values()[0]['attributes']['dn'])
+                list(aci_object.keys())[0],
+                list(aci_object.values())[0]['attributes']['dn'])
             if len(key) == 1:
                 LOG.debug('Skipping delete for monitored root object: %s '
                           % aci_object)

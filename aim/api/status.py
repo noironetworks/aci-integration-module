@@ -145,6 +145,18 @@ class AciFault(resource.ResourceBase, OperationalResource):
         except AttributeError:
             return False
 
+    # An object is hashable if it has a hash value which never changes during
+    # its lifetime (it needs a __hash__() method), and can be compared to
+    # other objects (it needs an __eq__() or __cmp__() method).
+    # Hashable objects which compare equal must have the same hash value.
+    #
+    # If you define __eq__() , the default __hash__() (namely, hashing the
+    # address of the object in memory) goes away.
+    # So for each class defining __eq__() we must also
+    # define __hash__() even though parent class has __hash__().
+    def __hash__(self):
+        return super(AciFault, self).__hash__()
+
     def __init__(self, **kwargs):
         super(AciFault, self).__init__(
             {'severity': self.SEV_INFO, 'lifecycle_status': self.LC_UNKNOWN,

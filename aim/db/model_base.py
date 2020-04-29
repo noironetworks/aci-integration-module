@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 from sqlalchemy.ext import declarative
@@ -120,9 +121,25 @@ class AttributeMixin(object):
         Child classes should override this method to specify a custom
         mapping of resource attributes to model properties.
         """
-        for k, v in resource_attr.iteritems():
+        # "object_dict" and "tree" uses LargeBinary sqlalchemy datatype.
+        # LargeBinary sqlalchemy datatype needs "bytes-like" object
+        # and in Py2, string are bytes-like objects while in Py3 they aren't.
+        # So we need to store "bytes-like" object in DB objects.
+        # For storing the DB model object,
+        # we need to encode to utf-8 bytes format (for Py3 compatibility).
+        # Since in Py2, string are bytes-like objects, encoding won't
+        # make a difference.
+        encoded_attr_dict = {}
+        for k, v in resource_attr.items():
             if k not in getattr(self, '_exclude_from', []):
-                self.set_attr(session, k, v, **resource_attr)
+                if k == 'object_dict':
+                    if isinstance(v, six.text_type):
+                        v = v.encode('utf-8')
+                elif k == 'tree':
+                    if isinstance(v, six.text_type):
+                        v = v.encode('utf-8')
+                encoded_attr_dict[k] = v
+                self.set_attr(session, k, v, **encoded_attr_dict)
 
     def to_attr(self, session):
         """Get resource attribute dictionary for a model object.
@@ -130,10 +147,34 @@ class AttributeMixin(object):
         Child classes should override this method to specify a custom
         mapping of model properties to resource attributes.
         """
-        return {k: self.get_attr(session, k) for k in dir(self)
-                if (not k.startswith('_') and
+        # "object_dict" and "tree" uses LargeBinary sqlalchemy datatype.
+        # LargeBinary sqlalchemy datatype needs "bytes-like" object
+        # and in Py2, string are bytes-like objects while in Py3 they aren't.
+        # So we need to store "bytes-like" object in DB objects.
+        # For getting the resource attr dict from model object
+        # we need to decode to native string (for Py3 compatibility).
+        # Since in Py2, string are bytes-like objects, decoding won't
+        # make a difference.
+        attr_dict = {}
+        for k in dir(self):
+            if (not k.startswith('_') and
                     k not in getattr(self, '_exclude_to', []) and
-                    not callable(getattr(self, k)))}
+                    not callable(getattr(self, k))):
+                if k == 'object_dict':
+                    v = self.get_attr(session, k)
+                    if isinstance(v, bytes):
+                        attr_dict[k] = v.decode('utf-8')
+                    else:
+                        attr_dict[k] = v
+                elif k == 'tree':
+                    v = self.get_attr(session, k)
+                    if isinstance(v, bytes):
+                        attr_dict[k] = v.decode('utf-8')
+                    else:
+                        attr_dict[k] = v
+                else:
+                    attr_dict[k] = self.get_attr(session, k)
+        return attr_dict
 
     def set_attr(self, session, k, v, **kwargs):
         """Utility for setting DB attributes

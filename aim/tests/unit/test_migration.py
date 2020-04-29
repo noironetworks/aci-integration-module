@@ -71,23 +71,24 @@ class TestDataMigration(base.TestAimDBBase):
                 interface_profile_name='dc2', interface_path='h2/path'))
         add_host_column.migrate(self.ctx.db_session)
         epg1 = self.mgr.get(self.ctx, epg1)
-        self.assertEqual(sorted([{'path': 'h1/path/2', 'encap': '100',
-                                  'host': 'h1'},
-                                 {'path': 'h2/path', 'encap': '100',
-                                  'host': 'h2'},
-                                 {'path': 'not_known', 'encap': '100'}]),
-                         sorted(epg1.static_paths))
+        self.assertEqual(
+            utils.deep_sort(
+                [{'path': 'h1/path/2', 'encap': '100', 'host': 'h1'},
+                 {'path': 'h2/path', 'encap': '100', 'host': 'h2'},
+                 {'path': 'not_known', 'encap': '100'}]),
+            utils.deep_sort(epg1.static_paths))
         epg2 = self.mgr.get(self.ctx, epg2)
-        self.assertEqual(sorted([{'path': 'h1/path/2', 'encap': '100',
-                                  'host': 'h1'},
-                                 {'path': 'h1/path/VPC', 'encap': '100',
-                                  'host': 'h1'}]),
-                         sorted(epg2.static_paths))
+        self.assertEqual(
+            utils.deep_sort(
+                [{'path': 'h1/path/2', 'encap': '100', 'host': 'h1'},
+                 {'path': 'h1/path/VPC', 'encap': '100', 'host': 'h1'}]),
+            utils.deep_sort(epg2.static_paths))
         dc = self.mgr.get(self.ctx, dc)
-        self.assertEqual(sorted([{'path': 'h1/path/2', 'name': '1',
-                                  'host': 'h1'},
-                                 {'path': 'h2/path', 'name': '2',
-                                  'host': 'h2'}]), sorted(dc.devices))
+        self.assertEqual(
+            utils.deep_sort(
+                [{'path': 'h1/path/2', 'name': '1', 'host': 'h1'},
+                 {'path': 'h2/path', 'name': '2', 'host': 'h2'}]),
+            utils.deep_sort(dc.devices))
         cdi1 = self.mgr.get(self.ctx, cdi1)
         self.assertEqual('h1', cdi1.host)
         cdi2 = self.mgr.get(self.ctx, cdi2)

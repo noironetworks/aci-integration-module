@@ -862,7 +862,7 @@ resource_map.update(service_graph.resource_map)
 
 # Build the reverse map for reverse translation
 reverse_resource_map = {}
-for apic_type, rule_list in resource_map.iteritems():
+for apic_type, rule_list in resource_map.items():
     for rules in rule_list:
         klass = rules['resource']
         mapped_klass = reverse_resource_map.setdefault(klass, [])
@@ -954,19 +954,19 @@ class AciToAimModelConverter(BaseConverter):
         result = []
         for object in aci_objects:
             try:
-                if object.keys()[0] not in resource_map:
+                if list(object.keys())[0] not in resource_map:
                     # Ignore unmanaged object
                     continue
-                resource = object[object.keys()[0]]['attributes']
+                resource = object[list(object.keys())[0]]['attributes']
                 # Change nameAlias to allow automatic conversion
                 if 'nameAlias' in resource:
                     resource['displayName'] = resource['nameAlias']
                     del resource['nameAlias']
-                for helper in resource_map[object.keys()[0]]:
+                for helper in resource_map[list(object.keys())[0]]:
                     # Use the custom converter, fallback to the default one
                     converted = (
                         helper.get('converter') or self._default_converter)(
-                        resource, object.keys()[0], helper,
+                        resource, list(object.keys())[0], helper,
                         ['dn'], helper['resource'].identity_attributes,
                         to_aim=True)
                     if resource.get('status') == DELETED_STATUS:
@@ -981,7 +981,7 @@ class AciToAimModelConverter(BaseConverter):
                     del resource['displayName']
             except Exception as e:
                 LOG.warn("Could not convert object"
-                         "%s with error %s" % (object, e.message))
+                         "%s with error %s" % (object, str(e)))
                 LOG.debug(traceback.format_exc())
         squashed = self._squash(result)
         if aci_objects:
@@ -1004,7 +1004,7 @@ class AciToAimModelConverter(BaseConverter):
                 (res._aci_mo_name,) + tuple(res.identity),
                 klass(**dict([(y, res.identity[x]) for x, y in
                               enumerate(klass.identity_attributes)])))
-            for k, v in res.__dict__.iteritems():
+            for k, v in res.__dict__.items():
                 if isinstance(v, list):
                     for item in v:
                         if isinstance(item, dict) and '_converter_id' in item:
@@ -1018,7 +1018,7 @@ class AciToAimModelConverter(BaseConverter):
                         current.__dict__.setdefault(k, []).append(item)
                 else:
                     setattr(current, k, v)
-        return res_map.values()
+        return list(res_map.values())
 
 
 class AimToAciModelConverter(BaseConverter):
@@ -1068,7 +1068,7 @@ class AimToAciModelConverter(BaseConverter):
                     del object.__dict__['name_alias']
             except Exception as e:
                 LOG.warn("Could not convert object"
-                         "%s with error %s" % (object.__dict__, e.message))
+                         "%s with error %s" % (object.__dict__, str(e)))
                 LOG.debug(traceback.format_exc())
 
         squashed = self._squash(result)
@@ -1085,6 +1085,6 @@ class AimToAciModelConverter(BaseConverter):
         res_map = collections.OrderedDict()
         for res in converted_list:
             current = res_map.setdefault(
-                res[res.keys()[0]]['attributes']['dn'], res)
+                res[list(res.keys())[0]]['attributes']['dn'], res)
             current.update(res)
-        return res_map.values()
+        return list(res_map.values())

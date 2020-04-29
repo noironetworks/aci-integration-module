@@ -33,11 +33,11 @@ def generate_schema():
          ("properties", top_properties),
          ("definitions", definitions)])
     for klass in writable_classes:
-        required = klass.identity_attributes.keys()
+        required = list(klass.identity_attributes.keys())
         properties = {}
         for attr in [klass.identity_attributes, klass.other_attributes,
                      klass.db_attributes]:
-            for k, v in attr.iteritems():
+            for k, v in attr.items():
                 properties[k] = v
         title = klass.__name__
         name = utils.camel_to_snake(title)

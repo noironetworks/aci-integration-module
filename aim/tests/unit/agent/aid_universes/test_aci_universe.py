@@ -75,9 +75,9 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
         # Test same tenants cause a noop
         serving_tenants_copy = dict(
-            [(k, v) for k, v in self.universe.serving_tenants.iteritems()])
+            [(k, v) for k, v in self.universe.serving_tenants.items()])
         self.universe.serve(self.ctx, tenant_list)
-        for k, v in serving_tenants_copy.iteritems():
+        for k, v in serving_tenants_copy.items():
             # Serving tenant values are the same
             self.assertIs(v, self.universe.serving_tenants[k])
 
@@ -86,7 +86,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.serving_tenants['tn-19'].is_dead = mock.Mock(
             return_value=True)
         self.universe.serve(self.ctx, tenant_list)
-        for k, v in serving_tenants_copy.iteritems():
+        for k, v in serving_tenants_copy.items():
             if k != 'tn-19':
                 # Serving tenant values are the same
                 self.assertIs(v, self.universe.serving_tenants[k])
@@ -229,7 +229,8 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                  'vzRsFiltAtt|h'),
                 ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s')]
         result = self.universe.get_resources(keys)
-        self.assertEqual(sorted(objs), sorted(result))
+        self.assertEqual(utils.deep_sort(objs),
+                         utils.deep_sort(result))
 
     # TODO(kentwu): need to enable this test case
     @base.requires(['skip'])
@@ -251,7 +252,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                 ('fvTenant|t1', 'vzBrCP|c', 'vzSubj|s',
                  'vzOutTerm|outtmnl', 'vzRsFiltAtt|h')]
         result = self.universe.get_resources_for_delete(keys)
-        self.assertEqual(sorted(objs), sorted(result))
+        self.assertEqual(utils.deep_sort(objs), utils.deep_sort(result))
         # Create a pending monitored object
         tn1 = resource.Tenant(name='tn1', monitored=True)
         monitored_bd = resource.BridgeDomain(
@@ -268,7 +269,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         result = result[0]
         self.assertEqual('tagInst', result.keys()[0])
         self.assertEqual('uni/tn-tn1/BD-monitoredBD/tag-openstack_aid',
-                         result.values()[0]['attributes']['dn'])
+                         list(result.values())[0]['attributes']['dn'])
 
         # Delete an RS-node of a monitored object
         self.universe.manager.create(self.ctx, resource.L3Outside(
@@ -287,7 +288,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         result = result[0]
         self.assertEqual('fvRsProv', result.keys()[0])
         self.assertEqual('uni/tn-tn1/out-out/instP-inet/rsprov-p1',
-                         result.values()[0]['attributes']['dn'])
+                         list(result.values())[0]['attributes']['dn'])
 
     def test_ws_config_changed(self):
         # Refresh subscriptions
@@ -358,7 +359,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.assertEqual(1, len(self.universe._sync_log['tn-t2']['create']))
         # BD counted only once
         self.assertEqual(
-            0, self.universe._sync_log['tn-t1']['create'].values()[0][
+            0, list(self.universe._sync_log['tn-t1']['create'].values())[0][
                 'retries'])
         ctrl = resource.VMMController(domain_type='OpenStack',
                                       domain_name='os', name='ctrl')
@@ -389,10 +390,10 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                                                                    'tn-t1')
         # BD count increased
         self.assertEqual(
-            1, self.universe._sync_log['tn-t1']['create'].values()[0][
+            1, list(self.universe._sync_log['tn-t1']['create'].values())[0][
                 'retries'])
         self.assertEqual(
-            0, self.universe._sync_log[ctrl.root]['delete'].values()[0][
+            0, list(self.universe._sync_log[ctrl.root]['delete'].values())[0][
                 'retries'])
         # Retry the above until t1 needs reset
         for _ in range(reset_limit - 1):
@@ -436,7 +437,7 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
         self.universe.serve(self.ctx, tenant_list)
         self.assertIs(self.universe.serving_tenants,
                       operational.serving_tenants)
-        for key, value in self.universe.serving_tenants.iteritems():
+        for key, value in self.universe.serving_tenants.items():
             self.assertIs(operational.serving_tenants[key], value)
 
     def test_track_universe_actions(self):

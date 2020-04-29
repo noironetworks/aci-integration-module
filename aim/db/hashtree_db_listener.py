@@ -302,7 +302,7 @@ class HashTreeDbListener(object):
                         self._delete_logs(ctx, log_by_root[root_rn])
             except Exception as e:
                 LOG.error('Failed to update root %s '
-                          'tree for: %s' % (root_rn, e.message))
+                          'tree for: %s' % (root_rn, str(e)))
                 LOG.debug(traceback.format_exc())
 
     def _validate_config_trees(self, ctx, roots):

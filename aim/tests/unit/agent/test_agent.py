@@ -141,13 +141,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
     def _tree_to_event(self, root, result, dn, manager):
         if not root:
             return
-        children = root.values()[0]['children']
-        root.values()[0]['children'] = []
-        dn += '/' + root.values()[0]['attributes']['rn']
-        root.values()[0]['attributes']['dn'] = dn
-        status = root.values()[0]['attributes'].get('status')
+        children = list(root.values())[0]['children']
+        list(root.values())[0]['children'] = []
+        dn += '/' + list(root.values())[0]['attributes']['rn']
+        list(root.values())[0]['attributes']['dn'] = dn
+        status = list(root.values())[0]['attributes'].get('status')
         if status is None:
-            root.values()[0]['attributes']['status'] = 'created'
+            list(root.values())[0]['attributes']['status'] = 'created'
         elif status == 'deleted':
             # API call fails in case the item doesn't exist
             if not test_aci_tenant.mock_get_data(manager.aci_session,
@@ -394,7 +394,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Push state
         currentserving_tenants = {
             k: v for k, v in
-            agent.current_universe.serving_tenants.iteritems()}
+            agent.current_universe.serving_tenants.items()}
         agent._reconciliation_cycle()
         self.assertIs(agent.current_universe.serving_tenants[tn1.rn],
                       currentserving_tenants[tn1.rn])
@@ -1618,7 +1618,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Action cache is empty
         self.assertEqual({}, desired_monitor._sync_log)
         self.assertEqual({'create': {}, 'delete': {}},
-                         current_monitor._sync_log.values()[0])
+                         list(current_monitor._sync_log.values())[0])
 
     def test_tenant_delete_behavior(self):
         tenant_name = 'test_tenant_delete_behavior'
@@ -2167,7 +2167,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         def printable_state(universe):
             return json.dumps({x: y.root.to_dict() if y.root else {}
-                               for x, y in universe.state.iteritems()},
+                               for x, y in universe.state.items()},
                               indent=2)
         desired.observe(self.ctx)
         current.observe(self.ctx)
@@ -2248,7 +2248,8 @@ class TestAgentAnnotation(TestAgent):
             obj = test_aci_tenant.mock_get_data(
                 desired_monitor.serving_tenants[tenant_rn].aci_session,
                 'mo/' + dn)
-            return obj[0].values()[0]['attributes'].get('annotation', False)
+            return list(obj[0].values())[0]['attributes'].get(
+                'annotation', False)
         except apic_client.cexc.ApicResponseNotOk:
             # Fallback to tags
             try:

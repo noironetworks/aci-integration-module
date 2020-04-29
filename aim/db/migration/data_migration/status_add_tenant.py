@@ -62,11 +62,13 @@ def migrate(session):
             elif len(root_klass.identity_attributes) == 0:
                 rn = root_klass().rn
             else:
-                parent_root_attr = parent_class.identity_attributes.keys()[0]
+                parent_root_attr = list(
+                    parent_class.identity_attributes.keys())[0]
                 parent_root = getattr(parent_table, parent_root_attr)
                 parent = session.query(parent_root).one()
                 root_name = getattr(parent, parent_root_attr)
                 rn = root_klass(
-                    **{root_klass.identity_attributes.keys()[0]: root_name}).rn
+                    **{list(root_klass.identity_attributes.keys(
+                        ))[0]: root_name}).rn
             session.execute(update(Status).where(
                 Status.c.id == st.id).values(resource_root=rn))

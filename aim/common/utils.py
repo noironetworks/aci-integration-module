@@ -14,13 +14,16 @@
 #    under the License.
 
 import base64
+from collections import OrderedDict
 from contextlib import contextmanager
 import functools
 import hashlib
 import json
 import os
+import oslo_serialization
 import random
 import re
+import six
 import threading
 import time
 import traceback
@@ -56,6 +59,36 @@ def log(method):
                    ' called with arguments %(args)s %(kwargs)s', data)
         return method(*args, **kwargs)
     return wrapper
+
+
+# created a common function for tackling issues of sorting a list of dict
+# or list of string for Py3 support
+def deep_sort(obj):
+    if isinstance(obj, dict):
+        obj = OrderedDict(sorted(obj.items()))
+        for k, v in obj.items():
+            if isinstance(v, dict) or isinstance(v, list):
+                obj[k] = deep_sort(v)
+
+    if isinstance(obj, list):
+        for i, v in enumerate(obj):
+            if isinstance(v, dict) or isinstance(v, list):
+                obj[i] = deep_sort(v)
+        obj = sorted(obj, key=lambda x: json.dumps(x))
+
+    return obj
+
+
+def is_equal(obj1, obj2):
+    sorted_obj1 = deep_sort(obj1)
+    sorted_obj2 = deep_sort(obj2)
+    return sorted_obj1 == sorted_obj2
+
+
+# In Py3, keyword 'cmp' is undefined
+def cmp(obj1, obj2):
+    _cmp = lambda x, y: (x > y) - (x < y)
+    return _cmp(obj1, obj2)
 
 
 def generate_uuid():
@@ -139,13 +172,15 @@ def snake_to_lower_camel(name):
 
 
 def sanitize_name(type, *args):
+    # Updated due to PY3 error
+    # TypeError: Unicode-objects must be encoded before hashing
     h = hashlib.sha256()
-    h.update(type)
-    h.update('\x00')
+    h.update(type.encode('utf-8'))
+    h.update('\x00'.encode('utf-8'))
     for component in args:
-        h.update(component)
-        h.update('\x00')
-    return base64.b32encode(h.digest()).rstrip('=').lower()
+        h.update(component.encode('utf-8'))
+        h.update('\x00'.encode('utf-8'))
+    return (base64.b32encode(h.digest()).decode('utf-8').rstrip('=').lower())
 
 
 class ThreadExit(Exception):
@@ -178,7 +213,7 @@ def retry_loop(max_wait, max_retries, name, fail=False, return_=False):
                     if recovery_retries.get() >= max_retries:
                         LOG.error("Exceeded max recovery retries for %s", name)
                         if fail:
-                            perform_harakiri(LOG, e.message)
+                            perform_harakiri(LOG, str(e))
                         raise e
         return inner
     return wrap
@@ -312,7 +347,7 @@ def rlock(lock_name):
 
 
 def _byteify(data, ignore_dicts=False):
-    if isinstance(data, unicode):
+    if isinstance(data, six.text_type):
         return data.encode('utf-8')
     if isinstance(data, list):
         return [_byteify(item, ignore_dicts=True) for item in data]
@@ -320,18 +355,28 @@ def _byteify(data, ignore_dicts=False):
         return {
             _byteify(key, ignore_dicts=True): _byteify(value,
                                                        ignore_dicts=True)
-            for key, value in data.iteritems()
+            for key, value in data.items()
         }
     return data
 
 
 def json_loads(json_text):
-    return _byteify(json.loads(json_text, object_hook=_byteify),
-                    ignore_dicts=True)
+    # The ultimate aim of using _byteify is to convert unicode data to
+    # bytes (or else it will dump the data into unicode format, since
+    # data is in unicode format).
+    # We are converting into bytes because in Py2, string and bytes are
+    # same in Py2.
+    # While we don't need to convert it into bytes for Py3, because string
+    # and unicode are same in Py3. So no need for conversion in PY3 case.
+    if six.PY3:
+        return oslo_serialization.jsonutils.loads(json_text)
+    return _byteify(
+        oslo_serialization.jsonutils.loads(json_text, object_hook=_byteify),
+        ignore_dicts=True)
 
 
 def json_dumps(dict):
-    return json.dumps(dict)
+    return oslo_serialization.jsonutils.dump_as_bytes(dict)
 
 
 def schedule_next_event(interval, deviation):
