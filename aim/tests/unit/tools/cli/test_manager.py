@@ -17,6 +17,7 @@ import ast
 import mock
 import six
 
+
 from aim import aim_manager
 from aim.api import infra
 from aim.api import resource
@@ -388,6 +389,49 @@ class TestManager(base.TestShell):
             self.run_command('manager sync-state-recover')
             # Items are updated
             self.assertEqual(4, up.call_count)
+
+    def test_tag_list_command(self):
+        apic_manager_object = mock.Mock()
+
+        def get_mgr():
+            return apic_manager_object
+
+        mo_dict = {'tagInst': {'attributes':
+                   {'dn': 'uni/tn-tn1/tag-openstack_aid'}}}
+        apic_manager_object.apic.list_mo = mock.Mock(
+            return_value=[mo_dict])
+        apic_manager_object.apic.transaction = mock.MagicMock()
+
+        with mock.patch('aim.tools.cli.commands.infra.get_apic_manager',
+                        side_effect=get_mgr):
+            with mock.patch('click.echo') as ce:
+                self.run_command('infra tag-list -t openstack_aid')
+        ce.called_once_with('uni/tn-tn1/tag-openstack_aid')
+
+    def test_tag_delete_command(self):
+        apic_manager_object = mock.Mock()
+
+        def get_mgr():
+            return apic_manager_object
+        apic_manager_object.apic.DELETE = mock.Mock()
+        apic_manager_object.apic.transaction = mock.MagicMock()
+        # First try and delete the tenant, which should fail
+        with mock.patch('aim.tools.cli.commands.infra.get_apic_manager',
+                        side_effect=get_mgr):
+            with mock.patch('click.echo') as ce:
+                self.run_command('infra tag-delete --dn uni/tn-tn1')
+        ce.called_once_with("uni/tn-tn1 object isn't a tag -- ignoring")
+        apic_manager_object.apic.transaction.assert_not_called()
+
+        # Now actually delete a tag
+        with mock.patch('aim.tools.cli.commands.infra.get_apic_manager',
+                        side_effect=get_mgr):
+            with mock.patch('click.echo') as ce:
+                self.run_command(
+                    'infra tag-delete --dn uni/tn-tn1/tag-openstack_aid')
+        ce.called_once_with("uni/tn-tn1/tag-openstack_aid deleted")
+        apic_manager_object.apic.DELETE.assert_called_with(
+            '/mo/uni/tn-tn1/tag-openstack_aid.json')
 
 
 class TestManagerResourceOpsBase(object):
