@@ -1042,6 +1042,7 @@ class SecurityGroupRule(AciResourceBase):
         ('conn_track', t.enum('normal', 'reflexive')),
         ('icmp_type', t.string()),
         ('icmp_code', t.string()),
+        ('remote_group_id', t.name),
         ('monitored', t.bool))
 
     _aci_mo_name = 'hostprotRule'
@@ -1058,6 +1059,7 @@ class SecurityGroupRule(AciResourceBase):
              'icmp_type': self.UNSPECIFIED,
              'icmp_code': self.UNSPECIFIED,
              'conn_track': 'reflexive',
+             'remote_group_id': '',
              'monitored': False}, **kwargs)
 
 

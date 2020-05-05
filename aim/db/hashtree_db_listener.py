@@ -112,6 +112,15 @@ class HashTreeDbListener(object):
                     # Get all objects of that type
                     for obj in self.aim_manager.find(aim_ctx, klass,
                                                      **filters):
+                        # We will not add this SG rule to AIM tree to
+                        # prevent it from showing up in APIC because its
+                        # a block-all rule.
+                        if (aim_cfg.CONF.aim.
+                            remove_remote_group_sg_rule_if_block_all and
+                            klass == resource.SecurityGroupRule and
+                                obj.remote_group_id and
+                                not obj.remote_ips):
+                            continue
                         # Need all the faults and statuses as well
                         stat = self.aim_manager.get_status(
                             aim_ctx, obj, create_if_absent=False)
@@ -220,22 +229,30 @@ class HashTreeDbListener(object):
             # identities from all the action log items being
             # processed.
             if isinstance(aim_res, resource.SecurityGroupRule):
-                if aim_cfg.CONF.aim.fetch_sgr_from_db:
-                    db_aim_res = self.aim_manager.get(ctx, aim_res)
-                    if db_aim_res:
-                        if action == aim_tree.ActionLog.DELETE:
-                            LOG.warn("AIM resource %s exists in DB for delete "
-                                     "action" % db_aim_res)
-                        else:
-                            # Use current resource from DB so that list
-                            # attributes do no need to be protected from
-                            # concurrent updates by bumping the resource's
-                            # epoch.
-                            aim_res = db_aim_res
+                db_aim_res = self.aim_manager.get(ctx, aim_res)
+                if db_aim_res:
+                    if action == aim_tree.ActionLog.DELETE:
+                        LOG.warn("AIM resource %s exists in DB for delete "
+                                 "action" % db_aim_res)
                     else:
-                        if action != aim_tree.ActionLog.DELETE:
-                            LOG.warn("AIM resource %s does not exist in DB "
-                                     "for create/update action" % aim_res)
+                        # Use current resource from DB so that list
+                        # attributes do no need to be protected from
+                        # concurrent updates by bumping the resource's
+                        # epoch.
+                        aim_res = db_aim_res
+
+                        # We will remove this SG rule from AIM tree to
+                        # prevent it from showing up in APIC because its
+                        # a block-all rule.
+                        if (aim_cfg.CONF.aim.
+                            remove_remote_group_sg_rule_if_block_all and
+                                aim_res.remote_group_id and
+                                not aim_res.remote_ips):
+                            action = aim_tree.ActionLog.DELETE
+                else:
+                    if action != aim_tree.ActionLog.DELETE:
+                        LOG.warn("AIM resource %s does not exist in DB "
+                                 "for create/update action" % aim_res)
             log_by_root.setdefault(log.root_rn, []).append(
                 (action, aim_res, log))
         return log_by_root, resetting_roots

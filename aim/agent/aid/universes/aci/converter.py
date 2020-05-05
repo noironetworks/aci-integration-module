@@ -761,7 +761,7 @@ resource_map = {
     }],
     'hostprotRule': [{
         'resource': resource.SecurityGroupRule,
-        'skip': ['remote_ips'],
+        'skip': ['remote_ips', 'remote_group_id'],
         'exceptions': {
             'protocol': {'other': 'ip_protocol',
                          'converter': ip_protocol},
