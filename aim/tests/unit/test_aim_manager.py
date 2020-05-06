@@ -659,6 +659,7 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
             for typ in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][typ] = (
                     self.tt_mgr.get(self.ctx, tenant.rn, tree=typ))
+        return result
 
     def test_tree_reset(self):
         self._create_prerequisite_objects()
@@ -1315,6 +1316,7 @@ class TestHostLinkNetworkLabelMixin(object):
 class TestSecurityGroupMixin(object):
     resource_class = resource.SecurityGroup
     resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [resource.Tenant(name='tenant1')]
     test_identity_attributes = {'tenant_name': 'tenant1', 'name': 'sg1'}
     test_required_attributes = {'tenant_name': 'tenant1', 'name': 'sg1'}
     test_search_attributes = {'display_name': 'sg-display'}
@@ -1327,6 +1329,7 @@ class TestSecurityGroupSubjectMixin(object):
     resource_class = resource.SecurityGroupSubject
     resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.SecurityGroup(tenant_name='tenant1', name='sg1')]
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'security_group_name': 'sg1',
@@ -1344,6 +1347,7 @@ class TestSecurityGroupRuleMixin(object):
     resource_class = resource.SecurityGroupRule
     resource_root_type = resource.Tenant._aci_mo_name
     prereq_objects = [
+        resource.Tenant(name='tenant1'),
         resource.SecurityGroup(tenant_name='tenant1', name='sg1'),
         resource.SecurityGroupSubject(
             tenant_name='tenant1', security_group_name='sg1', name='subject1')]
@@ -1356,11 +1360,12 @@ class TestSecurityGroupRuleMixin(object):
                                 'security_group_subject_name': 'subject1',
                                 'name': 'rule1',
                                 'direction': 'ingress',
-                                'remote_ips': ['10.0.0.1/30',
-                                               '192.168.0.0/24']}
+                                'remote_ips': [],
+                                'remote_group_id': 'rule1'}
     test_search_attributes = {'direction': 'ingress'}
-    test_update_attributes = {'remote_ips': [], 'from_port': '80',
-                              'to_port': '443'}
+    test_update_attributes = {'remote_ips': ['192.168.0.0/24', '10.0.0.1/30'],
+                              'from_port': '80', 'to_port': '443',
+                              'remote_group_id': ''}
     test_dn = 'uni/tn-tenant1/pol-sg1/subj-subject1/rule-rule1'
     res_command = 'security-group-rule'
 

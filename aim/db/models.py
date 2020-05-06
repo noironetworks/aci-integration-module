@@ -849,6 +849,7 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
     conn_track = sa.Column(sa.String(25))
     icmp_code = sa.Column(sa.String(16))
     icmp_type = sa.Column(sa.String(16))
+    remote_group_id = sa.Column(sa.String(64), nullable=False)
 
     def from_attr(self, session, res_attr):
         if 'remote_ips' in res_attr:

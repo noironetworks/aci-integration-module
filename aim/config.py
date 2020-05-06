@@ -111,14 +111,13 @@ agent_opts = [
                 help=("(Temporary) Set to True if you want the agents to "
                       "recreate and validate config trees after catching up "
                       "with the action log.")),
-    cfg.BoolOpt('fetch_sgr_from_db', default=True,
-                help=("(Temporary) Set to False if you want the agents to "
-                      "use SecurityGroupRule state from the action log "
-                      "rather than fetching it from the DB.")),
     cfg.IntOpt('apic_available_time', default=600,
                help=("Seconds to consider that this APIC can be assigned to "
                      "another aim-aid since its last update time in the "
                      "ApicAssignment DB table.")),
+    cfg.BoolOpt('remove_remote_group_sg_rule_if_block_all', default=True,
+                help=("(Temporary) Set to False if you still want such rules "
+                      "to be added to the AIM tree.")),
 ]
 
 # TODO(ivar): move into AIM section

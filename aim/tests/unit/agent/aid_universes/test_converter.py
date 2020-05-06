@@ -1107,7 +1107,7 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
                           'converter': converter.icmpv4_code},
             'ethertype': {'other': 'ethertype',
                           'converter': converter.ethertype}},
-         'skip': ['remoteIps'],
+         'skip': ['remoteIps', 'remoteGroupId'],
          'resource': 'hostprotRule'},
         {'exceptions': {},
          'converter': converter.hostprotRemoteIp_converter,
@@ -1128,7 +1128,8 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
             tenant_name='t1', security_group_name='sg1',
             security_group_subject_name='sgs2', name='rule1',
             conn_track='normal', icmp_type='0xffff', icmp_code='0',
-            ip_protocol='eigrp', ethertype='ipv4')
+            ip_protocol='eigrp', ethertype='ipv4',
+            remote_group_id='')
     ]
 
 
