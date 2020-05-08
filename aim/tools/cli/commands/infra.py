@@ -56,3 +56,34 @@ def create(ctx):
     ctx.obj['apic_manager'].ensure_infra_created_on_apic()
     ctx.obj['apic_manager'].ensure_bgp_pod_policy_created_on_apic()
     ctx.obj['apic_manager'].ensure_opflex_client_cert_validation_disabled()
+
+
+@infra.command(name='tag-list')
+@click.option('--tag-name', '-t', help='Tag name')
+@click.pass_context
+def tag_list(ctx, tag_name):
+    """APIC command for listing tagged resources.
+
+    Lists all the resources in ACI with a tagInst.
+    """
+    with ctx.obj['apic_manager'].apic.transaction():
+        # Find all the MOs with the system ID
+        for mo in ctx.obj['apic_manager'].apic.list_mo(
+                ctx.obj['apic_manager'].apic.tagInst.mo, name=tag_name):
+            click.echo("%s" % mo['tagInst']['attributes']['dn'])
+
+
+@infra.command(name='tag-delete')
+@click.option('--dn', help='Distinguished Name (DN) for Managed Oobject (MO)')
+@click.pass_context
+def tag_delete(ctx, dn, **kwargs):
+    """APIC command for deleting tagged resources.
+
+    Deletes the tagged resources in ACI with a tagInst.
+    """
+    if 'tag-' not in dn.split('/')[-1]:
+        click.echo("%s object isn't a tag -- ignoring" % dn)
+        return
+    with ctx.obj['apic_manager'].apic.transaction():
+        ctx.obj['apic_manager'].apic.DELETE('/mo/%s.json' % dn)
+        click.echo("%s deleted" % dn)
