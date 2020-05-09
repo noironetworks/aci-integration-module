@@ -249,7 +249,7 @@ class TestResourceOpsBase(object):
         # Verify get
         r1 = self.mgr.get(self.ctx, res)
         for k, v in creation_attributes.items():
-            self.assertEqual(v, getattr_canonical(r1, k))
+            self.assertTrue(utils.is_equal(v, getattr_canonical(r1, k)))
 
         if ('object_uid' in self.ctx.store.features and
                 'guid' in resource.db_attributes):
@@ -271,18 +271,18 @@ class TestResourceOpsBase(object):
         rs1 = self.mgr.find(self.ctx, resource, **test_identity_attributes)
         self.assertEqual(1, len(rs1))
         for k, v in creation_attributes.items():
-            self.assertEqual(v, getattr_canonical(rs1[0], k))
+            self.assertTrue(utils.is_equal(v, getattr_canonical(rs1[0], k)))
 
         # Test search by other attributes
         rs2 = self.mgr.find(self.ctx, resource, **test_search_attributes)
         self.assertEqual(1, len(rs2))
         for k, v in creation_attributes.items():
-            self.assertEqual(v, getattr_canonical(rs2[0], k))
+            self.assertTrue(utils.is_equal(v, getattr_canonical(rs2[0], k)))
 
         # Test update
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
         for k, v in test_update_attributes.items():
-            self.assertEqual(v, getattr_canonical(r3, k))
+            self.assertTrue(utils.is_equal(v, getattr_canonical(r3, k)))
         if self.test_epoch:
             self.assertNotEqual(old_epoch, r3.epoch)
             r3_1 = self.mgr.create(self.ctx, r3, overwrite=True)
