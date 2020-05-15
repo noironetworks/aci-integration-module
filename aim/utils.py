@@ -18,3 +18,8 @@ import re
 
 def sanitize_display_name(display_name):
     return re.sub(r'[^a-zA-Z0-9_.-]', '_', display_name[:59])
+
+
+def sanitize_description(description):
+    return re.sub(r'[^a-zA-Z0-9\\!#$%()*,-./:;@ _{|}~?&+]',
+                  '_', description[:124])
