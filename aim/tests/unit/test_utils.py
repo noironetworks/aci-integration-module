@@ -38,6 +38,14 @@ class TestUtils(base.TestAimDBBase):
             'some' * 14 + 'som',
             utils.sanitize_display_name('some' * 15))
 
+    def test_sanitize_description(self):
+        self.assertEqual(
+            '_eF5\\!#$%()*,-./:;@ _{|}~?&+_',
+            utils.sanitize_description('\'eF5\\!#$%()*,-./:;@ _{|}~?&+\"'))
+        self.assertEqual(
+            'somed' * 24 + 'some',
+            utils.sanitize_description('somed' * 25))
+
     def test_get_backoff_time_with_big_tentative(self):
         tentative = 10240
         tentative = internal_utils.get_backoff_time(600, tentative)
