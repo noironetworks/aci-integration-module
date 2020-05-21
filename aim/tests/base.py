@@ -258,6 +258,14 @@ class TestAimDBBase(BaseTestCase):
         return {type: {'attributes': attr}}
 
     @classmethod
+    def _get_example_aim_security_group_rule(cls, **kwargs):
+        example = resource.SecurityGroupRule(
+            tenant_name='t1', security_group_name='sg1',
+            security_group_subject_name='sgs1', name='rule1')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
     def _get_example_aim_bd(cls, **kwargs):
         example = resource.BridgeDomain(tenant_name='test-tenant',
                                         vrf_name='default',

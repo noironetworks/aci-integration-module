@@ -2876,31 +2876,23 @@ class TestAimToAciConverterSecurityGroupSubject(TestAimToAciConverterBase,
                   nameAlias='')]]
 
 
-def get_example_aim_security_group_rule(**kwargs):
-    example = resource.SecurityGroupRule(
-        tenant_name='t1', security_group_name='sg1',
-        security_group_subject_name='sgs1', name='rule1')
-    example.__dict__.update(kwargs)
-    return example
-
-
 class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                                              base.TestAimDBBase):
-    sample_input = [get_example_aim_security_group_rule(),
-                    get_example_aim_security_group_rule(
+    sample_input = [base.TestAimDBBase._get_example_aim_security_group_rule(),
+                    base.TestAimDBBase._get_example_aim_security_group_rule(
                         security_group_name='sg2', ip_protocol=115,
                         from_port='80', to_port='443',
                         direction='egress', ethertype='1',
                         conn_track='normal', icmp_type='3',
                         icmp_code='0'),
-                    get_example_aim_security_group_rule(
+                    base.TestAimDBBase._get_example_aim_security_group_rule(
                         security_group_name='sg3', ip_protocol=1,
                         from_port='80', to_port='443',
                         remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
                         direction='egress', ethertype='1',
                         conn_track='normal', icmp_type='255',
                         icmp_code='0xffff'),
-                    get_example_aim_security_group_rule(
+                    base.TestAimDBBase._get_example_aim_security_group_rule(
                         security_group_name='sg4', ip_protocol=6,
                         from_port='80', to_port='443',
                         direction='egress', ethertype='2',
