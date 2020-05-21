@@ -202,6 +202,7 @@ class HashTreeDbListener(object):
         log_by_root = {}
         resource_paths = ('resource', 'service_graph', 'infra', 'tree',
                           'status')
+        sg_rule_logs = {}
         for log in logs:
             if log.action == aim_tree.ActionLog.RESET:
                 resetting_roots.add(log.root_rn)
@@ -234,6 +235,7 @@ class HashTreeDbListener(object):
                     if action == aim_tree.ActionLog.DELETE:
                         LOG.warn("AIM resource %s exists in DB for delete "
                                  "action" % db_aim_res)
+                        action = aim_tree.ActionLog.SKIP
                     else:
                         # Use current resource from DB so that list
                         # attributes do no need to be protected from
@@ -253,8 +255,26 @@ class HashTreeDbListener(object):
                     if action != aim_tree.ActionLog.DELETE:
                         LOG.warn("AIM resource %s does not exist in DB "
                                  "for create/update action" % aim_res)
+                        action = aim_tree.ActionLog.SKIP
+
+                # Queue up these SG rules first as we really just need
+                # the last one instead of sending those duplicate entries
+                # over.
+                if action != aim_tree.ActionLog.SKIP:
+                    sg_rule_logs.setdefault(aim_res.name, []).append(
+                        (action, aim_res, log))
+                    continue
+            # TBD: squash
             log_by_root.setdefault(log.root_rn, []).append(
                 (action, aim_res, log))
+
+        for sg_rule_name, list_of_logs in sg_rule_logs.items():
+            # We will skip the processing of all the sg_rules except
+            # for the last one.
+            for log in list_of_logs[:-1]:
+                log.action = aim_tree.ActionLog.SKIP
+            log_by_root.setdefault(log.root_rn, []).extend(list_of_logs)
+
         return log_by_root, resetting_roots
 
     def _cleanup_resetting_roots(self, ctx, log_by_root, resetting_roots):
@@ -302,11 +322,14 @@ class HashTreeDbListener(object):
                     tree_map.setdefault(
                         self.tt_builder.MONITOR, {})[root_rn] = ttree_monitor
                     for action, aim_res, _ in log_by_root[root_rn]:
+                        if action == aim_tree.ActionLog.SKIP:
+                            continue
                         added = deleted = []
                         if action == aim_tree.ActionLog.CREATE:
                             added = [aim_res]
                         else:
                             deleted = [aim_res]
+                        # TBD
                         self.tt_builder.build(added, [], deleted, tree_map,
                                               aim_ctx=ctx)
                     if ttree_conf.root_key:
