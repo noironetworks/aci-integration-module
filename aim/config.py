@@ -49,6 +49,9 @@ agent_opts = [
     cfg.IntOpt('agent_report_interval', default=60,
                help=("Number of seconds after which an agent reports his "
                      "state")),
+    cfg.IntOpt('agent_deadlock_time', default=300,
+               help=("Number of seconds agent can be non-responsive before "
+                     "it will get restarted.")),
     cfg.IntOpt('config_polling_interval', default=30,
                help=("Number of seconds the config subscriber thread needs "
                      "to wait between checks.")),

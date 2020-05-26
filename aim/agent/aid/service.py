@@ -46,7 +46,6 @@ DAEMON_LOOP_MAX_WAIT = 5
 DAEMON_LOOP_MAX_RETRIES = 5
 HB_LOOP_MAX_WAIT = 60
 HB_LOOP_MAX_RETRY = 10
-DEADLOCK_TIME = 300
 
 logging.register_options(aim_cfg.CONF)
 
@@ -108,6 +107,8 @@ class AID(object):
             self._change_report_interval, 'agent_report_interval', group='aim')
         self.squash_time = self.conf_manager.get_option_and_subscribe(
             self._change_squash_time, 'agent_event_squash_time', group='aim')
+        self.deadlock_time = self.conf_manager.get_option_and_subscribe(
+            self._change_deadlock_time, 'agent_deadlock_time', group='aim')
         self._spawn_heartbeat_loop()
         self.events = event_handler.EventHandler().initialize(
             self.conf_manager)
@@ -217,7 +218,7 @@ class AID(object):
         #          removed all the locking in AID.
         if start_time > self.daemon_loop_time:
             down_time = start_time - self.daemon_loop_time
-            if down_time > DEADLOCK_TIME:
+            if down_time > self.deadlock_time:
                 utils.perform_harakiri(LOG, "Agent has been down for %s "
                                        "seconds." % down_time)
 
@@ -304,6 +305,10 @@ class AID(object):
     def _change_squash_time(self, new_conf):
         # TODO(ivar): interrupt current sleep and restart with new value
         self.squash_time = new_conf['value']
+
+    def _change_deadlock_time(self, new_conf):
+        # REVISIT: interrupt current sleep and restart with new value
+        self.deadlock_time = new_conf['value']
 
 
 def main():
