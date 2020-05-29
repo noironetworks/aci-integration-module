@@ -281,40 +281,6 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             self.tt_mgr.delete_by_root_rn(self.ctx, tn_rn)
             cast.assert_called_once_with(mock.ANY, 'serve', None)
 
-    @base.requires(['hooks'])
-    def test_tree_hooks_transactions(self):
-        with mock.patch('aim.agent.aid.event_services.'
-                        'rpc.AIDEventRpcApi._cast') as cast:
-            tn = aim_res.Tenant(name='test_tree_hooks')
-            ap = aim_res.ApplicationProfile(tenant_name='test_tree_hooks',
-                                            name='ap')
-            epg = aim_res.EndpointGroup(
-                tenant_name='test_tree_hooks', app_profile_name='ap',
-                name='epg', bd_name='some')
-
-            tn1 = aim_res.Tenant(name='test_tree_hooks1')
-            ap1 = aim_res.ApplicationProfile(
-                tenant_name='test_tree_hooks1', name='ap')
-            epg1 = aim_res.EndpointGroup(
-                tenant_name='test_tree_hooks1', app_profile_name='ap',
-                name='epg', bd_name='some')
-            # Try a transaction
-            with self.ctx.store.begin(subtransactions=True):
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn)
-                    self.mgr.create(self.ctx, ap)
-                    self.mgr.create(self.ctx, epg)
-                self.assertEqual(0, cast.call_count)
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn1)
-                    self.mgr.create(self.ctx, ap1)
-                    self.mgr.create(self.ctx, epg1)
-                self.assertEqual(0, cast.call_count)
-            exp_calls = [
-                mock.call(mock.ANY, 'serve', None),
-                mock.call(mock.ANY, 'reconcile', None)]
-            self._check_call_list(exp_calls, cast)
-
     def test_monitored_state_change(self):
         tn_name = 'test_monitored_state_change'
         tn_rn = 'tn-' + tn_name
@@ -483,3 +449,47 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
             # All the action logs have been deleted also.
             logs = self.mgr.find(self.ctx, aim_tree.ActionLog)
             self.assertEqual(logs, [])
+
+    @base.requires(['hooks'])
+    def test_tree_hooks_transactions(self):
+        with mock.patch('aim.agent.aid.event_services.'
+                        'rpc.AIDEventRpcApi._cast') as cast:
+            tn = aim_res.Tenant(name='test_tree_hooks')
+            ap = aim_res.ApplicationProfile(tenant_name='test_tree_hooks',
+                                            name='ap')
+            epg = aim_res.EndpointGroup(
+                tenant_name='test_tree_hooks', app_profile_name='ap',
+                name='epg', bd_name='some')
+
+            tn1 = aim_res.Tenant(name='test_tree_hooks1')
+            ap1 = aim_res.ApplicationProfile(
+                tenant_name='test_tree_hooks1', name='ap')
+            epg1 = aim_res.EndpointGroup(
+                tenant_name='test_tree_hooks1', app_profile_name='ap',
+                name='epg', bd_name='some')
+
+            # This transaction will generate some action logs, which
+            # will trigger a 'reconcile' event.
+            with self.ctx.store.begin(subtransactions=True):
+                with self.ctx.store.begin(subtransactions=True):
+                    self.mgr.create(self.ctx, tn)
+                    self.mgr.create(self.ctx, ap)
+                    self.mgr.create(self.ctx, epg)
+                self.assertEqual(0, cast.call_count)
+                with self.ctx.store.begin(subtransactions=True):
+                    self.mgr.create(self.ctx, tn1)
+                    self.mgr.create(self.ctx, ap1)
+                    self.mgr.create(self.ctx, epg1)
+                self.assertEqual(0, cast.call_count)
+            exp_calls = [mock.call(mock.ANY, 'reconcile', None)]
+            self._check_call_list(exp_calls, cast)
+            cast.reset_mock()
+
+            # There are 2 tenants so 2 transactions will be involved here,
+            # each transaction will update the trees so 2 'serve' events
+            # will be generated.
+            self.db_l.catch_up_with_action_log(self.ctx.store)
+            exp_calls = [
+                mock.call(mock.ANY, 'serve', None),
+                mock.call(mock.ANY, 'serve', None)]
+            self._check_call_list(exp_calls, cast)
