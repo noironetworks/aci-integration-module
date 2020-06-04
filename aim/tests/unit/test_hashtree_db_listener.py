@@ -20,6 +20,7 @@ import mock
 from aim import aim_manager
 from aim.api import resource as aim_res
 from aim.api import status as aim_status
+from aim.api import tree as aim_tree
 from aim.common.hashtree import structured_tree as tree
 from aim.db import agent_model  # noqa
 from aim.db import hashtree_db_listener as ht_db_l
@@ -432,3 +433,53 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.db_l.catch_up_with_action_log(self.ctx.store)
         # status doesn't exist anymore
         self.assertIsNone(self.mgr.get(self.ctx, status))
+
+
+class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestHashTreeDbListenerNoMockStore, self).setUp(mock_store=False)
+        self.tt_mgr = tree_manager.HashTreeManager()
+        self.mgr = aim_manager.AimManager()
+        self.db_l = ht_db_l.HashTreeDbListener(aim_manager.AimManager())
+
+    def test_duplicate_sg_rule_action_logs(self):
+        with mock.patch.object(self.db_l.tt_builder, 'build') as tt_build:
+            rule = self._get_example_aim_security_group_rule(
+                security_group_name='sg1', ip_protocol=1,
+                from_port='80', to_port='443',
+                remote_ips=['10.0.1.0/24'],
+                direction='egress', ethertype='1',
+                conn_track='normal', icmp_type='255')
+            rule = self.mgr.create(self.ctx, rule)
+            rule = self.mgr.get(self.ctx, rule)
+            self.db_l.catch_up_with_action_log(self.ctx.store)
+            # One action log, one build() call for sure.
+            tt_build.assert_called_once_with(
+                [rule], [], [], mock.ANY, aim_ctx=mock.ANY)
+
+            tt_build.reset_mock()
+            rule = self.mgr.update(
+                self.ctx, rule, remote_ips=['10.0.1.0/24', '192.168.0.0/24'])
+            rule = self.mgr.update(
+                self.ctx, rule, direction='ingress')
+            # We've created 2 new action logs however build() will
+            # only get called once with the latest AIM SG rule.
+            self.db_l.catch_up_with_action_log(self.ctx.store)
+            tt_build.assert_called_once_with(
+                [rule], [], [], mock.ANY, aim_ctx=mock.ANY)
+
+            tt_build.reset_mock()
+            rule = self.mgr.update(
+                self.ctx, rule, ethertype='2')
+            self.mgr.delete(self.ctx, rule)
+            # We've created 2 new action logs including a delete
+            # operation however build() will only get called once
+            # with the last delete rule.
+            self.db_l.catch_up_with_action_log(self.ctx.store)
+            tt_build.assert_called_once_with(
+                [], [], [rule], mock.ANY, aim_ctx=mock.ANY)
+
+            # All the action logs have been deleted also.
+            logs = self.mgr.find(self.ctx, aim_tree.ActionLog)
+            self.assertEqual(logs, [])

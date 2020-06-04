@@ -61,6 +61,7 @@ class ActionLog(api_res.ResourceBase):
     CREATE = 'create'
     DELETE = 'delete'
     RESET = 'reset'
+    SKIP = 'skip'
 
     identity_attributes = t.identity(
         ('uuid', t.string(64))
