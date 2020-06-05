@@ -178,24 +178,31 @@ class HashTreeDbListener(object):
         return cache[klass]
 
     def catch_up_with_action_log(self, store, served_tenants=None):
+        served_tenants = served_tenants or set()
         ctx = utils.FakeContext(store=store)
-        with ctx.store.begin(subtransactions=True):
-            served_tenants = served_tenants or set()
-            to_init = set(self.tt_mgr.retrieve_uninitialized_roots(ctx))
-            served_tenants |= to_init
-            # Nothing will happen if there's no action log
-            kwargs = {'order_by': ['root_rn', 'id']}
-            if served_tenants:
-                kwargs['in_'] = {'root_rn': served_tenants}
-            logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
-            LOG.debug('Processing action logs: %s' % logs)
-            log_by_root, resetting_roots = self._preprocess_logs(ctx, logs)
-            self._cleanup_resetting_roots(ctx, log_by_root, resetting_roots)
-            self._push_changes_to_trees(ctx, log_by_root)
-            # REVISIT: This is temporary code for verifying solutions
-            # to concurrency issues. Remove when no longer needed.
-            if aim_cfg.CONF.aim.validate_config_trees:
-                self._validate_config_trees(ctx, log_by_root.keys())
+        to_init = set(self.tt_mgr.retrieve_uninitialized_roots(ctx))
+        served_tenants |= to_init
+        # Nothing will happen if there's no action log
+        kwargs = {'order_by': ['root_rn', 'id']}
+        # This is to just get the for loop below going even if
+        # served_tenants has nothing.
+        # REVISIT: Maybe we should just bail out if served_tenants is empty?
+        if not served_tenants:
+            served_tenants = ['dummy_tenant']
+        for served_tenant in served_tenants:
+            if served_tenant != 'dummy_tenant':
+                kwargs['in_'] = {'root_rn': [served_tenant]}
+            with ctx.store.begin(subtransactions=True):
+                logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
+                LOG.debug('Processing action logs: %s' % logs)
+                log_by_root, resetting_roots = self._preprocess_logs(ctx, logs)
+                self._cleanup_resetting_roots(
+                    ctx, log_by_root, resetting_roots)
+                self._push_changes_to_trees(ctx, log_by_root)
+                # REVISIT: This is temporary code for verifying solutions
+                # to concurrency issues. Remove when no longer needed.
+                if aim_cfg.CONF.aim.validate_config_trees:
+                    self._validate_config_trees(ctx, log_by_root.keys())
 
     def _preprocess_logs(self, ctx, logs):
         resetting_roots = set()
