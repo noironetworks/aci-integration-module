@@ -21,5 +21,7 @@ def sanitize_display_name(display_name):
 
 
 def sanitize_description(description):
+    if description is None:
+        return ''
     return re.sub(r'[^a-zA-Z0-9\\!#$%()*,-./:;@ _{|}~?&+]',
                   '_', description[:124])

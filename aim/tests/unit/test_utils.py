@@ -40,6 +40,8 @@ class TestUtils(base.TestAimDBBase):
 
     def test_sanitize_description(self):
         self.assertEqual(
+            '', utils.sanitize_description(None))
+        self.assertEqual(
             '_eF5\\!#$%()*,-./:;@ _{|}~?&+_',
             utils.sanitize_description('\'eF5\\!#$%()*,-./:;@ _{|}~?&+\"'))
         self.assertEqual(
