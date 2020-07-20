@@ -32,6 +32,13 @@ class Tenant(model_base.Base, model_base.HasDisplayName,
                       model_base.to_tuple(model_base.Base.__table_args__))
 
 
+class Infra(model_base.Base, model_base.AttributeMixin,
+            model_base.HasAimId, model_base.HasName):
+    __tablename__ = 'aim_infra_netflow'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+
 class BridgeDomainL3Out(model_base.Base):
     """DB model for L3Outs used by a BridgeDomain."""
 
@@ -81,6 +88,20 @@ class BridgeDomain(model_base.Base, model_base.HasAimId,
         for l in res_attr.pop('l3outs', []):
             res_attr.setdefault('l3out_names', []).append(l.name)
         return res_attr
+
+
+class NetflowVMMExporterPol(model_base.Base, model_base.HasDisplayName,
+                            model_base.HasAimId, model_base.AttributeMixin,
+                            model_base.IsMonitored, model_base.HasName):
+    """DB model for Netflow VMM Exporter"""
+    __tablename__ = 'aim_netflow_exporter_pol'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    dst_addr = sa.Column(sa.String(16))
+    dst_port = sa.Column(sa.String(16))
+    src_addr = sa.Column(sa.String(16))
+    ver = sa.Column(sa.String(16))
 
 
 class Subnet(model_base.Base, model_base.HasAimId,
