@@ -110,6 +110,7 @@ class AimManager(object):
                      api_res.VmmInjectedService,
                      api_res.VmmInjectedHost,
                      api_res.VmmInjectedContGroup,
+                     api_res.NetflowVMMExporterPol,
                      api_tree.ActionLog}
 
     # Keep _db_model_map in AIM manager for backward compatibility

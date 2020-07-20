@@ -83,6 +83,21 @@ class BridgeDomain(model_base.Base, model_base.HasAimId,
         return res_attr
 
 
+class NetflowVMMExporterPol(model_base.Base, model_base.HasDisplayName,
+                            model_base.HasAimId, model_base.AttributeMixin,
+                            model_base.IsMonitored, model_base.HasName):
+    """DB model for Netflow VMM Exporter"""
+    __tablename__ = 'aim_netflow_exporter_pol'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    name = sa.Column(sa.String(128), primary_key=True)
+    dst_addr = sa.Column(sa.String(16))
+    dst_port = sa.Column(sa.String(16))
+    src_addr = sa.Column(sa.String(16))
+    ver = sa.Column(sa.String(16))
+
+
 class Subnet(model_base.Base, model_base.HasAimId,
              model_base.HasDisplayName,
              model_base.HasTenantName,

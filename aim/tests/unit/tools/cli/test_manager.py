@@ -623,6 +623,12 @@ class TestBridgeDomain(test_aim_manager.TestBridgeDomainMixin,
     pass
 
 
+class TestNetflowVMMExporterPol(
+        test_aim_manager.TestNetflowVMMExporterPolMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
 class TestSubnet(test_aim_manager.TestSubnetMixin, TestManagerResourceOpsBase,
                  base.TestShell):
     pass

@@ -563,7 +563,6 @@ class TestResourceOpsBase(object):
             self.assertFalse(r1.monitored)
             r1 = self.mgr.update(self.ctx, r1, monitored=True)
             self.assertTrue(r1.monitored)
-
             self.mgr.set_resource_sync_pending(self.ctx, res)
             # Deleting doesn't work because status is pending
             self.assertRaises(exc.InvalidMonitoredObjectDelete,
@@ -711,6 +710,26 @@ class TestBridgeDomainMixin(object):
                            'l3out_names': []}
     test_dn = 'uni/tn-tenant-1/BD-net1'
     res_command = 'bridge-domain'
+
+
+class TestNetflowVMMExporterPolMixin(object):
+    resource_class = resource.NetflowVMMExporterPol
+    resource_root_type = resource.NetflowVMMExporterPol._aci_mo_name
+    test_identity_attributes = {'name': 'netflow1'}
+    test_required_attributes = {'name': 'netflow1',
+                                'dst_addr': '172.28.184.76',
+                                'dst_port': '2055',
+                                'src_addr': '1.2.2.2',
+                                'ver': 'v9'}
+    test_search_attributes = {'name': 'netflow1'}
+    test_update_attributes = {}
+    test_default_values = {'dst_addr': '',
+                           'dst_port': '',
+                           'src_addr': '',
+                           'ver': '',
+                           'monitored': False}
+    test_dn = 'uni/infra/vmmexporterpol-netflow1'
+    res_command = 'netflow-vmm-exporter-pol'
 
 
 class TestAgentMixin(object):
@@ -2215,6 +2234,11 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestNetflowVMMExporterPol(TestNetflowVMMExporterPolMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
     pass
 
 

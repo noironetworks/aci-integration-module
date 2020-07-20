@@ -856,6 +856,9 @@ resource_map = {
     'vmmInjectedContGrp': [{
         'resource': resource.VmmInjectedContGroup,
     }],
+    'netflowVmmExporterPol': [{
+        'resource': resource.NetflowVMMExporterPol,
+    }],
 }
 
 resource_map.update(service_graph.resource_map)

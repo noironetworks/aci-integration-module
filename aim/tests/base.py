@@ -297,6 +297,30 @@ class TestAimDBBase(BaseTestCase):
         return example_bd
 
     @classmethod
+    def _get_example_aim_netflow(cls, **kwargs):
+        example = resource.NetflowVMMExporterPol(name='netflow1',
+                                                 dst_addr='172.28.184.76',
+                                                 dst_port='2055',
+                                                 src_addr='1.2.2.2')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_netflow(cls, **kwargs):
+        example_netflow = {
+            "netflowVmmExporterPol": {
+                "attributes": {
+                    "dn": "uni/infra/vmmexporterpol-netflow1",
+                    "name": "netflow1", "displayName": "",
+                    "dstAddr": "172.28.184.76",
+                    "dstPort": "2055",
+                    "srcAddr": "1.2.2.2",
+                    "ownerKey": "", "ownerTag": "",
+                    "ver": "v9"}}}
+        example_netflow['netflowVmmExporterPol']['attributes'].update(kwargs)
+        return example_netflow
+
+    @classmethod
     def _get_example_aci_rs_ctx(cls, **kwargs):
         example_rsctx = {
             "fvRsCtx": {
