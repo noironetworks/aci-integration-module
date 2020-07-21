@@ -301,7 +301,8 @@ class TestAimDBBase(BaseTestCase):
         example = resource.NetflowVMMExporterPol(name='netflow1',
                                                  dst_addr='172.28.184.76',
                                                  dst_port='2055',
-                                                 src_addr='1.2.2.2')
+                                                 src_addr='1.2.2.2',
+                                                 ver='v9')
         example.__dict__.update(kwargs)
         return example
 

@@ -3944,6 +3944,30 @@ class TestAimToAciConverterVmmInjHost(TestAimToAciConverterBase,
     ]
 
 
+class TestAimToAciConverterNetflow(TestAimToAciConverterBase,
+                                   base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_netflow(),
+        base.TestAimDBBase._get_example_aim_netflow(name='netflow')]
+
+    sample_output = [
+        [_aci_obj('netflowVmmExporterPol',
+                  dn=('uni/infra/vmmexporterpol-netflow1'),
+                  dstAddr='172.28.184.76',
+                  dstPort='2055',
+                  srcAddr='1.2.2.2',
+                  ver='v9',
+                  nameAlias='')],
+        [_aci_obj('netflowVmmExporterPol',
+                  dn=('uni/infra/vmmexporterpol-netflow'),
+                  dstAddr='172.28.184.76',
+                  dstPort='2055',
+                  srcAddr='1.2.2.2',
+                  ver='v9',
+                  nameAlias='')]
+    ]
+
+
 def get_example_aim_vmm_inj_cont_group(**kwargs):
     example = resource.VmmInjectedContGroup(
         domain_type='Kubernetes', domain_name='k8s',
