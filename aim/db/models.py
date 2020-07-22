@@ -32,6 +32,15 @@ class Tenant(model_base.Base, model_base.HasDisplayName,
                       model_base.to_tuple(model_base.Base.__table_args__))
 
 
+class Infra(model_base.Base, model_base.AttributeMixin,
+            model_base.HasAimId, model_base.HasName):
+    """DB model for Infra used by Netflow."""
+
+    __tablename__ = 'aim_infra_netflow'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+
 class BridgeDomainL3Out(model_base.Base):
     """DB model for L3Outs used by a BridgeDomain."""
 
@@ -91,7 +100,6 @@ class NetflowVMMExporterPol(model_base.Base, model_base.HasDisplayName,
     __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
-    name = sa.Column(sa.String(128), primary_key=True)
     dst_addr = sa.Column(sa.String(16))
     dst_port = sa.Column(sa.String(16))
     src_addr = sa.Column(sa.String(16))
