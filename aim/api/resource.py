@@ -249,7 +249,21 @@ class Tenant(AciRoot):
                                      **kwargs)
 
 
-class NetflowVMMExporterPol(AciRoot):
+class Infra(AciRoot):
+    """Resource representing an Infra in ACI."""
+
+    identity_attributes = t.identity()
+    other_attributes = t.other(
+        ('name', t.name))
+
+    _aci_mo_name = 'infraInfra'
+    _tree_parent = None
+
+    def __init__(self, **kwargs):
+        super(Infra, self).__init__({}, name='infra', monitored=True)
+
+
+class NetflowVMMExporterPol(AciResourceBase):
     """Resource representing a Netflow Exporter in ACI.
 
     Identity attributes are RNs for netflow exporter pol.
@@ -266,7 +280,7 @@ class NetflowVMMExporterPol(AciRoot):
         ('ver', t.string()))
 
     _aci_mo_name = 'netflowVmmExporterPol'
-    _tree_parent = None
+    _tree_parent = Infra
 
     def __init__(self, **kwargs):
         super(NetflowVMMExporterPol, self).__init__({'dst_addr': '',

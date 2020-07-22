@@ -712,9 +712,21 @@ class TestBridgeDomainMixin(object):
     res_command = 'bridge-domain'
 
 
+class TestInfraMixin(object):
+    resource_class = resource.Infra
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {}
+    test_required_attributes = {}
+    test_search_attributes = {}
+    test_update_attributes = {}
+    test_default_values = {}
+    res_command = 'infra'
+    test_dn = 'uni/infra'
+
+
 class TestNetflowVMMExporterPolMixin(object):
     resource_class = resource.NetflowVMMExporterPol
-    resource_root_type = resource.NetflowVMMExporterPol._aci_mo_name
+    resource_root_type = resource.Infra._aci_mo_name
     test_identity_attributes = {'name': 'netflow1'}
     test_required_attributes = {'name': 'netflow1',
                                 'dst_addr': '172.28.184.76',
@@ -722,7 +734,11 @@ class TestNetflowVMMExporterPolMixin(object):
                                 'src_addr': '1.2.2.2',
                                 'ver': 'v9'}
     test_search_attributes = {'name': 'netflow1'}
-    test_update_attributes = {}
+    test_update_attributes = {'dst_addr': '172.28.184.77',
+                              'dst_port': '2056',
+                              'src_addr': '1.1.2.2',
+                              'ver': 'v9',
+                              'monitored': False}
     test_default_values = {'dst_addr': '',
                            'dst_port': '',
                            'src_addr': '',
@@ -2235,6 +2251,11 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
     pass
+
+
+class TestInfra(TestInfraMixin, TestResourceOpsBase,
+                base.TestAimDBBase):
+    test_epoch = False
 
 
 class TestNetflowVMMExporterPol(TestNetflowVMMExporterPolMixin,

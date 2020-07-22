@@ -278,6 +278,7 @@ class SqlAlchemyStore(AimStore):
                     api_res.VmmInjectedService: models.VmmInjectedService,
                     api_res.VmmInjectedHost: models.VmmInjectedHost,
                     api_res.VmmInjectedContGroup: models.VmmInjectedContGroup,
+                    api_res.Infra: models.Infra,
                     api_res.NetflowVMMExporterPol: (
                         models.NetflowVMMExporterPol),
                     api_tree.ActionLog: tree_model.ActionLog}

@@ -34,7 +34,7 @@ import sqlalchemy as sa
 def upgrade():
     op.create_table(
         'aim_netflow_exporter_pol',
-        sa.Column('aim_id', sa.String(64)),
+        sa.Column('aim_id', sa.String(64), nullable=False),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('display_name', sa.String(256), nullable=False, default=''),
         sa.Column('dst_addr', sa.String(64)),
@@ -44,10 +44,19 @@ def upgrade():
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.Column('epoch', sa.BigInteger(), nullable=False,
                   server_default='0'),
-        sa.PrimaryKeyConstraint('name'),
+        sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('name',
-                            name='uniq_aim_netflow_exporter_identity'),
+                            name='uniq_aim_netflow_exporter_pol_identity'),
         sa.Index('idx_aim_netflow_exporter_pol_identity', 'name'))
+
+    op.create_table(
+        'aim_infra_netflow',
+        sa.Column('name', sa.String(64), nullable=False),
+        sa.Column('aim_id', sa.String(64), nullable=False),
+        sa.Column('epoch', sa.BigInteger(), nullable=False,
+                  server_default='0'),
+        sa.UniqueConstraint('name', name='uniq_aim_infra_netflow_identity'),
+        sa.PrimaryKeyConstraint('aim_id'))
 
 
 def downgrade():
