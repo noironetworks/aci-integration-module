@@ -34,8 +34,6 @@ class Tenant(model_base.Base, model_base.HasDisplayName,
 
 class Infra(model_base.Base, model_base.AttributeMixin,
             model_base.HasAimId, model_base.HasName):
-    """DB model for Infra used by Netflow."""
-
     __tablename__ = 'aim_infra_netflow'
     __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
                       model_base.to_tuple(model_base.Base.__table_args__))
