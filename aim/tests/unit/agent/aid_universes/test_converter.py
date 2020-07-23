@@ -213,6 +213,31 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
         l2_unknown_unicast_mode='flood')
 
 
+class TestAciToAimConverterNetflow(TestAciToAimConverterBase,
+                                   base.TestAimDBBase):
+    resource_type = resource.NetflowVMMExporterPol
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'netflowVmmExporterPol'}]
+    sample_input = [base.TestAimDBBase._get_example_aci_netflow(),
+                    base.TestAimDBBase._get_example_aci_netflow(
+                        dn='uni/infra/vmmexporterpol-netflow',
+                        dstAddr='172.28.184.77',
+                        dstPort='2056',
+                        srcAddr='1.2.2.3',
+                        ver='v5')]
+    sample_output = [
+        resource.NetflowVMMExporterPol(name='netflow1',
+                                       dst_addr='172.28.184.76',
+                                       dst_port='2055',
+                                       src_addr='1.2.2.2',
+                                       ver='v9'),
+        resource.NetflowVMMExporterPol(name='netflow',
+                                       dst_addr='172.28.184.77',
+                                       dst_port='2056',
+                                       src_addr='1.2.2.3',
+                                       ver='v5')]
+
+
 class TestAciToAimConverterVRF(TestAciToAimConverterBase, base.TestAimDBBase):
     resource_type = resource.VRF
     reverse_map_output = [{
@@ -3920,6 +3945,34 @@ class TestAimToAciConverterVmmInjHost(TestAimToAciConverterBase,
                   os='RHEL',
                   kernelVer='5.9',
                   hostName='local.host')]
+    ]
+
+
+class TestAimToAciConverterNetflow(TestAimToAciConverterBase,
+                                   base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_netflow(),
+        base.TestAimDBBase._get_example_aim_netflow(name='netflow',
+                                                    dst_addr='172.28.184.77',
+                                                    dst_port='2057',
+                                                    src_addr='1.2.2.3',
+                                                    ver='v5')]
+
+    sample_output = [
+        [_aci_obj('netflowVmmExporterPol',
+                  dn=('uni/infra/vmmexporterpol-netflow1'),
+                  dstAddr='172.28.184.76',
+                  dstPort='2055',
+                  srcAddr='1.2.2.2',
+                  ver='v9',
+                  nameAlias='')],
+        [_aci_obj('netflowVmmExporterPol',
+                  dn=('uni/infra/vmmexporterpol-netflow'),
+                  dstAddr='172.28.184.77',
+                  dstPort='2057',
+                  srcAddr='1.2.2.3',
+                  ver='v5',
+                  nameAlias='')]
     ]
 
 
