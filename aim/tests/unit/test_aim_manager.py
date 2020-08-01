@@ -869,6 +869,7 @@ class TestEndpointGroupMixin(object):
                                   {'app_profile_name': 'masterap1',
                                    'name': 'masterepg1'}]}
     test_default_values = {'bd_name': '',
+                           'qos_name': '',
                            'provided_contract_names': [],
                            'consumed_contract_names': [],
                            'openstack_vmm_domain_names': [],
@@ -2772,4 +2773,60 @@ class TestServiceRedirectMonitoringPolicy(
 class TestServiceRedirectHealthGroup(TestServiceRedirectHealthGroupMixin,
                                      TestAciResourceOpsBase,
                                      base.TestAimDBBase):
+    pass
+
+
+class TestQosRequirementMixin(object):
+    resource_class = resource.QosRequirement
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'req1'}
+    test_required_attributes = \
+        {'tenant_name': 'tenant1',
+         'name': 'req1',
+         'dscp': 20,
+         'egress_dpp_pol': 'egress1',
+         'ingress_dpp_pol': 'ingress1'}
+    test_update_attributes = \
+        {'dscp': 22,
+         'egress_dpp_pol': 'egress2',
+         'ingress_dpp_pol': 'ingress3'}
+    test_search_attributes = {'name': 'req1'}
+    test_dn = 'uni/tn-tenant1/qosreq-req1'
+    res_command = 'qos-requirement'
+
+
+class TestQosRequirement(TestQosRequirementMixin,
+                         TestAciResourceOpsBase,
+                         base.TestAimDBBase):
+    pass
+
+
+class TestQosDppPolMixin(object):
+    resource_class = resource.QosDppPol
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'lt1'}
+    test_required_attributes = \
+        {'tenant_name': 'tenant1',
+         'name': 'lt1',
+         'burst': '20',
+         'rate': 40,
+         'rate_unit': 'kilo',
+         'burst_unit': 'kilo'}
+    test_update_attributes = \
+        {'burst': '22', 'rate': 41, 'rate_unit': 'mega', 'burst_unit': 'mega'}
+    test_search_attributes = {'name': 'lt1',
+                              'rate': 40}
+    test_dn = 'uni/tn-tenant1/qosdpppol-lt1'
+    res_command = 'qos-dpp-pol'
+
+
+class TestQosDppPol(TestQosDppPolMixin,
+                    TestAciResourceOpsBase,
+                    base.TestAimDBBase):
     pass

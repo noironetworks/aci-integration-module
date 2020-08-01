@@ -489,6 +489,7 @@ class TestManagerResourceOpsBase(object):
                 attr_type = klass.other_attributes.get(item[0])
                 is_boolean = (attr_type and
                               attr_type.get("type") == "boolean")
+                loaded = None
                 try:
                     # Try to load lists
                     loaded = ast.literal_eval(item[1])
@@ -499,6 +500,11 @@ class TestManagerResourceOpsBase(object):
                     pass
                 if is_boolean:
                     res_dict[item[0]] = utils.stob(item[1])
+                elif attr_type:
+                    if attr_type.get("type") == "string":
+                        res_dict[item[0]] = item[1]
+                    else:
+                        res_dict[item[0]] = loaded
                 else:
                     res_dict[item[0]] = item[1]
         return klass(**res_dict)
@@ -844,4 +850,16 @@ class TestServiceRedirectMonitoringPolicy(
 
 class TestServiceRedirectHealthGroup(
         test_aim_manager.TestServiceRedirectHealthGroupMixin, base.TestShell):
+    pass
+
+
+class TestQosRequirement(
+        test_aim_manager.TestQosRequirementMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestQosDppPol(
+        test_aim_manager.TestQosDppPolMixin,
+        TestManagerResourceOpsBase, base.TestShell):
     pass

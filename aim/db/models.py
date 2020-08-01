@@ -295,6 +295,7 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
     app_profile_name = model_base.name_column(nullable=False)
 
     bd_name = model_base.name_column()
+    qos_name = model_base.name_column()
     policy_enforcement_pref = sa.Column(sa.String(16))
 
     _contract_relation_class = EndpointGroupContract
@@ -1133,3 +1134,88 @@ class L3OutInterfaceBgpPeerP(model_base.Base, model_base.HasAimId,
         if 'asn' in res_attr:
             res_attr['asn'] = str(res_attr['asn'])
         return res_attr
+
+
+class QosRequirement(model_base.Base, model_base.HasAimId,
+                     model_base.HasName, model_base.HasDisplayName,
+                     model_base.HasTenantName, model_base.AttributeMixin,
+                     model_base.IsMonitored):
+    """DB model for QosRequirement."""
+
+    __tablename__ = 'aim_qos_requirement'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
+                                             'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+    egress_dpp_pol = sa.Column(sa.String(64))
+    ingress_dpp_pol = sa.Column(sa.String(64))
+
+    dscp = orm.relationship("QosDscpMarking",
+                            backref=orm.backref("qos_requirement"),
+                            uselist=False,
+                            cascade='all, delete-orphan', lazy='joined')
+
+    def from_attr(self, session, res_attr):
+        if 'dscp' in res_attr:
+            dscp = res_attr.pop('dscp', None)
+            if dscp:
+                self.dscp = QosDscpMarking(mark=dscp)
+            else:
+                self.dscp = None
+
+        # map remaining attributes to model
+        super(QosRequirement, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(QosRequirement, self).to_attr(session)
+
+        d = res_attr.pop('dscp', None)
+        if d:
+            res_attr['dscp'] = d.mark
+        else:
+            res_attr['dscp'] = None
+
+        return res_attr
+
+
+class QosDppPol(model_base.Base, model_base.HasAimId,
+                model_base.HasName, model_base.HasDisplayName,
+                model_base.HasTenantName,
+                model_base.AttributeMixin,
+                model_base.IsMonitored):
+    """DB model Qos Datapath Policing Policy."""
+    __tablename__ = 'aim_qos_dpp_pol'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
+                                             'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    rate = sa.Column(sa.BigInteger)
+    pir = sa.Column(sa.BigInteger)
+    type = sa.Column(sa.String(16))
+    mode = sa.Column(sa.String(16))
+    burst = sa.Column(sa.String(16))
+    be = sa.Column(sa.String(16))
+    rate_unit = sa.Column(sa.String(16))
+    burst_unit = sa.Column(sa.String(16))
+    pir_unit = sa.Column(sa.String(16))
+    be_unit = sa.Column(sa.String(16))
+    conform_action = sa.Column(sa.String(16))
+    exceed_action = sa.Column(sa.String(16))
+    violate_action = sa.Column(sa.String(16))
+    conform_mark_dscp = sa.Column(sa.String(16))
+    exceed_mark_dscp = sa.Column(sa.String(16))
+    violate_mark_dscp = sa.Column(sa.String(16))
+    conform_mark_cos = sa.Column(sa.String(16))
+    exceed_mark_cos = sa.Column(sa.String(16))
+    violate_mark_cos = sa.Column(sa.String(16))
+    admin_st = sa.Column(sa.String(16))
+    sharing_mode = sa.Column(sa.String(16))
+
+
+class QosDscpMarking(model_base.Base):
+    """DB model Qos Dscp Marking."""
+    __tablename__ = 'aim_qos_dscp_marking'
+
+    qos_requirement_aim_id = sa.Column(
+        sa.String(255), sa.ForeignKey('aim_qos_requirement.aim_id'),
+        primary_key=True)
+    mark = sa.Column(sa.SmallInteger)

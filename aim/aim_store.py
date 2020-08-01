@@ -281,6 +281,8 @@ class SqlAlchemyStore(AimStore):
                     api_res.Infra: models.Infra,
                     api_res.NetflowVMMExporterPol: (
                         models.NetflowVMMExporterPol),
+                    api_res.QosRequirement: models.QosRequirement,
+                    api_res.QosDppPol: models.QosDppPol,
                     api_tree.ActionLog: tree_model.ActionLog}
 
     resource_map = {}
