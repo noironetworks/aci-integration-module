@@ -489,6 +489,7 @@ class TestManagerResourceOpsBase(object):
                 attr_type = klass.other_attributes.get(item[0])
                 is_boolean = (attr_type and
                               attr_type.get("type") == "boolean")
+                loaded = None
                 try:
                     # Try to load lists
                     loaded = ast.literal_eval(item[1])
@@ -499,6 +500,11 @@ class TestManagerResourceOpsBase(object):
                     pass
                 if is_boolean:
                     res_dict[item[0]] = utils.stob(item[1])
+                elif attr_type:
+                    if attr_type.get("type") == "string":
+                        res_dict[item[0]] = item[1]
+                    else:
+                        res_dict[item[0]] = loaded
                 else:
                     res_dict[item[0]] = item[1]
         return klass(**res_dict)
@@ -626,6 +632,86 @@ class TestBridgeDomain(test_aim_manager.TestBridgeDomainMixin,
 class TestNetflowVMMExporterPol(
         test_aim_manager.TestNetflowVMMExporterPolMixin,
         TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestSpanVsourceGroup(test_aim_manager.TestSpanVsourceGroupMixin,
+                           TestManagerResourceOpsBase,
+                           base.TestShell):
+    pass
+
+
+class TestSpanVsource(test_aim_manager.TestSpanVsourceMixin,
+                      TestManagerResourceOpsBase,
+                      base.TestShell):
+    pass
+
+
+class TestSpanVdestGroup(test_aim_manager.TestSpanVdestGroupMixin,
+                         TestManagerResourceOpsBase,
+                         base.TestShell):
+    pass
+
+
+class TestSpanVdest(test_aim_manager.TestSpanVdestMixin,
+                    TestManagerResourceOpsBase,
+                    base.TestShell):
+    pass
+
+
+class TestSpanVepgSummary(test_aim_manager.TestSpanVepgSummaryMixin,
+                          TestManagerResourceOpsBase,
+                          base.TestShell):
+    pass
+
+
+class TestSpanSrcVport(test_aim_manager.TestSpanSrcVportMixin,
+                       TestManagerResourceOpsBase,
+                       base.TestShell):
+    pass
+
+
+class TestInfraAccBundleGroup(test_aim_manager.TestInfraAccBundleGroupMixin,
+                              TestManagerResourceOpsBase,
+                              base.TestShell):
+    pass
+
+
+class TestInfraAccPortGroup(test_aim_manager.TestInfraAccPortGroupMixin,
+                            TestManagerResourceOpsBase,
+                            base.TestShell):
+    pass
+
+
+class TestInfraRspanVsrcGroup(test_aim_manager.TestInfraRspanVsrcGroupMixin,
+                              TestManagerResourceOpsBase,
+                              base.TestShell):
+    pass
+
+
+class TestInfraRspanVsrcApGroup(
+        test_aim_manager.TestInfraRspanVsrcApGroupMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
+class TestInfraRspanVdestGroup(test_aim_manager.TestInfraRspanVdestGroupMixin,
+                               TestManagerResourceOpsBase,
+                               base.TestShell):
+    pass
+
+
+class TestInfraRspanVdestApGroup(
+        test_aim_manager.TestInfraRspanVdestApGroupMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
+class TestSpanSpanlbl(test_aim_manager.TestSpanSpanlblMixin,
+                      TestManagerResourceOpsBase,
+                      base.TestShell):
     pass
 
 

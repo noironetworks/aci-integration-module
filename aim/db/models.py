@@ -104,6 +104,172 @@ class NetflowVMMExporterPol(model_base.Base, model_base.HasDisplayName,
     ver = sa.Column(sa.String(16))
 
 
+class SpanVsourceGroup(model_base.Base, model_base.HasDisplayName,
+                       model_base.HasAimId, model_base.AttributeMixin,
+                       model_base.IsMonitored, model_base.HasName):
+    """DB model for ERSPAN VSource Group"""
+
+    __tablename__ = 'aim_span_vsource_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    admin_st = sa.Column(sa.Enum('start', 'stop'))
+
+
+class SpanVsource(model_base.Base, model_base.HasDisplayName,
+                  model_base.HasAimId, model_base.AttributeMixin,
+                  model_base.IsMonitored, model_base.HasName):
+    """DB model for ERSPAN VSource"""
+
+    __tablename__ = 'aim_span_vsource'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'vsg_name',
+                                             'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    vsg_name = model_base.name_column(nullable=False)
+    dir = sa.Column(sa.Enum('in', 'out', 'both'))
+
+
+class SpanVdestGroup(model_base.Base, model_base.HasDisplayName,
+                     model_base.HasAimId, model_base.AttributeMixin,
+                     model_base.IsMonitored, model_base.HasName):
+    """DB model for ERSPAN VDest Group"""
+
+    __tablename__ = 'aim_span_vdest_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+
+class SpanVdest(model_base.Base, model_base.HasDisplayName,
+                model_base.HasAimId, model_base.AttributeMixin,
+                model_base.IsMonitored, model_base.HasName):
+    """DB model for ERSPAN VDest"""
+
+    __tablename__ = 'aim_span_vdest'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'vdg_name',
+                                             'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    vdg_name = model_base.name_column(nullable=False)
+
+
+class SpanVepgSummary(model_base.Base, model_base.HasDisplayName,
+                      model_base.HasAimId, model_base.AttributeMixin,
+                      model_base.IsMonitored):
+    """DB model for ERSPAN Vepg Summary"""
+
+    __tablename__ = 'aim_span_vepg_summary'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'vdg_name',
+                                             'vd_name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    vdg_name = model_base.name_column(nullable=False)
+    vd_name = model_base.name_column(nullable=False)
+    dst_ip = sa.Column(sa.String(64), nullable=False)
+    flow_id = sa.Column(sa.Integer)
+    ttl = sa.Column(sa.Integer)
+    mtu = sa.Column(sa.Integer)
+
+
+class SpanSrcVport(model_base.Base, model_base.HasAimId,
+                   model_base.AttributeMixin, model_base.IsMonitored):
+    """DB model for ERSPAN Source to VPort Relation"""
+
+    __tablename__ = 'aim_span_src_vport'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'vsg_name',
+                                             'vs_name', 'src_path') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    vsg_name = model_base.name_column(nullable=False)
+    vs_name = model_base.name_column(nullable=False)
+    src_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
+
+
+class InfraAccBundleGroup(model_base.Base, model_base.HasDisplayName,
+                          model_base.HasAimId, model_base.AttributeMixin,
+                          model_base.IsMonitored, model_base.HasName):
+    """DB model for bundle interface group"""
+
+    __tablename__ = 'aim_infra_acc_bundle_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+
+class InfraAccPortGroup(model_base.Base, model_base.HasDisplayName,
+                        model_base.HasAimId, model_base.AttributeMixin,
+                        model_base.IsMonitored, model_base.HasName):
+    """DB model for interface policy group"""
+
+    __tablename__ = 'aim_infra_acc_port_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+
+class InfraRspanVsrcGroup(model_base.Base, model_base.HasAimId,
+                          model_base.AttributeMixin, model_base.IsMonitored,
+                          model_base.HasName):
+    """DB model for source relation to all eps using acc bndle groups"""
+
+    __tablename__ = 'aim_infra_rspan_vsrc_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__,
+                                             'acc_bndle_grp_name', 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    acc_bndle_grp_name = model_base.name_column(nullable=False)
+
+
+class InfraRspanVsrcApGroup(model_base.Base, model_base.HasAimId,
+                            model_base.AttributeMixin, model_base.IsMonitored,
+                            model_base.HasName):
+    """DB model for source relation to all eps using acc ports groups"""
+
+    __tablename__ = 'aim_infra_rspan_vsrc_ap_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__,
+                                             'acc_port_grp_name', 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    acc_port_grp_name = model_base.name_column(nullable=False)
+
+
+class InfraRspanVdestGroup(model_base.Base, model_base.HasAimId,
+                           model_base.AttributeMixin, model_base.IsMonitored,
+                           model_base.HasName):
+    """DB model for source relation to all eps using acc bndle groups"""
+
+    __tablename__ = 'aim_infra_rspan_vdest_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__,
+                                             'acc_bndle_grp_name', 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    acc_bndle_grp_name = model_base.name_column(nullable=False)
+
+
+class InfraRspanVdestApGroup(model_base.Base, model_base.HasAimId,
+                             model_base.AttributeMixin, model_base.IsMonitored,
+                             model_base.HasName):
+    """DB model for source relation to all eps using acc ports groups"""
+
+    __tablename__ = 'aim_infra_rspan_vdest_ap_grp'
+    __table_args__ = (model_base.uniq_column(__tablename__,
+                                             'acc_port_grp_name', 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    acc_port_grp_name = model_base.name_column(nullable=False)
+
+
+class SpanSpanlbl(model_base.Base, model_base.HasDisplayName,
+                  model_base.HasAimId, model_base.AttributeMixin,
+                  model_base.IsMonitored, model_base.HasName):
+    """DB model for ERSPAN VSource"""
+
+    __tablename__ = 'aim_span_spanlbl'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'vsg_name',
+                                             'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    vsg_name = model_base.name_column(nullable=False)
+
+
 class Subnet(model_base.Base, model_base.HasAimId,
              model_base.HasDisplayName,
              model_base.HasTenantName,

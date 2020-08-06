@@ -748,6 +748,219 @@ class TestNetflowVMMExporterPolMixin(object):
     res_command = 'netflow-vmm-exporter-pol'
 
 
+class TestSpanVsourceGroupMixin(object):
+    resource_class = resource.SpanVsourceGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'name': 'testSrcGrp'}
+    test_required_attributes = {'name': 'testSrcGrp',
+                                'admin_st': 'start'}
+    test_search_attributes = {'name': 'testSrcGrp'}
+    test_update_attributes = {'display_name': 'OpenStack_Span_VSrc_Grp',
+                              'admin_st': 'stop'}
+    test_default_values = {'admin_st': 'start',
+                           'monitored': False}
+    test_dn = 'uni/infra/vsrcgrp-testSrcGrp'
+    res_command = 'span-vsource-group'
+
+
+class TestSpanVsourceMixin(object):
+    prereq_objects = [resource.SpanVsourceGroup(name='testSrcGrp')]
+    resource_class = resource.SpanVsource
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'vsg_name': 'testSrcGrp',
+                                'name': 'testSrc'}
+    test_required_attributes = {'vsg_name': 'testSrcGrp',
+                                'name': 'testSrc',
+                                'dir': 'both'}
+    test_search_attributes = {'name': 'testSrc'}
+    test_update_attributes = {'display_name': 'OpenStack_Span_VSrc',
+                              'dir': 'in'}
+    test_default_values = {'dir': 'both',
+                           'monitored': False}
+    test_dn = 'uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc'
+    res_command = 'span-vsource'
+
+
+class TestSpanSrcVportMixin(object):
+    resource_class = resource.SpanSrcVport
+    resource_root_type = resource.Infra._aci_mo_name
+    prereq_objects = [
+        resource.SpanVsourceGroup(name='testSrcGrp'),
+        resource.SpanVsource(vsg_name='testSrcGrp', name='testSrc')]
+    test_identity_attributes = {'vsg_name': 'testSrcGrp',
+                                'vs_name': 'testSrc',
+                                'src_path': 'uni/tn-common/ap-OpenStack/'
+                                            'epg-net/cep-BA:E9:E8:73:67:A9'}
+    test_required_attributes = {'vsg_name': 'testSrcGrp',
+                                'vs_name': 'testSrc',
+                                'src_path': 'uni/tn-common/ap-OpenStack/'
+                                            'epg-net/cep-BA:E9:E8:73:67:A9'}
+    test_search_attributes = {'src_path': 'uni/tn-common/ap-OpenStack/'
+                                          'epg-net/cep-BA:E9:E8:73:67:A9'}
+    test_update_attributes = {}
+    test_default_values = {'monitored': False}
+    test_dn = ("uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc/rssrcToVPort-"
+               "[uni/tn-common/ap-OpenStack/epg-net/cep-BA:E9:E8:73:67:A9]")
+    res_command = 'span-src-vport'
+
+
+class TestSpanVdestGroupMixin(object):
+    resource_class = resource.SpanVdestGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'name': 'testDestGrp'}
+    test_required_attributes = {'name': 'testDestGrp'}
+    test_search_attributes = {'name': 'testDestGrp'}
+    test_update_attributes = {'display_name': 'Span_VDest_Group'}
+    test_default_values = {'monitored': False}
+    test_dn = 'uni/infra/vdestgrp-testDestGrp'
+    res_command = 'span-vdest-group'
+
+
+class TestSpanVdestMixin(object):
+    prereq_objects = [resource.SpanVdestGroup(name='testDestGrp')]
+    resource_class = resource.SpanVdest
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'vdg_name': 'testDestGrp',
+                                'name': 'testDest'}
+    test_required_attributes = {'vdg_name': 'testDestGrp',
+                                'name': 'testDest'}
+    test_search_attributes = {'name': 'testDest'}
+    test_update_attributes = {'display_name': 'OpenStack_span_VDest'}
+    test_default_values = {'monitored': False}
+    test_dn = 'uni/infra/vdestgrp-testDestGrp/vdest-testDest'
+    res_command = 'span-vdest'
+
+
+class TestSpanVepgSummaryMixin(object):
+    prereq_objects = [
+        resource.SpanVdestGroup(name='testDestGrp'),
+        resource.SpanVdest(vdg_name='testDestGrp', name='testDest')]
+    resource_class = resource.SpanVepgSummary
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'vdg_name': 'testDestGrp',
+                                'vd_name': 'testDest'}
+    test_required_attributes = {'vdg_name': 'testDestGrp',
+                                'vd_name': 'testDest',
+                                'dst_ip': '172.51.12.2',
+                                'flow_id': 1,
+                                'ttl': 64,
+                                'mtu': 1518}
+    test_search_attributes = {'vd_name': 'testDest'}
+    test_update_attributes = {'display_name': 'OpenStack_Span_VDest',
+                              'flow_id': 8,
+                              'ttl': 128,
+                              'mtu': 1519}
+    test_default_values = {'monitored': False,
+                           'flow_id': 1,
+                           'ttl': 64,
+                           'mtu': 1518}
+    test_dn = 'uni/infra/vdestgrp-testDestGrp/vdest-testDest/vepgsummary'
+    res_command = 'span-vepg-summary'
+
+
+class TestInfraAccBundleGroupMixin(object):
+    resource_class = resource.InfraAccBundleGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'name': 'accTest'}
+    test_required_attributes = {'name': 'accTest'}
+    test_search_attributes = {'name': 'accTest'}
+    test_update_attributes = {'display_name': 'Acc_Bundle_Grp1'}
+    test_default_values = {'monitored': False}
+    test_dn = 'uni/infra/funcprof/accbundle-accTest'
+    res_command = 'infra-acc-bundle-group'
+
+
+class TestInfraAccPortGroupMixin(object):
+    resource_class = resource.InfraAccPortGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'name': '1-5'}
+    test_required_attributes = {'name': '1-5'}
+    test_search_attributes = {'name': '1-5'}
+    test_update_attributes = {'display_name': 'Acc_Port_Grp'}
+    test_default_values = {'monitored': False}
+    test_dn = 'uni/infra/funcprof/accportgrp-1-5'
+    res_command = 'infra-acc-port-group'
+
+
+class TestInfraRspanVsrcGroupMixin(object):
+    resource_class = resource.InfraRspanVsrcGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    prereq_objects = [resource.InfraAccBundleGroup(name='accTest')]
+    test_identity_attributes = {'acc_bndle_grp_name': 'accTest',
+                                'name': 'testSrcGrp'}
+    test_required_attributes = {'acc_bndle_grp_name': 'accTest',
+                                'name': 'testSrcGrp'}
+    test_search_attributes = {'name': 'testSrcGrp'}
+    test_update_attributes = {}
+    test_default_values = {'monitored': False}
+    test_dn = ("uni/infra/funcprof/accbundle-accTest/rsspanVSrcGrp-"
+               "testSrcGrp")
+    res_command = 'infra-rspan-vsrc-group'
+
+
+class TestInfraRspanVsrcApGroupMixin(object):
+    resource_class = resource.InfraRspanVsrcApGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    prereq_objects = [resource.InfraAccPortGroup(name='1-5')]
+    test_identity_attributes = {'acc_port_grp_name': '1-5',
+                                'name': 'testSrcGrp1'}
+    test_required_attributes = {'acc_port_grp_name': '1-5',
+                                'name': 'testSrcGrp1'}
+    test_search_attributes = {'name': 'testSrcGrp1'}
+    test_update_attributes = {}
+    test_default_values = {'monitored': False}
+    test_dn = ("uni/infra/funcprof/accportgrp-1-5/rsspanVSrcGrp-"
+               "testSrcGrp1")
+    res_command = 'infra-rspan-vsrc-ap-group'
+
+
+class TestInfraRspanVdestGroupMixin(object):
+    resource_class = resource.InfraRspanVdestGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    prereq_objects = [resource.InfraAccBundleGroup(name='accTest')]
+    test_identity_attributes = {'acc_bndle_grp_name': 'accTest',
+                                'name': 'testDestGrp'}
+    test_required_attributes = {'acc_bndle_grp_name': 'accTest',
+                                'name': 'testDestGrp'}
+    test_search_attributes = {'name': 'testDestGrp'}
+    test_update_attributes = {}
+    test_default_values = {'monitored': False}
+    test_dn = ("uni/infra/funcprof/accbundle-accTest/rsspanVDestGrp-"
+               "testDestGrp")
+    res_command = 'infra-rspan-vdest-group'
+
+
+class TestInfraRspanVdestApGroupMixin(object):
+    resource_class = resource.InfraRspanVdestApGroup
+    resource_root_type = resource.Infra._aci_mo_name
+    prereq_objects = [resource.InfraAccPortGroup(name='1-5')]
+    test_identity_attributes = {'acc_port_grp_name': '1-5',
+                                'name': 'testDestGrp1'}
+    test_required_attributes = {'acc_port_grp_name': '1-5',
+                                'name': 'testDestGrp1'}
+    test_search_attributes = {'name': 'testDestGrp1'}
+    test_update_attributes = {}
+    test_default_values = {'monitored': False}
+    test_dn = ("uni/infra/funcprof/accportgrp-1-5/rsspanVDestGrp-"
+               "testDestGrp1")
+    res_command = 'infra-rspan-vdest-ap-group'
+
+
+class TestSpanSpanlblMixin(object):
+    prereq_objects = [resource.SpanVsourceGroup(name='testSrcGrp')]
+    resource_class = resource.SpanSpanlbl
+    resource_root_type = resource.Infra._aci_mo_name
+    test_identity_attributes = {'vsg_name': 'testSrcGrp',
+                                'name': 'testDestGrp'}
+    test_required_attributes = {'vsg_name': 'testSrcGrp',
+                                'name': 'testDestGrp'}
+    test_search_attributes = {'name': 'testDestGrp'}
+    test_update_attributes = {'display_name': 'OpenStack_Span_Label'}
+    test_default_values = {'monitored': False}
+    test_dn = 'uni/infra/vsrcgrp-testSrcGrp/spanlbl-testDestGrp'
+    res_command = 'span-vsource'
+
+
 class TestAgentMixin(object):
     resource_class = resource.Agent
     test_identity_attributes = {'id': 'myuuid'}
@@ -2260,6 +2473,71 @@ class TestInfra(TestInfraMixin, TestResourceOpsBase,
 
 class TestNetflowVMMExporterPol(TestNetflowVMMExporterPolMixin,
                                 TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestSpanVsourceGroup(TestSpanVsourceGroupMixin, TestAciResourceOpsBase,
+                           base.TestAimDBBase):
+    pass
+
+
+class TestSpanVsource(TestSpanVsourceMixin, TestAciResourceOpsBase,
+                      base.TestAimDBBase):
+    pass
+
+
+class TestSpanVdestGroup(TestSpanVdestGroupMixin, TestAciResourceOpsBase,
+                         base.TestAimDBBase):
+    pass
+
+
+class TestSpanVdest(TestSpanVdestMixin, TestAciResourceOpsBase,
+                    base.TestAimDBBase):
+    pass
+
+
+class TestSpanVepgSummary(TestSpanVepgSummaryMixin, TestAciResourceOpsBase,
+                          base.TestAimDBBase):
+    pass
+
+
+class TestSpanSrcVport(TestSpanSrcVportMixin, TestAciResourceOpsBase,
+                       base.TestAimDBBase):
+    pass
+
+
+class TestInfraAccBundleGroup(TestInfraAccBundleGroupMixin,
+                              TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestInfraAccPortGroup(TestInfraAccPortGroupMixin, TestAciResourceOpsBase,
+                            base.TestAimDBBase):
+    pass
+
+
+class TestInfraRspanVsrcGroup(TestInfraRspanVsrcGroupMixin,
+                              TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestInfraRspanVsrcApGroup(TestInfraRspanVsrcApGroupMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestInfraRspanVdestGroup(TestInfraRspanVdestGroupMixin,
+                               TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestInfraRspanVdestApGroup(TestInfraRspanVdestApGroupMixin,
+                                 TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestSpanSpanlbl(TestSpanSpanlblMixin, TestAciResourceOpsBase,
+                      base.TestAimDBBase):
     pass
 
 

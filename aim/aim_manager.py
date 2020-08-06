@@ -112,6 +112,19 @@ class AimManager(object):
                      api_res.VmmInjectedContGroup,
                      api_res.Infra,
                      api_res.NetflowVMMExporterPol,
+                     api_res.SpanVsourceGroup,
+                     api_res.SpanVsource,
+                     api_res.SpanVdestGroup,
+                     api_res.SpanVdest,
+                     api_res.SpanVepgSummary,
+                     api_res.SpanSrcVport,
+                     api_res.InfraAccBundleGroup,
+                     api_res.InfraAccPortGroup,
+                     api_res.InfraRspanVsrcGroup,
+                     api_res.InfraRspanVsrcApGroup,
+                     api_res.InfraRspanVdestGroup,
+                     api_res.InfraRspanVdestApGroup,
+                     api_res.SpanSpanlbl,
                      api_tree.ActionLog}
 
     # Keep _db_model_map in AIM manager for backward compatibility

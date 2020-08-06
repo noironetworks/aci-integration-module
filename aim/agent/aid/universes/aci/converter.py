@@ -862,6 +862,45 @@ resource_map = {
     'netflowVmmExporterPol': [{
         'resource': resource.NetflowVMMExporterPol,
     }],
+    'spanVSrcGrp': [{
+        'resource': resource.SpanVsourceGroup,
+    }],
+    'spanVSrc': [{
+        'resource': resource.SpanVsource,
+    }],
+    'spanVDestGrp': [{
+        'resource': resource.SpanVdestGroup,
+    }],
+    'spanVDest': [{
+        'resource': resource.SpanVdest,
+    }],
+    'spanVEpgSummary': [{
+        'resource': resource.SpanVepgSummary,
+    }],
+    'spanRsSrcToVPort': [{
+        'resource': resource.SpanSrcVport,
+    }],
+    'infraAccBndlGrp': [{
+        'resource': resource.InfraAccBundleGroup,
+    }],
+    'infraAccPortGrp': [{
+        'resource': resource.InfraAccPortGroup,
+    }],
+    'infraRsSpanVSrcGrp': [{
+        'resource': resource.InfraRspanVsrcGroup,
+    }],
+    'infraRsSpanVSrcGrp__ap': [{
+        'resource': resource.InfraRspanVsrcApGroup,
+    }],
+    'infraRsSpanVDestGrp': [{
+        'resource': resource.InfraRspanVdestGroup,
+    }],
+    'infraRsSpanVDestGrp__ap': [{
+        'resource': resource.InfraRspanVdestApGroup,
+    }],
+    'spanSpanLbl': [{
+        'resource': resource.SpanSpanlbl,
+    }],
 }
 
 resource_map.update(service_graph.resource_map)

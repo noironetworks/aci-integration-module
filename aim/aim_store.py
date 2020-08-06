@@ -281,6 +281,21 @@ class SqlAlchemyStore(AimStore):
                     api_res.Infra: models.Infra,
                     api_res.NetflowVMMExporterPol: (
                         models.NetflowVMMExporterPol),
+                    api_res.SpanVsourceGroup: models.SpanVsourceGroup,
+                    api_res.SpanVsource: models.SpanVsource,
+                    api_res.SpanVdestGroup: models.SpanVdestGroup,
+                    api_res.SpanVdest: models.SpanVdest,
+                    api_res.SpanVepgSummary: models.SpanVepgSummary,
+                    api_res.SpanSrcVport: models.SpanSrcVport,
+                    api_res.InfraAccBundleGroup: models.InfraAccBundleGroup,
+                    api_res.InfraAccPortGroup: models.InfraAccPortGroup,
+                    api_res.InfraRspanVsrcGroup: models.InfraRspanVsrcGroup,
+                    api_res.InfraRspanVsrcApGroup: (
+                        models.InfraRspanVsrcApGroup),
+                    api_res.InfraRspanVdestGroup: models.InfraRspanVdestGroup,
+                    api_res.InfraRspanVdestApGroup: (
+                        models.InfraRspanVdestApGroup),
+                    api_res.SpanSpanlbl: models.SpanSpanlbl,
                     api_tree.ActionLog: tree_model.ActionLog}
 
     resource_map = {}
