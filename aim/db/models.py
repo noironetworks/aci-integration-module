@@ -104,6 +104,35 @@ class NetflowVMMExporterPol(model_base.Base, model_base.HasDisplayName,
     ver = sa.Column(sa.String(16))
 
 
+class VmmVswitchPolicyGroup(model_base.Base, model_base.AttributeMixin,
+                            model_base.HasAimId, model_base.IsMonitored,
+                            model_base.HasDisplayName):
+    """DB model for VSwitch Policy Group."""
+    __tablename__ = 'aim_vmm_vswitch_pol_grp'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_name = model_base.name_column(nullable=False)
+    domain_type = model_base.name_column(nullable=False)
+
+
+class VmmRelationToExporterPol(model_base.Base, model_base.AttributeMixin,
+                               model_base.HasAimId, model_base.IsMonitored):
+    """DB model for Vmm Relation to Exporter Pol."""
+    __tablename__ = 'aim_vmm_reln_exporter_pol'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'domain_type', 'domain_name',
+                               'netflow_path') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    domain_name = model_base.name_column(nullable=False)
+    domain_type = model_base.name_column(nullable=False)
+    netflow_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
+    active_flow_time_out = sa.Column(sa.Integer)
+    idle_flow_time_out = sa.Column(sa.Integer)
+
+
 class SpanVsourceGroup(model_base.Base, model_base.HasDisplayName,
                        model_base.HasAimId, model_base.AttributeMixin,
                        model_base.IsMonitored, model_base.HasName):

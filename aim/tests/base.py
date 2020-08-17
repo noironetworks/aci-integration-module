@@ -322,6 +322,47 @@ class TestAimDBBase(BaseTestCase):
         return example_netflow
 
     @classmethod
+    def _get_example_aim_vswitch_policy_grp(cls, **kwargs):
+        example = resource.VmmVswitchPolicyGroup(domain_type='OpenStack',
+                                                 domain_name='osd13-fab20')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_vswitch_policy_grp(cls, **kwargs):
+        example_vs_pol_grp = {
+            "vmmVSwitchPolicyCont": {
+                "attributes": {
+                    "dn": "uni/vmmp-OpenStack/dom-osd13-fab20/vswitchpolcont",
+                    "ownerKey": "", "ownerTag": ""}}}
+        example_vs_pol_grp['vmmVSwitchPolicyCont']['attributes'].update(kwargs)
+        return example_vs_pol_grp
+
+    @classmethod
+    def _get_example_aim_reln_netflow(cls, **kwargs):
+        example = resource.VmmRelationToExporterPol(domain_type='OpenStack',
+                                                    domain_name='osd13-fab20',
+                                                    netflow_path='uni/infra/'
+                                                    'vmmexporterpol-test',
+                                                    active_flow_time_out=90,
+                                                    idle_flow_time_out=15)
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_reln_netflow(cls, **kwargs):
+        example_reln = {
+            "vmmRsVswitchExporterPol": {
+                "attributes": {
+                    "dn": "uni/vmmp-OpenStack/dom-osd13-fab20/vswitchpolcont/"
+                          "rsvswitchExporterPol-[uni/infra/vmmexporterpol-"
+                          "test]",
+                    "activeFlowTimeOut": 90, "idleFlowTimeOut": 15,
+                    "ownerKey": "", "ownerTag": ""}}}
+        example_reln['vmmRsVswitchExporterPol']['attributes'].update(kwargs)
+        return example_reln
+
+    @classmethod
     def _get_example_aim_span_vsource_grp(cls, **kwargs):
         example = resource.SpanVsourceGroup(name='testSrcGrp',
                                             admin_st='start')

@@ -238,6 +238,48 @@ class TestAciToAimConverterNetflow(TestAciToAimConverterBase,
                                        ver='v5')]
 
 
+class TestAciToAimConverterVmmVswitchPolicyGroup(TestAciToAimConverterBase,
+                                                 base.TestAimDBBase):
+    resource_type = resource.VmmVswitchPolicyGroup
+    reverse_map_output = [
+        {'resource': 'vmmVSwitchPolicyCont',
+         'exceptions': {}}]
+    sample_input = [base.TestAimDBBase._get_example_aci_vswitch_policy_grp(),
+                    base.TestAimDBBase._get_example_aci_vswitch_policy_grp(
+                        dn='uni/vmmp-OpenStack1/dom-osd13-fab2/'
+                           'vswitchpolcont')]
+    sample_output = [
+        resource.VmmVswitchPolicyGroup(
+            domain_type='OpenStack', domain_name='osd13-fab20'),
+        resource.VmmVswitchPolicyGroup(
+            domain_type='OpenStack1', domain_name='osd13-fab2')
+    ]
+
+
+class TestAciToAimConverterVmmRelationToExporterPol(TestAciToAimConverterBase,
+                                                    base.TestAimDBBase):
+    resource_type = resource.VmmRelationToExporterPol
+    reverse_map_output = [
+        {'resource': 'vmmRsVswitchExporterPol',
+         'exceptions': {}}]
+    sample_input = [base.TestAimDBBase._get_example_aci_reln_netflow(),
+                    base.TestAimDBBase._get_example_aci_reln_netflow(
+                        dn='uni/vmmp-OpenStack1/dom-osd13-fab2/vswitchpolcont'
+                           '/rsvswitchExporterPol-[uni/infra/vmmexporterpol-'
+                           'test2]',
+                        activeFlowTimeOut=120, idleFlowTimeOut=10)]
+    sample_output = [
+        resource.VmmRelationToExporterPol(
+            domain_type='OpenStack', domain_name='osd13-fab20',
+            netflow_path='uni/infra/vmmexporterpol-test',
+            active_flow_time_out=90, idle_flow_time_out=15),
+        resource.VmmRelationToExporterPol(
+            domain_type='OpenStack1', domain_name='osd13-fab2',
+            netflow_path='uni/infra/vmmexporterpol-test2',
+            active_flow_time_out=120, idle_flow_time_out=10)
+    ]
+
+
 class TestAciToAimConverterSpanVsourceGroup(TestAciToAimConverterBase,
                                             base.TestAimDBBase):
     resource_type = resource.SpanVsourceGroup
@@ -4188,6 +4230,44 @@ class TestAimToAciConverterNetflow(TestAimToAciConverterBase,
                   srcAddr='1.2.2.3',
                   ver='v5',
                   nameAlias='')]
+    ]
+
+
+class TestAimToAciConverterVmmVswitchPolicyGroup(TestAimToAciConverterBase,
+                                                 base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_vswitch_policy_grp(),
+        base.TestAimDBBase._get_example_aim_vswitch_policy_grp(
+            domain_type='OpenStack1', domain_name='osd13-fab2')]
+
+    sample_output = [
+        [_aci_obj('vmmVSwitchPolicyCont',
+                  dn=('uni/vmmp-OpenStack/dom-osd13-fab20/vswitchpolcont'),
+                  nameAlias='')],
+        [_aci_obj('vmmVSwitchPolicyCont',
+                  dn=('uni/vmmp-OpenStack1/dom-osd13-fab2/vswitchpolcont'),
+                  nameAlias='')]
+    ]
+
+
+class TestAimToAciConverterVmmRelationToExporterPol(TestAimToAciConverterBase,
+                                                    base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_reln_netflow(),
+        base.TestAimDBBase._get_example_aim_reln_netflow(
+            domain_type='OpenStack1', domain_name='osd13-fab2',
+            netflow_path='uni/infra/vmmexporterpol-test2',
+            active_flow_time_out=120, idle_flow_time_out=10)]
+
+    sample_output = [
+        [_aci_obj('vmmRsVswitchExporterPol',
+                  dn=('uni/vmmp-OpenStack/dom-osd13-fab20/vswitchpolcont/'
+                      'rsvswitchExporterPol-[uni/infra/vmmexporterpol-test]'),
+                  activeFlowTimeOut=90, idleFlowTimeOut=15)],
+        [_aci_obj('vmmRsVswitchExporterPol',
+                  dn=('uni/vmmp-OpenStack1/dom-osd13-fab2/vswitchpolcont/'
+                      'rsvswitchExporterPol-[uni/infra/vmmexporterpol-test2]'),
+                  activeFlowTimeOut=120, idleFlowTimeOut=10)]
     ]
 
 

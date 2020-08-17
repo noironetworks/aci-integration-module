@@ -862,6 +862,12 @@ resource_map = {
     'netflowVmmExporterPol': [{
         'resource': resource.NetflowVMMExporterPol,
     }],
+    'vmmVSwitchPolicyCont': [{
+        'resource': resource.VmmVswitchPolicyGroup,
+    }],
+    'vmmRsVswitchExporterPol': [{
+        'resource': resource.VmmRelationToExporterPol,
+    }],
     'spanVSrcGrp': [{
         'resource': resource.SpanVsourceGroup,
     }],

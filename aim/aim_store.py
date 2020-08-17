@@ -17,6 +17,7 @@ from contextlib import contextmanager
 import copy
 from oslo_log import log as logging
 import six
+
 from sqlalchemy import and_
 from sqlalchemy import event as sa_event
 from sqlalchemy import or_
@@ -281,6 +282,10 @@ class SqlAlchemyStore(AimStore):
                     api_res.Infra: models.Infra,
                     api_res.NetflowVMMExporterPol: (
                         models.NetflowVMMExporterPol),
+                    api_res.VmmVswitchPolicyGroup: (
+                        models.VmmVswitchPolicyGroup),
+                    api_res.VmmRelationToExporterPol: (
+                        models.VmmRelationToExporterPol),
                     api_res.SpanVsourceGroup: models.SpanVsourceGroup,
                     api_res.SpanVsource: models.SpanVsource,
                     api_res.SpanVdestGroup: models.SpanVdestGroup,
