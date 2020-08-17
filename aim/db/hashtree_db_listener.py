@@ -28,6 +28,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim import tree_manager
 
+ACTION_LOG_THRESHOLD = 1000
 MAX_EVENTS_PER_ROOT = 10000
 LOG = logging.getLogger(__name__)
 # Not really rootless, they just miss the root reference attributes
@@ -194,6 +195,9 @@ class HashTreeDbListener(object):
                 kwargs['in_'] = {'root_rn': [served_tenant]}
             with ctx.store.begin(subtransactions=True):
                 logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
+                if len(logs) > ACTION_LOG_THRESHOLD:
+                    LOG.info('Tenant %s has %s ActionLogs to be processed' %
+                             (served_tenant, len(logs)))
                 LOG.debug('Processing action logs: %s' % logs)
                 log_by_root, resetting_roots = self._preprocess_logs(ctx, logs)
                 self._cleanup_resetting_roots(
