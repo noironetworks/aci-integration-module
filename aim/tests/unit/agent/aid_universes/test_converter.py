@@ -347,6 +347,7 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                   'physicalDomains',
                   'vmmDomains',
                   'staticPaths',
+                  'qosName',
                   'epgContractMasters']},
         {'resource': 'fvRsBd',
          'exceptions': {'bd_name': {'other': 'tnFvBDName'}, },
@@ -363,6 +364,9 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
         {'resource': 'fvRsPathAtt',
          'exceptions': {},
          'converter': converter.fv_rs_path_att_converter, },
+        {'resource': 'fvRsQosRequirement',
+         'exceptions': {},
+         'converter': converter.qos_rs_req, },
         {'resource': 'fvRsSecInherited',
          'exceptions': {},
          'converter': converter.fv_rs_master_epg_converter, }
@@ -372,6 +376,10 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
                       {'attributes':
                        {'dn': 'uni/tn-t1/ap-a1/epg-test/rsbd',
                         'tnFvBDName': 'bd1', }}},
+                     {'fvRsQosRequirement':
+                      {'attributes':
+                       {'dn': 'uni/tn-t1/ap-a1/epg-test/rsqosRequirement',
+                        'tnQosRequirementName': 'abc', }}},
                      {'fvRsProv':
                       {'attributes':
                        {'dn': 'uni/tn-t1/ap-a1/epg-test/rsprov-p1',
@@ -421,7 +429,7 @@ class TestAciToAimConverterEPG(TestAciToAimConverterBase, base.TestAimDBBase):
     sample_output = [
         resource.EndpointGroup(tenant_name='t1',
                                app_profile_name='a1',
-                               name='test', bd_name='bd1',
+                               name='test', bd_name='bd1', qos_name='abc',
                                policy_enforcement_pref=(
                                    resource.EndpointGroup.POLICY_UNENFORCED),
                                provided_contract_names=['p1', 'k'],
@@ -2154,7 +2162,7 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                                        'protpaths-501-502/pathep-'
                                        '[sauto-po-501-1-48-and-502-1-48]',
                                        'encap': 'vlan-39'}],
-                        display_name='alias'),
+                        display_name='alias', qos_name='qosabc'),
                     base.TestAimDBBase._get_example_aim_epg(
                         name='test-2',
                         openstack_vmm_domain_names=['op'],
@@ -2182,6 +2190,10 @@ class TestAimToAciConverterEPG(TestAimToAciConverterBase, base.TestAimDBBase):
                 "attributes": {
                     "dn": "uni/tn-t1/ap-a1/epg-test-1/rsbd",
                     "tnFvBDName": "net2"}}}, {
+            "fvRsQosRequirement": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test-1/rsqosRequirement",
+                    "tnQosRequirementName": "qosabc"}}}, {
             "fvRsProv": {
                 "attributes": {
                     "dn": "uni/tn-t1/ap-a1/epg-test-1/rsprov-k",
@@ -4195,3 +4207,196 @@ class TestAimToAciConverterBgpAsPPeer(TestAimToAciConverterBase,
                   dn='uni/tn-t2/out-l1/lnodep-np1/lifp-ip1/'
                      'rspathL3OutAtt-[topology/pod-1/paths-101/'
                      'pathep-[eth1/1]]/peerP-[1.1.1.0/24]/as')]]
+
+
+def get_example_qos_policy(**kwargs):
+    example = resource.QosRequirement(tenant_name='t1',
+                                      name="q1")
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterQosReq(TestAimToAciConverterBase,
+                                  base.TestAimDBBase):
+    sample_input = [
+        get_example_qos_policy(),
+        get_example_qos_policy(tenant_name='t2', dscp=24),
+        get_example_qos_policy(tenant_name='t3', dscp=24,
+                               egress_dpp_pol="e1",
+                               ingress_dpp_pol="i1"),
+    ]
+    sample_output = [
+        [_aci_obj('qosRequirement', nameAlias='',
+                  dn="uni/tn-t1/qosreq-q1")],
+        [_aci_obj('qosRequirement', nameAlias='',
+                  dn="uni/tn-t2/qosreq-q1"),
+         _aci_obj('qosEpDscpMarking', mark=24,
+                  dn="uni/tn-t2/qosreq-q1/dscpmarking")],
+        [_aci_obj('qosRequirement', nameAlias='',
+                  dn="uni/tn-t3/qosreq-q1"),
+         _aci_obj('qosRsIngressDppPol',
+                  dn="uni/tn-t3/qosreq-q1/rsIngressDppPol",
+                  tDn="uni/tn-t3/qosdpppol-i1"),
+         _aci_obj('qosRsEgressDppPol',
+                  dn="uni/tn-t3/qosreq-q1/rsEgressDppPol",
+                  tDn="uni/tn-t3/qosdpppol-e1"),
+         _aci_obj('qosEpDscpMarking', mark=24,
+                  dn="uni/tn-t3/qosreq-q1/dscpmarking")],
+    ]
+
+
+def get_example_qos_dpppol(**kwargs):
+    example = resource.QosDppPol(
+        tenant_name='t1', name="d1", display_name='abc')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterQosDppPol(TestAimToAciConverterBase,
+                                     base.TestAimDBBase):
+    sample_input = [
+        get_example_qos_dpppol(),
+        get_example_qos_dpppol(tenant_name='t2', rate=30, burst='40',
+                               rate_unit="kilo", burst_unit="kilo"),
+    ]
+
+    sample_output = [
+        [_aci_obj('qosDppPol', nameAlias='abc', rate=0,
+                  type='1R2C', mode='bit', rateUnit='unspecified',
+                  pir=0, be='unspecified', conformMarkDscp='unspecified',
+                  exceedMarkDscp='unspecified', burst='unspecified',
+                  violateMarkDscp='unspecified',
+                  conformMarkCos='unspecified',
+                  exceedMarkCos='unspecified',
+                  violateMarkCos='unspecified',
+                  burstUnit='unspecified', pirUnit='unspecified',
+                  beUnit='unspecified', conformAction='transmit',
+                  exceedAction='drop', violateAction='drop',
+                  adminSt='enabled', sharingMode='dedicated',
+                  dn="uni/tn-t1/qosdpppol-d1")],
+        [_aci_obj('qosDppPol', nameAlias='abc',
+                  type='1R2C', mode='bit',
+                  pir=0, be='unspecified', conformMarkDscp='unspecified',
+                  exceedMarkDscp='unspecified',
+                  violateMarkDscp='unspecified',
+                  conformMarkCos='unspecified',
+                  exceedMarkCos='unspecified',
+                  violateMarkCos='unspecified',
+                  pirUnit='unspecified',
+                  beUnit='unspecified', conformAction='transmit',
+                  exceedAction='drop', violateAction='drop',
+                  adminSt='enabled', sharingMode='dedicated',
+                  dn="uni/tn-t2/qosdpppol-d1",
+                  rate=30, burst='40', rateUnit="kilo", burstUnit="kilo")],
+    ]
+
+
+class TestAciToAimConverterQosReq(TestAciToAimConverterBase,
+                                  base.TestAimDBBase):
+    resource_type = resource.QosRequirement
+    reverse_map_output = [
+        {'resource': 'qosRequirement',
+         'exceptions': {},
+         'skip': ['dscp', 'ingressDppPol', 'egressDppPol']},
+        {'resource': 'qosRsEgressDppPol',
+         'converter': converter.qos_rs_egress_dpp_pol,
+         'exceptions': {},
+         'skip': ['dscp']},
+        {'resource': 'qosRsIngressDppPol',
+         'converter': converter.qos_rs_ingress_dpp_pol,
+         'exceptions': {},
+         'skip': ['dscp']},
+        {'resource': 'qosEpDscpMarking',
+         'exceptions': {},
+         'converter': converter.qos_ep_dscp_marking, }]
+    sample_input = [
+        {'qosRequirement': {
+            'attributes': {
+                'name': 'r1',
+                'nameAlias': 'alias',
+                'dn': 'uni/tn-t1/qosreq-r1'}}},
+        [{'qosRequirement': {
+            'attributes': {
+                'name': 'r1',
+                'nameAlias': 'alias',
+                'dn': 'uni/tn-t2/qosreq-r1'}}},
+         _aci_obj(
+            'qosEpDscpMarking',
+            mark=24,
+            dn='uni/tn-t2/qosreq-r1/dscpmarking'),
+         _aci_obj(
+            'qosRsIngressDppPol',
+            tDn='uni/tn-t2/qosdpppol-d1',
+            dn='uni/tn-t2/qosreq-r1/rsIngressDppPol'),
+         _aci_obj(
+            'qosRsEgressDppPol',
+            tDn='uni/tn-t2/qosdpppol-d2',
+            dn='uni/tn-t2/qosreq-r1/rsEgressDppPol')]]
+    sample_output = [
+        resource.QosRequirement(tenant_name='t1',
+                                name='r1',
+                                display_name='alias'),
+        resource.QosRequirement(tenant_name='t2',
+                                name='r1',
+                                dscp=24,
+                                ingress_dpp_pol='d1',
+                                egress_dpp_pol='d2',
+                                display_name='alias')]
+
+
+class TestAciToAimConverterQosDppPol(TestAciToAimConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.QosDppPol
+    reverse_map_output = [
+        {'resource': 'qosDppPol',
+         'exceptions': {}},
+    ]
+    sample_input = [
+        {'qosDppPol': {
+            'attributes': {
+                'name': 'd1',
+                'nameAlias': 'alias',
+                'adminSt': 'enabled',
+                'be': 'unspecified',
+                'beUnit': 'unspecified',
+                'burst': 'unspecified',
+                'burstUnit': 'unspecified',
+                'conformAction': 'transmit',
+                'conformMarkCos': 'unspecified',
+                'conformMarkDscp': 'unspecified',
+                'exceedAction': 'drop',
+                'exceedMarkCos': 'unspecified',
+                'exceedMarkDscp': 'unspecified',
+                'mode': 'bit',
+                'pir': 0,
+                'pirUnit': 'unspecified',
+                'rate': 0,
+                'rateUnit': 'unspecified',
+                'sharingMode': 'dedicated',
+                'type': '1R2C',
+                'violateAction': 'drop',
+                'violateMarkCos': 'unspecified',
+                'violateMarkDscp': 'unspecified',
+                'dn': 'uni/tn-t1/qosdpppol-d1'}}},
+        {'qosDppPol': {
+            'attributes': {
+                'name': 'd1',
+                'nameAlias': 'alias',
+                'rate': 20,
+                'burst': '30',
+                'rateUnit': 'kilo',
+                'burstUnit': 'kilo',
+                'dn': 'uni/tn-t2/qosdpppol-d1'}}},
+    ]
+    sample_output = [
+        resource.QosDppPol(
+            tenant_name='t1',
+            name='d1',
+            display_name='alias'),
+        resource.QosDppPol(tenant_name='t2',
+                           name='d1',
+                           rate=20,
+                           burst='30',
+                           rate_unit='kilo',
+                           burst_unit='kilo',
+                           display_name='alias')]

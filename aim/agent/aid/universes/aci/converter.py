@@ -202,6 +202,160 @@ def fv_rs_path_att_converter(object_dict, otype, helper,
     return result
 
 
+def qos_rs_ingress_dpp_pol(object_dict, otype, helper,
+                           source_identity_attributes,
+                           destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict['tDn'] != '':
+            master_id = apic_client.DNManager().aci_decompose_with_type(
+                object_dict['tDn'], 'qosDppPol')
+            res_dict['ingress_dpp_pol'] = master_id[1][1]
+
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        if object_dict.get('tenant_name') and object_dict.get('name') \
+           and object_dict.get('ingress_dpp_pol'):
+            tdn_attrs = [object_dict.get('tenant_name'),
+                         object_dict.get('ingress_dpp_pol')]
+            attrs = [object_dict.get('tenant_name'),
+                     object_dict.get('name')]
+            try:
+                dn = apic_client.ManagedObjectClass(
+                    'qosRsIngressDppPol').dn(*attrs)
+                tdn = apic_client.ManagedObjectClass(
+                    'qosDppPol').dn(*tdn_attrs)
+            except Exception as e:
+                LOG.error('Failed to make DN for %s with %s %s: %s',
+                          helper['resource'], attrs, tdn_attrs, e)
+                raise
+            result.append({helper['resource']:
+                           {'attributes': {'dn': dn,
+                                           'tDn': tdn}}})
+    return result
+
+
+def qos_rs_egress_dpp_pol(object_dict, otype, helper,
+                          source_identity_attributes,
+                          destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        tdn = object_dict.get('tDn')
+        if tdn and tdn != '':
+            master_id = apic_client.DNManager().aci_decompose_with_type(
+                object_dict['tDn'], 'qosDppPol')
+            res_dict['egress_dpp_pol'] = master_id[1][1]
+
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        if object_dict.get('tenant_name') and object_dict.get('name') \
+           and object_dict.get('egress_dpp_pol'):
+            tdn_attrs = [object_dict.get('tenant_name'),
+                         object_dict.get('egress_dpp_pol')]
+            attrs = [object_dict.get('tenant_name'),
+                     object_dict.get('name')]
+            try:
+                dn = apic_client.ManagedObjectClass(
+                    'qosRsEgressDppPol').dn(*attrs)
+                tdn = apic_client.ManagedObjectClass(
+                    'qosDppPol').dn(*tdn_attrs)
+            except Exception as e:
+                LOG.error('Failed to make DN for %s with %s %s: %s',
+                          helper['resource'], attrs, tdn_attrs, e)
+                raise
+            result.append({
+                helper['resource']: {'attributes': {'dn': dn, 'tDn': tdn}}})
+    return result
+
+
+def qos_ep_dscp_marking(object_dict, otype, helper,
+                        source_identity_attributes,
+                        destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        res_dict['dscp'] = object_dict.get('mark', None)
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        if object_dict.get('tenant_name') and object_dict.get('name') and \
+           object_dict.get('dscp'):
+            attrs = [object_dict.get('tenant_name'),
+                     object_dict.get('name')]
+            try:
+                dn = apic_client.ManagedObjectClass(
+                    'qosEpDscpMarking').dn(*attrs)
+            except Exception as e:
+                LOG.error('Failed to make DN for %s with %s: %s',
+                          helper['resource'], attrs, e)
+                raise
+            result.append({
+                helper['resource']:
+                    {'attributes': {'dn': dn, 'mark': object_dict['dscp']}}})
+    return result
+
+
+def qos_rs_req(object_dict, otype, helper,
+               source_identity_attributes,
+               destination_identity_attributes, to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict.get('tnQosRequirementName'):
+            res_dict['qos_name'] = object_dict['tnQosRequirementName']
+
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        qos_name = object_dict.get('qos_name', '')
+        if object_dict.get('tenant_name') and object_dict.get('name') and \
+           object_dict.get('app_profile_name') and \
+           qos_name and qos_name != '':
+            attrs = [object_dict.get('tenant_name'),
+                     object_dict.get('app_profile_name'),
+                     object_dict.get('name')]
+            try:
+                dn = apic_client.ManagedObjectClass(
+                    'fvRsQosRequirement').dn(*attrs)
+            except Exception as e:
+                LOG.error('Failed to make DN for %s with %s: %s',
+                          helper['resource'], attrs, e)
+                raise
+            result.append({helper['resource']:
+                           {'attributes':
+                            {'dn': dn,
+                             'tnQosRequirementName': qos_name}}})
+    return result
+
+
 def fv_rs_master_epg_converter(object_dict, otype, helper,
                                source_identity_attributes,
                                destination_identity_attributes, to_aim=True):
@@ -543,6 +697,7 @@ resource_map = {
                  'physical_domains',
                  'vmm_domains',
                  'static_paths',
+                 'qos_name',
                  'epg_contract_masters'],
     }],
     'fvRsBd': [{
@@ -861,6 +1016,31 @@ resource_map = {
     }],
     'netflowVmmExporterPol': [{
         'resource': resource.NetflowVMMExporterPol,
+    }],
+    'qosRequirement': [{
+        'resource': resource.QosRequirement,
+        'skip': ['dscp', 'ingress_dpp_pol', 'egress_dpp_pol'],
+    }],
+    'qosDppPol': [{
+        'resource': resource.QosDppPol,
+    }],
+    'qosRsIngressDppPol': [{
+        'resource': resource.QosRequirement,
+        'converter': qos_rs_ingress_dpp_pol,
+        'skip': ['dscp']
+    }],
+    'qosRsEgressDppPol': [{
+        'resource': resource.QosRequirement,
+        'converter': qos_rs_egress_dpp_pol,
+        'skip': ['dscp']
+    }],
+    'qosEpDscpMarking': [{
+        'resource': resource.QosRequirement,
+        'converter': qos_ep_dscp_marking,
+    }],
+    'fvRsQosRequirement': [{
+        'resource': resource.EndpointGroup,
+        'converter': qos_rs_req,
     }],
 }
 
