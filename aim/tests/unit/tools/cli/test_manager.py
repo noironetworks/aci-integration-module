@@ -875,3 +875,51 @@ class TestQosDppPol(
         test_aim_manager.TestQosDppPolMixin,
         TestManagerResourceOpsBase, base.TestShell):
     pass
+
+
+class TestSpanVsourceGroup(test_aim_manager.TestSpanVsourceGroupMixin,
+                           TestManagerResourceOpsBase,
+                           base.TestShell):
+    pass
+
+
+class TestSpanVsource(test_aim_manager.TestSpanVsourceMixin,
+                      TestManagerResourceOpsBase,
+                      base.TestShell):
+    pass
+
+
+class TestSpanVdestGroup(test_aim_manager.TestSpanVdestGroupMixin,
+                         TestManagerResourceOpsBase,
+                         base.TestShell):
+    pass
+
+
+class TestSpanVdest(test_aim_manager.TestSpanVdestMixin,
+                    TestManagerResourceOpsBase,
+                    base.TestShell):
+    pass
+
+
+class TestSpanVepgSummary(test_aim_manager.TestSpanVepgSummaryMixin,
+                          TestManagerResourceOpsBase,
+                          base.TestShell):
+    pass
+
+
+class TestInfraAccBundleGroup(test_aim_manager.TestInfraAccBundleGroupMixin,
+                              TestManagerResourceOpsBase,
+                              base.TestShell):
+    pass
+
+
+class TestInfraAccPortGroup(test_aim_manager.TestInfraAccPortGroupMixin,
+                            TestManagerResourceOpsBase,
+                            base.TestShell):
+    pass
+
+
+class TestSpanSpanlbl(test_aim_manager.TestSpanSpanlblMixin,
+                      TestManagerResourceOpsBase,
+                      base.TestShell):
+    pass
