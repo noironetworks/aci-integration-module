@@ -635,6 +635,18 @@ class TestNetflowVMMExporterPol(
     pass
 
 
+class TestVmmVswitchPolicyGroup(
+        test_aim_manager.TestVmmVswitchPolicyGroupMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestVmmRelationToExporterPol(
+        test_aim_manager.TestVmmRelationToExporterPolMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
 class TestSubnet(test_aim_manager.TestSubnetMixin, TestManagerResourceOpsBase,
                  base.TestShell):
     pass

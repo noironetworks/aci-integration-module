@@ -114,6 +114,8 @@ class AimManager(object):
                      api_res.NetflowVMMExporterPol,
                      api_res.QosRequirement,
                      api_res.QosDppPol,
+                     api_res.VmmVswitchPolicyGroup,
+                     api_res.VmmRelationToExporterPol,
                      api_tree.ActionLog}
 
     # Keep _db_model_map in AIM manager for backward compatibility

@@ -283,6 +283,10 @@ class SqlAlchemyStore(AimStore):
                         models.NetflowVMMExporterPol),
                     api_res.QosRequirement: models.QosRequirement,
                     api_res.QosDppPol: models.QosDppPol,
+                    api_res.VmmVswitchPolicyGroup: (
+                        models.VmmVswitchPolicyGroup),
+                    api_res.VmmRelationToExporterPol: (
+                        models.VmmRelationToExporterPol),
                     api_tree.ActionLog: tree_model.ActionLog}
 
     resource_map = {}

@@ -748,6 +748,52 @@ class TestNetflowVMMExporterPolMixin(object):
     res_command = 'netflow-vmm-exporter-pol'
 
 
+class TestVmmVswitchPolicyGroupMixin(object):
+    resource_class = resource.VmmVswitchPolicyGroup
+    resource_root_type = resource.VMMPolicy._aci_mo_name
+    prereq_objects = [resource.VMMPolicy(type='OpenStack'),
+                      resource.VMMDomain(type='OpenStack',
+                                         name='osd13-fab20')]
+    test_identity_attributes = {'domain_type': 'OpenStack',
+                                'domain_name': 'osd13-fab20'}
+    test_required_attributes = {'domain_type': 'OpenStack',
+                                'domain_name': 'osd13-fab20'}
+    test_search_attributes = {'domain_name': 'osd13-fab20'}
+    test_update_attributes = {'display_name': 'OpenStack-netflow'}
+    test_default_values = {'monitored': False}
+    test_dn = 'uni/vmmp-OpenStack/dom-osd13-fab20/vswitchpolcont'
+    res_command = 'vmm-vswitch-policy-group'
+
+
+class TestVmmRelationToExporterPolMixin(object):
+    resource_class = resource.VmmRelationToExporterPol
+    resource_root_type = resource.VMMPolicy._aci_mo_name
+    prereq_objects = [resource.VMMPolicy(type='OpenStack'),
+                      resource.VMMDomain(type='OpenStack',
+                                         name='osd13-fab20')]
+    test_identity_attributes = {'domain_type': 'OpenStack',
+                                'domain_name': 'osd13-fab20',
+                                'netflow_path': 'uni/infra/'
+                                                'vmmexporterpol-test'}
+    test_required_attributes = {'domain_type': 'OpenStack',
+                                'domain_name': 'osd13-fab20',
+                                'netflow_path': 'uni/infra/'
+                                                'vmmexporterpol-test',
+                                'active_flow_time_out': 90,
+                                'idle_flow_time_out': 15,
+                                'sampling_rate': 0}
+    test_search_attributes = {'domain_name': 'osd13-fab20'}
+    test_update_attributes = {'active_flow_time_out': 120,
+                              'idle_flow_time_out': 10,
+                              'sampling_rate': 5}
+    test_default_values = {'active_flow_time_out': 60,
+                           'idle_flow_time_out': 15,
+                           'sampling_rate': 0}
+    res_command = 'vmm-relation-to-exporter-pol'
+    test_dn = ('uni/vmmp-OpenStack/dom-osd13-fab20/vswitchpolcont/'
+               'rsvswitchExporterPol-[uni/infra/vmmexporterpol-test]')
+
+
 class TestAgentMixin(object):
     resource_class = resource.Agent
     test_identity_attributes = {'id': 'myuuid'}
@@ -2260,6 +2306,16 @@ class TestInfra(TestInfraMixin, TestResourceOpsBase,
 
 
 class TestNetflowVMMExporterPol(TestNetflowVMMExporterPolMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestVmmRelationToExporterPol(TestVmmRelationToExporterPolMixin,
+                                   TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestVmmVswitchPolicyGroup(TestVmmVswitchPolicyGroupMixin,
                                 TestAciResourceOpsBase, base.TestAimDBBase):
     pass
 
