@@ -112,6 +112,8 @@ class AimManager(object):
                      api_res.VmmInjectedContGroup,
                      api_res.Infra,
                      api_res.NetflowVMMExporterPol,
+                     api_res.QosRequirement,
+                     api_res.QosDppPol,
                      api_res.VmmVswitchPolicyGroup,
                      api_res.VmmRelationToExporterPol,
                      api_res.SpanVsourceGroup,

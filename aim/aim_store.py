@@ -282,6 +282,8 @@ class SqlAlchemyStore(AimStore):
                     api_res.Infra: models.Infra,
                     api_res.NetflowVMMExporterPol: (
                         models.NetflowVMMExporterPol),
+                    api_res.QosRequirement: models.QosRequirement,
+                    api_res.QosDppPol: models.QosDppPol,
                     api_res.VmmVswitchPolicyGroup: (
                         models.VmmVswitchPolicyGroup),
                     api_res.VmmRelationToExporterPol: (

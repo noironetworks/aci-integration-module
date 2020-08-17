@@ -943,3 +943,15 @@ class TestServiceRedirectMonitoringPolicy(
 class TestServiceRedirectHealthGroup(
         test_aim_manager.TestServiceRedirectHealthGroupMixin, base.TestShell):
     pass
+
+
+class TestQosRequirement(
+        test_aim_manager.TestQosRequirementMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestQosDppPol(
+        test_aim_manager.TestQosDppPolMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass

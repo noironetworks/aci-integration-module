@@ -778,7 +778,8 @@ class EndpointGroup(AciResourceBase):
         ('epg_contract_masters', t.list_of_dicts(('app_profile_name', t.name),
                                                  ('name', t.name))),
         ('monitored', t.bool),
-        ('sync', t.bool))
+        ('sync', t.bool),
+        ('qos_name', t.name))
 
     _aci_mo_name = 'fvAEPg'
     _tree_parent = ApplicationProfile
@@ -798,6 +799,7 @@ class EndpointGroup(AciResourceBase):
                                              self.POLICY_UNENFORCED,
                                              'static_paths': [],
                                              'epg_contract_masters': [],
+                                             'qos_name': '',
                                              'monitored': False,
                                              'sync': True},
                                             **kwargs)
@@ -1638,6 +1640,98 @@ class VmmInjectedContGroup(AciResourceBase):
                                                     'replica_set_name': '',
                                                     'guid': ''},
                                                    **kwargs)
+
+
+class QosRequirement(AciResourceBase):
+    """Resource representing a Qos Requirement in ACI.
+
+    Identity attributes: name of ACI tenant and name of qos requiremet
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('dscp', t.positive_number),
+        ('egress_dpp_pol', t.name),
+        ('ingress_dpp_pol', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'qosRequirement'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        super(QosRequirement, self).__init__({'display_name': '',
+                                              'dscp': None,
+                                              'egress_dpp_pol': '',
+                                              'ingress_dpp_pol': '',
+                                              'monitored': False}, **kwargs)
+
+
+class QosDppPol(AciResourceBase):
+    """Resource representing a Qos DppPol in ACI.
+
+    Identity attributes: name of ACI tenant and name of qos dpppol
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('rate', t.integer),
+        ('burst', t.string()),
+        ('type', t.enum("", "1R2C", "2R3C")),
+        ('mode', t.enum("", "bit", "packet")),
+        ('pir', t.integer),
+        ('be', t.string()),
+        ('rate_unit', t.enum("", "unspecified", "kilo", "mega", "giga")),
+        ('burst_unit', t.enum(
+            "", "unspecified", "kilo", "mega", "giga", "msec", "usec")),
+        ('pir_unit', t.enum("", "unspecified", "kilo", "mega", "giga")),
+        ('be_unit', t.enum(
+            "", "unspecified", "kilo", "mega", "giga", "msec", "usec")),
+        ('conform_action', t.enum("", "transmit", "drop", "mark")),
+        ('exceed_action', t.enum("", "transmit", "drop", "mark")),
+        ('violate_action', t.enum("", "transmit", "drop", "mark")),
+        ('conform_mark_dscp', t.string()),
+        ('exceed_mark_dscp', t.string()),
+        ('violate_mark_dscp', t.string()),
+        ('conform_mark_cos', t.string()),
+        ('exceed_mark_cos', t.string()),
+        ('violate_mark_cos', t.string()),
+        ('admin_st', t.enum("", "enabled", "disabled")),
+        ('sharing_mode', t.enum("", "dedicated", "shared")),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'qosDppPol'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        super(QosDppPol, self).__init__({'display_name': '',
+                                         'rate': 0,
+                                         'pir': 0,
+                                         'type': '1R2C',
+                                         'mode': 'bit',
+                                         'burst': 'unspecified',
+                                         'be': 'unspecified',
+                                         'rate_unit': 'unspecified',
+                                         'burst_unit': 'unspecified',
+                                         'pir_unit': 'unspecified',
+                                         'be_unit': 'unspecified',
+                                         'conform_action': 'transmit',
+                                         'exceed_action': 'drop',
+                                         'violate_action': 'drop',
+                                         'conform_mark_dscp': 'unspecified',
+                                         'exceed_mark_dscp': 'unspecified',
+                                         'violate_mark_dscp': 'unspecified',
+                                         'conform_mark_cos': 'unspecified',
+                                         'exceed_mark_cos': 'unspecified',
+                                         'violate_mark_cos': 'unspecified',
+                                         'admin_st': 'enabled',
+                                         'sharing_mode': 'dedicated',
+                                         'monitored': False}, **kwargs)
 
 
 class VmmVswitchPolicyGroup(AciResourceBase):
