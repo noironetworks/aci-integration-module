@@ -29,6 +29,7 @@ depends_on = None
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.mysql import VARCHAR
 
 
 def upgrade():
@@ -57,6 +58,40 @@ def upgrade():
                   server_default='0'),
         sa.UniqueConstraint('name', name='uniq_aim_infra_identity'),
         sa.PrimaryKeyConstraint('aim_id'))
+
+    op.create_table(
+        'aim_vmm_vswitch_pol_grp',
+        sa.Column('aim_id', sa.String(64), nullable=False),
+        sa.Column('domain_type', sa.String(64), nullable=False),
+        sa.Column('domain_name', sa.String(64), nullable=False),
+        sa.Column('display_name', sa.String(256), nullable=False, default=''),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
+        sa.Column('epoch', sa.BigInteger(), nullable=False,
+                  server_default='0'),
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('domain_type', 'domain_name',
+                            name='uniq_aim_vswitch_pol_grp_identity'),
+        sa.Index('idx_aim_vswitch_pol_grp_identity',
+                 'domain_type', 'domain_name'))
+
+    op.create_table(
+        'aim_vmm_reln_exporter_pol',
+        sa.Column('aim_id', sa.String(64), nullable=False),
+        sa.Column('domain_type', sa.String(64), nullable=False),
+        sa.Column('domain_name', sa.String(64), nullable=False),
+        sa.Column('netflow_path', VARCHAR(512, charset='latin1'),
+                  nullable=False),
+        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
+        sa.Column('active_flow_time_out', sa.Integer),
+        sa.Column('idle_flow_time_out', sa.Integer),
+        sa.Column('sampling_rate', sa.Integer),
+        sa.Column('epoch', sa.BigInteger(), nullable=False,
+                  server_default='0'),
+        sa.PrimaryKeyConstraint('aim_id'),
+        sa.UniqueConstraint('domain_type', 'domain_name', 'netflow_path',
+                            name='uniq_aim_reln_exporter_identity'),
+        sa.Index('idx_aim_reln_exporter_identity',
+                 'domain_type', 'domain_name', 'netflow_path'))
 
 
 def downgrade():

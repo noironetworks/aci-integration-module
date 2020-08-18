@@ -1042,6 +1042,12 @@ resource_map = {
         'resource': resource.EndpointGroup,
         'converter': qos_rs_req,
     }],
+    'vmmVSwitchPolicyCont': [{
+        'resource': resource.VmmVswitchPolicyGroup,
+    }],
+    'vmmRsVswitchExporterPol': [{
+        'resource': resource.VmmRelationToExporterPol,
+    }],
 }
 
 resource_map.update(service_graph.resource_map)
