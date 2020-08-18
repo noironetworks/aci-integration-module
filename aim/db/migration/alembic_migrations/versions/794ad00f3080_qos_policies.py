@@ -47,9 +47,7 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
                             name='uniq_aim_qos_req_identity'),
-        sa.Index('idx_aim_qos_req_identity', 'tenant_name', 'name'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name'], ['aim_tenants.name'], name='fk_qos_req_tn'))
+        sa.Index('idx_aim_qos_req_identity', 'tenant_name', 'name'))
 
     op.create_table(
         'aim_qos_dpp_pol',
@@ -83,9 +81,7 @@ def upgrade():
                   server_default='0'),
         sa.PrimaryKeyConstraint('aim_id'),
         sa.UniqueConstraint('tenant_name', 'name',
-                            name='uniq_aim_qos_bw_lt_identity'),
-        sa.ForeignKeyConstraint(
-            ['tenant_name'], ['aim_tenants.name'], name='fk_qos_bw_lt_tn'))
+                            name='uniq_aim_qos_bw_lt_identity'))
 
     op.create_table(
         'aim_qos_dscp_marking',
