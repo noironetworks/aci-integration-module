@@ -1,3 +1,4 @@
+etc/aim/aim.conf /etc/aim/
 debian/aim-aid.conf /etc/init/
 debian/aim-event-service-polling.conf /etc/init/
 debian/aim-event-service-rpc.conf /etc/init/
