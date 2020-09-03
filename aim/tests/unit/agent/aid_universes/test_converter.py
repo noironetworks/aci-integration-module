@@ -4316,11 +4316,11 @@ class TestAimToAciConverterQosReq(TestAimToAciConverterBase,
         [_aci_obj('qosRequirement', nameAlias='',
                   dn="uni/tn-t3/qosreq-q1"),
          _aci_obj('qosRsIngressDppPol',
-                  dn="uni/tn-t3/qosreq-q1/rsIngressDppPol",
-                  tDn="uni/tn-t3/qosdpppol-i1"),
+                  dn="uni/tn-t3/qosreq-q1/rsingressDppPol",
+                  tnQosDppPolName="i1"),
          _aci_obj('qosRsEgressDppPol',
-                  dn="uni/tn-t3/qosreq-q1/rsEgressDppPol",
-                  tDn="uni/tn-t3/qosdpppol-e1"),
+                  dn="uni/tn-t3/qosreq-q1/rsegressDppPol",
+                  tnQosDppPolName="e1"),
          _aci_obj('qosEpDscpMarking', mark=24,
                   dn="uni/tn-t3/qosreq-q1/dscpmarking")],
     ]
@@ -4407,12 +4407,12 @@ class TestAciToAimConverterQosReq(TestAciToAimConverterBase,
             dn='uni/tn-t2/qosreq-r1/dscpmarking'),
          _aci_obj(
             'qosRsIngressDppPol',
-            tDn='uni/tn-t2/qosdpppol-d1',
-            dn='uni/tn-t2/qosreq-r1/rsIngressDppPol'),
+            tnQosDppPolName='d1',
+            dn='uni/tn-t2/qosreq-r1/rsingressDppPol'),
          _aci_obj(
             'qosRsEgressDppPol',
-            tDn='uni/tn-t2/qosdpppol-d2',
-            dn='uni/tn-t2/qosreq-r1/rsEgressDppPol')]]
+            tnQosDppPolName='d2',
+            dn='uni/tn-t2/qosreq-r1/rsegressDppPol')]]
     sample_output = [
         resource.QosRequirement(tenant_name='t1',
                                 name='r1',
