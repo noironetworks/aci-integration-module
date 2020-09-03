@@ -1496,3 +1496,207 @@ class VmmRelationToExporterPol(AciResourceBase):
         super(VmmRelationToExporterPol, self).__init__(
             {'monitored': False, 'active_flow_time_out': 60,
              'sampling_rate': 0, 'idle_flow_time_out': 15}, **kwargs)
+
+
+class SpanVsourceGroup(AciResourceBase):
+    """Resource representing a ERSPAN VSource Group in ACI.
+
+    Identity attributes are RNs for ERSPAN VSource Group.
+    """
+
+    identity_attributes = t.identity(
+        ('name', t.name))
+    other_attributes = t.other(
+        ('admin_st', t.enum("start", "stop")),
+        ('monitored', t.bool),
+        ('display_name', t.name))
+
+    _aci_mo_name = 'spanVSrcGrp'
+    _tree_parent = Infra
+
+    def __init__(self, **kwargs):
+        super(SpanVsourceGroup, self).__init__({'admin_st': 'start',
+                                                'monitored': False},
+                                               **kwargs)
+
+
+class SpanVsource(AciResourceBase):
+    """Resource representing a ERSPAN VSource in ACI.
+
+    Identity attributes are RNs for ERSPAN VSource.
+    """
+
+    identity_attributes = t.identity(
+        ('vsg_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('dir', t.enum("in", "out", "both")),
+        ('monitored', t.bool),
+        ('display_name', t.name),
+        ('src_paths', t.list_of_strings))
+
+    _aci_mo_name = 'spanVSrc'
+    _tree_parent = SpanVsourceGroup
+
+    def __init__(self, **kwargs):
+        super(SpanVsource, self).__init__({'dir': 'both',
+                                           'src_paths': [],
+                                           'monitored': False},
+                                          **kwargs)
+
+
+class SpanVdestGroup(AciResourceBase):
+    """Resource representing a ERSPAN VDest Group in ACI.
+
+    Identity attributes are RNs for ERSPAN VDest Group.
+    """
+
+    identity_attributes = t.identity(
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name))
+
+    _aci_mo_name = 'spanVDestGrp'
+    _tree_parent = Infra
+
+    def __init__(self, **kwargs):
+        super(SpanVdestGroup, self).__init__({'monitored': False},
+                                             **kwargs)
+
+
+class SpanVdest(AciResourceBase):
+    """Resource representing a ERSPAN VDest in ACI.
+
+    Identity attributes are RNs for ERSPAN VDest.
+    """
+
+    identity_attributes = t.identity(
+        ('vdg_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name))
+
+    _aci_mo_name = 'spanVDest'
+    _tree_parent = SpanVdestGroup
+
+    def __init__(self, **kwargs):
+        super(SpanVdest, self).__init__({'monitored': False},
+                                        **kwargs)
+
+
+class SpanVepgSummary(AciResourceBase):
+    """Resource representing a ERSPAN Destination VEpg Summary in ACI.
+
+    Identity attributes are RNs for ERSPAN Destination VEpg Summary.
+    """
+
+    identity_attributes = t.identity(
+        ('vdg_name', t.name),
+        ('vd_name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name),
+        ('dst_ip', t.string()),
+        ('flow_id', t.integer),
+        ('ttl', t.integer),
+        ('mtu', t.integer),
+        ('invalid', t.bool),
+        ('mode', t.enum("visible", "not-visible")),
+        ('route_ip', t.string()),
+        ('scope', t.enum("public", "private", "shared")),
+        ('src_ip_prefix', t.string()),
+        ('ver', t.enum("ver1", "ver2")),
+        ('ver_enforced', t.bool),
+        ('dscp', t.integer))
+
+    _aci_mo_name = 'spanVEpgSummary'
+    _tree_parent = SpanVdest
+
+    def __init__(self, **kwargs):
+        super(SpanVepgSummary, self).__init__({'monitored': False,
+                                               'dst_ip': '',
+                                               'flow_id': 1,
+                                               'ttl': 64,
+                                               'mtu': 1518,
+                                               'invalid': False,
+                                               'mode': 'not-visible',
+                                               'route_ip': '',
+                                               'scope': 'private',
+                                               'src_ip_prefix': '',
+                                               'ver': 'ver2',
+                                               'ver_enforced': False,
+                                               'dscp': 64},
+                                              **kwargs)
+
+
+class InfraAccBundleGroup(AciResourceBase):
+    """Resource representing bundle interface group in ACI.
+
+    Identity attribute is bundled ports group name.
+    """
+
+    identity_attributes = t.identity(
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name),
+        ('lag_t', t.enum("link", "node")),
+        ('span_vsource_group_names', t.list_of_names),
+        ('span_vdest_group_names', t.list_of_names))
+
+    _aci_mo_name = 'infraAccBndlGrp'
+    _tree_parent = Infra
+
+    def __init__(self, **kwargs):
+        super(InfraAccBundleGroup, self).__init__(
+            {'monitored': False, 'lag_t': 'link',
+             'span_vsource_group_names': [], 'span_vdest_group_names': []},
+            **kwargs)
+
+
+class InfraAccPortGroup(AciResourceBase):
+    """Resource representing interface policy group in ACI.
+
+    Identity attribute is singular ports name.
+    """
+
+    identity_attributes = t.identity(
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name),
+        ('span_vsource_group_names', t.list_of_names),
+        ('span_vdest_group_names', t.list_of_names))
+
+    _aci_mo_name = 'infraAccPortGrp'
+    _tree_parent = Infra
+
+    def __init__(self, **kwargs):
+        super(InfraAccPortGroup, self).__init__(
+            {'monitored': False, 'span_vsource_group_names': [],
+             'span_vdest_group_names': []}, **kwargs)
+
+
+class SpanSpanlbl(AciResourceBase):
+    """Resource representing SPAN src-dest group match label.
+
+    Identity attributes is name of SPAN destination group.
+    """
+
+    identity_attributes = t.identity(
+        ('vsg_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name),
+        ('tag', t.string()))
+
+    _aci_mo_name = 'spanSpanLbl'
+    _tree_parent = SpanVsourceGroup
+
+    def __init__(self, **kwargs):
+        super(SpanSpanlbl, self).__init__({'monitored': False,
+                                           'tag': ''},
+                                          **kwargs)

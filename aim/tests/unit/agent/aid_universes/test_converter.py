@@ -1984,6 +1984,196 @@ class TestAciToAimConverterVmmInjContGroup(TestAciToAimConverterBase,
     ]
 
 
+class TestAciToAimConverterSpanVsourceGroup(TestAciToAimConverterBase,
+                                            base.TestAimDBBase):
+    resource_type = resource.SpanVsourceGroup
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'spanVSrcGrp'}]
+    sample_input = [base.TestAimDBBase._get_example_aci_span_vsource_grp(),
+                    base.TestAimDBBase._get_example_aci_span_vsource_grp(
+                        dn='uni/infra/vsrcgrp-testSrcGrp1',
+                        adminSt='stop')]
+    sample_output = [
+        resource.SpanVsourceGroup(name='testSrcGrp',
+                                  admin_st='start'),
+        resource.SpanVsourceGroup(name='testSrcGrp1',
+                                  admin_st='stop')]
+
+
+class TestAciToAimConverterSpanVsource(TestAciToAimConverterBase,
+                                       base.TestAimDBBase):
+    resource_type = resource.SpanVsource
+    reverse_map_output = [
+        {'exceptions': {},
+         'resource': 'spanVSrc',
+         'skip': ['srcPaths']},
+        {'resource': 'spanRsSrcToVPort',
+         'exceptions': {},
+         'converter': converter.spanRsSrcToVPort_converter, }]
+    sample_input = [[base.TestAimDBBase._get_example_aci_span_vsource(
+        nameAlias='test'),
+        _aci_obj('spanRsSrcToVPort',
+                 dn="uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc/"
+                    "rssrcToVPort-[uni/tn-common/ap-OpenStack/"
+                    "epg-net/cep-BA:E9:E8:73:67:A9]",
+                 tDn='uni/tn-common/ap-OpenStack/epg-net/'
+                     'cep-BA:E9:E8:73:67:A9'),
+        ],
+        base.TestAimDBBase._get_example_aci_span_vsource(
+            dn='uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc1',
+            dir='in')]
+
+    sample_output = [
+        resource.SpanVsource(vsg_name='testSrcGrp',
+                             name='testSrc',
+                             dir='both', display_name='test',
+                             src_paths=['uni/tn-common/ap-'
+                                        'OpenStack/epg-net/'
+                                        'cep-BA:E9:E8:73:67:A9']),
+        resource.SpanVsource(vsg_name='testSrcGrp',
+                             name='testSrc1',
+                             dir='in')]
+
+
+class TestAciToAimConverterSpanVdestGroup(TestAciToAimConverterBase,
+                                          base.TestAimDBBase):
+    resource_type = resource.SpanVdestGroup
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'spanVDestGrp'}]
+    sample_input = [base.TestAimDBBase._get_example_aci_span_vdest_grp(),
+                    base.TestAimDBBase._get_example_aci_span_vdest_grp(
+                        dn='uni/infra/vdestgrp-testDestGrp1')]
+    sample_output = [
+        resource.SpanVdestGroup(name='testDestGrp'),
+        resource.SpanVdestGroup(name='testDestGrp1')]
+
+
+class TestAciToAimConverterSpanVdest(TestAciToAimConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.SpanVdest
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'spanVDest'}]
+    sample_input = [base.TestAimDBBase._get_example_aci_span_vdest(),
+                    base.TestAimDBBase._get_example_aci_span_vdest(
+                        dn='uni/infra/vdestgrp-testDestGrp/vdest-testDest1')]
+    sample_output = [
+        resource.SpanVdest(vdg_name='testDestGrp',
+                           name='testDest'),
+        resource.SpanVdest(vdg_name='testDestGrp',
+                           name='testDest1')]
+
+
+class TestAciToAimConverterSpanVepgSummary(TestAciToAimConverterBase,
+                                           base.TestAimDBBase):
+    resource_type = resource.SpanVepgSummary
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'spanVEpgSummary'}]
+    sample_input = [base.TestAimDBBase._get_example_aci_span_vepg_sum(),
+                    base.TestAimDBBase._get_example_aci_span_vepg_sum(
+                        dn='uni/infra/vdestgrp-testDestGrp/vdest-testDest1/'
+                           'vepgsummary',
+                        dstIp='172.51.12.3', flowId=8,
+                        ttl=129, mtu=1520, invalid=False, mode='not-visible',
+                        routeIp='1.2.3.4', scope='shared',
+                        srcIpPrefix='1.2.2.2', ver='ver2', verEnforced=False,
+                        dscp=48)]
+    sample_output = [
+        resource.SpanVepgSummary(vdg_name='testDestGrp',
+                                 vd_name='testDest', dst_ip='172.51.12.2',
+                                 flow_id=1, ttl=128, mtu=1519, invalid=True,
+                                 mode='visible', route_ip='1.2.3.5',
+                                 scope='private', src_ip_prefix='1.1.1.1',
+                                 ver='ver1', ver_enforced=True, dscp=32),
+        resource.SpanVepgSummary(vdg_name='testDestGrp',
+                                 vd_name='testDest1', flow_id=8,
+                                 dst_ip='172.51.12.3', ttl=129, mtu=1520,
+                                 invalid=False, mode='not-visible',
+                                 route_ip='1.2.3.4', scope='shared',
+                                 src_ip_prefix='1.2.2.2',
+                                 ver='ver2', ver_enforced=False, dscp=48)]
+
+
+class TestAciToAimConverterInfraAccBundleGroup(TestAciToAimConverterBase,
+                                               base.TestAimDBBase):
+    resource_type = resource.InfraAccBundleGroup
+    reverse_map_output = [
+        {'exceptions': {},
+         'resource': 'infraAccBndlGrp',
+         'skip': ['spanVsourceGroupNames', 'spanVdestGroupNames']},
+        {'resource': 'infraRsSpanVSrcGrp',
+         'exceptions': {},
+         'converter': converter.infraRsSpanVSrcGrp_converter, },
+        {'resource': 'infraRsSpanVDestGrp',
+         'exceptions': {},
+         'converter': converter.infraRsSpanVDestGrp_converter, }]
+    sample_input = [base.TestAimDBBase._get_example_aci_infra_acc_bundle_grp(),
+                    [base.TestAimDBBase._get_example_aci_infra_acc_bundle_grp(
+                        dn='uni/infra/funcprof/accbundle-accTest1',
+                        lagT='node'),
+                     _aci_obj('infraRsSpanVSrcGrp',
+                              dn='uni/infra/funcprof/accbundle-accTest1/'
+                                 'rsspanVSrcGrp-testSrcGrptest',
+                              tnSpanVSrcGrpName='testSrcGrptest'),
+                     _aci_obj('infraRsSpanVDestGrp',
+                              dn='uni/infra/funcprof/accbundle-accTest1/'
+                                 'rsspanVDestGrp-testDestGrptest',
+                              tnSpanVDestGrpName='testDestGrptest')]]
+    sample_output = [
+        resource.InfraAccBundleGroup(name='accTest', lag_t='link'),
+        resource.InfraAccBundleGroup(
+            name='accTest1', lag_t='node',
+            span_vsource_group_names=['testSrcGrptest'],
+            span_vdest_group_names=['testDestGrptest'])]
+
+
+class TestAciToAimConverterInfraAccPortGroup(TestAciToAimConverterBase,
+                                             base.TestAimDBBase):
+    resource_type = resource.InfraAccPortGroup
+    reverse_map_output = [
+        {'exceptions': {},
+         'resource': 'infraAccPortGrp',
+         'skip': ['spanVsourceGroupNames', 'spanVdestGroupNames']},
+        {'resource': 'infraRsSpanVSrcGrp__ap',
+         'exceptions': {},
+         'converter': converter.infraRsSpanVSrcGrp_ap_converter, },
+        {'resource': 'infraRsSpanVDestGrp__ap',
+         'exceptions': {},
+         'converter': converter.infraRsSpanVDestGrp_ap_converter, }]
+    sample_input = [base.TestAimDBBase._get_example_aci_infra_acc_port_grp(),
+                    [base.TestAimDBBase._get_example_aci_infra_acc_port_grp(
+                        dn='uni/infra/funcprof/accportgrp-1-6'),
+                     _aci_obj('infraRsSpanVSrcGrp__ap',
+                              dn='uni/infra/funcprof/accportgrp-1-6/'
+                                 'rsspanVSrcGrp-testSrcGrptest',
+                              tnSpanVSrcGrpName='testSrcGrptest'),
+                     _aci_obj('infraRsSpanVDestGrp__ap',
+                              dn='uni/infra/funcprof/accportgrp-1-6/'
+                                 'rsspanVDestGrp-testDestGrptest',
+                              tnSpanVDestGrpName='testDestGrptest')]]
+    sample_output = [
+        resource.InfraAccPortGroup(name='1-5'),
+        resource.InfraAccPortGroup(name='1-6',
+                                   span_vsource_group_names=['testSrcGrptest'],
+                                   span_vdest_group_names=['testDestGrptest'])]
+
+
+class TestAciToAimConverterSpanSpanlbl(TestAciToAimConverterBase,
+                                       base.TestAimDBBase):
+    resource_type = resource.SpanSpanlbl
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'spanSpanLbl'}]
+    sample_input = [base.TestAimDBBase._get_example_aci_span_spanlbl(),
+                    base.TestAimDBBase._get_example_aci_span_spanlbl(
+                        dn='uni/infra/vsrcgrp-testSrcGrp/spanlbl-testDstGrp1',
+                        tag='yellow-green')]
+    sample_output = [
+        resource.SpanSpanlbl(vsg_name='testSrcGrp',
+                             name='testDestGrp'),
+        resource.SpanSpanlbl(vsg_name='testSrcGrp',
+                             name='testDstGrp1',
+                             tag='yellow-green')]
+
+
 class TestAimToAciConverterBase(object):
     sample_input = []
     sample_output = []
@@ -4481,3 +4671,184 @@ class TestAciToAimConverterQosDppPol(TestAciToAimConverterBase,
                            rate_unit='kilo',
                            burst_unit='kilo',
                            display_name='alias')]
+
+
+class TestAimToAciConverterSpanVsourceGroup(TestAimToAciConverterBase,
+                                            base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_span_vsource_grp(),
+        base.TestAimDBBase._get_example_aim_span_vsource_grp(
+            name='testSrcGrp1', admin_st='stop')]
+
+    sample_output = [
+        [_aci_obj('spanVSrcGrp',
+                  dn=('uni/infra/vsrcgrp-testSrcGrp'),
+                  adminSt='start', nameAlias='')],
+        [_aci_obj('spanVSrcGrp',
+                  dn=('uni/infra/vsrcgrp-testSrcGrp1'),
+                  adminSt='stop', nameAlias='')]
+    ]
+
+
+class TestAimToAciConverterSpanVdestGroup(TestAimToAciConverterBase,
+                                          base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_span_vdest_grp(),
+        base.TestAimDBBase._get_example_aim_span_vdest_grp(
+            name='testDestGrp1')]
+
+    sample_output = [
+        [_aci_obj('spanVDestGrp',
+                  dn=('uni/infra/vdestgrp-testDestGrp'),
+                  nameAlias='')],
+        [_aci_obj('spanVDestGrp',
+                  dn=('uni/infra/vdestgrp-testDestGrp1'),
+                  nameAlias='')]
+    ]
+
+
+class TestAimToAciConverterSpanVdest(TestAimToAciConverterBase,
+                                     base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_span_vdest(),
+        base.TestAimDBBase._get_example_aim_span_vdest(name='testDest1')]
+
+    sample_output = [
+        [_aci_obj('spanVDest',
+                  dn=('uni/infra/vdestgrp-testDestGrp/vdest-testDest'),
+                  nameAlias='')],
+        [_aci_obj('spanVDest',
+                  dn=('uni/infra/vdestgrp-testDestGrp/vdest-testDest1'),
+                  nameAlias='')]
+    ]
+
+
+class TestAimToAciConverterSpanVepgSummary(TestAimToAciConverterBase,
+                                           base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_span_vepg_sum(),
+        base.TestAimDBBase._get_example_aim_span_vepg_sum(
+            vd_name='testDest1', dst_ip='172.51.12.3', flow_id=8, ttl=129,
+            mtu=1520, invalid=False, mode='not-visible', route_ip='1.2.3.4',
+            scope='shared', src_ip_prefix='1.2.2.2', ver='ver2',
+            ver_enforced=False, dscp=64)]
+
+    sample_output = [
+        [_aci_obj('spanVEpgSummary',
+                  dn=('uni/infra/vdestgrp-testDestGrp/vdest-testDest'
+                      '/vepgsummary'),
+                  nameAlias='', dstIp='172.51.12.2',
+                  flowId=1, ttl=128, mtu=1519, invalid=True,
+                  mode='visible', routeIp='1.2.3.5', scope='public',
+                  srcIpPrefix='1.2.2.1', ver='ver1', verEnforced=True,
+                  dscp=48)],
+        [_aci_obj('spanVEpgSummary',
+                  dn=('uni/infra/vdestgrp-testDestGrp/vdest-testDest1'
+                      '/vepgsummary'),
+                  nameAlias='', dstIp='172.51.12.3',
+                  flowId=8, ttl=129, mtu=1520, invalid=False,
+                  mode='not-visible', routeIp='1.2.3.4', scope='shared',
+                  srcIpPrefix='1.2.2.2', ver='ver2', verEnforced=False,
+                  dscp=64)]
+    ]
+
+
+class TestAimToAciConverterInfraAccBundleGroup(TestAimToAciConverterBase,
+                                               base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_infra_acc_bundle_grp(),
+        base.TestAimDBBase._get_example_aim_infra_acc_bundle_grp(
+            lag_t='link', display_name='test_src2',
+            name='accTest1', span_vsource_group_names=['testSrcGrp'],
+            span_vdest_group_names=['testDestGrp'])]
+
+    sample_output = [
+        [_aci_obj('infraAccBndlGrp',
+                  dn='uni/infra/funcprof/accbundle-accTest',
+                  nameAlias='test_src', lagT='node')],
+        [_aci_obj('infraAccBndlGrp',
+                  dn='uni/infra/funcprof/accbundle-accTest1',
+                  nameAlias='test_src2', lagT='link'),
+         _aci_obj('infraRsSpanVSrcGrp',
+                  dn='uni/infra/funcprof/accbundle-accTest1/rsspanVSrcGrp'
+                     '-testSrcGrp',
+                  tnSpanVSrcGrpName='testSrcGrp'),
+         _aci_obj('infraRsSpanVDestGrp',
+                  dn='uni/infra/funcprof/accbundle-accTest1/rsspanVDestGrp'
+                     '-testDestGrp',
+                  tnSpanVDestGrpName='testDestGrp')],
+    ]
+
+
+class TestAimToAciConverterInfraAccPortGroup(TestAimToAciConverterBase,
+                                             base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_infra_acc_port_grp(),
+        base.TestAimDBBase._get_example_aim_infra_acc_port_grp(
+            name='1-6', span_vsource_group_names=['testSrcGrp'],
+            span_vdest_group_names=['testDestGrp'],
+            display_name='test_src2')]
+
+    sample_output = [
+        [_aci_obj('infraAccPortGrp',
+                  dn=('uni/infra/funcprof/accportgrp-1-5'),
+                  nameAlias='test_dest')],
+        [_aci_obj('infraAccPortGrp',
+                  dn=('uni/infra/funcprof/accportgrp-1-6'),
+                  nameAlias='test_src2'),
+         _aci_obj('infraRsSpanVSrcGrp__ap',
+                  dn='uni/infra/funcprof/accportgrp-1-6/rsspanVSrcGrp'
+                     '-testSrcGrp',
+                  tnSpanVSrcGrpName='testSrcGrp'),
+         _aci_obj('infraRsSpanVDestGrp__ap',
+                  dn='uni/infra/funcprof/accportgrp-1-6/rsspanVDestGrp'
+                     '-testDestGrp',
+                  tnSpanVDestGrpName='testDestGrp')],
+    ]
+
+
+class TestAimToAciConverterSpanVsource(TestAimToAciConverterBase,
+                                       base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_span_vsource(),
+        base.TestAimDBBase._get_example_aim_span_vsource(
+            name='testSrc1', dir='in',
+            src_paths=['uni/tn-common/ap-OpenStack/'
+                       'epg-net/cep-BA:E9:E8:73:67:A9'],
+            display_name='test')]
+
+    sample_output = [
+        [{
+            "spanVSrc": {
+                "attributes": {
+                    "dn": "uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc",
+                    "dir": "both", "nameAlias": ""}}}],
+        [{
+            "spanVSrc": {
+                "attributes": {
+                    "dn": "uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc1",
+                    "dir": "in", "nameAlias": "test"}}},
+            _aci_obj('spanRsSrcToVPort',
+                     dn='uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc1/'
+                        'rssrcToVPort-[uni/tn-common/ap-OpenStack/epg-net'
+                        '/cep-BA:E9:E8:73:67:A9]',
+                     tDn='uni/tn-common/ap-OpenStack/epg-net/'
+                         'cep-BA:E9:E8:73:67:A9')],
+    ]
+
+
+class TestAimToAciConverterSpanSpanlbl(TestAimToAciConverterBase,
+                                       base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_span_spanlbl(),
+        base.TestAimDBBase._get_example_aim_span_spanlbl(
+            name='testDestGrp1', tag='yellow-green')]
+
+    sample_output = [
+        [_aci_obj('spanSpanLbl',
+                  dn=('uni/infra/vsrcgrp-testSrcGrp/spanlbl-testDestGrp'),
+                  nameAlias='', tag='green-yellow')],
+        [_aci_obj('spanSpanLbl',
+                  dn=('uni/infra/vsrcgrp-testSrcGrp/spanlbl-testDestGrp1'),
+                  nameAlias='', tag='yellow-green')]
+    ]

@@ -594,3 +594,166 @@ class TestAimDBBase(BaseTestCase):
                     for x in aim_type.identity_attributes.keys()}
         res_dict.update(kwargs)
         return aim_type(**res_dict)
+
+    @classmethod
+    def _get_example_aim_span_vsource_grp(cls, **kwargs):
+        example = resource.SpanVsourceGroup(name='testSrcGrp',
+                                            admin_st='start')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_span_vsource_grp(cls, **kwargs):
+        example_span_vsource_grp = {
+            "spanVSrcGrp": {
+                "attributes": {
+                    "dn": "uni/infra/vsrcgrp-testSrcGrp",
+                    "name": "testSrcGrp", "descr": "",
+                    "adminSt": "start",
+                    "ownerKey": "", "ownerTag": ""}}}
+        example_span_vsource_grp['spanVSrcGrp']['attributes'].update(kwargs)
+        return example_span_vsource_grp
+
+    @classmethod
+    def _get_example_aim_span_vsource(cls, **kwargs):
+        example = resource.SpanVsource(vsg_name='testSrcGrp',
+                                       name='testSrc',
+                                       dir='both')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_span_vsource(cls, **kwargs):
+        example_span_vsource = {
+            "spanVSrc": {
+                "attributes": {
+                    "dn": "uni/infra/vsrcgrp-testSrcGrp/vsrc-testSrc",
+                    "name": "testSrc", "descr": "", "dir": "both",
+                    "ownerKey": "", "ownerTag": ""}}}
+        example_span_vsource['spanVSrc']['attributes'].update(kwargs)
+        return example_span_vsource
+
+    @classmethod
+    def _get_example_aim_span_vdest_grp(cls, **kwargs):
+        example = resource.SpanVdestGroup(name='testDestGrp')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_span_vdest_grp(cls, **kwargs):
+        example_span_vdest_grp = {
+            "spanVDestGrp": {
+                "attributes": {
+                    "dn": "uni/infra/vdestgrp-testDestGrp",
+                    "name": "testDestGrp", "descr": "",
+                    "ownerKey": "", "ownerTag": ""}}}
+        example_span_vdest_grp['spanVDestGrp']['attributes'].update(kwargs)
+        return example_span_vdest_grp
+
+    @classmethod
+    def _get_example_aim_span_vdest(cls, **kwargs):
+        example = resource.SpanVdest(vdg_name='testDestGrp',
+                                     name='testDest')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_span_vdest(cls, **kwargs):
+        example_span_vdest = {
+            "spanVDest": {
+                "attributes": {
+                    "dn": "uni/infra/vdestgrp-testDestGrp/vdest-testDest",
+                    "name": "testDest", "descr": "",
+                    "ownerKey": "", "ownerTag": ""}}}
+        example_span_vdest['spanVDest']['attributes'].update(kwargs)
+        return example_span_vdest
+
+    @classmethod
+    def _get_example_aim_span_vepg_sum(cls, **kwargs):
+        example = resource.SpanVepgSummary(vdg_name='testDestGrp',
+                                           vd_name='testDest',
+                                           dst_ip='172.51.12.2',
+                                           flow_id=1,
+                                           ttl=128,
+                                           mtu=1519,
+                                           invalid=True,
+                                           mode='visible',
+                                           route_ip='1.2.3.5',
+                                           scope='public',
+                                           src_ip_prefix='1.2.2.1',
+                                           ver='ver1',
+                                           ver_enforced=True,
+                                           dscp=48)
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_span_vepg_sum(cls, **kwargs):
+        example_span_vepg_sum = {
+            "spanVEpgSummary": {
+                "attributes": {
+                    "dn": "uni/infra/vdestgrp-testDestGrp/vdest-testDest/"
+                          "vepgsummary",
+                    "dstIp": "172.51.12.2", "flowId": 1, "ttl": 128,
+                    "mtu": 1519, "descr": "", "invalid": True, "ver": "ver1",
+                    "mode": "visible", "routeIp": "1.2.3.5",
+                    "srcIpPrefix": "1.1.1.1", "verEnforced": True, "dscp": 32,
+                    "ownerKey": "", "ownerTag": "", "scope": "private"}}}
+        example_span_vepg_sum['spanVEpgSummary']['attributes'].update(kwargs)
+        return example_span_vepg_sum
+
+    @classmethod
+    def _get_example_aim_infra_acc_bundle_grp(cls, **kwargs):
+        example = resource.InfraAccBundleGroup(name='accTest',
+                                               lag_t='node',
+                                               display_name='test_src')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_infra_acc_bundle_grp(cls, **kwargs):
+        example_acc_bundle_grp = {
+            "infraAccBndlGrp": {
+                "attributes": {
+                    "dn": "uni/infra/funcprof/accbundle-accTest",
+                    "name": "accTest", "descr": "",
+                    "ownerKey": "", "ownerTag": "", "lagT": "link"}}}
+        example_acc_bundle_grp['infraAccBndlGrp']['attributes'].update(kwargs)
+        return example_acc_bundle_grp
+
+    @classmethod
+    def _get_example_aim_infra_acc_port_grp(cls, **kwargs):
+        example = resource.InfraAccPortGroup(name='1-5',
+                                             display_name='test_dest')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_infra_acc_port_grp(cls, **kwargs):
+        example_acc_port_grp = {
+            "infraAccPortGrp": {
+                "attributes": {
+                    "dn": "uni/infra/funcprof/accportgrp-1-5",
+                    "name": "1-5", "descr": "",
+                    "ownerKey": "", "ownerTag": ""}}}
+        example_acc_port_grp['infraAccPortGrp']['attributes'].update(kwargs)
+        return example_acc_port_grp
+
+    @classmethod
+    def _get_example_aim_span_spanlbl(cls, **kwargs):
+        example = resource.SpanSpanlbl(vsg_name='testSrcGrp',
+                                       name='testDestGrp',
+                                       tag='green-yellow')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_span_spanlbl(cls, **kwargs):
+        example_span_spanlbl = {
+            "spanSpanLbl": {
+                "attributes": {
+                    "dn": "uni/infra/vsrcgrp-testSrcGrp/spanlbl-testDestGrp",
+                    "name": "testSrc", "descr": "", "ownerKey": "",
+                    "ownerTag": "", "tag": ""}}}
+        example_span_spanlbl['spanSpanLbl']['attributes'].update(kwargs)
+        return example_span_spanlbl

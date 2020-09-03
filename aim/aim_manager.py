@@ -116,6 +116,14 @@ class AimManager(object):
                      api_res.QosDppPol,
                      api_res.VmmVswitchPolicyGroup,
                      api_res.VmmRelationToExporterPol,
+                     api_res.SpanVsourceGroup,
+                     api_res.SpanVsource,
+                     api_res.SpanVdestGroup,
+                     api_res.SpanVdest,
+                     api_res.SpanVepgSummary,
+                     api_res.InfraAccBundleGroup,
+                     api_res.InfraAccPortGroup,
+                     api_res.SpanSpanlbl,
                      api_tree.ActionLog}
 
     # Keep _db_model_map in AIM manager for backward compatibility

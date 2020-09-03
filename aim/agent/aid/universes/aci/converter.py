@@ -585,6 +585,10 @@ hostprotRemoteIp_converter = child_list('remote_ips', 'addr')
 fvRsBDToOut_converter = child_list('l3out_names', 'tnL3extOutName')
 fvRsProv_converter = child_list('provided_contract_names', 'tnVzBrCPName')
 fvRsCons_converter = child_list('consumed_contract_names', 'tnVzBrCPName')
+infraRsSpanVSrcGrp_converter = child_list('span_vsource_group_names',
+                                          'tnSpanVSrcGrpName')
+infraRsSpanVDestGrp_converter = child_list('span_vdest_group_names',
+                                           'tnSpanVDestGrpName')
 vzRsSubjFiltAtt_converter = child_list('bi_filters', 'tnVzFilterName')
 vzInTerm_vzRsFiltAtt_converter = child_list('in_filters', 'tnVzFilterName',
                                             aci_mo='vzRsFiltAtt__In')
@@ -594,6 +598,13 @@ fvRsProv_Ext_converter = child_list('provided_contract_names', 'tnVzBrCPName',
                                     aci_mo='fvRsProv__Ext')
 fvRsCons_Ext_converter = child_list('consumed_contract_names', 'tnVzBrCPName',
                                     aci_mo='fvRsCons__Ext')
+infraRsSpanVSrcGrp_ap_converter = child_list('span_vsource_group_names',
+                                             'tnSpanVSrcGrpName',
+                                             aci_mo='infraRsSpanVSrcGrp__ap')
+infraRsSpanVDestGrp_ap_converter = child_list('span_vdest_group_names',
+                                              'tnSpanVDestGrpName',
+                                              aci_mo='infraRsSpanVDestGrp__ap')
+spanRsSrcToVPort_converter = child_list('src_paths', 'tDn')
 vmmInjectedSvcPort_converter = utils.list_dict(
     'service_ports',
     {'port': {'other': 'port',
@@ -1047,6 +1058,53 @@ resource_map = {
     }],
     'vmmRsVswitchExporterPol': [{
         'resource': resource.VmmRelationToExporterPol,
+    }],
+    'spanVSrcGrp': [{
+        'resource': resource.SpanVsourceGroup,
+    }],
+    'spanVSrc': [{
+        'resource': resource.SpanVsource,
+        'skip': ['src_paths'],
+    }],
+    'spanVDestGrp': [{
+        'resource': resource.SpanVdestGroup,
+    }],
+    'spanVDest': [{
+        'resource': resource.SpanVdest,
+    }],
+    'spanVEpgSummary': [{
+        'resource': resource.SpanVepgSummary,
+    }],
+    'spanRsSrcToVPort': [{
+        'resource': resource.SpanVsource,
+        'converter': spanRsSrcToVPort_converter,
+    }],
+    'infraAccBndlGrp': [{
+        'resource': resource.InfraAccBundleGroup,
+        'skip': ['span_vsource_group_names', 'span_vdest_group_names'],
+    }],
+    'infraAccPortGrp': [{
+        'resource': resource.InfraAccPortGroup,
+        'skip': ['span_vsource_group_names', 'span_vdest_group_names'],
+    }],
+    'infraRsSpanVSrcGrp': [{
+        'resource': resource.InfraAccBundleGroup,
+        'converter': infraRsSpanVSrcGrp_converter,
+    }],
+    'infraRsSpanVSrcGrp__ap': [{
+        'resource': resource.InfraAccPortGroup,
+        'converter': infraRsSpanVSrcGrp_ap_converter,
+    }],
+    'infraRsSpanVDestGrp': [{
+        'resource': resource.InfraAccBundleGroup,
+        'converter': infraRsSpanVDestGrp_converter,
+    }],
+    'infraRsSpanVDestGrp__ap': [{
+        'resource': resource.InfraAccPortGroup,
+        'converter': infraRsSpanVDestGrp_ap_converter,
+    }],
+    'spanSpanLbl': [{
+        'resource': resource.SpanSpanlbl,
     }],
 }
 

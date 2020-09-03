@@ -287,6 +287,14 @@ class SqlAlchemyStore(AimStore):
                         models.VmmVswitchPolicyGroup),
                     api_res.VmmRelationToExporterPol: (
                         models.VmmRelationToExporterPol),
+                    api_res.SpanVsourceGroup: models.SpanVsourceGroup,
+                    api_res.SpanVsource: models.SpanVsource,
+                    api_res.SpanVdestGroup: models.SpanVdestGroup,
+                    api_res.SpanVdest: models.SpanVdest,
+                    api_res.SpanVepgSummary: models.SpanVepgSummary,
+                    api_res.InfraAccBundleGroup: models.InfraAccBundleGroup,
+                    api_res.InfraAccPortGroup: models.InfraAccPortGroup,
+                    api_res.SpanSpanlbl: models.SpanSpanlbl,
                     api_tree.ActionLog: tree_model.ActionLog}
 
     resource_map = {}
