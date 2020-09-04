@@ -1354,6 +1354,32 @@ class TestHostLinkMixin(object):
     res_command = 'host-link'
 
 
+class TestHostLinkAccessMixin(object):
+    resource_class = infra.HostLink
+    test_identity_attributes = {'host_name': 'h0',
+                                'interface_name': 'eth0'}
+    test_required_attributes = {'host_name': 'h0',
+                                'interface_name': 'eth0',
+                                'interface_mac': 'aa:bb:cc:dd:ee:ff',
+                                'switch_id': '201',
+                                'module': 'access-1-33',
+                                'port': 'access-201-1-33',
+                                'path': 'topology/pod-1/protpaths-201/'
+                                        'pathep-[access-201-1-33]',
+                                'pod_id': '1',
+                                'from_config': True}
+    test_search_attributes = {'host_name': 'h0'}
+    test_update_attributes = {'switch_id': '101',
+                              'module': '1',
+                              'port': '33',
+                              'path': 'topology/pod-1/paths-101/pathep-'
+                                      '[eth1/33]',
+                              'pod_id': '2',
+                              'from_config': False}
+    test_default_values = {}
+    res_command = 'host-link'
+
+
 class TestHostDomainMappingMixin(object):
     resource_class = infra.HostDomainMapping
     test_identity_attributes = {'host_name': 'host1.example.com'}
@@ -2564,6 +2590,16 @@ class TestExternalSubnet(TestExternalSubnetMixin, TestAciResourceOpsBase,
 
 class TestHostLink(TestHostLinkMixin, TestAciResourceOpsBase,
                    base.TestAimDBBase):
+
+    def test_dn_op(self):
+        pass
+
+    def test_status(self):
+        pass
+
+
+class TestHostLinkAccess(TestHostLinkAccessMixin, TestAciResourceOpsBase,
+                         base.TestAimDBBase):
 
     def test_dn_op(self):
         pass
