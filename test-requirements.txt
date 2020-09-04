@@ -1,11 +1,12 @@
 # The order of packages is significant, because pip processes them in the order
 # of appearance. Changing the order has an impact on the overall integration
 # process, which may cause wedges in the gate later.
+flake8
 
 -e git+https://github.com/noironetworks/acitoolkit.git@noiro-lite#egg=acitoolkit
 -e git+https://github.com/noironetworks/apicapi.git@master#egg=apicapi
 
-hacking<0.11,>=0.10.0
+hacking
 
 cherrypy
 coverage>=3.6

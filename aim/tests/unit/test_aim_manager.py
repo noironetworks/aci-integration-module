@@ -1067,7 +1067,7 @@ class TestVMMDomainMixin(object):
                                 'enforcement_pref': 'hw',
                                 'mode': 'k8s',
                                 'mcast_address': '255.3.2.1',
-                                'encap_mode': 'vlan',
+                                # 'encap_mode': 'vlan',
                                 'encap_mode': 'vxlan',
                                 'vlan_pool_name': 'vlan_pool_1',
                                 'vlan_pool_type': 'static',
