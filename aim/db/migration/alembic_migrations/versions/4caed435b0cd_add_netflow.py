@@ -41,7 +41,7 @@ def upgrade():
         sa.Column('dst_addr', sa.String(64)),
         sa.Column('dst_port', sa.String(16)),
         sa.Column('src_addr', sa.String(64)),
-        sa.Column('ver', sa.String(16)),
+        sa.Column('ver', sa.Enum('v5', 'v9', 'cisco-v1')),
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.Column('epoch', sa.BigInteger(), nullable=False,
                   server_default='0'),

@@ -740,9 +740,9 @@ class TestNetflowVMMExporterPolMixin(object):
                               'ver': 'v5',
                               'monitored': False}
     test_default_values = {'dst_addr': '',
-                           'dst_port': '',
+                           'dst_port': 'unspecified',
                            'src_addr': '',
-                           'ver': '',
+                           'ver': 'v5',
                            'monitored': False}
     test_dn = 'uni/infra/vmmexporterpol-netflow1'
     res_command = 'netflow-vmm-exporter-pol'

@@ -101,7 +101,7 @@ class NetflowVMMExporterPol(model_base.Base, model_base.HasDisplayName,
     dst_addr = sa.Column(sa.String(64))
     dst_port = sa.Column(sa.String(16))
     src_addr = sa.Column(sa.String(64))
-    ver = sa.Column(sa.String(16))
+    ver = sa.Column(sa.Enum('v5', 'v9', 'cisco-v1'))
 
 
 class VmmVswitchPolicyGroup(model_base.Base, model_base.AttributeMixin,
