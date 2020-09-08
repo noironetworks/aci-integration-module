@@ -277,16 +277,16 @@ class NetflowVMMExporterPol(AciResourceBase):
         ('dst_addr', t.string()),
         ('dst_port', t.string()),
         ('src_addr', t.string()),
-        ('ver', t.string()))
+        ('ver', t.enum("v5", "v9", "cisco-v1")))
 
     _aci_mo_name = 'netflowVmmExporterPol'
     _tree_parent = Infra
 
     def __init__(self, **kwargs):
         super(NetflowVMMExporterPol, self).__init__({'dst_addr': '',
-                                                     'dst_port': '',
+                                                     'dst_port': 'unspecified',
                                                      'src_addr': '',
-                                                     'ver': '',
+                                                     'ver': 'v5',
                                                      'monitored': False},
                                                     **kwargs)
 
