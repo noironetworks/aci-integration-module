@@ -3,14 +3,15 @@
 %define aim_eventpool aim-event-service-polling.service
 %define aim_eventrpc aim-event-service-rpc.service
 %define aim_http aim-http-server.service
+%global srcname aci-integration-module
 
-Name:		aci-integration-module
+Name:           %{srcname}
 Version:	@VERSION@
 Release:	@RELEASE@%{?dist}
 Summary:	Python library for programming ACI
 License:	ASL 2.0
-URL:		http://github.com/noironetworks/aci-integration-module
-Source:		aci-integration-module-%{version}.tar.gz
+URL:		http://github.com/noironetworks/%{srcname}
+Source:		%{srcname}-%{version}.tar.gz
 BuildArch:	noarch
 BuildRequires:	python2-devel
 BuildRequires:	python2-pbr
@@ -28,7 +29,7 @@ Requires(postun): systemd-units
 Library for programming ACI.
 
 %prep
-%setup -qn aci-integration-module-%{version_py}
+%setup -qn %{srcname}-%{version_py}
 rm -f requirements.txt
 
 %build
