@@ -1602,13 +1602,8 @@ class SpanVepgSummary(AciResourceBase):
         ('flow_id', t.integer),
         ('ttl', t.integer),
         ('mtu', t.integer),
-        ('invalid', t.bool),
         ('mode', t.enum("visible", "not-visible")),
-        ('route_ip', t.string()),
-        ('scope', t.enum("public", "private", "shared")),
         ('src_ip_prefix', t.string()),
-        ('ver', t.enum("ver1", "ver2")),
-        ('ver_enforced', t.bool),
         ('dscp', t.integer))
 
     _aci_mo_name = 'spanVEpgSummary'
@@ -1620,13 +1615,8 @@ class SpanVepgSummary(AciResourceBase):
                                                'flow_id': 1,
                                                'ttl': 64,
                                                'mtu': 1518,
-                                               'invalid': False,
                                                'mode': 'not-visible',
-                                               'route_ip': '',
-                                               'scope': 'private',
                                                'src_ip_prefix': '',
-                                               'ver': 'ver2',
-                                               'ver_enforced': False,
                                                'dscp': 64},
                                               **kwargs)
 

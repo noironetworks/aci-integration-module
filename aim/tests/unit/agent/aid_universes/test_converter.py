@@ -2073,24 +2073,19 @@ class TestAciToAimConverterSpanVepgSummary(TestAciToAimConverterBase,
                         dn='uni/infra/vdestgrp-testDestGrp/vdest-testDest1/'
                            'vepgsummary',
                         dstIp='172.51.12.3', flowId=8,
-                        ttl=129, mtu=1520, invalid=False, mode='not-visible',
-                        routeIp='1.2.3.4', scope='shared',
-                        srcIpPrefix='1.2.2.2', ver='ver2', verEnforced=False,
-                        dscp=48)]
+                        ttl=129, mtu=1520, mode='not-visible', dscp=48,
+                        srcIpPrefix='1.2.2.2')]
     sample_output = [
         resource.SpanVepgSummary(vdg_name='testDestGrp',
                                  vd_name='testDest', dst_ip='172.51.12.2',
-                                 flow_id=1, ttl=128, mtu=1519, invalid=True,
-                                 mode='visible', route_ip='1.2.3.5',
-                                 scope='private', src_ip_prefix='1.1.1.1',
-                                 ver='ver1', ver_enforced=True, dscp=32),
+                                 flow_id=1, ttl=128, mtu=1519,
+                                 mode='visible', src_ip_prefix='1.1.1.1',
+                                 dscp=32),
         resource.SpanVepgSummary(vdg_name='testDestGrp',
                                  vd_name='testDest1', flow_id=8,
                                  dst_ip='172.51.12.3', ttl=129, mtu=1520,
-                                 invalid=False, mode='not-visible',
-                                 route_ip='1.2.3.4', scope='shared',
-                                 src_ip_prefix='1.2.2.2',
-                                 ver='ver2', ver_enforced=False, dscp=48)]
+                                 mode='not-visible', src_ip_prefix='1.2.2.2',
+                                 dscp=48)]
 
 
 class TestAciToAimConverterInfraAccBundleGroup(TestAciToAimConverterBase,
@@ -2102,10 +2097,14 @@ class TestAciToAimConverterInfraAccBundleGroup(TestAciToAimConverterBase,
          'skip': ['spanVsourceGroupNames', 'spanVdestGroupNames']},
         {'resource': 'infraRsSpanVSrcGrp',
          'exceptions': {},
-         'converter': converter.infraRsSpanVSrcGrp_converter, },
+         'converter': converter.infraRsSpanVSrcGrp_converter,
+         'convert_pre_existing': True,
+         'convert_monitored': False},
         {'resource': 'infraRsSpanVDestGrp',
          'exceptions': {},
-         'converter': converter.infraRsSpanVDestGrp_converter, }]
+         'converter': converter.infraRsSpanVDestGrp_converter,
+         'convert_pre_existing': True,
+         'convert_monitored': False}]
     sample_input = [base.TestAimDBBase._get_example_aci_infra_acc_bundle_grp(),
                     [base.TestAimDBBase._get_example_aci_infra_acc_bundle_grp(
                         dn='uni/infra/funcprof/accbundle-accTest1',
@@ -2135,10 +2134,14 @@ class TestAciToAimConverterInfraAccPortGroup(TestAciToAimConverterBase,
          'skip': ['spanVsourceGroupNames', 'spanVdestGroupNames']},
         {'resource': 'infraRsSpanVSrcGrp__ap',
          'exceptions': {},
-         'converter': converter.infraRsSpanVSrcGrp_ap_converter, },
+         'converter': converter.infraRsSpanVSrcGrp_ap_converter,
+         'convert_pre_existing': True,
+         'convert_monitored': False},
         {'resource': 'infraRsSpanVDestGrp__ap',
          'exceptions': {},
-         'converter': converter.infraRsSpanVDestGrp_ap_converter, }]
+         'converter': converter.infraRsSpanVDestGrp_ap_converter,
+         'convert_pre_existing': True,
+         'convert_monitored': False}]
     sample_input = [base.TestAimDBBase._get_example_aci_infra_acc_port_grp(),
                     [base.TestAimDBBase._get_example_aci_infra_acc_port_grp(
                         dn='uni/infra/funcprof/accportgrp-1-6'),
@@ -4729,27 +4732,22 @@ class TestAimToAciConverterSpanVepgSummary(TestAimToAciConverterBase,
         base.TestAimDBBase._get_example_aim_span_vepg_sum(),
         base.TestAimDBBase._get_example_aim_span_vepg_sum(
             vd_name='testDest1', dst_ip='172.51.12.3', flow_id=8, ttl=129,
-            mtu=1520, invalid=False, mode='not-visible', route_ip='1.2.3.4',
-            scope='shared', src_ip_prefix='1.2.2.2', ver='ver2',
-            ver_enforced=False, dscp=64)]
+            mtu=1520, mode='not-visible', src_ip_prefix='1.2.2.2',
+            dscp=64)]
 
     sample_output = [
         [_aci_obj('spanVEpgSummary',
                   dn=('uni/infra/vdestgrp-testDestGrp/vdest-testDest'
                       '/vepgsummary'),
                   nameAlias='', dstIp='172.51.12.2',
-                  flowId=1, ttl=128, mtu=1519, invalid=True,
-                  mode='visible', routeIp='1.2.3.5', scope='public',
-                  srcIpPrefix='1.2.2.1', ver='ver1', verEnforced=True,
-                  dscp=48)],
+                  flowId=1, ttl=128, mtu=1519, mode='visible',
+                  srcIpPrefix='1.2.2.1', dscp=48)],
         [_aci_obj('spanVEpgSummary',
                   dn=('uni/infra/vdestgrp-testDestGrp/vdest-testDest1'
                       '/vepgsummary'),
                   nameAlias='', dstIp='172.51.12.3',
-                  flowId=8, ttl=129, mtu=1520, invalid=False,
-                  mode='not-visible', routeIp='1.2.3.4', scope='shared',
-                  srcIpPrefix='1.2.2.2', ver='ver2', verEnforced=False,
-                  dscp=64)]
+                  flowId=8, ttl=129, mtu=1520, mode='not-visible',
+                  srcIpPrefix='1.2.2.2', dscp=64)]
     ]
 
 
