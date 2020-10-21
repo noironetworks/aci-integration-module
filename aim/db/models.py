@@ -1349,13 +1349,8 @@ class SpanVepgSummary(model_base.Base, model_base.HasDisplayName,
     flow_id = sa.Column(sa.Integer)
     ttl = sa.Column(sa.Integer)
     mtu = sa.Column(sa.Integer)
-    invalid = sa.Column(sa.Boolean)
     mode = sa.Column(sa.Enum('visible', 'not-visible'))
-    route_ip = sa.Column(sa.String(64))
-    scope = sa.Column(sa.Enum('public', 'private', 'shared'))
     src_ip_prefix = sa.Column(sa.String(64))
-    ver = sa.Column(sa.Enum('ver1', 'ver2'))
-    ver_enforced = sa.Column(sa.Boolean)
     dscp = sa.Column(sa.Integer)
 
 

@@ -676,13 +676,8 @@ class TestAimDBBase(BaseTestCase):
                                            flow_id=1,
                                            ttl=128,
                                            mtu=1519,
-                                           invalid=True,
                                            mode='visible',
-                                           route_ip='1.2.3.5',
-                                           scope='public',
                                            src_ip_prefix='1.2.2.1',
-                                           ver='ver1',
-                                           ver_enforced=True,
                                            dscp=48)
         example.__dict__.update(kwargs)
         return example
@@ -695,10 +690,9 @@ class TestAimDBBase(BaseTestCase):
                     "dn": "uni/infra/vdestgrp-testDestGrp/vdest-testDest/"
                           "vepgsummary",
                     "dstIp": "172.51.12.2", "flowId": 1, "ttl": 128,
-                    "mtu": 1519, "descr": "", "invalid": True, "ver": "ver1",
-                    "mode": "visible", "routeIp": "1.2.3.5",
-                    "srcIpPrefix": "1.1.1.1", "verEnforced": True, "dscp": 32,
-                    "ownerKey": "", "ownerTag": "", "scope": "private"}}}
+                    "mtu": 1519, "descr": "",
+                    "mode": "visible", "srcIpPrefix": "1.1.1.1", "dscp": 32,
+                    "ownerKey": "", "ownerTag": ""}}}
         example_span_vepg_sum['spanVEpgSummary']['attributes'].update(kwargs)
         return example_span_vepg_sum
 

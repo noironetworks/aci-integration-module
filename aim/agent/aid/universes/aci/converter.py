@@ -1082,19 +1082,23 @@ resource_map = {
     'infraRsSpanVSrcGrp': [{
         'resource': resource.InfraAccBundleGroup,
         'converter': infraRsSpanVSrcGrp_converter,
-    }],
+        'convert_pre_existing': True,
+        'convert_monitored': False}],
     'infraRsSpanVSrcGrp__ap': [{
         'resource': resource.InfraAccPortGroup,
         'converter': infraRsSpanVSrcGrp_ap_converter,
-    }],
+        'convert_pre_existing': True,
+        'convert_monitored': False}],
     'infraRsSpanVDestGrp': [{
         'resource': resource.InfraAccBundleGroup,
         'converter': infraRsSpanVDestGrp_converter,
-    }],
+        'convert_pre_existing': True,
+        'convert_monitored': False}],
     'infraRsSpanVDestGrp__ap': [{
         'resource': resource.InfraAccPortGroup,
         'converter': infraRsSpanVDestGrp_ap_converter,
-    }],
+        'convert_pre_existing': True,
+        'convert_monitored': False}],
     'spanSpanLbl': [{
         'resource': resource.SpanSpanlbl,
     }],
@@ -1140,7 +1144,7 @@ resource_map.update({
     'vzRsFiltAtt__In': [{'resource': resource.ContractSubject,
                          'converter': vzInTerm_vzRsFiltAtt_converter}],
     'vzRsFiltAtt__Out': [{'resource': resource.ContractSubject,
-                         'converter': vzOutTerm_vzRsFiltAtt_converter}],
+                          'converter': vzOutTerm_vzRsFiltAtt_converter}],
     'fvRsProv__Ext': [{'resource': resource.ExternalNetwork,
                        'converter': fvRsProv_Ext_converter,
                        'convert_pre_existing': True,
