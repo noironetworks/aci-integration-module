@@ -390,13 +390,28 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
         self.physical_domains = physical_domains
 
         if 'static_paths' in res_attr:
-            static_paths = []
-            for p in (res_attr.pop('static_paths', []) or []):
-                if p.get('path') and p.get('encap'):
-                    static_paths.append(EndpointGroupStaticPath(
+            existing_static_paths = self.static_paths[:]
+            new_static_paths = res_attr.pop('static_paths', []) or []
+            existing_static_paths_map = {item.path: item
+                                         for item in existing_static_paths}
+            new_static_paths_map = {item['path']: item
+                                    for item in new_static_paths
+                                    if item['path'] and item['encap']}
+            for p in existing_static_paths:
+                updated_static_path = new_static_paths_map.pop(p.path, None)
+                if not updated_static_path:
+                    self.static_paths.remove(p)
+                    continue
+                p.encap = updated_static_path['encap']
+                p.host = updated_static_path.get('host', '')
+                p.mode = updated_static_path.get('mode', 'regular')
+
+            for p in new_static_paths_map.values():
+                if (p.get('path') and p.get('encap') and
+                        p['path'] not in existing_static_paths_map):
+                    self.static_paths.append(EndpointGroupStaticPath(
                         path=p['path'], encap=p['encap'],
                         mode=p.get('mode', 'regular'), host=p.get('host', '')))
-            self.static_paths = static_paths
 
         if 'epg_contract_masters' in res_attr:
             epg_contract_masters = []

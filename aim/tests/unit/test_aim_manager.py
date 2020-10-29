@@ -872,6 +872,10 @@ class TestEndpointGroupMixin(object):
         resource.Tenant(name='tenant1'),
         resource.ApplicationProfile(tenant_name='tenant1', name='lab')]
 
+    test_static_paths = [
+        {'path': 'topology/pod-1/paths-101/pathep-[eth1/%s]' % idx,
+         'encap': 'vlan-2', 'host': 'node%s' % idx} for idx in range(1, 200)]
+
     test_identity_attributes = {'tenant_name': 'tenant1',
                                 'app_profile_name': 'lab',
                                 'name': 'web'}
@@ -2452,6 +2456,36 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
                                                             'path': 'path',
                                                             'encap': '123'}])
         self.assertEqual(old_epoch, epg.epoch)
+
+    @base.requires(['sql'])
+    def test_static_path_scale(self):
+        res = resource.EndpointGroup(**self.test_required_attributes)
+        epg = self.mgr.create(self.ctx, res)
+        old_epoch = epg.epoch
+        epg = self.mgr.update(self.ctx, epg,
+                              static_paths=self.test_static_paths)
+        self.assertNotEqual(old_epoch, epg.epoch)
+        self.assertEqual(len(epg.static_paths), len(self.test_static_paths))
+        old_epoch = epg.epoch
+        new_static_paths = copy.deepcopy(self.test_static_paths)
+        updated_path = new_static_paths.pop()
+        old_host = updated_path['host']
+        updated_path['host'] = '%s-updated' % old_host
+        removed_path = new_static_paths.pop()
+        new_path = {'host': 'node200',
+                    'path': 'topology/pod-1/paths-119/pathep-[eth1/20]',
+                    'encap': 'vlan-2'}
+        new_static_paths.append(updated_path)
+        new_static_paths.append(new_path)
+        epg = self.mgr.update(self.ctx, epg, static_paths=new_static_paths)
+        self.assertEqual(len(epg.static_paths), len(new_static_paths))
+        self.assertNotEqual(old_epoch, epg.epoch)
+        self.assertEqual(epg.static_paths[-1], new_path)
+        self.assertEqual(filter(lambda x: x['path'] == updated_path['path'],
+                                epg.static_paths)[0]['host'],
+                         updated_path['host'])
+        self.assertEqual(filter(lambda x: x['path'] == removed_path['path'],
+                                epg.static_paths), [])
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
