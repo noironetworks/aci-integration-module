@@ -929,8 +929,7 @@ resource_map = {
                        'converter': port},
             'ethertype': {'other': 'ethertype',
                           'converter': ethertype},
-            'icmpType': {'other': 'icmp_type',
-                         'converter': icmpv4_type},
+            'icmpType': {'other': 'icmp_type'},
             'icmpCode': {'other': 'icmp_code',
                          'converter': icmpv4_code},
         }
