@@ -73,6 +73,8 @@ agent_opts = [
                     "the orchestrator this AID agent is serving"),
     cfg.FloatOpt('aci_tenant_polling_yield', default=0.2,
                  help="how long the ACITenant yield to other processed"),
+    cfg.FloatOpt('websocket_monitor_sleep', default=10,
+                 help="how long the ACITenant yield to other processed"),
     cfg.IntOpt('max_operation_retry', default=5,
                help="How many creations/deletions are attempted by AID before "
                     "declaring failure on a specific object"),
