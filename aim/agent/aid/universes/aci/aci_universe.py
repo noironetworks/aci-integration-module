@@ -79,7 +79,7 @@ class WebSocketContext(object):
         self.ws_urls = collections.deque()
         self.is_session_reconnected = False
         self.monitor_runs = {'monitor_runs': float('inf')}
-        self.monitor_sleep_time = 10
+        self.monitor_sleep_time = aim_cfg.CONF.aim.websocket_monitor_sleep
         self.monitor_max_backoff = 30
         self.login_thread = None
         self.subs_thread = None
