@@ -223,18 +223,15 @@ class TestAciToAimConverterNetflow(TestAciToAimConverterBase,
                         dn='uni/infra/vmmexporterpol-netflow',
                         dstAddr='172.28.184.77',
                         dstPort='2056',
-                        srcAddr='1.2.2.3',
                         ver='v5')]
     sample_output = [
         resource.NetflowVMMExporterPol(name='netflow1',
                                        dst_addr='172.28.184.76',
                                        dst_port='2055',
-                                       src_addr='1.2.2.2',
                                        ver='v9'),
         resource.NetflowVMMExporterPol(name='netflow',
                                        dst_addr='172.28.184.77',
                                        dst_port='2056',
-                                       src_addr='1.2.2.3',
                                        ver='v5')]
 
 
@@ -4202,7 +4199,6 @@ class TestAimToAciConverterNetflow(TestAimToAciConverterBase,
         base.TestAimDBBase._get_example_aim_netflow(name='netflow',
                                                     dst_addr='172.28.184.77',
                                                     dst_port='2057',
-                                                    src_addr='1.2.2.3',
                                                     ver='v5')]
 
     sample_output = [
@@ -4210,14 +4206,14 @@ class TestAimToAciConverterNetflow(TestAimToAciConverterBase,
                   dn=('uni/infra/vmmexporterpol-netflow1'),
                   dstAddr='172.28.184.76',
                   dstPort='2055',
-                  srcAddr='1.2.2.2',
+                  srcAddr='0.0.0.0',
                   ver='v9',
                   nameAlias='')],
         [_aci_obj('netflowVmmExporterPol',
                   dn=('uni/infra/vmmexporterpol-netflow'),
                   dstAddr='172.28.184.77',
                   dstPort='2057',
-                  srcAddr='1.2.2.3',
+                  srcAddr='0.0.0.0',
                   ver='v5',
                   nameAlias='')]
     ]

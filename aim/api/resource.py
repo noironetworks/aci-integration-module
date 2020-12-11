@@ -285,7 +285,7 @@ class NetflowVMMExporterPol(AciResourceBase):
     def __init__(self, **kwargs):
         super(NetflowVMMExporterPol, self).__init__({'dst_addr': '',
                                                      'dst_port': 'unspecified',
-                                                     'src_addr': '',
+                                                     'src_addr': '0.0.0.0',
                                                      'ver': 'v5',
                                                      'monitored': False},
                                                     **kwargs)
