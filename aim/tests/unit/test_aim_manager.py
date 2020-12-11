@@ -731,17 +731,15 @@ class TestNetflowVMMExporterPolMixin(object):
     test_required_attributes = {'name': 'netflow1',
                                 'dst_addr': '172.28.184.76',
                                 'dst_port': '2055',
-                                'src_addr': '1.2.2.2',
                                 'ver': 'v9'}
     test_search_attributes = {'name': 'netflow1'}
     test_update_attributes = {'dst_addr': '172.28.184.77',
                               'dst_port': '2056',
-                              'src_addr': '1.1.2.3',
                               'ver': 'v5',
                               'monitored': False}
     test_default_values = {'dst_addr': '',
                            'dst_port': 'unspecified',
-                           'src_addr': '',
+                           'src_addr': '0.0.0.0',
                            'ver': 'v5',
                            'monitored': False}
     test_dn = 'uni/infra/vmmexporterpol-netflow1'
