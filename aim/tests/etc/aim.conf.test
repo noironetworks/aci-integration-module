@@ -1,9 +1,9 @@
 [DEFAULT]
 #debug=True
+transport_url=
 
 [database]
 connection = 'sqlite://'
-
 
 [apic]
 # Hostname:port list of APIC controllers
