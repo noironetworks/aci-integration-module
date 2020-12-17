@@ -2479,11 +2479,12 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
         self.assertEqual(len(epg.static_paths), len(new_static_paths))
         self.assertNotEqual(old_epoch, epg.epoch)
         self.assertEqual(epg.static_paths[-1], new_path)
-        self.assertEqual(filter(lambda x: x['path'] == updated_path['path'],
-                                epg.static_paths)[0]['host'],
-                         updated_path['host'])
-        self.assertEqual(filter(lambda x: x['path'] == removed_path['path'],
-                                epg.static_paths), [])
+        self.assertEqual(
+            list(filter(lambda x: x['path'] == updated_path['path'],
+                 epg.static_paths))[0]['host'], updated_path['host'])
+        self.assertEqual(
+            list(filter(lambda x: x['path'] == removed_path['path'],
+                        epg.static_paths)), [])
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
