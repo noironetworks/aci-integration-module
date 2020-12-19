@@ -13,9 +13,9 @@ kubernetes
 oslo.concurrency
 oslo.config
 oslo.db
-oslo.messaging>7=.0.0
+oslo.messaging>7.0.0,!=9.0.0
 oslo.log
 oslo.utils
-pbr>=1.6,<2.0
+pbr>=1.6
 semantic_version
 tabulate
