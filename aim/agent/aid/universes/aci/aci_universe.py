@@ -339,9 +339,14 @@ class WebSocketContext(object):
         aim_context = aim_ctx.AimContext(store=api.get_store())
         LOG.debug("Monitoring threads login and subscription")
         try:
+            if (self.private_key_file or self.cert_name):
+                threads = ((self.subs_thread, 'subscription_thread'),)
+            else:
+                threads = ((self.login_thread, 'login_thread'),
+                           (self.subs_thread, 'subscription_thread'))
+
             while flag['monitor_runs']:
-                for thd, name in [(self.login_thread, 'login_thread'),
-                                  (self.subs_thread, 'subscription_thread')]:
+                for thd, name in threads:
                     if thd and not thd.isAlive():
                         if name_to_retry[name] and name_to_retry[
                                 name].get() >= max_retries:
