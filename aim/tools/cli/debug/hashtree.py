@@ -46,7 +46,7 @@ def dump(ctx, tenant, flavor):
              'monitored': tree_manager.MONITORED_TREE}
     flavor = flavor or 'configuration'
     search = tree_manager.CONFIG_TREE
-    for type, tree in trees.iteritems():
+    for type, tree in trees.items():
         if type.startswith(flavor):
             search = tree
             break

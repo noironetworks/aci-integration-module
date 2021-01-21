@@ -145,7 +145,7 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
                 # Create some with a PUT, with a common attribute
                 comm_attr = {}
                 for set_attr, schema_type in (
-                        res_type.other_attributes.iteritems()):
+                        res_type.other_attributes.items()):
                     if schema_type['type'] == 'string' and (
                             'enum' not in schema_type):
                         comm_attr[set_attr] = utils.generate_uuid()

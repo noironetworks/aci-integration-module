@@ -104,7 +104,7 @@ class K8sWatcher(object):
     def run(self):
         threads = {'observer': self.observer_thread,
                    'persister': self.persistence_thread}
-        for attr, thd in threads.iteritems():
+        for attr, thd in threads.items():
             thd = utils.spawn_thread(thd)
             setattr(self, attr, thd)
 
