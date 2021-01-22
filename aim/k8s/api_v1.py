@@ -84,7 +84,7 @@ class K8sObject(dict):
 
     def from_attr(self, resource_klass, attribute_dict):
         self.setdefault('spec', copy.copy(self.default_spec))
-        for k, v in attribute_dict.iteritems():
+        for k, v in attribute_dict.items():
             k8s_attrs = self.attribute_map.get(k)
             if k8s_attrs:
                 d = self
@@ -117,7 +117,7 @@ class K8sObject(dict):
         label_selectors = []
         name = None
         ns = None
-        for fltr, value in filters.iteritems():
+        for fltr, value in filters.items():
             k8s_attrs = self.attribute_map.get(fltr)
             if not k8s_attrs:
                 continue
@@ -276,7 +276,7 @@ class Service(K8sObject):
         except ValueError:
             # check well-defined string names for ports
             port_str = port_str.lower()
-            for p_num, p_name in types.ports.iteritems():
+            for p_num, p_name in types.ports.items():
                 if p_name == port_str:
                     return int(p_num)
         return port_str
@@ -284,7 +284,7 @@ class Service(K8sObject):
     def from_attr(self, resource_klass, attr):
         # fix service_type
         if 'service_type' in attr:
-            for st_k, st_a in self.service_types.iteritems():
+            for st_k, st_a in self.service_types.items():
                 if st_a == attr['service_type']:
                     attr['service_type'] = st_k
         if attr.get('cluster_ip') == '0.0.0.0':
@@ -406,7 +406,7 @@ class AciContainersObject(K8sObject):
         self.setdefault('metadata', {'labels': {'aim_type': name}})
         labels = self['metadata']['labels']
         attrs = self['spec'][name]
-        for k, v in attribute_dict.iteritems():
+        for k, v in attribute_dict.iitems():
             if k in resource_klass.identity_attributes:
                 labels[k] = utils.sanitize_name(v)
             attrs[k] = v
