@@ -2117,27 +2117,27 @@ class TestSpanVepgSummaryMixin(object):
     test_required_attributes = {'vdg_name': 'testDestGrp',
                                 'vd_name': 'testDest',
                                 'dst_ip': '172.51.12.2',
-                                'flow_id': 1,
-                                'ttl': 64,
-                                'mtu': 1518,
+                                'flow_id': '1',
+                                'ttl': '64',
+                                'mtu': '1518',
                                 'mode': 'visible',
                                 'src_ip_prefix': '1.1.1.1',
-                                'dscp': 32}
+                                'dscp': '32'}
     test_search_attributes = {'vd_name': 'testDest'}
     test_update_attributes = {'display_name': 'OpenStack_Span_VDest',
-                              'flow_id': 8,
-                              'ttl': 128,
-                              'mtu': 1519,
+                              'flow_id': '8',
+                              'ttl': '128',
+                              'mtu': '1519',
                               'mode': 'not-visible',
                               'src_ip_prefix': '1.1.1.2',
-                              'dscp': 48}
+                              'dscp': '48'}
     test_default_values = {'monitored': False,
-                           'flow_id': 1,
-                           'ttl': 64,
-                           'mtu': 1518,
+                           'flow_id': '1',
+                           'ttl': '64',
+                           'mtu': '1518',
                            'mode': 'not-visible',
-                           'src_ip_prefix': '',
-                           'dscp': 64}
+                           'src_ip_prefix': '0.0.0.0',
+                           'dscp': 'unspecified'}
     test_dn = 'uni/infra/vdestgrp-testDestGrp/vdest-testDest/vepgsummary'
     res_command = 'span-vepg-summary'
 

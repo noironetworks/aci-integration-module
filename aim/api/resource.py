@@ -1599,12 +1599,12 @@ class SpanVepgSummary(AciResourceBase):
         ('monitored', t.bool),
         ('display_name', t.name),
         ('dst_ip', t.string()),
-        ('flow_id', t.integer),
-        ('ttl', t.integer),
-        ('mtu', t.integer),
+        ('flow_id', t.string()),
+        ('ttl', t.string()),
+        ('mtu', t.string()),
         ('mode', t.enum("visible", "not-visible")),
         ('src_ip_prefix', t.string()),
-        ('dscp', t.integer))
+        ('dscp', t.string()))
 
     _aci_mo_name = 'spanVEpgSummary'
     _tree_parent = SpanVdest
@@ -1612,12 +1612,12 @@ class SpanVepgSummary(AciResourceBase):
     def __init__(self, **kwargs):
         super(SpanVepgSummary, self).__init__({'monitored': False,
                                                'dst_ip': '',
-                                               'flow_id': 1,
-                                               'ttl': 64,
-                                               'mtu': 1518,
+                                               'flow_id': '1',
+                                               'ttl': '64',
+                                               'mtu': '1518',
                                                'mode': 'not-visible',
-                                               'src_ip_prefix': '',
-                                               'dscp': 64},
+                                               'src_ip_prefix': '0.0.0.0',
+                                               'dscp': 'unspecified'},
                                               **kwargs)
 
 
