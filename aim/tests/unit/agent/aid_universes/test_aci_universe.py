@@ -163,23 +163,66 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                                            name='bd1')
         bd2_tn2 = self._get_example_aim_bd(tenant_name='tn2',
                                            name='bd2')
+        # Create some ERSPAN resources.
+        span_sg = self._get_example_aim_span_vsource_grp(name='span_sg')
+        self.universe.manager.create(self.ctx, span_sg)
+        span_src = self._get_example_aim_span_vsource(
+            vsg_name='span_sg', name='span_src')
+        self.universe.manager.create(self.ctx, span_src)
+        span_dg = self._get_example_aim_span_vdest_grp(name='span_dg')
+        self.universe.manager.create(self.ctx, span_dg)
+        span_dst = self._get_example_aim_span_vdest(
+            vdg_name='span_dg', name='span_dst')
+        self.universe.manager.create(self.ctx, span_dst)
+        span_sum = self._get_example_aim_span_vepg_sum(
+            vdg_name='span_dg', vd_name='span_dst', dst_ip='10.0.0.1',
+            flow_id=3, ttl=64, mtu=1516, mode='visible',
+            src_ip_prefix='10.0.0.3', dscp=50)
+        self.universe.manager.create(self.ctx, span_sum)
+        span_bg = self._get_example_aim_infra_acc_bundle_grp(
+            name='span_bg', span_vsource_group_names=['span_sg'],
+            span_vdest_group_names=['span_dg'])
+        span_lbl = self._get_example_aim_span_spanlbl(
+            vsg_name='span_sg', name='span_dg')
+        self.universe.manager.create(self.ctx, span_lbl)
 
-        self.universe.serve(self.ctx, ['tn-tn1', 'tn-tn2'])
+        self.universe.serve(self.ctx, ['tn-tn1', 'tn-tn2', 'infra'])
         self.universe.push_resources(
-            self.ctx, {'create': [bd1_tn1, bd2_tn1, bd2_tn2],
+            self.ctx, {'create': [bd1_tn1, bd2_tn1, bd2_tn2,
+                                  span_sg, span_src, span_dg, span_dst,
+                                  span_sum, span_bg, span_lbl],
                        'delete': [bd1_tn2]})
         # Verify that the requests are filled properly
         tn1 = self.universe.serving_tenants[
             'tn-tn1'].object_backlog.get_nowait()
         tn2 = self.universe.serving_tenants[
             'tn-tn2'].object_backlog.get_nowait()
+        infra = self.universe.serving_tenants[
+            'infra'].object_backlog.get_nowait()
         self.assertEqual({'create': [bd1_tn1, bd2_tn1]}, tn1)
         self.assertEqual({'create': [bd2_tn2], 'delete': [bd1_tn2]}, tn2)
+        self.assertEqual({'create': [span_sg, span_src, span_dg, span_dst,
+                                     span_sum, span_lbl]}, infra)
 
         self.assertTrue(
             self.universe.serving_tenants['tn-tn1'].object_backlog.empty())
         self.assertTrue(
             self.universe.serving_tenants['tn-tn2'].object_backlog.empty())
+        self.assertTrue(
+            self.universe.serving_tenants['infra'].object_backlog.empty())
+
+        # Run the bundle group through again. This time, we should
+        # see the status objects.
+        self.universe.manager.set_resource_sync_synced(self.ctx, span_sg)
+        self.universe.manager.set_resource_sync_synced(self.ctx, span_dg)
+        self.universe.serve(self.ctx, ['infra'])
+        self.universe.push_resources(
+            self.ctx, {'create': [span_bg], 'delete': []})
+        infra = self.universe.serving_tenants[
+            'infra'].object_backlog.get_nowait()
+        self.assertEqual({'create': [span_bg]}, infra)
+        self.assertTrue(
+            self.universe.serving_tenants['infra'].object_backlog.empty())
 
     def test_get_resource_fault(self):
         fault = self._get_example_aci_fault()

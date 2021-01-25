@@ -29,6 +29,7 @@ from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes import errors
 from aim.api import infra as api_infra
 from aim.api import resource
+from aim.api import status
 from aim.common import utils
 from aim import config as aim_cfg
 from aim import context as aim_ctx
@@ -552,6 +553,63 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     LOG.error(traceback.format_exc())
                     LOG.error('Failed to reset tenant %s' % root)
 
+    def _filter_resources(self, context, resources_by_tenant):
+        """Filter unsynced resources
+
+        Some MOs in ACI have child objects, which are
+        references to other MOs in other parts of the
+        managerment information tree (MIT). In order to
+        avoid faults, we won't push an MO if it references
+        another MO in the MIT that doesn't yet exist (this
+        can happen if we have changes in AIM where the MO
+        and the referenced MO are created at nearly the
+        same time, so AID hasn't yet had a chance to create
+        the referenced MO). This method looks for these
+        dependencies and removes those resources from the
+        list of resources to push. Once the referenced
+        resources have been pushed to ACI, then their
+        status objects will show they're in sync, and
+        the next cycle the referencing MOs will still
+        get pushed.
+        """
+        # REVISIT: We should have a generic way of
+        # doing this. For now, we're just looking
+        # for the ERSPAN case.
+        resources = resources_by_tenant.get('infra', {})
+        for res in resources.get('create', []):
+            if res.__class__ == resource.InfraAccBundleGroup:
+                # Check to see if the group has span groups,
+                # and remove it from the list if the span
+                # groups don't have a status object or aren't
+                # synced.
+                context = aim_ctx.AimContext(store=api.get_store())
+                dst_objs = self.manager.find(
+                    context, resource.SpanVdestGroup,
+                    in_={'name': res.span_vdest_group_names})
+                src_objs = self.manager.find(
+                    context, resource.SpanVsourceGroup,
+                    in_={'name': res.span_vsource_group_names})
+                # If the resources don't exist in our DB, skip
+                # pushing the bundle group.
+                if (len(dst_objs) != len(res.span_vdest_group_names) or
+                        len(src_objs) != len(res.span_vsource_group_names)):
+                    LOG.debug("Skipping push of %s due to missing dependent "
+                              "resources", res)
+                    resources['create'].remove(res)
+                    continue
+                status_objs = self.manager.get_statuses(
+                    context, src_objs + dst_objs)
+                sync_statuses = [
+                    status_obj for status_obj in status_objs
+                    if status_obj.sync_status == status.AciStatus.SYNCED]
+                # If the source and dest groups aren't synced, skip
+                # pushing the bundle group.
+                if (len(sync_statuses) != len(status_objs) or
+                        len(status_objs) != len(src_objs + dst_objs)):
+                    LOG.debug("Skipping push of %s due to unsynced dependent "
+                              "resources", res)
+                    resources['create'].remove(res)
+
     def push_resources(self, context, resources):
         # Organize by tenant, and push into APIC
         global serving_tenants
@@ -563,6 +621,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     by_tenant.setdefault(tenant_name, {}).setdefault(
                         method, []).append(data)
 
+        self._filter_resources(context, by_tenant)
         for tenant, conf in by_tenant.items():
             try:
                 serving_tenants[tenant]
