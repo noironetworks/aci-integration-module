@@ -1371,7 +1371,7 @@ class QosRequirement(AciResourceBase):
         ('name', t.name))
     other_attributes = t.other(
         ('display_name', t.name),
-        ('dscp', t.positive_number),
+        ('dscp', t.string()),
         ('egress_dpp_pol', t.name),
         ('ingress_dpp_pol', t.name),
         ('monitored', t.bool))
@@ -1381,7 +1381,7 @@ class QosRequirement(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(QosRequirement, self).__init__({'display_name': '',
-                                              'dscp': None,
+                                              'dscp': '',
                                               'egress_dpp_pol': '',
                                               'ingress_dpp_pol': '',
                                               'monitored': False}, **kwargs)
@@ -1398,11 +1398,11 @@ class QosDppPol(AciResourceBase):
         ('name', t.name))
     other_attributes = t.other(
         ('display_name', t.name),
-        ('rate', t.integer),
+        ('rate', t.string()),
         ('burst', t.string()),
         ('type', t.enum("", "1R2C", "2R3C")),
         ('mode', t.enum("", "bit", "packet")),
-        ('pir', t.integer),
+        ('pir', t.string()),
         ('be', t.string()),
         ('rate_unit', t.enum("", "unspecified", "kilo", "mega", "giga")),
         ('burst_unit', t.enum(
@@ -1428,8 +1428,8 @@ class QosDppPol(AciResourceBase):
 
     def __init__(self, **kwargs):
         super(QosDppPol, self).__init__({'display_name': '',
-                                         'rate': 0,
-                                         'pir': 0,
+                                         'rate': '0',
+                                         'pir': '0',
                                          'type': '1R2C',
                                          'mode': 'bit',
                                          'burst': 'unspecified',

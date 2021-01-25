@@ -596,6 +596,9 @@ class TestResourceOpsBase(object):
         def _test_race(res):
             updates = []
             for k, v in self.test_update_attributes.items():
+                # Skip DSCP, since it's another DB object
+                if k == 'dscp':
+                    continue
                 if isinstance(v, six.string_types):
                     updates.append((k, v))
             if len(updates) < 2:
@@ -3033,11 +3036,11 @@ class TestQosRequirementMixin(object):
     test_required_attributes = \
         {'tenant_name': 'tenant1',
          'name': 'req1',
-         'dscp': 20,
+         'dscp': '20',
          'egress_dpp_pol': 'egress1',
          'ingress_dpp_pol': 'ingress1'}
     test_update_attributes = \
-        {'dscp': 22,
+        {'dscp': '22',
          'egress_dpp_pol': 'egress2',
          'ingress_dpp_pol': 'ingress3'}
     test_search_attributes = {'name': 'req1'}
@@ -3062,13 +3065,14 @@ class TestQosDppPolMixin(object):
         {'tenant_name': 'tenant1',
          'name': 'lt1',
          'burst': '20',
-         'rate': 40,
+         'rate': '40',
          'rate_unit': 'kilo',
          'burst_unit': 'kilo'}
     test_update_attributes = \
-        {'burst': '22', 'rate': 41, 'rate_unit': 'mega', 'burst_unit': 'mega'}
+        {'burst': '22', 'rate': '41',
+         'rate_unit': 'mega', 'burst_unit': 'mega'}
     test_search_attributes = {'name': 'lt1',
-                              'rate': 40}
+                              'rate': '40'}
     test_dn = 'uni/tn-tenant1/qosdpppol-lt1'
     res_command = 'qos-dpp-pol'
 
