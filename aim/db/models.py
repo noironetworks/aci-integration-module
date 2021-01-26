@@ -1361,12 +1361,12 @@ class SpanVepgSummary(model_base.Base, model_base.HasDisplayName,
     vdg_name = model_base.name_column(nullable=False)
     vd_name = model_base.name_column(nullable=False)
     dst_ip = sa.Column(sa.String(64), nullable=False)
-    flow_id = sa.Column(sa.Integer)
-    ttl = sa.Column(sa.Integer)
-    mtu = sa.Column(sa.Integer)
+    flow_id = sa.Column(sa.String(16))
+    ttl = sa.Column(sa.String(16))
+    mtu = sa.Column(sa.String(16))
     mode = sa.Column(sa.Enum('visible', 'not-visible'))
     src_ip_prefix = sa.Column(sa.String(64))
-    dscp = sa.Column(sa.Integer)
+    dscp = sa.Column(sa.String(16))
 
 
 class InfraRspanVsrcGroup(model_base.Base):
