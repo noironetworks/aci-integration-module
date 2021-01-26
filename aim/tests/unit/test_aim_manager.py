@@ -777,16 +777,16 @@ class TestVmmRelationToExporterPolMixin(object):
                                 'domain_name': 'osd13-fab20',
                                 'netflow_path': 'uni/infra/'
                                                 'vmmexporterpol-test',
-                                'active_flow_time_out': 90,
-                                'idle_flow_time_out': 15,
-                                'sampling_rate': 0}
+                                'active_flow_time_out': '90',
+                                'idle_flow_time_out': '15',
+                                'sampling_rate': '0'}
     test_search_attributes = {'domain_name': 'osd13-fab20'}
-    test_update_attributes = {'active_flow_time_out': 120,
-                              'idle_flow_time_out': 10,
-                              'sampling_rate': 5}
-    test_default_values = {'active_flow_time_out': 60,
-                           'idle_flow_time_out': 15,
-                           'sampling_rate': 0}
+    test_update_attributes = {'active_flow_time_out': '120',
+                              'idle_flow_time_out': '10',
+                              'sampling_rate': '5'}
+    test_default_values = {'active_flow_time_out': '60',
+                           'idle_flow_time_out': '15',
+                           'sampling_rate': '0'}
     res_command = 'vmm-relation-to-exporter-pol'
     test_dn = ('uni/vmmp-OpenStack/dom-osd13-fab20/vswitchpolcont/'
                'rsvswitchExporterPol-[uni/infra/vmmexporterpol-test]')

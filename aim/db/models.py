@@ -129,9 +129,9 @@ class VmmRelationToExporterPol(model_base.Base, model_base.AttributeMixin,
     domain_name = model_base.name_column(nullable=False)
     domain_type = model_base.name_column(nullable=False)
     netflow_path = sa.Column(VARCHAR(512, charset='latin1'), nullable=False)
-    active_flow_time_out = sa.Column(sa.Integer)
-    idle_flow_time_out = sa.Column(sa.Integer)
-    sampling_rate = sa.Column(sa.Integer)
+    active_flow_time_out = sa.Column(sa.String(16))
+    idle_flow_time_out = sa.Column(sa.String(16))
+    sampling_rate = sa.Column(sa.String(16))
 
 
 class Subnet(model_base.Base, model_base.HasAimId,

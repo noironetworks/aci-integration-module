@@ -1485,17 +1485,17 @@ class VmmRelationToExporterPol(AciResourceBase):
         ('netflow_path', t.string()))
     other_attributes = t.other(
         ('monitored', t.bool),
-        ('active_flow_time_out', t.integer),
-        ('idle_flow_time_out', t.integer),
-        ('sampling_rate', t.integer))
+        ('active_flow_time_out', t.string()),
+        ('idle_flow_time_out', t.string()),
+        ('sampling_rate', t.string()))
 
     _aci_mo_name = 'vmmRsVswitchExporterPol'
     _tree_parent = VmmVswitchPolicyGroup
 
     def __init__(self, **kwargs):
         super(VmmRelationToExporterPol, self).__init__(
-            {'monitored': False, 'active_flow_time_out': 60,
-             'sampling_rate': 0, 'idle_flow_time_out': 15}, **kwargs)
+            {'monitored': False, 'active_flow_time_out': '60',
+             'sampling_rate': '0', 'idle_flow_time_out': '15'}, **kwargs)
 
 
 class SpanVsourceGroup(AciResourceBase):
