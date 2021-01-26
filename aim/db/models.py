@@ -1213,11 +1213,11 @@ class QosRequirement(model_base.Base, model_base.HasAimId,
     def to_attr(self, session):
         res_attr = super(QosRequirement, self).to_attr(session)
 
-        d = res_attr.pop('dscp', None)
+        d = res_attr.pop('dscp', '')
         if d:
             res_attr['dscp'] = d.mark
         else:
-            res_attr['dscp'] = None
+            res_attr['dscp'] = ''
 
         return res_attr
 
@@ -1233,8 +1233,8 @@ class QosDppPol(model_base.Base, model_base.HasAimId,
                                              'name') +
                       model_base.to_tuple(model_base.Base.__table_args__))
 
-    rate = sa.Column(sa.BigInteger)
-    pir = sa.Column(sa.BigInteger)
+    rate = sa.Column(sa.String(32))
+    pir = sa.Column(sa.String(32))
     type = sa.Column(sa.String(16))
     mode = sa.Column(sa.String(16))
     burst = sa.Column(sa.String(16))
@@ -1263,7 +1263,7 @@ class QosDscpMarking(model_base.Base):
     qos_requirement_aim_id = sa.Column(
         sa.String(255), sa.ForeignKey('aim_qos_requirement.aim_id'),
         primary_key=True)
-    mark = sa.Column(sa.SmallInteger)
+    mark = sa.Column(sa.String(16))
 
 
 class SpanVsourceGroup(model_base.Base, model_base.HasDisplayName,
