@@ -62,6 +62,8 @@ class AimManager(object):
                      api_res.EndpointGroup,
                      api_res.Filter,
                      api_res.FilterEntry,
+                     api_res.OutOfBandContract,
+                     api_res.OutOfBandContractSubject,
                      api_res.Contract,
                      api_res.ContractSubject,
                      api_status.AciStatus,

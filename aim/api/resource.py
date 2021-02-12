@@ -671,6 +671,67 @@ class ContractSubject(AciResourceBase):
              'monitored': False}, **kwargs)
 
 
+class OutOfBandContract(AciResourceBase):
+    """Resource representing a Out-of-Band contract in ACI.
+
+    Identity attributes: name of ACI tenant and name of OOB contract.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('scope', t.enum("", "tenant", "context", "global",
+                         "application-profile")),
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzOOBBrCP'
+    _tree_parent = Tenant
+
+    SCOPE_APP_PROFILE = 'application-profile'
+    SCOPE_TENANT = 'tenant'
+    SCOPE_CONTEXT = 'context'
+    SCOPE_GLOBAL = 'global'
+
+    def __init__(self, **kwargs):
+        super(OutOfBandContract, self).__init__({'scope': self.SCOPE_CONTEXT,
+                                                 'monitored': False}, **kwargs)
+
+
+class OutOfBandContractSubject(AciResourceBase):
+    """Resource representing a subject within a out of band contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('in_filters', t.list_of_names),
+        ('out_filters', t.list_of_names),
+        ('bi_filters', t.list_of_names),
+        ('service_graph_name', t.name),
+        ('in_service_graph_name', t.name),
+        ('out_service_graph_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzSubj__tn'
+    _tree_parent = OutOfBandContract
+
+    def __init__(self, **kwargs):
+        super(OutOfBandContractSubject, self).__init__(
+            {'in_filters': [], 'out_filters': [], 'bi_filters': [],
+             'service_graph_name': '',
+             'in_service_graph_name': '',
+             'out_service_graph_name': '',
+             'monitored': False}, **kwargs)
+
+
 class Endpoint(ResourceBase):
     """Resource representing an endpoint.
 

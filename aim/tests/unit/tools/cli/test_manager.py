@@ -686,9 +686,22 @@ class TestContract(test_aim_manager.TestContractMixin,
     pass
 
 
+class TestOutOfBandContract(test_aim_manager.TestOutOfBandContractMixin,
+                            TestManagerResourceOpsBase,
+                            base.TestShell):
+    pass
+
+
 class TestContractSubject(test_aim_manager.TestContractSubjectMixin,
                           TestManagerResourceOpsBase,
                           base.TestShell):
+    pass
+
+
+class TestOutOfBandContractSubject(
+        test_aim_manager.TestOutOfBandContractSubjectMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
     pass
 
 

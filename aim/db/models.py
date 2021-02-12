@@ -507,6 +507,20 @@ class Contract(model_base.Base, model_base.HasAimId,
     scope = sa.Column(sa.String(24))
 
 
+class OutOfBandContract(model_base.Base, model_base.HasAimId,
+                        model_base.HasName, model_base.HasDisplayName,
+                        model_base.HasTenantName, model_base.AttributeMixin,
+                        model_base.IsMonitored):
+    """DB model for Out of Band Contract."""
+
+    __tablename__ = 'aim_oob_contracts'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
+                                             'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+    scope = sa.Column(sa.String(24))
+
+
 class ContractSubjectFilter(model_base.Base):
     """DB model for filters used by Contract Subject."""
     __tablename__ = 'aim_contract_subject_filters'
@@ -534,7 +548,6 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
     service_graph_name = model_base.name_column()
     in_service_graph_name = model_base.name_column()
     out_service_graph_name = model_base.name_column()
-
     filters = orm.relationship(ContractSubjectFilter,
                                backref='contract',
                                cascade='all, delete-orphan',
@@ -563,6 +576,78 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
 
     def to_attr(self, session):
         res_attr = super(ContractSubject, self).to_attr(session)
+        for f in res_attr.pop('filters', []):
+            if f.direction == 'in':
+                attr = 'in_filters'
+            elif f.direction == 'out':
+                attr = 'out_filters'
+            else:
+                attr = 'bi_filters'
+            res_attr.setdefault(attr, []).append(f.name)
+        return res_attr
+
+
+class OutOfBandContractSubjectFilter(model_base.Base):
+    """DB model for filters used by Contract Subject."""
+    __tablename__ = 'aim_oob_contract_subject_filters'
+
+    subject_aim_id = sa.Column(sa.Integer,
+                               sa.ForeignKey(
+                                   'aim_oob_contract_subjects.aim_id'),
+                               primary_key=True)
+    name = model_base.name_column(primary_key=True)
+    direction = sa.Column(sa.Enum('bi', 'in', 'out'), primary_key=True)
+
+
+class OutOfBandContractSubject(model_base.Base, model_base.HasAimId,
+                               model_base.HasName, model_base.HasDisplayName,
+                               model_base.HasTenantName,
+                               model_base.AttributeMixin,
+                               model_base.IsMonitored):
+    """DB model for Out of Band Contract Subject."""
+
+    __tablename__ = 'aim_oob_contract_subjects'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
+                               'name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    contract_name = model_base.name_column(nullable=False)
+    service_graph_name = model_base.name_column()
+    in_service_graph_name = model_base.name_column()
+    out_service_graph_name = model_base.name_column()
+
+    filters = orm.relationship(OutOfBandContractSubjectFilter,
+                               backref='out_of_band_contract',
+                               cascade='all, delete-orphan',
+                               lazy='joined')
+
+    def from_attr(self, session, res_attr):
+        ins = [f for f in self.filters if f.direction == 'in']
+        outs = [f for f in self.filters if f.direction == 'out']
+        bis = [f for f in self.filters if f.direction == 'bi']
+
+        if 'in_filters' in res_attr:
+            ins = []
+            for f in (res_attr.pop('in_filters', []) or []):
+                ins.append(OutOfBandContractSubjectFilter(
+                    name=f, direction='in'))
+        if 'out_filters' in res_attr:
+            outs = []
+            for f in (res_attr.pop('out_filters', []) or []):
+                outs.append(OutOfBandContractSubjectFilter(
+                    name=f, direction='out'))
+        if 'bi_filters' in res_attr:
+            bis = []
+            for f in (res_attr.pop('bi_filters', []) or []):
+                bis.append(OutOfBandContractSubjectFilter(
+                    name=f, direction='bi'))
+        self.filters = ins + outs + bis
+        # map remaining attributes to model
+        super(OutOfBandContractSubject, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(OutOfBandContractSubject, self).to_attr(session)
         for f in res_attr.pop('filters', []):
             if f.direction == 'in':
                 attr = 'in_filters'

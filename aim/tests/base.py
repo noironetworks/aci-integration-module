@@ -557,6 +557,16 @@ class TestAimDBBase(BaseTestCase):
         return example_brcp
 
     @classmethod
+    def _get_example_aci_oob_contract(cls, **kwargs):
+        example_oob_brcp = {
+            "vzOOBBrCP": {
+                "attributes": {
+                    "dn": "uni/tn-common/oobbrc-c",
+                    "name": "c"}}}
+        example_oob_brcp['vzOOBBrCP']['attributes'].update(kwargs)
+        return example_oob_brcp
+
+    @classmethod
     def _get_example_provided_contract(cls, **kwargs):
         example_rsprov = {
             "fvRsProv": {

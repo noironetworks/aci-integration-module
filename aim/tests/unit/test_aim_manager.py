@@ -1002,6 +1002,24 @@ class TestContractMixin(object):
     res_command = 'contract'
 
 
+class TestOutOfBandContractMixin(object):
+    resource_class = resource.OutOfBandContract
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [resource.Tenant(name='tenant1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'name': 'contract1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'name': 'contract1',
+                                'scope':
+                                resource.OutOfBandContract.SCOPE_TENANT}
+    test_search_attributes = {'scope': resource.OutOfBandContract.SCOPE_TENANT}
+    test_update_attributes = {
+        'scope': resource.OutOfBandContract.SCOPE_CONTEXT}
+    test_default_values = {'scope': resource.OutOfBandContract.SCOPE_CONTEXT}
+    test_dn = 'uni/tn-tenant1/oobbrc-contract1'
+    res_command = 'out-of-band-contract'
+
+
 class TestContractSubjectMixin(object):
     resource_class = resource.ContractSubject
     resource_root_type = resource.Tenant._aci_mo_name
@@ -1034,6 +1052,40 @@ class TestContractSubjectMixin(object):
                            'out_service_graph_name': ''}
     test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
     res_command = 'contract-subject'
+
+
+class TestOutOfBandContractSubjectMixin(object):
+    resource_class = resource.OutOfBandContractSubject
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.OutOfBandContract(tenant_name='tenant1', name='contract1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'name': 'subject1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'name': 'subject1',
+                                'in_filters': ['f1', 'f2'],
+                                'out_filters': ['f2', 'f3'],
+                                'bi_filters': ['f1', 'f3', 'f4'],
+                                'service_graph_name': 'g1',
+                                'in_service_graph_name': 'g2',
+                                'out_service_graph_name': 'g3'}
+    test_search_attributes = {'name': 'subject1'}
+    test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
+                              'out_filters': [],
+                              'service_graph_name': 'g11',
+                              'in_service_graph_name': 'g21',
+                              'out_service_graph_name': 'g31'}
+    test_default_values = {'in_filters': [],
+                           'out_filters': [],
+                           'bi_filters': [],
+                           'service_graph_name': '',
+                           'in_service_graph_name': '',
+                           'out_service_graph_name': ''}
+    test_dn = 'uni/tn-tenant1/oobbrc-contract1/subj-subject1'
+    res_command = 'out-of-band-contract-subject'
 
 
 class TestEndpointMixin(object):
@@ -2524,8 +2576,19 @@ class TestContract(TestContractMixin, TestAciResourceOpsBase,
     pass
 
 
+class TestOutOfBandContract(TestOutOfBandContractMixin, TestAciResourceOpsBase,
+                            base.TestAimDBBase):
+    pass
+
+
 class TestContractSubject(TestContractSubjectMixin, TestAciResourceOpsBase,
                           base.TestAimDBBase):
+    pass
+
+
+class TestOutOfBandContractSubject(TestOutOfBandContractSubjectMixin,
+                                   TestAciResourceOpsBase,
+                                   base.TestAimDBBase):
     pass
 
 
