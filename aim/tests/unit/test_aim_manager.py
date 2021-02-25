@@ -1014,16 +1014,11 @@ class TestContractSubjectMixin(object):
     test_required_attributes = {'tenant_name': 'tenant1',
                                 'contract_name': 'contract1',
                                 'name': 'subject1',
-                                'in_filters': ['f1', 'f2'],
-                                'out_filters': ['f2', 'f3'],
-                                'bi_filters': ['f1', 'f3', 'f4'],
                                 'service_graph_name': 'g1',
                                 'in_service_graph_name': 'g2',
                                 'out_service_graph_name': 'g3'}
     test_search_attributes = {'name': 'subject1'}
-    test_update_attributes = {'in_filters': ['f1', 'f2', 'f3'],
-                              'out_filters': [],
-                              'service_graph_name': 'g11',
+    test_update_attributes = {'service_graph_name': 'g11',
                               'in_service_graph_name': 'g21',
                               'out_service_graph_name': 'g31'}
     test_default_values = {'in_filters': [],
@@ -1034,6 +1029,153 @@ class TestContractSubjectMixin(object):
                            'out_service_graph_name': ''}
     test_dn = 'uni/tn-tenant1/brc-contract1/subj-subject1'
     res_command = 'contract-subject'
+
+
+class TestContractSubjFilterMixin(object):
+    resource_class = resource.ContractSubjFilter
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.Contract(tenant_name='tenant1', name='contract1'),
+        resource.ContractSubject(tenant_name='tenant1',
+                                 contract_name='contract1',
+                                 name='subject1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'filter_name': 'filter1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'filter_name': 'filter1',
+                                'action': 'permit'}
+    test_search_attributes = {'filter_name': 'filter1'}
+    test_update_attributes = {'action': 'deny'}
+    test_default_values = {'action': 'permit'}
+    test_dn = \
+        'uni/tn-tenant1/brc-contract1/subj-subject1/rssubjFiltAtt-filter1'
+    res_command = 'contract-subj-filter'
+
+
+class TestContractSubjInFilterMixin(object):
+    resource_class = resource.ContractSubjInFilter
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.Contract(tenant_name='tenant1', name='contract1'),
+        resource.ContractSubject(tenant_name='tenant1',
+                                 contract_name='contract1',
+                                 name='subject1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'filter_name': 'filter1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'filter_name': 'filter1',
+                                'action': 'permit'}
+    test_search_attributes = {'filter_name': 'filter1'}
+    test_update_attributes = {'action': 'deny'}
+    test_default_values = {'action': 'permit'}
+    test_dn = \
+        'uni/tn-tenant1/brc-contract1/subj-subject1/intmnl/rsFiltAtt-filter1'
+    res_command = 'contract-subj-in-filter'
+
+
+class TestContractSubjOutFilterMixin(object):
+    resource_class = resource.ContractSubjOutFilter
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.Contract(tenant_name='tenant1', name='contract1'),
+        resource.ContractSubject(tenant_name='tenant1',
+                                 contract_name='contract1',
+                                 name='subject1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'filter_name': 'filter1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'filter_name': 'filter1',
+                                'action': 'permit'}
+    test_search_attributes = {'filter_name': 'filter1'}
+    test_update_attributes = {'action': 'deny'}
+    test_default_values = {'action': 'permit'}
+    test_dn = \
+        'uni/tn-tenant1/brc-contract1/subj-subject1/outtmnl/rsFiltAtt-filter1'
+    res_command = 'contract-subj-out-filter'
+
+
+class TestContractSubjGraphMixin(object):
+    resource_class = resource.ContractSubjGraph
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.Contract(tenant_name='tenant1', name='contract1'),
+        resource.ContractSubject(tenant_name='tenant1',
+                                 contract_name='contract1',
+                                 name='subject1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'graph_name': 'graph1'}
+    test_search_attributes = {'graph_name': 'graph1'}
+    test_update_attributes = {'graph_name': 'graph2'}
+    test_dn = \
+        'uni/tn-tenant1/brc-contract1/subj-subject1/rsSubjGraphAtt'
+    res_command = 'contract-subj-graph'
+
+
+class TestContractSubjInGraphMixin(object):
+    resource_class = resource.ContractSubjInGraph
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.Contract(tenant_name='tenant1', name='contract1'),
+        resource.ContractSubject(tenant_name='tenant1',
+                                 contract_name='contract1',
+                                 name='subject1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'graph_name': 'graph1'}
+    test_search_attributes = {'graph_name': 'graph1'}
+    test_update_attributes = {'graph_name': 'graph2'}
+    test_dn = \
+        'uni/tn-tenant1/brc-contract1/subj-subject1/intmnl/rsInTermGraphAtt'
+    res_command = 'contract-subj-in-graph'
+
+
+class TestContractSubjOutGraphMixin(object):
+    resource_class = resource.ContractSubjOutGraph
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.Contract(tenant_name='tenant1', name='contract1'),
+        resource.ContractSubject(tenant_name='tenant1',
+                                 contract_name='contract1',
+                                 name='subject1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'contract_name': 'contract1',
+                                'contract_subject_name': 'subject1',
+                                'graph_name': 'graph1'}
+    test_search_attributes = {'graph_name': 'graph1'}
+    test_update_attributes = {'graph_name': 'graph2'}
+    test_dn = \
+        'uni/tn-tenant1/brc-contract1/subj-subject1/outtmnl/rsOutTermGraphAtt'
+    res_command = 'contract-subj-out-graph'
 
 
 class TestEndpointMixin(object):
@@ -2526,6 +2668,36 @@ class TestContract(TestContractMixin, TestAciResourceOpsBase,
 
 class TestContractSubject(TestContractSubjectMixin, TestAciResourceOpsBase,
                           base.TestAimDBBase):
+    pass
+
+
+class TestContractSubjFilter(TestContractSubjFilterMixin,
+                             TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestContractSubjInFilter(TestContractSubjFilterMixin,
+                               TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestContractSubjOutFilter(TestContractSubjFilterMixin,
+                                TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestContractSubjGraph(TestContractSubjFilterMixin,
+                            TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestContractSubjInGraph(TestContractSubjFilterMixin,
+                              TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestContractSubjOutGraph(TestContractSubjFilterMixin,
+                               TestAciResourceOpsBase, base.TestAimDBBase):
     pass
 
 
