@@ -485,7 +485,7 @@ class EndpointGroup(AciResourceBase):
     other_attributes = t.other(
         ('display_name', t.name),
         ('bd_name', t.name),
-        ('policy_enforcement_pref', t.enum("", "enfFAorced", "unenforced")),
+        ('policy_enforcement_pref', t.enum("", "enforced", "unenforced")),
         ('provided_contract_names', t.list_of_names),
         ('consumed_contract_names', t.list_of_names),
         ('openstack_vmm_domain_names', t.list_of_names),
