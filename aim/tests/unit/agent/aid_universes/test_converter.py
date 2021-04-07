@@ -637,125 +637,240 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
          'exceptions': {},
          'skip': ['inFilters', 'outFilters', 'biFilters',
                   'serviceGraphName', 'inServiceGraphName',
-                  'outServiceGraphName']},
+                  'outServiceGraphName']}]
+    sample_input = [[get_example_aci_subject(nameAlias='alias')],
+                    [{'vzSubj': {'attributes': {
+                        'dn': 'uni/tn-common/brc-prs1/subj-prs1',
+                        'revFltPorts': 'yes', 'nameAlias': 'prs1',
+                        'name': 'prs1', 'prio': 'unspecified',
+                        'targetDscp': 'unspecified', 'descr': '',
+                        'consMatchT': 'AtleastOne',
+                        'provMatchT': 'AtleastOne'}}}]]
+    sample_output = [
+        resource.ContractSubject(tenant_name='t1', contract_name='c', name='s',
+                                 in_filters=[],
+                                 out_filters=[],
+                                 bi_filters=[],
+                                 service_graph_name='',
+                                 in_service_graph_name='',
+                                 out_service_graph_name='',
+                                 display_name='alias'),
+        resource.ContractSubject(tenant_name='common', contract_name='prs1',
+                                 name='prs1',
+                                 display_name='prs1')]
+
+
+class TestAciToAimConverterContractSubjFilter(TestAciToAimConverterBase,
+                                              base.TestAimDBBase):
+    resource_type = resource.ContractSubjFilter
+    reverse_map_output = [
         {'resource': 'vzRsSubjFiltAtt',
          'exceptions': {},
-         'converter': converter.vzRsSubjFiltAtt_converter},
-        {'resource': 'vzRsSubjGraphAtt',
-         'exceptions': {'service_graph_name': {'other': 'tnVnsAbsGraphName',
-                                               'skip_if_empty': True}},
-         'to_resource': converter.default_to_resource_strict},
+         'converter': converter.vzRsSubjFiltAtt_converter}]
+    sample_input = [[{"vzRsSubjFiltAtt": {
+                      "attributes": {"action": "permit",
+                                     "dn": "uni/tn-common/brc-prs1/"
+                                           "subj-prs1/rssubjFiltAtt-f1",
+                                     "tnVzFilterName": "f1"}}}],
+                    [{"vzRsSubjFiltAtt": {
+                      "attributes": {"action": "deny",
+                                     "dn": "uni/tn-common/brc-prs1/"
+                                           "subj-prs1/rssubjFiltAtt-f2",
+                                     "tnVzFilterName": "f2"}}}]]
+    sample_output = [
+        resource.ContractSubjFilter(tenant_name='common',
+                                    contract_name='prs1',
+                                    contract_subject_name='prs1',
+                                    filter_name='f1',
+                                    action='permit'),
+        resource.ContractSubjFilter(tenant_name='common',
+                                    contract_name='prs1',
+                                    contract_subject_name='prs1',
+                                    filter_name='f2',
+                                    action='deny')]
+
+
+class TestAciToAimConverterContractSubjInFilter(TestAciToAimConverterBase,
+                                                base.TestAimDBBase):
+    resource_type = resource.ContractSubjInFilter
+    reverse_map_output = [
         {'resource': 'vzRsFiltAtt',
          'exceptions': {},
-         'converter': converter.vzInTerm_vzRsFiltAtt_converter},
-        {'resource': 'vzRsFiltAtt',
-         'exceptions': {},
-         'converter': converter.vzOutTerm_vzRsFiltAtt_converter},
+         'converter': converter.vzRsFiltAtt_in_converter},
         {'resource': 'vzInTerm',
          'exceptions': {},
-         'skip': ['displayName'],
-         'to_resource': converter.to_resource_filter_container},
-        {'resource': 'vzOutTerm',
-         'exceptions': {},
-         'skip': ['displayName'],
-         'to_resource': converter.to_resource_filter_container},
-        {'resource': 'vzRsInTermGraphAtt',
-         'exceptions': {'in_service_graph_name':
-                        {'other': 'tnVnsAbsGraphName',
-                         'skip_if_empty': True}},
-         'to_resource': converter.default_to_resource_strict},
-        {'resource': 'vzRsOutTermGraphAtt',
-         'exceptions': {'out_service_graph_name':
-                        {'other': 'tnVnsAbsGraphName',
-                         'skip_if_empty': True}},
-         'to_resource': converter.default_to_resource_strict}]
-    sample_input = [[get_example_aci_subject(nameAlias='alias'),
-                     _aci_obj('vzRsSubjFiltAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f1',
-                              tnVzFilterName='f1'),
-                     _aci_obj('vzRsSubjFiltAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f2',
-                              tnVzFilterName='f2'),
-                     _aci_obj('vzRsSubjGraphAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/rsSubjGraphAtt',
-                              tnVnsAbsGraphName='g1'),
-                     _aci_obj('vzInTerm',
-                              dn='uni/tn-t1/brc-c/subj-s/intmnl'),
-                     _aci_obj('vzOutTerm',
-                              dn='uni/tn-t1/brc-c/subj-s/outtmnl'),
-                     _aci_obj('vzRsFiltAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-i1',
-                              tnVzFilterName='i1'),
-                     _aci_obj('vzRsFiltAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-i2',
-                              tnVzFilterName='i2'),
-                     _aci_obj('vzRsFiltAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-o1',
-                              tnVzFilterName='o1'),
-                     _aci_obj('vzRsFiltAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-o2',
-                              tnVzFilterName='o2'),
-                     _aci_obj('vzRsInTermGraphAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/intmnl/'
-                                 'rsInTermGraphAtt',
-                              tnVnsAbsGraphName='g2'),
-                     _aci_obj('vzRsOutTermGraphAtt',
-                              dn='uni/tn-t1/brc-c/subj-s/outtmnl/'
-                                 'rsOutTermGraphAtt',
-                              tnVnsAbsGraphName='g3'), ],
-                    [{'vzSubj': {
-                        'attributes': {
-                            'dn': 'uni/tn-common/brc-prs1/subj-prs1',
-                            'revFltPorts': 'yes', 'nameAlias': 'prs1',
-                            'name': 'prs1', 'prio': 'unspecified',
-                            'targetDscp': 'unspecified', 'descr': '',
-                            'consMatchT': 'AtleastOne',
-                            'provMatchT': 'AtleastOne'}}},
-                     {'vzRsFiltAtt': {
-                         'attributes': {
-                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/intmnl'
-                                   '/rsfiltAtt-reverse-pr1', 'directives': '',
-                             'tnVzFilterName': 'reverse-pr1'}}},
-                     {'vzRsFiltAtt': {
-                         'attributes': {
-                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/intmnl'
-                                   '/rsfiltAtt-pr1',
-                             'directives': '', 'tnVzFilterName': 'pr1'}}},
-                     {'vzRsFiltAtt': {
-                         'attributes': {
-                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/outtmnl'
-                                   '/rsfiltAtt-pr1', 'directives': '',
-                             'tnVzFilterName': 'pr1'}}},
-                     {'vzRsFiltAtt': {
-                         'attributes': {
-                             'dn': 'uni/tn-common/brc-prs1/subj-prs1/outtmnl'
-                                   '/rsfiltAtt-reverse-pr1', 'directives': '',
-                             'tnVzFilterName': 'reverse-pr1'}}},
+         'converter': converter.vzterm_converter}]
+    sample_input = [[{'vzRsFiltAtt': {
+                      'attributes': {'dn': 'uni/tn-common/brc-prs1/'
+                                     'subj-prs1/intmnl/rsfiltAtt-reverse-pr1',
+                                     'tnVzFilterName': 'reverse-pr1',
+                                     'action': 'deny'}}},
                      {'vzInTerm': {
                          'attributes': {
                              'dn': 'uni/tn-common/brc-prs1/subj-prs1/intmnl',
                              'nameAlias': '', 'name': '', 'descr': '',
                              'targetDscp': 'unspecified',
-                             'prio': 'unspecified'}}},
+                             'prio': 'unspecified'}}}],
+                    [{'vzRsFiltAtt': {
+                        'attributes': {
+                            'dn': 'uni/tn-common/brc-prs2/subj-prs2/intmnl/'
+                                  'rsfiltAtt-reverse-pr2',
+                            'tnVzFilterName': 'reverse-pr2',
+                            'action': 'permit'}}},
+                     {'vzInTerm': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs2/subj-prs2/intmnl',
+                             'nameAlias': '', 'name': '', 'descr': '',
+                             'targetDscp': 'unspecified',
+                             'prio': 'unspecified'}}}]]
+    sample_output = [
+        resource.ContractSubjInFilter(tenant_name='common',
+                                      contract_name='prs1',
+                                      contract_subject_name='prs1',
+                                      filter_name='reverse-pr1',
+                                      action='deny'),
+        resource.ContractSubjInFilter(tenant_name='common',
+                                      contract_name='prs2',
+                                      contract_subject_name='prs2',
+                                      filter_name='reverse-pr2',
+                                      action='permit')]
+
+
+class TestAciToAimConverterContractSubjOutFilter(TestAciToAimConverterBase,
+                                                 base.TestAimDBBase):
+    resource_type = resource.ContractSubjOutFilter
+    reverse_map_output = [
+        {'resource': 'vzRsFiltAtt',
+         'exceptions': {},
+         'converter': converter.vzRsFiltAtt_out_converter},
+        {'resource': 'vzOutTerm',
+         'exceptions': {},
+         'converter': converter.vzterm_converter}]
+    sample_input = [[{'vzRsFiltAtt': {
+                      'attributes': {'dn': 'uni/tn-common/brc-prs1'
+                                     '/subj-prs1/outtmnl/'
+                                     'rsfiltAtt-reverse-pr1',
+                                     'tnVzFilterName': 'reverse-pr1',
+                                     'action': 'deny'}}},
                      {'vzOutTerm': {
                          'attributes': {
                              'dn': 'uni/tn-common/brc-prs1/subj-prs1/outtmnl',
                              'nameAlias': '', 'name': '', 'descr': '',
                              'targetDscp': 'unspecified',
+                             'prio': 'unspecified'}}}],
+                    [{'vzRsFiltAtt': {
+                        'attributes': {
+                            'dn': 'uni/tn-common/brc-prs2/subj-prs2/outtmnl/'
+                                  'rsfiltAtt-reverse-pr2',
+                            'tnVzFilterName': 'reverse-pr2',
+                            'action': 'permit'}}},
+                     {'vzOutTerm': {
+                         'attributes': {
+                             'dn': 'uni/tn-common/brc-prs2/subj-prs2/outtmnl',
+                             'nameAlias': '', 'name': '', 'descr': '',
+                             'targetDscp': 'unspecified',
                              'prio': 'unspecified'}}}]]
     sample_output = [
-        resource.ContractSubject(tenant_name='t1', contract_name='c', name='s',
-                                 in_filters=['i1', 'i2'],
-                                 out_filters=['o1', 'o2'],
-                                 bi_filters=['f1', 'f2'],
-                                 service_graph_name='g1',
-                                 in_service_graph_name='g2',
-                                 out_service_graph_name='g3',
-                                 display_name='alias'),
-        resource.ContractSubject(tenant_name='common', contract_name='prs1',
-                                 name='prs1', display_name='prs1',
-                                 in_filters=['pr1', 'reverse-pr1'],
-                                 out_filters=['pr1', 'reverse-pr1'])]
+        resource.ContractSubjOutFilter(tenant_name='common',
+                                       contract_name='prs1',
+                                       contract_subject_name='prs1',
+                                       filter_name='reverse-pr1',
+                                       action='deny'),
+        resource.ContractSubjOutFilter(tenant_name='common',
+                                       contract_name='prs2',
+                                       contract_subject_name='prs2',
+                                       filter_name='reverse-pr2',
+                                       action='permit')]
+
+
+class TestAciToAimConverterContractSubjInGraph(TestAciToAimConverterBase,
+                                               base.TestAimDBBase):
+    resource_type = resource.ContractSubjInGraph
+    reverse_map_output = [
+        {'resource': 'vzRsInTermGraphAtt',
+         'exceptions': {'graph_name': {'other': 'tnVnsAbsGraphName'}},
+         'to_resource': converter.default_to_resource_strict},
+        {'resource': 'vzInTerm',
+         'exceptions': {},
+         'converter': converter.vzterm_converter}]
+    sample_input = [[_aci_obj('vzRsInTermGraphAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/intmnl/'
+                                 'rsInTermGraphAtt',
+                              tnVnsAbsGraphName='g1'),
+                     _aci_obj('vzInTerm',
+                              dn='uni/tn-t1/brc-c/subj-s/intmnl')],
+                    [_aci_obj('vzRsInTermGraphAtt',
+                              dn='uni/tn-t1/brc-c/subj-s1/intmnl/'
+                                 'rsInTermGraphAtt',
+                              tnVnsAbsGraphName='g2'),
+                     _aci_obj('vzInTerm',
+                              dn='uni/tn-t1/brc-c/subj-s1/intmnl')]]
+    sample_output = [
+        resource.ContractSubjInGraph(tenant_name='t1',
+                                     contract_name='c',
+                                     contract_subject_name='s',
+                                     graph_name='g1'),
+        resource.ContractSubjInGraph(tenant_name='t1',
+                                     contract_name='c',
+                                     contract_subject_name='s1',
+                                     graph_name='g2')]
+
+
+class TestAciToAimConverterContractSubjOutGraph(TestAciToAimConverterBase,
+                                                base.TestAimDBBase):
+    resource_type = resource.ContractSubjOutGraph
+    reverse_map_output = [
+        {'resource': 'vzRsOutTermGraphAtt',
+         'exceptions': {'graph_name': {'other': 'tnVnsAbsGraphName'}},
+         'to_resource': converter.default_to_resource_strict},
+        {'resource': 'vzOutTerm',
+         'exceptions': {},
+         'converter': converter.vzterm_converter}]
+    sample_input = [[_aci_obj('vzRsOutTermGraphAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/outtmnl/'
+                                 'rsOutTermGraphAtt',
+                              tnVnsAbsGraphName='g1'),
+                     _aci_obj('vzOutTerm',
+                              dn='uni/tn-t1/brc-c/subj-s/outtmnl')],
+                    [_aci_obj('vzRsOutTermGraphAtt',
+                              dn='uni/tn-t1/brc-c/subj-s1/outtmnl/'
+                                 'rsOutTermGraphAtt',
+                              tnVnsAbsGraphName='g2'),
+                     _aci_obj('vzOutTerm',
+                              dn='uni/tn-t1/brc-c/subj-s1/outtmnl')]]
+    sample_output = [
+        resource.ContractSubjOutGraph(tenant_name='t1',
+                                      contract_name='c',
+                                      contract_subject_name='s',
+                                      graph_name='g1'),
+        resource.ContractSubjOutGraph(tenant_name='t1',
+                                      contract_name='c',
+                                      contract_subject_name='s1',
+                                      graph_name='g2')]
+
+
+class TestAciToAimConverterContractSubjGraph(TestAciToAimConverterBase,
+                                             base.TestAimDBBase):
+    resource_type = resource.ContractSubjGraph
+    reverse_map_output = [
+        {'resource': 'vzRsSubjGraphAtt',
+         'exceptions': {'graph_name': {'other': 'tnVnsAbsGraphName'}},
+         'to_resource': converter.default_to_resource_strict}]
+    sample_input = [[_aci_obj('vzRsSubjGraphAtt',
+                              dn='uni/tn-t1/brc-c/subj-s/rsSubjGraphAtt',
+                              tnVnsAbsGraphName='g1')],
+                    [_aci_obj('vzRsSubjGraphAtt',
+                              dn='uni/tn-t1/brc-c/subj-s1/rsSubjGraphAtt',
+                              tnVnsAbsGraphName='g2')]]
+    sample_output = [
+        resource.ContractSubjGraph(tenant_name='t1',
+                                   contract_name='c',
+                                   contract_subject_name='s',
+                                   graph_name='g1'),
+        resource.ContractSubjGraph(tenant_name='t1',
+                                   contract_name='c',
+                                   contract_subject_name='s1',
+                                   graph_name='g2')]
 
 
 class TestAciToAimConverterFault(TestAciToAimConverterBase,
@@ -2643,52 +2758,120 @@ def get_example_aim_contract_subject(**kwargs):
 class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
                                            base.TestAimDBBase):
     sample_input = [
-        get_example_aim_contract_subject(in_filters=['i1', 'i2'],
-                                         out_filters=['o1', 'o2'],
-                                         bi_filters=['f1', 'f2'],
-                                         service_graph_name='g1',
-                                         in_service_graph_name='g2',
+        get_example_aim_contract_subject(service_graph_name='',
+                                         in_service_graph_name='',
                                          display_name='alias'),
         get_example_aim_contract_subject(name='s2',
-                                         out_service_graph_name='g3')]
+                                         out_service_graph_name='')]
     sample_output = [
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s1',
-                  nameAlias='alias'),
-         _aci_obj('vzRsSubjFiltAtt',
+                  nameAlias='alias')],
+        [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s2',
+                  nameAlias="")]]
+
+
+def get_example_aim_contract_subject_filter(direction, **kwargs):
+    if direction == 'bi':
+        example = resource.ContractSubjFilter(tenant_name='test-tenant',
+                                              contract_name='c1',
+                                              contract_subject_name='s1',
+                                              filter_name='f1')
+    if direction == 'in':
+        example = resource.ContractSubjInFilter(tenant_name='test-tenant',
+                                                contract_name='c1',
+                                                contract_subject_name='s1',
+                                                filter_name='f1')
+    if direction == 'out':
+        example = resource.ContractSubjOutFilter(tenant_name='test-tenant',
+                                                 contract_name='c1',
+                                                 contract_subject_name='s1',
+                                                 filter_name='f1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterContractSubjectFilter(
+        TestAimToAciConverterBase,
+        base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_contract_subject_filter(direction='bi',
+                                                action='permit'),
+        get_example_aim_contract_subject_filter(filter_name='f2',
+                                                direction='bi',
+                                                action='deny'),
+        get_example_aim_contract_subject_filter(filter_name='i1',
+                                                direction='in',
+                                                action='permit'),
+        get_example_aim_contract_subject_filter(filter_name='o1',
+                                                direction='out',
+                                                action='deny')]
+    sample_output = [
+        [_aci_obj('vzRsSubjFiltAtt',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/rssubjFiltAtt-f1',
-                  tnVzFilterName='f1'),
-         _aci_obj('vzRsSubjFiltAtt',
+                  tnVzFilterName='f1',
+                  action='permit')],
+        [_aci_obj('vzRsSubjFiltAtt',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/rssubjFiltAtt-f2',
-                  tnVzFilterName='f2'),
-         _aci_obj('vzRsSubjGraphAtt',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s1/rsSubjGraphAtt',
-                  tnVnsAbsGraphName='g1'),
+                  tnVzFilterName='f2',
+                  action='deny')],
+        [_aci_obj('vzInTerm',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl'),
          _aci_obj('vzRsFiltAtt__In',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl/rsfiltAtt-i1',
-                  tnVzFilterName='i1'),
-         _aci_obj('vzRsFiltAtt__In',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl/rsfiltAtt-i2',
-                  tnVzFilterName='i2'),
-         _aci_obj('vzRsFiltAtt__Out',
+                  tnVzFilterName='i1',
+                  action='permit')],
+        [_aci_obj('vzRsFiltAtt__Out',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl/rsfiltAtt-o1',
-                  tnVzFilterName='o1'),
-         _aci_obj('vzRsFiltAtt__Out',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl/rsfiltAtt-o2',
-                  tnVzFilterName='o2'),
-         _aci_obj('vzInTerm',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl'),
+                  tnVzFilterName='o1',
+                  action='deny'),
          _aci_obj('vzOutTerm',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl'),
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl')]]
+
+
+def get_example_aim_contract_subject_graph(direction, **kwargs):
+    if direction == 'bi':
+        example = resource.ContractSubjGraph(tenant_name='test-tenant',
+                                             contract_name='c1',
+                                             contract_subject_name='s1',
+                                             graph_name='g1')
+    if direction == 'in':
+        example = resource.ContractSubjInGraph(tenant_name='test-tenant',
+                                               contract_name='c1',
+                                               contract_subject_name='s1',
+                                               graph_name='g1')
+    if direction == 'out':
+        example = resource.ContractSubjOutGraph(tenant_name='test-tenant',
+                                                contract_name='c1',
+                                                contract_subject_name='s1',
+                                                graph_name='g1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterContractSubjectGraphs(TestAimToAciConverterBase,
+                                                 base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_contract_subject_graph(direction='bi',
+                                               graph_name='g1'),
+        get_example_aim_contract_subject_graph(direction='in',
+                                               graph_name='g2'),
+        get_example_aim_contract_subject_graph(
+            direction='out', graph_name='g3')]
+
+    sample_output = [
+        [_aci_obj('vzRsSubjGraphAtt',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/rsSubjGraphAtt',
+                  tnVnsAbsGraphName='g1')],
+        [_aci_obj('vzInTerm',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl'),
          _aci_obj('vzRsInTermGraphAtt',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/intmnl/'
                      'rsInTermGraphAtt',
                   tnVnsAbsGraphName='g2')],
-        [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s2',
-                  nameAlias=""),
-         _aci_obj('vzOutTerm',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s2/outtmnl'),
+        [_aci_obj('vzOutTerm',
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl'),
          _aci_obj('vzRsOutTermGraphAtt',
-                  dn='uni/tn-test-tenant/brc-c1/subj-s2/outtmnl/'
+                  dn='uni/tn-test-tenant/brc-c1/subj-s1/outtmnl/'
                      'rsOutTermGraphAtt',
                   tnVnsAbsGraphName='g3')]]
 

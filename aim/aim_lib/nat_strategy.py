@@ -479,8 +479,12 @@ class NatStrategyMixin(NatStrategy):
         subject = resource.ContractSubject(
             tenant_name=contract.tenant_name,
             contract_name=contract.name,
-            name='Allow', display_name='Allow',
-            bi_filters=[fltr.name])
+            name='Allow', display_name='Allow')
+        subject_filter = resource.ContractSubjFilter(
+            tenant_name=contract.tenant_name,
+            contract_name=contract.name,
+            contract_subject_name='Allow',
+            filter_name=fltr.name)
         bd = self._get_nat_bd(ctx, l3out)
         bd.vrf_name = l3out.vrf_name
         ap, epg = self._get_nat_ap_epg(ctx, l3out)
@@ -497,7 +501,7 @@ class NatStrategyMixin(NatStrategy):
         epg.consumed_contract_names = [contract.name]
         epg.vmm_domains = vm_doms
         epg.physical_domains = phy_doms
-        return [fltr, entry, contract, subject, bd, ap, epg]
+        return [fltr, entry, contract, subject, subject_filter, bd, ap, epg]
 
     def _select_domains(self, objs, vmm_domains=None, phys_domains=None):
         for obj in objs:

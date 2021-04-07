@@ -574,6 +574,114 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
         return res_attr
 
 
+class ContractSubjFilter(model_base.Base, model_base.HasAimId,
+                         model_base.HasTenantName,
+                         model_base.HasDisplayName,
+                         model_base.AttributeMixin,
+                         model_base.IsMonitored):
+    """DB model for filters used by Contract Subject."""
+    __tablename__ = 'aim_contract_subject_filter_relation'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
+                               'contract_subject_name',
+                               'filter_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    contract_name = model_base.name_column(nullable=False)
+    contract_subject_name = model_base.name_column(nullable=False)
+    filter_name = sa.Column(sa.String(64), nullable=False)
+    action = sa.Column(sa.Enum('permit', 'deny'))
+
+
+class ContractSubjInFilter(model_base.Base, model_base.HasAimId,
+                           model_base.HasTenantName,
+                           model_base.HasDisplayName,
+                           model_base.AttributeMixin,
+                           model_base.IsMonitored):
+    """DB model for in filters used by Contract Subject."""
+    __tablename__ = 'aim_contract_subject_in_filter_relation'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
+                               'contract_subject_name',
+                               'filter_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    contract_name = model_base.name_column(nullable=False)
+    contract_subject_name = model_base.name_column(nullable=False)
+    filter_name = sa.Column(sa.String(64), nullable=False)
+    action = sa.Column(sa.Enum('permit', 'deny'))
+
+
+class ContractSubjOutFilter(model_base.Base, model_base.HasAimId,
+                            model_base.HasTenantName,
+                            model_base.HasDisplayName,
+                            model_base.AttributeMixin,
+                            model_base.IsMonitored):
+    """DB model for out filters used by Contract Subject."""
+    __tablename__ = 'aim_contract_subject_out_filter_relation'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
+                               'contract_subject_name',
+                               'filter_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    contract_name = model_base.name_column(nullable=False)
+    contract_subject_name = model_base.name_column(nullable=False)
+    filter_name = sa.Column(sa.String(64), nullable=False)
+    action = sa.Column(sa.Enum('permit', 'deny'))
+
+
+class ContractSubjGraph(model_base.Base, model_base.HasAimId,
+                        model_base.HasTenantName,
+                        model_base.HasDisplayName,
+                        model_base.AttributeMixin,
+                        model_base.IsMonitored):
+    """DB model for filters used by Contract Subject."""
+    __tablename__ = 'aim_contract_subject_graph_relation'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
+                               'contract_subject_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    contract_name = model_base.name_column(nullable=False)
+    contract_subject_name = model_base.name_column(nullable=False)
+    graph_name = sa.Column(sa.String(64))
+
+
+class ContractSubjOutGraph(model_base.Base, model_base.HasAimId,
+                           model_base.HasTenantName,
+                           model_base.HasDisplayName,
+                           model_base.AttributeMixin,
+                           model_base.IsMonitored):
+    """DB model for filters used by Contract Subject."""
+    __tablename__ = 'aim_contract_subject_out_graph_relation'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
+                               'contract_subject_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    contract_name = model_base.name_column(nullable=False)
+    contract_subject_name = model_base.name_column(nullable=False)
+    graph_name = sa.Column(sa.String(64))
+
+
+class ContractSubjInGraph(model_base.Base, model_base.HasAimId,
+                          model_base.HasTenantName,
+                          model_base.HasDisplayName,
+                          model_base.AttributeMixin,
+                          model_base.IsMonitored):
+    """DB model for filters used by Contract Subject."""
+    __tablename__ = 'aim_contract_subject_in_graph_relation'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name', 'contract_name',
+                               'contract_subject_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    contract_name = model_base.name_column(nullable=False)
+    contract_subject_name = model_base.name_column(nullable=False)
+    graph_name = sa.Column(sa.String(64))
+
+
 class Endpoint(model_base.Base, model_base.HasDisplayName,
                model_base.AttributeMixin):
     """DB model for Endpoint."""

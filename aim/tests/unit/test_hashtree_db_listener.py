@@ -345,11 +345,25 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             self.ctx, aim_res.Contract(tenant_name='common', name='c-name'))
         subj = aim_res.ContractSubject(
             **{'contract_name': 'c-name',
-               'out_filters': ['pr_1', 'reverse-pr_1', 'pr_2', 'reverse-pr_2'],
                'name': 's-name',
-               'tenant_name': 'common', 'monitored': False, 'bi_filters': [],
-               'in_filters': ['pr_1', 'reverse-pr_1', 'pr_2', 'reverse-pr_2']})
+               'tenant_name': 'common', 'monitored': False})
         subj = self.mgr.create(self.ctx, subj)
+
+        subj_flt = aim_res.ContractSubjOutFilter(
+            **{'contract_name': 'c-name',
+               'contract_subject_name': 's-name',
+               'tenant_name': 'common',
+               'monitored': False,
+               'filter_name': 'pr_1'})
+        subj_flt = self.mgr.create(self.ctx, subj_flt)
+
+        subj_flt1 = aim_res.ContractSubjInFilter(
+            **{'contract_name': 'c-name',
+               'contract_subject_name': 's-name',
+               'tenant_name': 'common',
+               'monitored': False,
+               'filter_name': 'pr_1'})
+        subj_flt1 = self.mgr.create(self.ctx, subj_flt1)
         cfg_tree = self.tt_mgr.get(self.ctx, 'tn-common',
                                    tree=tree_manager.CONFIG_TREE)
         # verify pr_1 and its reverse are in the tree
@@ -358,22 +372,17 @@ class TestHashTreeDbListener(base.TestAimDBBase):
              "vzOutTerm|outtmnl", "vzRsFiltAtt|pr_1"))
         rev_pr_1 = cfg_tree.find(
             ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
-             "vzOutTerm|outtmnl", "vzRsFiltAtt|reverse-pr_1"))
+             "vzInTerm|intmnl", "vzRsFiltAtt|pr_1"))
         self.assertIsNotNone(pr_1)
         self.assertIsNotNone(rev_pr_1)
 
-        self.mgr.update(self.ctx, subj, out_filters=['pr_2', 'reverse-pr_2'],
-                        in_filters=['pr_2', 'reverse-pr_2'])
+        self.mgr.update(self.ctx, subj_flt1, action='deny')
         cfg_tree = self.tt_mgr.get(self.ctx, 'tn-common',
                                    tree=tree_manager.CONFIG_TREE)
-        pr_1 = cfg_tree.find(
-            ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
-             "vzOutTerm|outtmnl", "vzRsFiltAtt|pr_1"))
         rev_pr_1 = cfg_tree.find(
             ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
-             "vzOutTerm|outtmnl", "vzRsFiltAtt|reverse-pr_1"))
-        self.assertIsNone(pr_1)
-        self.assertIsNone(rev_pr_1)
+             "vzInTerm|intmnl", "vzRsFiltAtt|pr_1"))
+        self.assertIsNotNone(rev_pr_1)
 
     def test_delete_all_trees(self):
         self.mgr.create(self.ctx, aim_res.Tenant(name='common'))

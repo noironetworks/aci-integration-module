@@ -35,7 +35,6 @@ CLEARED_SEVERITY = "cleared"
 MODIFIED_STATUS = "modified"
 CREATED_STATUS = "created"
 
-
 # TODO(amitbose) Instead of aliasing, replace local references with the
 # ones from utils
 default_identity_converter = utils.default_identity_converter
@@ -553,6 +552,56 @@ def bgp_extp_converter(object_dict, otype, helper,
     return result
 
 
+def rsFilt_converter(aci_mo=None):
+    def func(object_dict, otype, helper, source_identity_attributes,
+             destination_identity_attributes, to_aim=True):
+        result = []
+        id_conv = (helper.get('identity_converter') or
+                   default_identity_converter)
+        if to_aim:
+            res_dict = {}
+            aci_type = aci_mo or otype
+            try:
+                id = id_conv(object_dict, aci_type, helper, to_aim=True)
+            except apic_client.DNManager.InvalidNameFormat:
+                return []
+            for index, attr in enumerate(destination_identity_attributes):
+                res_dict[attr] = id[index]
+            if object_dict.get('action'):
+                res_dict['action'] = object_dict['action']
+            result.append(default_to_resource(res_dict, helper, to_aim=True))
+        else:
+            aci_type = aci_mo or helper['resource']
+            dn = id_conv(object_dict, otype, helper,
+                         aci_mo_type=aci_type, to_aim=False)[0]
+            action = 'permit'
+            if object_dict.get('action'):
+                action = object_dict['action']
+            result.append({aci_type:
+                           {'attributes':
+                            {'dn': dn,
+                             'action': action,
+                             'tnVzFilterName': object_dict['filter_name']}}})
+        return result
+    return func
+
+
+def vzterm_converter(object_dict, otype, helper, source_identity_attributes,
+                     destination_identity_attributes, to_aim=True):
+    result = []
+    id_conv = (helper.get('identity_converter') or
+               default_identity_converter)
+    if to_aim:
+        pass
+    else:
+        aci_type = helper['resource']
+        dn = id_conv(object_dict, otype, helper,
+                     aci_mo_type=aci_type, to_aim=False)[0]
+        result.append({aci_type:
+                       {'attributes':
+                        {'dn': dn}}})
+    return result
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -581,11 +630,9 @@ infraRsSpanVSrcGrp_converter = child_list('span_vsource_group_names',
                                           'tnSpanVSrcGrpName')
 infraRsSpanVDestGrp_converter = child_list('span_vdest_group_names',
                                            'tnSpanVDestGrpName')
-vzRsSubjFiltAtt_converter = child_list('bi_filters', 'tnVzFilterName')
-vzInTerm_vzRsFiltAtt_converter = child_list('in_filters', 'tnVzFilterName',
-                                            aci_mo='vzRsFiltAtt__In')
-vzOutTerm_vzRsFiltAtt_converter = child_list('out_filters', 'tnVzFilterName',
-                                             aci_mo='vzRsFiltAtt__Out')
+vzRsSubjFiltAtt_converter = rsFilt_converter()
+vzRsFiltAtt_in_converter = rsFilt_converter(aci_mo='vzRsFiltAtt__In')
+vzRsFiltAtt_out_converter = rsFilt_converter(aci_mo='vzRsFiltAtt__Out')
 fvRsProv_Ext_converter = child_list('provided_contract_names', 'tnVzBrCPName',
                                     aci_mo='fvRsProv__Ext')
 fvRsCons_Ext_converter = child_list('consumed_contract_names', 'tnVzBrCPName',
@@ -628,6 +675,7 @@ def bgp_as_id_converter(object_dict, otype, helper, to_aim=True):
     return default_identity_converter(object_dict, otype, helper,
                                       aci_mo_type='bgpAsP__Peer',
                                       to_aim=to_aim)
+
 
 resource_map = {
     'fvBD': [{
@@ -788,41 +836,34 @@ resource_map = {
                  'out_service_graph_name'],
     }],
     'vzRsSubjFiltAtt': [{
-        'resource': resource.ContractSubject,
-        'converter': vzRsSubjFiltAtt_converter
+        'resource': resource.ContractSubjFilter,
+        'converter': vzRsSubjFiltAtt_converter,
     }],
     'vzRsSubjGraphAtt': [{
-        'resource': resource.ContractSubject,
-        'exceptions': {'tnVnsAbsGraphName': {'other': 'service_graph_name',
-                                             'skip_if_empty': True}},
+        'resource': resource.ContractSubjGraph,
+        'exceptions': {'tnVnsAbsGraphName': {'other': 'graph_name'}},
         'to_resource': default_to_resource_strict,
     }],
-    'vzRsFiltAtt': [{'resource': resource.ContractSubject,
-                     'converter': vzInTerm_vzRsFiltAtt_converter},
-                    {'resource': resource.ContractSubject,
-                     'converter': vzOutTerm_vzRsFiltAtt_converter}],
-    'vzInTerm': [{
-        'resource': resource.ContractSubject,
-        'to_resource': to_resource_filter_container,
-        'skip': ['display_name']
-    }],
-    'vzOutTerm': [{
-        'resource': resource.ContractSubject,
-        'to_resource': to_resource_filter_container,
-        'skip': ['display_name']
-    }],
+    'vzRsFiltAtt': [{'resource': resource.ContractSubjInFilter,
+                     'converter': vzRsFiltAtt_in_converter},
+                    {'resource': resource.ContractSubjOutFilter,
+                     'converter': vzRsFiltAtt_out_converter}],
+    'vzInTerm': [{'resource': resource.ContractSubjInFilter,
+                  'converter': vzterm_converter},
+                 {'resource': resource.ContractSubjInGraph,
+                  'converter': vzterm_converter}],
+    'vzOutTerm': [{'resource': resource.ContractSubjOutFilter,
+                   'converter': vzterm_converter},
+                  {'resource': resource.ContractSubjOutGraph,
+                   'converter': vzterm_converter}],
     'vzRsInTermGraphAtt': [{
-        'resource': resource.ContractSubject,
-        'exceptions': {'tnVnsAbsGraphName':
-                       {'other': 'in_service_graph_name',
-                        'skip_if_empty': True}},
+        'resource': resource.ContractSubjInGraph,
+        'exceptions': {'tnVnsAbsGraphName': {'other': 'graph_name'}},
         'to_resource': default_to_resource_strict,
     }],
     'vzRsOutTermGraphAtt': [{
-        'resource': resource.ContractSubject,
-        'exceptions': {'tnVnsAbsGraphName':
-                       {'other': 'out_service_graph_name',
-                        'skip_if_empty': True}},
+        'resource': resource.ContractSubjOutGraph,
+        'exceptions': {'tnVnsAbsGraphName': {'other': 'graph_name'}},
         'to_resource': default_to_resource_strict,
     }],
     'l3extOut': [{
@@ -1140,10 +1181,10 @@ for apic_type, rule_list in resource_map.items():
 #  vzRsFiltAtt__In, vzRsFiltAtt__Out
 #  fvRsProv__Ext, fvRsCons__Ext
 resource_map.update({
-    'vzRsFiltAtt__In': [{'resource': resource.ContractSubject,
-                         'converter': vzInTerm_vzRsFiltAtt_converter}],
-    'vzRsFiltAtt__Out': [{'resource': resource.ContractSubject,
-                          'converter': vzOutTerm_vzRsFiltAtt_converter}],
+    'vzRsFiltAtt__In': [{'resource': resource.ContractSubjInFilter,
+                         'converter': vzRsFiltAtt_in_converter}],
+    'vzRsFiltAtt__Out': [{'resource': resource.ContractSubjOutFilter,
+                          'converter': vzRsFiltAtt_out_converter}],
     'fvRsProv__Ext': [{'resource': resource.ExternalNetwork,
                        'converter': fvRsProv_Ext_converter,
                        'convert_pre_existing': True,

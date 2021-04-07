@@ -925,23 +925,35 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         exp_tree = tree.StructuredHashTree()
 
         subj = resource.ContractSubject(tenant_name='t1', contract_name='c1',
-                                        name='s1', in_filters=['i1'],
-                                        out_filters=['o1'], bi_filters=['f1'])
-        self.maker.update(htree, [subj])
+                                        name='s1')
+        subj_flt = resource.ContractSubjFilter(
+            tenant_name='t1', contract_name='c1',
+            contract_subject_name='s1', filter_name='f1',
+            direction='bi')
+        subj_flt_in = resource.ContractSubjInFilter(
+            tenant_name='t1', contract_name='c1',
+            contract_subject_name='s1', filter_name='i1')
+        subj_flt_out = resource.ContractSubjOutFilter(
+            tenant_name='t1', contract_name='c1', contract_subject_name='s1',
+            filter_name='o1')
+        self.maker.update(htree, [subj, subj_flt, subj_flt_in, subj_flt_out])
 
         exp_tree = exp_tree.add(('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1'),
                                 nameAlias='')
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
              'vzInTerm|intmnl', 'vzRsFiltAtt|i1'),
-            tnVzFilterName='i1')
+            **{'tnVzFilterName': 'i1',
+               'action': 'permit'})
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
              'vzOutTerm|outtmnl', 'vzRsFiltAtt|o1'),
-            tnVzFilterName='o1')
+            **{'tnVzFilterName': 'o1',
+               'action': 'permit'})
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzRsSubjFiltAtt|f1'),
-            tnVzFilterName='f1')
+            **{'tnVzFilterName': 'f1',
+               'action': 'permit'})
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1', 'vzInTerm|intmnl'))
         exp_tree = exp_tree.add(

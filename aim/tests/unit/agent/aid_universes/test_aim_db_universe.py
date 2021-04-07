@@ -323,8 +323,8 @@ class TestAimDbUniverseBase(object):
         subj = resource.ContractSubject(tenant_name='t1', contract_name='c',
                                         name='s2')
         status = aim_mgr.get_status(self.ctx, subj)
-        self.assertEqual(3, len(status.faults))
-        self.assertEqual(['F1111', 'F1112', 'F1113'],
+        self.assertEqual(2, len(status.faults))
+        self.assertEqual(['F1111', 'F1112'],
                          [f.fault_code for f in status.faults])
 
         # delete filter faults

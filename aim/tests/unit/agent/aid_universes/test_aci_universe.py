@@ -253,13 +253,16 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                 'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl'}}},
             {'vzRsSubjFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/rssubjFiltAtt-f',
-                'tnVzFilterName': 'f'}}},
+                'tnVzFilterName': 'f',
+                'action': 'permit'}}},
             {'vzRsFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/intmnl/rsfiltAtt-g',
-                'tnVzFilterName': 'g'}}},
+                'tnVzFilterName': 'g',
+                'action': 'permit'}}},
             {'vzRsFiltAtt': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/outtmnl/rsfiltAtt-h',
-                'tnVzFilterName': 'h'}}}]
+                'tnVzFilterName': 'h',
+                'action': 'permit'}}}]
         self._add_data_to_tree(objs, self.backend_state)
         keys = [('fvTenant|t1', 'fvAp|a1', 'fvAEPg|test', 'faultInst|951'),
                 ('fvTenant|test-tenant', 'fvBD|test'),

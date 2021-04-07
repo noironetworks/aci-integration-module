@@ -671,6 +671,156 @@ class ContractSubject(AciResourceBase):
              'monitored': False}, **kwargs)
 
 
+class ContractSubjInFilter(AciResourceBase):
+    """Resource representing a subject within a contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('contract_subject_name', t.name),
+        ('filter_name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('action', t.enum('permit', 'deny')),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzRsFiltAtt__In'
+    _tree_parent = ContractSubject
+
+    def __init__(self, **kwargs):
+        super(ContractSubjInFilter, self).__init__({'action': 'permit',
+                                                    'monitored': False},
+                                                   **kwargs)
+
+
+class ContractSubjOutFilter(AciResourceBase):
+    """Resource representing a subject within a contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('contract_subject_name', t.name),
+        ('filter_name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('action', t.enum('permit', 'deny')),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzRsFiltAtt__Out'
+    _tree_parent = ContractSubject
+
+    def __init__(self, **kwargs):
+        super(ContractSubjOutFilter, self).__init__({'action': 'permit',
+                                                     'monitored': False},
+                                                    **kwargs)
+
+
+class ContractSubjFilter(AciResourceBase):
+    """Resource representing a subject within a contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('contract_subject_name', t.name),
+        ('filter_name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('action', t.enum('permit', 'deny')),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzRsSubjFiltAtt'
+    _tree_parent = ContractSubject
+
+    def __init__(self, **kwargs):
+        super(ContractSubjFilter, self).__init__({'action': 'permit',
+                                                  'monitored': False},
+                                                 **kwargs)
+
+
+class ContractSubjInGraph(AciResourceBase):
+    """Resource representing a subject within a contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('contract_subject_name', t.name))
+    other_attributes = t.other(
+        ('graph_name', t.name),
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzRsInTermGraphAtt'
+    _tree_parent = ContractSubject
+
+    def __init__(self, **kwargs):
+        super(ContractSubjInGraph, self).__init__({'monitored': False},
+                                                  **kwargs)
+
+
+class ContractSubjOutGraph(AciResourceBase):
+    """Resource representing a subject within a contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('contract_subject_name', t.name))
+    other_attributes = t.other(
+        ('graph_name', t.name),
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzRsOutTermGraphAtt'
+    _tree_parent = ContractSubject
+
+    def __init__(self, **kwargs):
+        super(ContractSubjOutGraph, self).__init__({'monitored': False},
+                                                   **kwargs)
+
+
+class ContractSubjGraph(AciResourceBase):
+    """Resource representing a subject within a contract in ACI.
+
+    Identity attributes: name of ACI tenant, name of contract and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('contract_name', t.name),
+        ('contract_subject_name', t.name))
+    other_attributes = t.other(
+        ('graph_name', t.name),
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'vzRsSubjGraphAtt'
+    _tree_parent = ContractSubject
+
+    def __init__(self, **kwargs):
+        super(ContractSubjGraph, self).__init__({'monitored': False},
+                                                **kwargs)
+
+
 class Endpoint(ResourceBase):
     """Resource representing an endpoint.
 

@@ -692,6 +692,48 @@ class TestContractSubject(test_aim_manager.TestContractSubjectMixin,
     pass
 
 
+class TestContractSubjFilter(
+        test_aim_manager.TestContractSubjFilterMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
+class TestContractSubjInFilter(
+        test_aim_manager.TestContractSubjInFilterMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
+class TestContractSubjOutFilter(
+        test_aim_manager.TestContractSubjOutFilterMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
+class TestContractSubjGraph(
+        test_aim_manager.TestContractSubjGraphMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
+class TestContractSubjInGraph(
+        test_aim_manager.TestContractSubjInGraphMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
+class TestContractSubjOutGraph(
+        test_aim_manager.TestContractSubjOutGraphMixin,
+        TestManagerResourceOpsBase,
+        base.TestShell):
+    pass
+
+
 class TestEndpoint(test_aim_manager.TestEndpointMixin,
                    TestManagerResourceOpsBase,
                    base.TestShell):
