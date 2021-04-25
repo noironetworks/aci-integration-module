@@ -208,7 +208,10 @@ class SqlAlchemyStore(AimStore):
                     api_res.Filter: models.Filter,
                     api_res.FilterEntry: models.FilterEntry,
                     api_res.Contract: models.Contract,
+                    api_res.OutOfBandContract: models.OutOfBandContract,
                     api_res.ContractSubject: models.ContractSubject,
+                    api_res.OutOfBandContractSubject:
+                        models.OutOfBandContractSubject,
                     api_status.AciStatus: status_model.Status,
                     api_status.AciFault: status_model.Fault,
                     api_res.Endpoint: models.Endpoint,

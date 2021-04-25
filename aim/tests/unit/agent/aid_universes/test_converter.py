@@ -103,7 +103,7 @@ class TestAciToAimConverterBase(object):
         reverse = converter.reverse_resource_map[resource_type]
         self.assertEqual(len(expected), len(reverse),
                          '\nExpected:\n%s\nFound:\n%s' %
-                            (pprint.pformat(expected),
+                         (pprint.pformat(expected),
                              pprint.pformat(reverse)))
         for idx in range(len(expected)):
             self.assertTrue(expected[idx] in reverse,
@@ -622,6 +622,30 @@ class TestAciToAimConverterContract(TestAciToAimConverterBase,
                           scope='tenant', display_name='alias')]
 
 
+def get_example_aim_oob_contract(**kwargs):
+    attr = {'name': 'c1',
+            'dn': 'uni/tn-test-tenant/oobbrc-c1',
+            'scope': 'context'}
+    attr.update(**kwargs)
+    return _aci_obj('vzOOBBrCP', **attr)
+
+
+class TestAciToAimConverterOutOfBandContract(TestAciToAimConverterBase,
+                                             base.TestAimDBBase):
+    resource_type = resource.OutOfBandContract
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'vzOOBBrCP'}]
+    sample_input = [get_example_aim_oob_contract(),
+                    get_example_aim_oob_contract(
+                        dn='uni/tn-test-tenant/oobbrc-c2',
+                        scope='tenant',
+                        nameAlias='alias')]
+    sample_output = [
+        resource.OutOfBandContract(tenant_name='test-tenant', name='c1'),
+        resource.OutOfBandContract(tenant_name='test-tenant', name='c2',
+                                   scope='tenant', display_name='alias')]
+
+
 def get_example_aci_subject(**kwargs):
     attr = {'name': 's1',
             'dn': 'uni/tn-t1/brc-c/subj-s'}
@@ -635,6 +659,7 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
     reverse_map_output = [
         {'resource': 'vzSubj',
          'exceptions': {},
+         'converter': converter.contract_converter,
          'skip': ['inFilters', 'outFilters', 'biFilters',
                   'serviceGraphName', 'inServiceGraphName',
                   'outServiceGraphName']},
@@ -756,6 +781,41 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
                                  name='prs1', display_name='prs1',
                                  in_filters=['pr1', 'reverse-pr1'],
                                  out_filters=['pr1', 'reverse-pr1'])]
+
+
+def get_example_aci_oob_subject(**kwargs):
+    attr = {'name': 's1',
+            'dn': 'uni/tn-t1/oobbrc-c/subj-s'}
+    attr.update(**kwargs)
+    return _aci_obj('vzSubj', **attr)
+
+
+class TestAciToAimConverterOutOfBandContractSubject(TestAciToAimConverterBase,
+                                                    base.TestAimDBBase):
+    resource_type = resource.OutOfBandContractSubject
+    reverse_map_output = [
+        {'resource': 'vzSubj__tn',
+         'exceptions': {},
+         'skip': ['inFilters', 'outFilters', 'biFilters',
+                  'serviceGraphName', 'inServiceGraphName',
+                  'outServiceGraphName']
+         }]
+    sample_input = [[get_example_aci_oob_subject(nameAlias='alias')],
+                    [{'vzSubj': {
+                        'attributes': {
+                            'dn': 'uni/tn-common/oobbrc-prs1/subj-prs1',
+                            'nameAlias': 'prs1',
+                            'name': 'prs1'}}}]]
+    sample_output = [
+        resource.OutOfBandContractSubject(tenant_name='t1',
+                                          contract_name='c',
+                                          name='s',
+                                          display_name='alias'),
+        resource.OutOfBandContractSubject(tenant_name='common',
+                                          contract_name='prs1',
+                                          name='prs1',
+                                          display_name='prs1')
+        ]
 
 
 class TestAciToAimConverterFault(TestAciToAimConverterBase,
@@ -2691,6 +2751,50 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
                   dn='uni/tn-test-tenant/brc-c1/subj-s2/outtmnl/'
                      'rsOutTermGraphAtt',
                   tnVnsAbsGraphName='g3')]]
+
+
+def get_example_aci_oob_contract(**kwargs):
+    example = resource.OutOfBandContract(tenant_name='test-tenant', name='c1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterOOBContract(TestAimToAciConverterBase,
+                                       base.TestAimDBBase):
+    sample_input = [get_example_aci_oob_contract(),
+                    get_example_aci_oob_contract(
+        name='c2', scope=resource.OutOfBandContract.SCOPE_TENANT,
+        display_name='alias')]
+    sample_output = [
+        [_aci_obj('vzOOBBrCP', dn='uni/tn-test-tenant/oobbrc-c1',
+                  scope='context', nameAlias="")],
+        [_aci_obj('vzOOBBrCP', dn='uni/tn-test-tenant/oobbrc-c2',
+                  scope='tenant', nameAlias='alias')]
+    ]
+
+
+def get_example_aim_oob_contract_subject(**kwargs):
+    example = resource.OutOfBandContractSubject(tenant_name='test-tenant',
+                                                contract_name='c1', name='s1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterOutOfBandContractSubject(TestAimToAciConverterBase,
+                                                    base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_oob_contract_subject(in_filters=[],
+                                             out_filters=[],
+                                             bi_filters=[],
+                                             service_graph_name='',
+                                             in_service_graph_name='',
+                                             display_name='alias'),
+        get_example_aim_oob_contract_subject(name='s2')]
+    sample_output = [
+        [_aci_obj('vzSubj__tn', dn='uni/tn-test-tenant/oobbrc-c1/subj-s1',
+                  nameAlias='alias')],
+        [_aci_obj('vzSubj__tn', dn='uni/tn-test-tenant/oobbrc-c1/subj-s2',
+                  nameAlias="")]]
 
 
 def get_example_aim_l3outside(**kwargs):

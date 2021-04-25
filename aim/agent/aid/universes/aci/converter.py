@@ -553,6 +553,46 @@ def bgp_extp_converter(object_dict, otype, helper,
     return result
 
 
+def contract_converter(object_dict, otype, helper,
+                       source_identity_attributes,
+                       destination_identity_attributes,
+                       to_aim=True):
+    result = []
+    res_dict = {}
+    if to_aim:
+        try:
+            identity = default_identity_converter(object_dict, otype, helper,
+                                                  to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            # It hits this exception if it's out of band contract subject only.
+            # Modify AIM resource to point to OutOfBand Contract and aci type
+            # to vzSubj__tn
+            helper = resource_map['vzSubj__tn'][0]
+            destination_identity_attributes = (
+                helper['resource'].identity_attributes)
+            identity = default_identity_converter(object_dict, otype, helper,
+                                                  aci_mo_type="vzSubj__tn",
+                                                  to_aim=True)
+    else:
+        identity = default_identity_converter(object_dict, otype, helper,
+                                              to_aim=False)
+    for index, part in enumerate(destination_identity_attributes):
+        res_dict[part] = identity[index]
+    for attribute in object_dict:
+        if attribute in source_identity_attributes:
+            continue
+        others = utils.do_attribute_conversion(object_dict, attribute,
+                                               helper.get('exceptions', {}),
+                                               to_aim=to_aim)
+        for other_k, other_v in others.items():
+            # Identity was already converted
+            if other_k not in destination_identity_attributes:
+                res_dict[other_k] = other_v
+    result = default_to_resource(res_dict, helper, to_aim=to_aim)
+
+    return [result] if result else []
+
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -628,6 +668,7 @@ def bgp_as_id_converter(object_dict, otype, helper, to_aim=True):
     return default_identity_converter(object_dict, otype, helper,
                                       aci_mo_type='bgpAsP__Peer',
                                       to_aim=to_aim)
+
 
 resource_map = {
     'fvBD': [{
@@ -781,8 +822,18 @@ resource_map = {
     'vzBrCP': [{
         'resource': resource.Contract,
     }],
+    'vzOOBBrCP': [{
+        'resource': resource.OutOfBandContract,
+    }],
     'vzSubj': [{
         'resource': resource.ContractSubject,
+        'converter': contract_converter,
+        'skip': ['in_filters', 'out_filters', 'bi_filters',
+                 'service_graph_name', 'in_service_graph_name',
+                 'out_service_graph_name'],
+    }],
+    'vzSubj__tn': [{
+        'resource': resource.OutOfBandContractSubject,
         'skip': ['in_filters', 'out_filters', 'bi_filters',
                  'service_graph_name', 'in_service_graph_name',
                  'out_service_graph_name'],
