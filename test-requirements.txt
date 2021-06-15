@@ -8,6 +8,7 @@
 hacking<0.11,>=0.10.0
 
 cherrypy
+click<=7.1.2
 coverage>=3.6
 # Needed by apicapi
 PyMySQL!=v1.0.0,>=0.7.6;python_version=='2.7' # MIT License
