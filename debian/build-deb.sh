@@ -43,7 +43,6 @@ sed -i "s/Package: aci-integration-module/Package: python3-aci-integration-modul
 sed -i "s/Python2.7/Python3/g" debian/control
 sed -i "s/2.7/3.3/g" debian/control
 sed -i "s/acitoolkit/python3-acitoolkit/g" debian/control
-sed -i "s/apicapi/python3-apicapi/g" debian/control
 sed -i "s/python2/python3/g" debian/rules
 
 # Build the python3 package
