@@ -92,3 +92,7 @@ class BadTrackingArgument(AimException):
     message = ("Bad argument passed to the tracking function. root %(exp)s "
                "expected, but there are resources for root %(act)s. "
                "All objects: %(res)s")
+
+
+class DefaultSecurityGroupNameError(AimException):
+    message = "Name attribute %(attr)s not allowed for resource %(klass)s."

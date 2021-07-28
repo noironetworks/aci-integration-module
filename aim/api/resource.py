@@ -1168,6 +1168,93 @@ class SecurityGroupRule(AciResourceBase):
              'monitored': False}, **kwargs)
 
 
+class SystemSecurityGroup(AciResourceBase):
+    """Resource representing a System Security Group in ACI.
+
+    Identity attributes: name of ACI tenant and name of security group
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotPol'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        super(SystemSecurityGroup, self).__init__({'monitored': False},
+                                                  **kwargs)
+
+
+class SystemSecurityGroupSubject(AciResourceBase):
+    """Resource representing a subject within a System SG in ACI.
+
+    Identity attributes: name of ACI tenant, name of security group and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotSubj'
+    _tree_parent = SystemSecurityGroup
+
+    def __init__(self, **kwargs):
+        super(SystemSecurityGroupSubject, self).__init__(
+            {'monitored': False}, **kwargs)
+
+
+class SystemSecurityGroupRule(AciResourceBase):
+    """Resource representing a System SG's rule in ACI.
+
+    Identity attributes: name of ACI tenant, name of security group, name of
+    subject and name of rule
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name),
+        ('security_group_subject_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('direction', t.enum("", "ingress", "egress")),
+        ('ethertype', t.enum("", "undefined", "ipv4", "ipv6")),
+        ('remote_ips', t.list_of_strings),
+        ('ip_protocol', t.string()),
+        ('from_port', t.port),
+        ('to_port', t.port),
+        ('conn_track', t.enum('normal', 'reflexive')),
+        ('icmp_type', t.string()),
+        ('icmp_code', t.string()),
+        ('remote_group_id', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotRule'
+    _tree_parent = SystemSecurityGroupSubject
+
+    def __init__(self, **kwargs):
+        super(SystemSecurityGroupRule, self).__init__(
+            {'direction': 'ingress',
+             'ethertype': "undefined",
+             'remote_ips': [],
+             'ip_protocol': self.UNSPECIFIED,
+             'from_port': self.UNSPECIFIED,
+             'to_port': self.UNSPECIFIED,
+             'icmp_type': self.UNSPECIFIED,
+             'icmp_code': self.UNSPECIFIED,
+             'conn_track': 'reflexive',
+             'remote_group_id': '',
+             'monitored': False}, **kwargs)
+
+
 class Configuration(ResourceBase):
 
     identity_attributes = t.identity(
