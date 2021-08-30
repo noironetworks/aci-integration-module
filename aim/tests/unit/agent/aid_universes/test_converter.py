@@ -1240,9 +1240,10 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
             'ethertype': {'other': 'ethertype',
                           'converter': converter.ethertype}},
          'skip': ['remoteIps', 'remoteGroupId'],
+         'converter': converter.hostprot_rule_converter,
          'resource': 'hostprotRule'},
         {'exceptions': {},
-         'converter': converter.hostprotRemoteIp_converter,
+         'converter': converter.hostprot_remoteIp_converter,
          'resource': 'hostprotRemoteIp'}]
     sample_input = [get_example_aci_security_group_rule(),
                     get_example_aci_security_group_rule(
@@ -2231,6 +2232,60 @@ class TestAciToAimConverterSpanSpanlbl(TestAciToAimConverterBase,
         resource.SpanSpanlbl(vsg_name='testSrcGrp',
                              name='testDstGrp1',
                              tag='yellow-green')]
+
+
+def get_example_aci_system_security_group_rule(**kwargs):
+    attr = {'name': 'rule1',
+            'dn': 'uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                  'subj-sgs1/rule-rule1'}
+    attr.update(**kwargs)
+    return _aci_obj('hostprotRule', **attr)
+
+
+class TestAciToAimConverterSystemSecurityGroupRule(TestAciToAimConverterBase,
+                                                   base.TestAimDBBase):
+    resource_type = resource.SystemSecurityGroupRule
+    reverse_map_output = [
+        {'exceptions': {
+            'ip_protocol': {'other': 'protocol',
+                            'converter': converter.ip_protocol},
+            'from_port': {'other': 'fromPort',
+                          'converter': converter.port},
+            'to_port': {'other': 'toPort',
+                        'converter': converter.port},
+            'icmp_type': {'other': 'icmpType'},
+            'icmp_code': {'other': 'icmpCode',
+                          'converter': converter.icmpv4_code},
+            'ethertype': {'other': 'ethertype',
+                          'converter': converter.ethertype}},
+         'skip': ['remoteIps'],
+         'converter': converter.hostprot_rule_converter,
+         'resource': 'hostprotRule'},
+        {'exceptions': {},
+         'converter': converter.hostprot_remoteIp_converter,
+         'resource': 'hostprotRemoteIp'}]
+    sample_input = [get_example_aci_system_security_group_rule(),
+                    get_example_aci_system_security_group_rule(
+                        dn='uni/tn-common/'
+                           'pol-openstack_aid_SystemSecurityGroup/'
+                           'subj-sgs2/rule-rule1',
+                        connTrack='normal', icmpType='0xffff',
+                        protocol='eigrp', ethertype='ipv4', icmpCode='0')]
+
+    sample_output = [
+        resource.SystemSecurityGroupRule(
+            tenant_name='common',
+            security_group_name='openstack_aid_SystemSecurityGroup',
+            security_group_subject_name='sgs1', name='rule1',
+            conn_track='reflexive', icmp_code='unspecified',
+            icmp_type='unspecified', ethertype='undefined'),
+        resource.SystemSecurityGroupRule(
+            tenant_name='common',
+            security_group_name='openstack_aid_SystemSecurityGroup',
+            security_group_subject_name='sgs2', name='rule1',
+            conn_track='normal', icmp_type='0xffff', icmp_code='0',
+            ip_protocol='eigrp', ethertype='ipv4')
+    ]
 
 
 class TestAimToAciConverterBase(object):
@@ -4662,6 +4717,110 @@ class TestAimToAciConverterQosDppPol(TestAimToAciConverterBase,
                   dn="uni/tn-t2/qosdpppol-d1",
                   rate='30', burst='40', rateUnit="kilo", burstUnit="kilo")],
     ]
+
+
+def get_example_aim_system_security_group(**kwargs):
+    example = resource.SystemSecurityGroup()
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterSystemSecurityGroup(TestAimToAciConverterBase,
+                                               base.TestAimDBBase):
+    sample_input = [get_example_aim_system_security_group()]
+
+    sample_output = [
+        [_aci_obj('hostprotPol',
+                  dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup',
+                  nameAlias='')]]
+
+
+def get_example_aim_system_security_group_subject(**kwargs):
+    example = resource.SystemSecurityGroupSubject(name='sgs1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterSystemSecurityGroupSubject(
+        TestAimToAciConverterBase,
+        base.TestAimDBBase):
+    sample_input = [get_example_aim_system_security_group_subject(),
+                    get_example_aim_system_security_group_subject(name='sgs2')]
+
+    sample_output = [
+        [_aci_obj('hostprotSubj',
+                  dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                     'subj-sgs1',
+                  nameAlias='')],
+        [_aci_obj('hostprotSubj',
+                  dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                     'subj-sgs2',
+                  nameAlias='')]]
+
+
+class TestAimToAciConverterSystemSecurityGroupRule(TestAimToAciConverterBase,
+                                                   base.TestAimDBBase):
+    sample_input = [
+        base.TestAimDBBase._get_example_aim_system_security_group_rule(),
+        base.TestAimDBBase._get_example_aim_system_security_group_rule(
+            security_group_subject_name='sgs2', ip_protocol=115,
+            from_port='80', to_port='443',
+            direction='egress', ethertype='1',
+            conn_track='normal', icmp_type='3',
+            icmp_code='0'),
+        base.TestAimDBBase._get_example_aim_system_security_group_rule(
+            security_group_subject_name='sgs3', ip_protocol=1,
+            from_port='80', to_port='443',
+            remote_ips=['10.0.1.0/24', '192.168.0.0/24'],
+            direction='egress', ethertype='1',
+            conn_track='normal', icmp_type='255',
+            icmp_code='0xffff'),
+        base.TestAimDBBase._get_example_aim_system_security_group_rule(
+            security_group_subject_name='sgs4', ip_protocol=6,
+            from_port='80', to_port='443',
+            direction='egress', ethertype='2',
+            conn_track='normal', icmp_type='unspecified',
+            icmp_code='unspecified')]
+
+    sample_output = [
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                     'subj-sgs1/rule-rule1',
+                  direction='ingress', protocol='unspecified',
+                  fromPort='unspecified', toPort='unspecified',
+                  ethertype='undefined', nameAlias='', connTrack='reflexive',
+                  icmpCode='unspecified', icmpType='unspecified')],
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                     'subj-sgs2/rule-rule1',
+                  protocol='l2tp', direction='egress',
+                  fromPort='http', toPort='https',
+                  ethertype='ipv4', nameAlias='', connTrack='normal',
+                  icmpCode='no-code', icmpType='3')],
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                     'subj-sgs3/rule-rule1',
+                  protocol='icmp', direction='egress',
+                  fromPort='http', toPort='https',
+                  ethertype='ipv4', nameAlias='', connTrack='normal',
+                  icmpCode='unspecified', icmpType='255'),
+         _aci_obj(
+             'hostprotRemoteIp',
+             dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                'subj-sgs3/rule-rule1/ip-[10.0.1.0/24]',
+             addr='10.0.1.0/24'),
+         _aci_obj(
+             'hostprotRemoteIp',
+             dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                'subj-sgs3/rule-rule1/ip-[192.168.0.0/24]',
+             addr='192.168.0.0/24')],
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+                     'subj-sgs4/rule-rule1',
+                  protocol='tcp', direction='egress',
+                  fromPort='http', toPort='https',
+                  ethertype='ipv6', nameAlias='', connTrack='normal',
+                  icmpCode='unspecified', icmpType='unspecified')]]
 
 
 class TestAciToAimConverterQosReq(TestAciToAimConverterBase,

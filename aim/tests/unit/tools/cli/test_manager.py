@@ -448,6 +448,15 @@ class TestManagerResourceOpsBase(object):
                              klass=None):
         klass = klass or self.resource_class
 
+        def get_identity():
+            list1 = []
+            for k in klass.identity_attributes:
+                if (res_command.startswith('system-security-group')):
+                    if (k == 'tenant_name' or k == 'security_group_name'):
+                        continue
+                list1.append(attributes[k])
+            return list1
+
         def transform_list(k, li):
             attr_type = klass.other_attributes.get(k)
             is_list_of_dicts = (
@@ -462,8 +471,7 @@ class TestManagerResourceOpsBase(object):
             elif isinstance(li, list):
                 return ','.join(li) if li else "''"
             return li if li not in ['', None] else "''"
-        identity = [attributes[k] for k in
-                    klass.identity_attributes]
+        identity = get_identity()
         other = ['--%s %s' % (k, transform_list(k, v))
                  for k, v in attributes.items()
                  if k in klass.other_attributes]
@@ -563,54 +571,70 @@ class TestManagerResourceOpsBase(object):
         # Run the following only if ID attributes are also required
         if not (set(test_identity_attributes.keys()) -
                 set(test_required_attributes.keys())):
-            self.run_command('manager ' + res_command + '-create', raises=True)
-            self.run_command('manager ' + res_command + '-update', raises=True)
-            self.run_command('manager ' + res_command + '-delete', raises=True)
-            self.run_command('manager ' + res_command + '-get', raises=True)
-            self.run_command('manager ' + res_command + '-show', raises=True)
+            l_raises = True
+            if (len(test_identity_attributes.keys()) == 0 and
+                    len(test_required_attributes.keys()) == 0):
+                l_raises = False
 
-        creation_attributes = {}
-        creation_attributes.update(test_required_attributes),
-        creation_attributes.update(test_identity_attributes)
+            self.run_command('manager ' + res_command + '-create',
+                             raises=l_raises)
+            self.run_command('manager ' + res_command + '-update',
+                             raises=l_raises)
+            self.run_command('manager ' + res_command + '-delete',
+                             raises=l_raises)
+            self.run_command('manager ' + res_command + '-get',
+                             raises=l_raises)
+            self.run_command('manager ' + res_command + '-show',
+                             raises=l_raises)
 
-        # Verify successful creation
-        r1 = self.create(res_command, creation_attributes)
-        for k, v in creation_attributes.items():
-            self.assertTrue(utils.is_equal(
-                            v, test_aim_manager.getattr_canonical(r1, k)))
+        if not (len(test_identity_attributes.keys()) == 0 and
+                len(test_required_attributes.keys()) == 0):
+            creation_attributes = {}
+            creation_attributes.update(test_required_attributes),
+            creation_attributes.update(test_identity_attributes)
 
-        id_attr_val = {k: v for k, v in test_identity_attributes.items()
-                       if k in r1.identity_attributes}
-        # Verify get
-        r1 = self.get(res_command, id_attr_val)
-        for k, v in creation_attributes.items():
-            self.assertTrue(utils.is_equal(
-                            v, test_aim_manager.getattr_canonical(r1, k)))
+            # Verify successful creation
+            r1 = self.create(res_command, creation_attributes)
+            for k, v in creation_attributes.items():
+                self.assertTrue(utils.is_equal(
+                                v, test_aim_manager.getattr_canonical(r1, k)))
 
-        # Verify show
-        r1 = self.show(res_command, id_attr_val)
-        for k, v in creation_attributes.items():
-            self.assertTrue(utils.is_equal(
-                            v, test_aim_manager.getattr_canonical(r1, k)))
+            id_attr_val = {k: v for k, v in test_identity_attributes.items()
+                           if k in r1.identity_attributes}
+            # Verify get
+            r1 = self.get(res_command, id_attr_val)
+            for k, v in creation_attributes.items():
+                self.assertTrue(utils.is_equal(
+                                v, test_aim_manager.getattr_canonical(r1, k)))
 
-        # Test update
-        updates = {}
-        updates.update(id_attr_val)
-        updates.update(test_update_attributes)
-        r1 = self.update(res_command, updates)
-        for k, v in test_update_attributes.items():
-            self.assertTrue(utils.is_equal(
-                            v, test_aim_manager.getattr_canonical(r1, k)))
+            # Verify show
+            r1 = self.show(res_command, id_attr_val)
+            for k, v in creation_attributes.items():
+                self.assertTrue(utils.is_equal(
+                                v, test_aim_manager.getattr_canonical(r1, k)))
 
-        # Test delete
-        self.delete(res_command, id_attr_val)
-        self.assertIsNone(self.get(res_command, id_attr_val))
-        self.assertIsNone(self.show(res_command, id_attr_val))
+            # Test update
+            updates = {}
+            updates.update(id_attr_val)
+            updates.update(test_update_attributes)
+            r1 = self.update(res_command, updates)
+            for k, v in test_update_attributes.items():
+                self.assertTrue(utils.is_equal(
+                                v, test_aim_manager.getattr_canonical(r1, k)))
+
+            # Test delete
+            self.delete(res_command, id_attr_val)
+            self.assertIsNone(self.get(res_command, id_attr_val))
+            self.assertIsNone(self.show(res_command, id_attr_val))
 
     def _create_prerequisite_objects(self):
         for obj in (self.prereq_objects or []):
-            self.create(climanager.convert(type(obj).__name__), obj.__dict__,
-                        klass=type(obj))
+            res_command = climanager.convert(type(obj).__name__)
+            if(res_command == 'system-security-group'):
+                self.run_command('manager ' + res_command + '-create',
+                                 raises=False)
+            else:
+                self.create(res_command, obj.__dict__, klass=type(obj))
 
     def test_lifecycle(self):
         self._create_prerequisite_objects()
@@ -935,4 +959,22 @@ class TestInfraAccPortGroup(test_aim_manager.TestInfraAccPortGroupMixin,
 class TestSpanSpanlbl(test_aim_manager.TestSpanSpanlblMixin,
                       TestManagerResourceOpsBase,
                       base.TestShell):
+    pass
+
+
+class TestSystemSecurityGroup(test_aim_manager.TestSystemSecurityGroupMixin,
+                              TestManagerResourceOpsBase,
+                              base.TestShell):
+    pass
+
+
+class TestSystemSecurityGroupSubject(
+        test_aim_manager.TestSystemSecurityGroupSubjectMixin,
+        TestManagerResourceOpsBase, base.TestShell):
+    pass
+
+
+class TestSystemSecurityGroupRule(
+        test_aim_manager.TestSystemSecurityGroupRuleMixin,
+        TestManagerResourceOpsBase, base.TestShell):
     pass

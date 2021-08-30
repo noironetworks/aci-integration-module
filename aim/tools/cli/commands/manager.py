@@ -453,6 +453,18 @@ for res in aim_manager.AimManager._db_model_map:
             f = click.option('--%s' % opt, default=ATTR_UNSPECIFIED)(f)
         return f
 
+    def specify_partial_id_attrs(f):
+        try:
+            ids = res.identity_attributes.keys()
+        except AttributeError:
+            ids = res.identity_attributes
+        for id in reversed(ids):
+            if (id == 'tenant_name' or id == 'security_group_name'):
+                f = click.option('--%s' % id, default=ATTR_UNSPECIFIED)(f)
+            else:
+                f = click.argument(id, required=True)(f)
+        return f
+
     def plain_output(f):
         return click.option('--plain', '-p', default=False, is_flag=True)(f)
 
@@ -466,7 +478,14 @@ for res in aim_manager.AimManager._db_model_map:
     name = convert(res.__name__)
     f = click.pass_context(create(res))
     f = plain_output(f)
-    f = specify_all_attrs(f)
+    if (name == 'system-security-group'):
+        f = specify_other_attrs(f)
+        f = specify_id_attrs_as_options(f)
+    elif (name.startswith('system-security-group')):
+        f = specify_other_attrs(f)
+        f = specify_partial_id_attrs(f)
+    else:
+        f = specify_all_attrs(f)
     manager.command(name=name + '-create')(f)
 
     # runtime delete commands
@@ -474,13 +493,25 @@ for res in aim_manager.AimManager._db_model_map:
     f = plain_output(f)
     f = force(f)
     f = cascade(f)
-    f = specify_id_attrs(f)
+    if (name == 'system-security-group'):
+        f = specify_id_attrs_as_options(f)
+    elif (name.startswith('system-security-group')):
+        f = specify_partial_id_attrs(f)
+    else:
+        f = specify_id_attrs(f)
     manager.command(name=name + '-delete')(f)
 
     # runtime update commands
     f = click.pass_context(update(res))
     f = plain_output(f)
-    f = specify_all_attrs(f)
+    if (name == 'system-security-group'):
+        f = specify_other_attrs(f)
+        f = specify_id_attrs_as_options(f)
+    elif (name.startswith('system-security-group')):
+        f = specify_other_attrs(f)
+        f = specify_partial_id_attrs(f)
+    else:
+        f = specify_all_attrs(f)
     manager.command(name=name + '-update')(f)
 
     # runtime find commands
@@ -496,7 +527,12 @@ for res in aim_manager.AimManager._db_model_map:
     for command_sfx in ['-show', '-get']:
         f = click.pass_context(get(res))
         f = plain_output(f)
-        f = specify_id_attrs(f)
+        if (name == 'system-security-group'):
+            f = specify_id_attrs_as_options(f)
+        elif (name.startswith('system-security-group')):
+            f = specify_partial_id_attrs(f)
+        else:
+            f = specify_id_attrs(f)
         manager.command(name=name + command_sfx)(f)
 
     # runtime describe commands

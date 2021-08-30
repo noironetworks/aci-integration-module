@@ -126,7 +126,10 @@ class AimManager(object):
                      api_res.InfraAccBundleGroup,
                      api_res.InfraAccPortGroup,
                      api_res.SpanSpanlbl,
-                     api_tree.ActionLog}
+                     api_tree.ActionLog,
+                     api_res.SystemSecurityGroup,
+                     api_res.SystemSecurityGroupSubject,
+                     api_res.SystemSecurityGroupRule}
 
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}
