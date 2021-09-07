@@ -369,8 +369,6 @@ class SqlAlchemyStore(AimStore):
             else:
                 args = [getattr(db_obj_type, order_by)]
             query = query.order_by(*args)
-        if lock_update:
-            query = query.with_lockmode('update')
         return query
 
     def query_statuses(self, resources):
