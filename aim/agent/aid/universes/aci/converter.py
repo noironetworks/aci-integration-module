@@ -593,6 +593,150 @@ def contract_converter(object_dict, otype, helper,
     return [result] if result else []
 
 
+def hostprot_pol_converter(object_dict, otype, helper,
+                           source_identity_attributes,
+                           destination_identity_attributes,
+                           to_aim=True):
+    result = []
+    res_dict = {}
+    if to_aim:
+        if 'SystemSecurityGroup' in object_dict['dn']:
+            helper = resource_map['hostprotPol'][1]
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+
+    else:
+        id = default_identity_converter(object_dict, otype, helper,
+                                        to_aim=False)
+
+    for index, part in enumerate(destination_identity_attributes):
+        res_dict[part] = id[index]
+    for attribute in object_dict:
+        if attribute in source_identity_attributes:
+            continue
+        others = utils.do_attribute_conversion(object_dict, attribute,
+                                               helper.get('exceptions', {}),
+                                               to_aim=to_aim)
+        for other_k, other_v in others.items():
+            # Identity was already converted
+            if other_k not in destination_identity_attributes:
+                res_dict[other_k] = other_v
+    result = default_to_resource(res_dict, helper, to_aim=to_aim)
+
+    return [result] if result else []
+
+
+def hostprot_subj_converter(object_dict, otype, helper,
+                            source_identity_attributes,
+                            destination_identity_attributes,
+                            to_aim=True):
+    result = []
+    res_dict = {}
+    if to_aim:
+        if 'SystemSecurityGroup' in object_dict['dn']:
+            helper = resource_map['hostprotSubj'][1]
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+
+    else:
+        id = default_identity_converter(object_dict, otype, helper,
+                                        to_aim=False)
+
+    for index, part in enumerate(destination_identity_attributes):
+        res_dict[part] = id[index]
+    for attribute in object_dict:
+        if attribute in source_identity_attributes:
+            continue
+        others = utils.do_attribute_conversion(object_dict, attribute,
+                                               helper.get('exceptions', {}),
+                                               to_aim=to_aim)
+        for other_k, other_v in others.items():
+            # Identity was already converted
+            if other_k not in destination_identity_attributes:
+                res_dict[other_k] = other_v
+    result = default_to_resource(res_dict, helper, to_aim=to_aim)
+
+    return [result] if result else []
+
+
+def hostprot_rule_converter(object_dict, otype, helper,
+                            source_identity_attributes,
+                            destination_identity_attributes,
+                            to_aim=True):
+    result = []
+    res_dict = {}
+    if to_aim:
+        if 'SystemSecurityGroup' in object_dict['dn']:
+            helper = resource_map['hostprotRule'][1]
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+
+    else:
+        id = default_identity_converter(object_dict, otype, helper,
+                                        to_aim=False)
+
+    for index, part in enumerate(destination_identity_attributes):
+        res_dict[part] = id[index]
+    for attribute in object_dict:
+        if attribute in source_identity_attributes:
+            continue
+        others = utils.do_attribute_conversion(object_dict, attribute,
+                                               helper.get('exceptions', {}),
+                                               to_aim=to_aim)
+        for other_k, other_v in others.items():
+            # Identity was already converted
+            if other_k not in destination_identity_attributes:
+                res_dict[other_k] = other_v
+    result = default_to_resource(res_dict, helper, to_aim=to_aim)
+
+    return [result] if result else []
+
+
+def hostprot_remoteIp_converter(object_dict, otype, helper,
+                                source_identity_attributes,
+                                destination_identity_attributes,
+                                to_aim=True):
+    result = []
+    res_dict = {}
+    aim_attr = 'remote_ips'
+    aci_attr = 'addr'
+    if to_aim:
+        if 'SystemSecurityGroup' in object_dict['dn']:
+            helper = resource_map['hostprotRemoteIp'][1]
+
+        aci_type = otype
+        try:
+            id = default_identity_converter(object_dict, aci_type,
+                                            helper, to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        if object_dict.get(aci_attr):
+            res_dict[aim_attr] = [object_dict[aci_attr]]
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        aci_type = helper['resource']
+        child_objs = object_dict[aim_attr]
+        for c in child_objs:
+            dn = default_identity_converter(object_dict, otype, helper,
+                                            extra_attributes=[c],
+                                            aci_mo_type=aci_type,
+                                            to_aim=False)[0]
+            result.append({aci_type: {'attributes':
+                                      {'dn': dn, aci_attr: c}}})
+    return result
+
+
 # Resource map maps APIC objects into AIM ones. the key of this map is the
 # object APIC type, while the values contain the followings:
 # - Resource: AIM resource when direct mapping is applicable
@@ -613,7 +757,6 @@ def contract_converter(object_dict, otype, helper,
 # not be performed when the AIM object is marked "monitored". Default is True.
 # - skip: list of AIM resource attributes that should not be converted
 
-hostprotRemoteIp_converter = child_list('remote_ips', 'addr')
 fvRsBDToOut_converter = child_list('l3out_names', 'tnL3extOutName')
 fvRsProv_converter = child_list('provided_contract_names', 'tnVzBrCPName')
 fvRsCons_converter = child_list('consumed_contract_names', 'tnVzBrCPName')
@@ -962,33 +1105,58 @@ resource_map = {
         'resource': resource.EndpointGroup,
         'converter': fv_rs_path_att_converter,
     }],
-    'hostprotPol': [{
-        'resource': resource.SecurityGroup,
-    }],
-    'hostprotSubj': [{
-        'resource': resource.SecurityGroupSubject,
-    }],
-    'hostprotRule': [{
-        'resource': resource.SecurityGroupRule,
-        'skip': ['remote_ips', 'remote_group_id'],
-        'exceptions': {
-            'protocol': {'other': 'ip_protocol',
-                         'converter': ip_protocol},
-            'fromPort': {'other': 'from_port',
-                         'converter': port},
-            'toPort': {'other': 'to_port',
-                       'converter': port},
-            'ethertype': {'other': 'ethertype',
-                          'converter': ethertype},
-            'icmpType': {'other': 'icmp_type'},
-            'icmpCode': {'other': 'icmp_code',
-                         'converter': icmpv4_code},
-        }
-    }],
-    'hostprotRemoteIp': [{
-        'resource': resource.SecurityGroupRule,
-        'converter': hostprotRemoteIp_converter,
-    }],
+    'hostprotPol': [
+        {'resource': resource.SecurityGroup,
+         'converter': hostprot_pol_converter, },
+        {'resource': resource.SystemSecurityGroup,
+         'converter': hostprot_pol_converter, }
+    ],
+    'hostprotSubj': [
+        {'resource': resource.SecurityGroupSubject,
+         'converter': hostprot_subj_converter, },
+        {'resource': resource.SystemSecurityGroupSubject,
+         'converter': hostprot_subj_converter, }
+    ],
+    'hostprotRule': [
+        {'resource': resource.SecurityGroupRule,
+         'converter': hostprot_rule_converter,
+         'skip': ['remote_ips', 'remote_group_id'],
+         'exceptions': {
+             'protocol': {'other': 'ip_protocol',
+                          'converter': ip_protocol},
+             'fromPort': {'other': 'from_port',
+                          'converter': port},
+             'toPort': {'other': 'to_port',
+                        'converter': port},
+             'ethertype': {'other': 'ethertype',
+                           'converter': ethertype},
+             'icmpType': {'other': 'icmp_type'},
+             'icmpCode': {'other': 'icmp_code',
+                          'converter': icmpv4_code},
+             }, },
+        {'resource': resource.SystemSecurityGroupRule,
+         'converter': hostprot_rule_converter,
+         'skip': ['remote_ips'],
+         'exceptions': {
+             'protocol': {'other': 'ip_protocol',
+                          'converter': ip_protocol},
+             'fromPort': {'other': 'from_port',
+                          'converter': port},
+             'toPort': {'other': 'to_port',
+                        'converter': port},
+             'ethertype': {'other': 'ethertype',
+                           'converter': ethertype},
+             'icmpType': {'other': 'icmp_type'},
+             'icmpCode': {'other': 'icmp_code',
+                          'converter': icmpv4_code},
+             }, }
+    ],
+    'hostprotRemoteIp': [
+        {'resource': resource.SecurityGroupRule,
+         'converter': hostprot_remoteIp_converter, },
+        {'resource': resource.SystemSecurityGroupRule,
+         'converter': hostprot_remoteIp_converter, }
+    ],
     'opflexODev': [{
         'resource': aim_infra.OpflexDevice,
         'exceptions': {'domName': {'other': 'domain_name'},

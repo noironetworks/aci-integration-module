@@ -298,7 +298,12 @@ class SqlAlchemyStore(AimStore):
                     api_res.InfraAccBundleGroup: models.InfraAccBundleGroup,
                     api_res.InfraAccPortGroup: models.InfraAccPortGroup,
                     api_res.SpanSpanlbl: models.SpanSpanlbl,
-                    api_tree.ActionLog: tree_model.ActionLog}
+                    api_tree.ActionLog: tree_model.ActionLog,
+                    api_res.SystemSecurityGroup: models.SystemSecurityGroup,
+                    api_res.SystemSecurityGroupSubject:
+                        models.SystemSecurityGroupSubject,
+                    api_res.SystemSecurityGroupRule:
+                        models.SystemSecurityGroupRule}
 
     resource_map = {}
     for k, v in db_model_map.items():
@@ -477,7 +482,9 @@ class SqlAlchemyStore(AimStore):
                     # DB to APIC.
                     # REVISIT: This may be applicable to all collections.
                     if not (mod_set == session.dirty and
-                            isinstance(db_obj, models.SecurityGroupRule) and
+                            (isinstance(db_obj, models.SecurityGroupRule) or
+                             isinstance(db_obj,
+                                        models.SystemSecurityGroupRule)) and
                             not session.is_modified(
                                 db_obj, include_collections=False)):
                         # SQL alchemy will add a where clause to the query

@@ -2308,6 +2308,54 @@ class TestServiceRedirectHealthGroupMixin(object):
     res_command = 'service-redirect-health-group'
 
 
+class TestSystemSecurityGroupMixin(object):
+    resource_class = resource.SystemSecurityGroup
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [resource.Tenant(name='common')]
+    test_identity_attributes = {}
+    test_required_attributes = {}
+    test_search_attributes = {'display_name': 'sg-display'}
+    test_update_attributes = {'display_name': 'sg-display2'}
+    test_dn = 'uni/tn-common/pol-openstack_aid_SystemSecurityGroup'
+    res_command = 'system-security-group'
+
+
+class TestSystemSecurityGroupSubjectMixin(object):
+    resource_class = resource.SystemSecurityGroupSubject
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='common'),
+        resource.SystemSecurityGroup()]
+    test_identity_attributes = {'name': 'subject1'}
+    test_required_attributes = {'name': 'subject1'}
+    test_search_attributes = {'display_name': 'sgs-display'}
+    test_update_attributes = {'display_name': 'sgs-display-2'}
+    test_dn = 'uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+    test_dn = test_dn + 'subj-subject1'
+    res_command = 'system-security-group-subject'
+
+
+class TestSystemSecurityGroupRuleMixin(object):
+    resource_class = resource.SystemSecurityGroupRule
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='common'),
+        resource.SystemSecurityGroup(),
+        resource.SystemSecurityGroupSubject(name='subject1')]
+    test_identity_attributes = {'security_group_subject_name': 'subject1',
+                                'name': 'rule1'}
+    test_required_attributes = {'security_group_subject_name': 'subject1',
+                                'name': 'rule1',
+                                'direction': 'ingress',
+                                'remote_ips': []}
+    test_search_attributes = {'direction': 'ingress'}
+    test_update_attributes = {'remote_ips': ['192.168.0.0/24', '10.0.0.1/30'],
+                              'from_port': '80', 'to_port': '443'}
+    test_dn = 'uni/tn-common/pol-openstack_aid_SystemSecurityGroup/'
+    test_dn = test_dn + 'subj-subject1/rule-rule1'
+    res_command = 'system-security-group-rule'
+
+
 class TestTenant(TestTenantMixin, TestAciResourceOpsBase, base.TestAimDBBase):
 
     def test_status(self):
@@ -3184,3 +3232,42 @@ class TestInfraAccPortGroup(TestInfraAccPortGroupMixin, TestAciResourceOpsBase,
 class TestSpanSpanlbl(TestSpanSpanlblMixin, TestAciResourceOpsBase,
                       base.TestAimDBBase):
     pass
+
+
+class TestSystemSecurityGroup(TestSystemSecurityGroupMixin,
+                              TestAciResourceOpsBase,
+                              base.TestAimDBBase):
+    pass
+
+
+class TestSystemSecurityGroupSubject(TestSystemSecurityGroupSubjectMixin,
+                                     TestAciResourceOpsBase,
+                                     base.TestAimDBBase):
+    pass
+
+
+class TestSystemSecurityGroupRule(TestSystemSecurityGroupRuleMixin,
+                                  TestAciResourceOpsBase,
+                                  base.TestAimDBBase):
+
+    @base.requires(['k8s'])
+    def test_k8s_repr(self):
+        sgr = resource.SystemSecurityGroupRule(
+            name='0_0',
+            security_group_subject_name='NetworkPolicy')
+        db_obj = self.ctx.store.resource_to_db_type(
+            resource.SystemSecurityGroupRule)()
+        self.ctx.store.from_attr(db_obj, resource.SystemSecurityGroupRule,
+                                 sgr.__dict__)
+        self.assertEqual(
+            's5u2ian7mxyipkk3rx632jc3zptp3ivwut4xxutricexuqn5fbia',
+            db_obj['metadata']['labels']['tenant_name'])
+        self.assertEqual(
+            'l2yj2yf7qdftxom2xzclfhmfnp7fh75xyxryq2ggbvh77v7mjcla',
+            db_obj['metadata']['labels']['security_group_name'])
+        self.assertEqual(
+            '3lmgcuqwadvc425mfmk7dt5keazplrjrt7ygaorbjhna6ttv4ndq',
+            db_obj['metadata']['labels']['name'])
+        self.assertEqual(
+            'uwb4yv2u6k6lvjrhoi36genjxnhgkevjg24rvhuns7gzmeibpjyq',
+            db_obj['metadata']['name'])

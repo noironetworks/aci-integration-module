@@ -760,3 +760,10 @@ class TestAimDBBase(BaseTestCase):
                     "ownerTag": "", "tag": ""}}}
         example_span_spanlbl['spanSpanLbl']['attributes'].update(kwargs)
         return example_span_spanlbl
+
+    @classmethod
+    def _get_example_aim_system_security_group_rule(cls, **kwargs):
+        example = resource.SystemSecurityGroupRule(
+            security_group_subject_name='sgs1', name='rule1')
+        example.__dict__.update(kwargs)
+        return example

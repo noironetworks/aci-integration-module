@@ -119,7 +119,7 @@ class HashTreeDbListener(object):
                         if (aim_cfg.CONF.aim.
                             remove_remote_group_sg_rule_if_block_all and
                             klass == resource.SecurityGroupRule and
-                                obj.remote_group_id and
+                            obj.remote_group_id and
                                 not obj.remote_ips):
                             continue
                         # Need all the faults and statuses as well
@@ -259,7 +259,7 @@ class HashTreeDbListener(object):
                         # a block-all rule.
                         if (aim_cfg.CONF.aim.
                             remove_remote_group_sg_rule_if_block_all and
-                                aim_res.remote_group_id and
+                            aim_res.remote_group_id and
                                 not aim_res.remote_ips):
                             action = aim_tree.ActionLog.DELETE
                 else:

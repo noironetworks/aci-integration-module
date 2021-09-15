@@ -1751,3 +1751,101 @@ class SpanSpanlbl(AciResourceBase):
         super(SpanSpanlbl, self).__init__({'monitored': False,
                                            'tag': ''},
                                           **kwargs)
+
+
+class SystemSecurityGroup(AciResourceBase):
+    """Resource representing a System Security Group in ACI.
+
+    Identity attributes: name of ACI tenant and name of security group
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotPol'
+    _tree_parent = Tenant
+
+    def __init__(self, **kwargs):
+        domName = cfg.CONF.aim.aim_system_id
+        defaults = {'tenant_name': 'common',
+                    'name': domName + '_SystemSecurityGroup',
+                    'monitored': False}
+        super(SystemSecurityGroup, self).__init__(defaults,
+                                                  **kwargs)
+
+
+class SystemSecurityGroupSubject(AciResourceBase):
+    """Resource representing a subject within a System SG in ACI.
+
+    Identity attributes: name of ACI tenant, name of security group and
+    name of subject.
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotSubj'
+    _tree_parent = SystemSecurityGroup
+
+    def __init__(self, **kwargs):
+        domName = cfg.CONF.aim.aim_system_id
+        defaults = {'tenant_name': 'common',
+                    'security_group_name': domName + '_SystemSecurityGroup',
+                    'monitored': False}
+        super(SystemSecurityGroupSubject, self).__init__(
+            defaults, **kwargs)
+
+
+class SystemSecurityGroupRule(AciResourceBase):
+    """Resource representing a System SG's rule in ACI.
+
+    Identity attributes: name of ACI tenant, name of security group, name of
+    subject and name of rule
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name),
+        ('security_group_subject_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('display_name', t.name),
+        ('direction', t.enum("", "ingress", "egress")),
+        ('ethertype', t.enum("", "undefined", "ipv4", "ipv6")),
+        ('remote_ips', t.list_of_strings),
+        ('ip_protocol', t.string()),
+        ('from_port', t.port),
+        ('to_port', t.port),
+        ('conn_track', t.enum('normal', 'reflexive')),
+        ('icmp_type', t.string()),
+        ('icmp_code', t.string()),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotRule'
+    _tree_parent = SystemSecurityGroupSubject
+
+    def __init__(self, **kwargs):
+        domName = cfg.CONF.aim.aim_system_id
+        defaults = {'tenant_name': 'common',
+                    'security_group_name': domName + '_SystemSecurityGroup',
+                    'direction': 'ingress',
+                    'ethertype': "undefined",
+                    'remote_ips': [],
+                    'ip_protocol': self.UNSPECIFIED,
+                    'from_port': self.UNSPECIFIED,
+                    'to_port': self.UNSPECIFIED,
+                    'icmp_type': self.UNSPECIFIED,
+                    'icmp_code': self.UNSPECIFIED,
+                    'conn_track': 'reflexive',
+                    'monitored': False}
+        super(SystemSecurityGroupRule, self).__init__(
+            defaults, **kwargs)

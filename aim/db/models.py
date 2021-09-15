@@ -980,7 +980,7 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
                         model_base.HasTenantName,
                         model_base.AttributeMixin,
                         model_base.IsMonitored):
-    """DB model SecurityGroup Subject."""
+    """DB model SecurityGroup Rule."""
     __tablename__ = 'aim_security_group_rules'
     __table_args__ = (
         model_base.uniq_column(__tablename__, 'tenant_name',
@@ -1597,3 +1597,96 @@ class SpanSpanlbl(model_base.Base, model_base.HasDisplayName,
 
     vsg_name = model_base.name_column(nullable=False)
     tag = sa.Column(sa.String(64))
+
+
+class SystemSecurityGroup(model_base.Base, model_base.HasAimId,
+                          model_base.HasName, model_base.HasDisplayName,
+                          model_base.HasTenantName, model_base.AttributeMixin,
+                          model_base.IsMonitored):
+    """DB model for SystemSecurityGroup."""
+
+    __tablename__ = 'aim_system_security_groups'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'tenant_name',
+                                             'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+
+
+class SystemSecurityGroupSubject(model_base.Base,
+                                 model_base.HasAimId,
+                                 model_base.HasName,
+                                 model_base.HasDisplayName,
+                                 model_base.HasTenantName,
+                                 model_base.AttributeMixin,
+                                 model_base.IsMonitored):
+    """DB model SystemSecurityGroup Subject."""
+    __tablename__ = 'aim_system_security_group_subjects'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'security_group_name', 'name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    security_group_name = model_base.name_column(nullable=False)
+
+
+class SystemSecurityGroupRuleRemoteIp(model_base.Base):
+    __tablename__ = 'aim_system_security_group_rule_remote_ips'
+
+    security_group_rule_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_system_security_group_rules.aim_id'),
+        primary_key=True)
+    cidr = sa.Column(sa.String(64), nullable=False, primary_key=True)
+
+
+class SystemSecurityGroupRule(model_base.Base, model_base.HasAimId,
+                              model_base.HasName, model_base.HasDisplayName,
+                              model_base.HasTenantName,
+                              model_base.AttributeMixin,
+                              model_base.IsMonitored):
+    """DB model SystemSecurityGroupRule."""
+    __tablename__ = 'aim_system_security_group_rules'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'security_group_name',
+                               'security_group_subject_name', 'name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+    security_group_name = model_base.name_column(nullable=False)
+    security_group_subject_name = model_base.name_column(nullable=False)
+    remote_ips = orm.relationship(SystemSecurityGroupRuleRemoteIp,
+                                  backref='system_security_group_rule',
+                                  cascade='all, delete-orphan',
+                                  lazy='joined')
+    direction = sa.Column(sa.String(16))
+    ethertype = sa.Column(sa.String(16))
+    ip_protocol = sa.Column(sa.String(16))
+    from_port = sa.Column(sa.String(16))
+    to_port = sa.Column(sa.String(16))
+    conn_track = sa.Column(sa.String(25))
+    icmp_code = sa.Column(sa.String(16))
+    icmp_type = sa.Column(sa.String(16))
+
+    def from_attr(self, session, res_attr):
+        if 'remote_ips' in res_attr:
+            # list of IPs has same order as DB objects
+            old_ip_list = [x.cidr for x in self.remote_ips]
+            # Use sets to calculate additions and deletions
+            old_set = set(old_ip_list)
+            new_set = set(res_attr['remote_ips'])
+            # For deletions, start from the end of the list to preserve order
+            deletion_indexes = [old_ip_list.index(ip)
+                                for ip in (old_set - new_set)]
+            deletion_indexes.sort()
+            if deletion_indexes:
+                for index in deletion_indexes[::-1]:
+                    self.remote_ips.pop(index)
+            for ip in (new_set - old_set):
+                self.remote_ips.append(
+                    SystemSecurityGroupRuleRemoteIp(cidr=ip))
+            res_attr.pop('remote_ips')
+
+        # map remaining attributes to model
+        super(SystemSecurityGroupRule, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(SystemSecurityGroupRule, self).to_attr(session)
+        res_attr['remote_ips'] = [x.cidr for x in res_attr['remote_ips']]
+        return res_attr
