@@ -8,7 +8,8 @@ alembic
 -e git+https://github.com/noironetworks/acitoolkit.git@noiro-lite#egg=acitoolkit
 -e git+https://github.com/noironetworks/apicapi.git@master#egg=apicapi
 Click
-jsonschema  # MIT
+jsonschema<4.0.0;python_version=='2.7' # MIT
+jsonschema;python_version!='2.7' # MIT
 kubernetes
 oslo.concurrency
 oslo.config
