@@ -1107,19 +1107,22 @@ resource_map = {
     }],
     'hostprotPol': [
         {'resource': resource.SecurityGroup,
-         'converter': hostprot_pol_converter, },
+         'converter': hostprot_pol_converter,
+         'convert_monitored': False, },
         {'resource': resource.SystemSecurityGroup,
          'converter': hostprot_pol_converter, }
     ],
     'hostprotSubj': [
         {'resource': resource.SecurityGroupSubject,
-         'converter': hostprot_subj_converter, },
+         'converter': hostprot_subj_converter,
+         'convert_monitored': False, },
         {'resource': resource.SystemSecurityGroupSubject,
          'converter': hostprot_subj_converter, }
     ],
     'hostprotRule': [
         {'resource': resource.SecurityGroupRule,
          'converter': hostprot_rule_converter,
+         'convert_monitored': False,
          'skip': ['remote_ips', 'remote_group_id'],
          'exceptions': {
              'protocol': {'other': 'ip_protocol',
@@ -1153,7 +1156,8 @@ resource_map = {
     ],
     'hostprotRemoteIp': [
         {'resource': resource.SecurityGroupRule,
-         'converter': hostprot_remoteIp_converter, },
+         'converter': hostprot_remoteIp_converter,
+         'convert_monitored': False, },
         {'resource': resource.SystemSecurityGroupRule,
          'converter': hostprot_remoteIp_converter, }
     ],
