@@ -538,6 +538,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
             with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX + tenant):
                 if serving_tenants[tenant].is_warm():
                     new_state[tenant] = self._get_state_copy(tenant)
+                else:
+                    new_state[tenant] = self._state[tenant]
         self._state = new_state
 
     def reset(self, context, tenants):

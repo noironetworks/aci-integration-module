@@ -119,6 +119,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             self.assertTrue(tenant in self.universe.state)
             self.assertTrue(isinstance(self.universe.state[tenant],
                                        structured_tree.StructuredHashTree))
+            # Set the warm flag to False for tenants
+            self.universe.serving_tenants[tenant].is_warm = mock.Mock(
+                return_value=False)
+        self.universe.observe(self.ctx)
+        for tenant in tenant_list:
+            self.assertTrue(tenant in self.universe.state)
+            self.assertTrue(isinstance(self.universe.state[tenant],
+                                       structured_tree.StructuredHashTree))
 
     def test_serve_exception(self):
         tenant_list = ['tn-%s' % x for x in range(10)]
