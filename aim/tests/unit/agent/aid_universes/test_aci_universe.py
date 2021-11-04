@@ -125,18 +125,10 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.serve(self.ctx, tenant_list)
         # Remove some tenants
         tenant_list_new = tenant_list[5:]
-        old = self.universe.serving_tenants['tn-9'].is_dead
-        self.universe.serving_tenants['tn-9'].is_dead = mock.Mock(
-            side_effect=KeyError)
-        self.assertRaises(KeyError, self.universe.serve, self.ctx,
-                          tenant_list_new)
-        self.universe.serving_tenants['tn-9'].is_dead = old
+        self.universe.serve(self.ctx, tenant_list_new)
         # List of serving tenant back to the initial one
-        self.assertEqual(set(tenant_list),
+        self.assertEqual(set(tenant_list_new),
                          set(self.universe.serving_tenants.keys()))
-        # Thread that were once removed are now dead
-        for tenant in tenant_list[:5]:
-            self.assertTrue(self.universe.serving_tenants[tenant].is_dead())
         # Others are not
         for tenant in tenant_list[5:]:
             self.assertFalse(self.universe.serving_tenants[tenant].is_dead())
