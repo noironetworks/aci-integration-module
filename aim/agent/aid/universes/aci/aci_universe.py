@@ -517,10 +517,10 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     serving_tenants[added].start()
         except Exception as e:
             LOG.error(traceback.format_exc())
-            LOG.error('Failed to serve new tenants %s' % tenants)
-            # Rollback served tenants
-            serving_tenants = serving_tenant_copy
-            raise e
+            # There can be orphaned tenant manager objects, If there is a
+            # failure in serve method. Restart the process
+            utils.perform_harakiri(LOG,
+                                   "Error in serve. Reset the tenants")
 
     def tenant_creation_failed(self, aim_object, reason='unknown',
                                error=errors.UNKNOWN):
