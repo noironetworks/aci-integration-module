@@ -212,12 +212,10 @@ class TestStructuredHashTree(base.BaseTestCase):
     def test_initialize(self):
         data = tree.StructuredHashTree()
         self.assertIsNone(data.root)
-        self.assertEqual(data.has_populated, False)
         data = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')}])
         self.assertIsNotNone(data.root)
         self.assertEqual(('keyA',), data.root.key)
-        self.assertEqual(data.has_populated, True)
 
     def test_str(self):
         data = tree.StructuredHashTree()
@@ -229,7 +227,6 @@ class TestStructuredHashTree(base.BaseTestCase):
         # Add on empty root
         data = tree.StructuredHashTree()
         data.add(('keyA', 'keyB', 'keyC'), **{})
-        self.assertEqual(data.has_populated, True)
         self.assertEqual(('keyA',), data.root.key)
         full_hash_gramp1 = data.root.full_hash
         self.assertEqual(1, len(data.root.get_children()))
@@ -278,7 +275,6 @@ class TestStructuredHashTree(base.BaseTestCase):
         retured = data.add(None)
         # Nothing happened
         self.assertEqual(data, retured)
-        self.assertEqual(data.has_populated, False)
 
     def test_add_multiple_heads(self):
         data = tree.StructuredHashTree().add(('keyA', 'keyB'))
@@ -376,7 +372,6 @@ class TestStructuredHashTree(base.BaseTestCase):
              {'key': ('keyA1', 'keyC', 'keyD')}])
         # Verify everything is rolled back
         self.assertEqual(data, data_copy)
-        self.assertEqual(data_copy.has_populated, True)
 
     def test_pop(self):
         data = tree.StructuredHashTree()
@@ -554,12 +549,10 @@ class TestStructuredHashTree(base.BaseTestCase):
             [{'key': ('keyA', 'keyB'), '_metadata': {'a': 20}},
              {'key': ('keyA', 'keyC'), '_metadata': {'b': False}},
              {'key': ('keyA', 'keyC', 'keyD')}])
-        data2 = tree.StructuredHashTree.from_string(
-            str(data), has_populated=data.has_populated)
+        data2 = tree.StructuredHashTree.from_string(str(data))
         self.assertTrue(data is not data2)
         self.assertEqual(data, data2)
         self.assertTrue(self._tree_deep_check(data.root, data2.root))
-        self.assertEqual(data2.has_populated, True)
 
     def test_list_keys(self):
         data = tree.StructuredHashTree().include(

@@ -207,9 +207,9 @@ class StructuredHashTree(base.ComparableCollection):
     tree.pop(('tn-tenant', 'bd-bridge3'))
     """
 
-    __slots__ = ['root', 'root_key', 'has_populated']
+    __slots__ = ['root', 'root_key']
 
-    def __init__(self, root=None, root_key=None, has_populated=False):
+    def __init__(self, root=None, root_key=None):
         """Initialize a Structured Hash Tree.
 
         Initial data can be passed to initialize the tree
@@ -220,7 +220,6 @@ class StructuredHashTree(base.ComparableCollection):
         if self.root:
             # Ignore the value passed in the constructor
             self.root_key = self.root.key
-        self.has_populated = has_populated
 
     @property
     def root_full_hash(self):
@@ -232,12 +231,10 @@ class StructuredHashTree(base.ComparableCollection):
             return None
 
     @staticmethod
-    def from_string(string, root_key=None, has_populated=False):
+    def from_string(string, root_key=None):
         to_dict = utils.json_loads(string)
-        return (StructuredHashTree(StructuredHashTree._build_tree(to_dict),
-                                   has_populated=has_populated) if
-                to_dict else StructuredHashTree(root_key=root_key,
-                                                has_populated=has_populated))
+        return (StructuredHashTree(StructuredHashTree._build_tree(to_dict)) if
+                to_dict else StructuredHashTree(root_key=root_key))
 
     @staticmethod
     def _build_tree(root_dict):
@@ -265,7 +262,6 @@ class StructuredHashTree(base.ComparableCollection):
             self.root = StructuredTreeNode(
                 (key[0],), self._hash_attributes(key=(key[0],), _dummy=True))
             self.root_key = self.root.key
-            self.has_populated = True
         else:
             # With the first element of the key, verify that this is not an
             # attempt of creating a hydra (tree with multiple roots)
