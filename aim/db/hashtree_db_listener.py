@@ -206,7 +206,7 @@ class HashTreeDbListener(object):
                 # REVISIT: This is temporary code for verifying solutions
                 # to concurrency issues. Remove when no longer needed.
                 if aim_cfg.CONF.aim.validate_config_trees:
-                    self._validate_config_trees(ctx, log_by_root.keys())
+                    self._validate_config_trees(ctx, list(log_by_root.keys()))
 
     def _preprocess_logs(self, ctx, logs):
         resetting_roots = set()
@@ -284,7 +284,7 @@ class HashTreeDbListener(object):
             log_by_root.setdefault(log.root_rn, []).append(
                 (action, aim_res, log))
 
-        for sg_rule_name, list_of_logs in sg_rule_logs.items():
+        for sg_rule_name, list_of_logs in list(sg_rule_logs.items()):
             list_of_logs[-1] = tuple(list_of_logs[-1])
             _, _, log = list_of_logs[-1]
             log_by_root.setdefault(log.root_rn, []).extend(list_of_logs)

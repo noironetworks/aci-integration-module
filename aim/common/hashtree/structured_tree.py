@@ -51,7 +51,7 @@ class StructuredTreeNode(object):
         self.metadata = metadata or KeyValueStore()
         if isinstance(self.metadata, dict):
             self.metadata = KeyValueStore().include(
-                [KeyValue(k, v) for k, v in self.metadata.items()])
+                [KeyValue(k, v) for k, v in list(self.metadata.items())])
         self.error = error
 
     def __cmp__(self, other):
@@ -150,7 +150,7 @@ class KeyValueStore(base.OrderedList):
         if isinstance(other, dict):
             return super(KeyValueStore, self).__cmp__(
                 KeyValueStore().include([KeyValue(k, v) for k, v in
-                                         other.items()]))
+                                         list(other.items())]))
         return False
 
     # In Py3, all objects that implemented __cmp__ must be updated to
@@ -162,7 +162,7 @@ class KeyValueStore(base.OrderedList):
         if isinstance(other, dict):
             return super(KeyValueStore, self).__eq__(
                 KeyValueStore().include([KeyValue(k, v) for k, v in
-                                         other.items()]))
+                                         list(other.items())]))
 
     def __str__(self):
         return json.dumps(self.to_dict())
@@ -258,7 +258,7 @@ class StructuredHashTree(base.ComparableCollection):
         has_metadata = '_metadata' in kwargs
         metadata_dict = kwargs.pop('_metadata', {})
         metadata = KeyValueStore().include(
-            KeyValue(k, v) for k, v in (metadata_dict or {}).items())
+            KeyValue(k, v) for k, v in list((metadata_dict or {}).items()))
         error = kwargs.pop('_error', False)
         # When self.root is node, it gets initialized with a bogus node
         if not self.root:
@@ -452,7 +452,7 @@ class StructuredHashTree(base.ComparableCollection):
 
     def _hash_attributes(self, **kwargs):
         return self._hash(json.dumps(collections.OrderedDict(
-            sorted(kwargs.items(), key=lambda t: t[0]))))
+            sorted(list(kwargs.items()), key=lambda t: t[0]))))
 
     def _hash(self, string):
         # To avoid error in Py3:

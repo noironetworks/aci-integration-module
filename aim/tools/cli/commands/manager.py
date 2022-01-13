@@ -46,7 +46,7 @@ def formated_output(rows, headers, **argv):
         if aimcli.curr_format == 'json':
             data = []
             for row in rows:
-                data.append(collections.OrderedDict(zip(headers, row)))
+                data.append(collections.OrderedDict(list(zip(headers, row))))
             output = json.dumps(data)
         elif aimcli.curr_format == 'tables':
             plain = argv.get('plain')
@@ -94,7 +94,7 @@ def filter_kwargs(klass, kwargs):
     res = {}
     LOG.debug('args: %s', kwargs)
     dummy = klass(**{k: kwargs[k] for k in klass.identity_attributes})
-    for k, v in kwargs.items():
+    for k, v in list(kwargs.items()):
         if v is not ATTR_UNSPECIFIED:
             try:
                 attr_type = klass.other_attributes.get(k)
@@ -168,7 +168,7 @@ def update(klass):
         aim_ctx = ctx.obj['aim_ctx']
         id = {}
         mod = {}
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             if k in klass.identity_attributes:
                 id[k] = v
             else:
@@ -252,11 +252,11 @@ def get_domains(aim_ctx, manager, create_doms=True):
     phys_doms = []
     if vmms:
         vmm_types = utils.KNOWN_VMM_TYPES
-        for type_ in vmm_types.values():
+        for type_ in list(vmm_types.values()):
             res = resource.VMMPolicy(type=type_, monitored=True)
             if create_doms:
                 print_resource(manager.create(aim_ctx, res, overwrite=True))
-        for vmm_name, cfg in vmms.items():
+        for vmm_name, cfg in list(vmms.items()):
             res = resource.VMMDomain(
                 type=vmm_types.get(
                     cfg.get('apic_vmm_type', 'openstack').lower()),
@@ -436,7 +436,7 @@ for res in aim_manager.AimManager._db_model_map:
 
     def specify_id_attrs(f):
         try:
-            ids = res.identity_attributes.keys()
+            ids = list(res.identity_attributes.keys())
         except AttributeError:
             ids = res.identity_attributes
         for id in reversed(ids):
@@ -455,7 +455,7 @@ for res in aim_manager.AimManager._db_model_map:
 
     def specify_partial_id_attrs(f):
         try:
-            ids = res.identity_attributes.keys()
+            ids = list(res.identity_attributes.keys())
         except AttributeError:
             ids = res.identity_attributes
         for id in reversed(ids):

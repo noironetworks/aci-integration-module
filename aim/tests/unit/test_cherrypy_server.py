@@ -145,7 +145,7 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
                 # Create some with a PUT, with a common attribute
                 comm_attr = {}
                 for set_attr, schema_type in (
-                        res_type.other_attributes.items()):
+                        list(res_type.other_attributes.items())):
                     if schema_type['type'] == 'string' and (
                             'enum' not in schema_type):
                         comm_attr[set_attr] = utils.generate_uuid()
@@ -163,7 +163,8 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
                 if comm_attr:
                     uri = ('aim?object-type=%s&%s=%s' %
                            (utils.camel_to_snake(res_type.__name__),
-                            comm_attr.keys()[0], comm_attr.values()[0]))
+                            list(comm_attr.keys())[0],
+                            list(comm_attr.values())[0]))
                     resp = self.GET(uri)
                     self.assertEqual(200, resp.status_code, fail_msg)
                     self.assertEqual(len(to_put), resp.json()['count'],
@@ -174,7 +175,7 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
                         'aim?object-type=%s&%s' %
                         (utils.camel_to_snake(res_type.__name__),
                          '&'.join(['%s=%s' % (k, getattr(item, k)) for k in
-                                   item.identity_attributes.keys()])))
+                                   list(item.identity_attributes.keys())])))
                     self.DELETE(uri)
                 resp = self.GET('aim')
                 self.assertEqual(200, resp.status_code, fail_msg)

@@ -232,7 +232,7 @@ class TestResourceOpsBase(object):
         creation_attributes.update(test_identity_attributes)
         res = resource(**creation_attributes)
 
-        for k, v in test_default_values.items():
+        for k, v in list(test_default_values.items()):
             self.assertEqual(v, getattr_canonical(res, k))
 
         if test_dn:
@@ -242,13 +242,13 @@ class TestResourceOpsBase(object):
         res = resource(**creation_attributes)
         # Verify successful creation
         r1 = self.mgr.create(self.ctx, res)
-        for k, v in creation_attributes.items():
+        for k, v in list(creation_attributes.items()):
             self.assertTrue(utils.is_equal(v, getattr_canonical(r1, k)))
         self.assertEqual(len(self.mgr.find(self.ctx, resource)),
                          self.mgr.count(self.ctx, resource))
         # Verify get
         r1 = self.mgr.get(self.ctx, res)
-        for k, v in creation_attributes.items():
+        for k, v in list(creation_attributes.items()):
             self.assertTrue(utils.is_equal(v, getattr_canonical(r1, k)))
 
         if ('object_uid' in self.ctx.store.features and
@@ -257,31 +257,31 @@ class TestResourceOpsBase(object):
 
         old_epoch = res.epoch
         # Verify overwrite
-        for k, v in test_search_attributes.items():
+        for k, v in list(test_search_attributes.items()):
             setattr(res, k, v)
         if not getattr(self, 'skip_overwrite', False):
             r2 = self.mgr.create(self.ctx, res, overwrite=True)
             if self.test_epoch:
                 self.assertNotEqual(old_epoch, r2.epoch)
             old_epoch = r2.epoch
-            for k, v in test_search_attributes.items():
+            for k, v in list(test_search_attributes.items()):
                 self.assertEqual(v, getattr_canonical(r2, k))
 
         # Test search by identity
         rs1 = self.mgr.find(self.ctx, resource, **test_identity_attributes)
         self.assertEqual(1, len(rs1))
-        for k, v in creation_attributes.items():
+        for k, v in list(creation_attributes.items()):
             self.assertTrue(utils.is_equal(v, getattr_canonical(rs1[0], k)))
 
         # Test search by other attributes
         rs2 = self.mgr.find(self.ctx, resource, **test_search_attributes)
         self.assertEqual(1, len(rs2))
-        for k, v in creation_attributes.items():
+        for k, v in list(creation_attributes.items()):
             self.assertTrue(utils.is_equal(v, getattr_canonical(rs2[0], k)))
 
         # Test update
         r3 = self.mgr.update(self.ctx, res, **test_update_attributes)
-        for k, v in test_update_attributes.items():
+        for k, v in list(test_update_attributes.items()):
             self.assertTrue(utils.is_equal(v, getattr_canonical(r3, k)))
         if self.test_epoch:
             self.assertNotEqual(old_epoch, r3.epoch)
@@ -595,7 +595,7 @@ class TestResourceOpsBase(object):
     def test_race(self):
         def _test_race(res):
             updates = []
-            for k, v in self.test_update_attributes.items():
+            for k, v in list(self.test_update_attributes.items()):
                 # Skip DSCP, since it's another DB object
                 if k == 'dscp':
                     continue
@@ -637,7 +637,7 @@ class TestResourceOpsBase(object):
 class TestAciResourceOpsBase(TestResourceOpsBase):
 
     def test_status(self):
-        attr = {k: v for k, v in self.test_identity_attributes.items()}
+        attr = {k: v for k, v in list(self.test_identity_attributes.items())}
         attr.update(self.test_required_attributes)
         self._test_resource_status(self.resource_class, attr)
 
@@ -2583,11 +2583,12 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
         self.assertNotEqual(old_epoch, epg.epoch)
         self.assertEqual(epg.static_paths[-1], new_path)
         self.assertEqual(
-            list(filter(lambda x: x['path'] == updated_path['path'],
-                 epg.static_paths))[0]['host'], updated_path['host'])
+            list([x for x in epg.static_paths
+                  if x['path'] == updated_path['path']])[0]['host'],
+            updated_path['host'])
         self.assertEqual(
-            list(filter(lambda x: x['path'] == removed_path['path'],
-                        epg.static_paths)), [])
+            list([x for x in epg.static_paths
+                  if x['path'] == removed_path['path']]), [])
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):

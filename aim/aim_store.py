@@ -126,7 +126,7 @@ class AimStore(object):
         pass
 
     def make_resource(self, cls, db_obj, include_aim_id=False):
-        attr_val = {k: v for k, v in self.to_attr(cls, db_obj).items()
+        attr_val = {k: v for k, v in list(self.to_attr(cls, db_obj).items())
                     if k in cls.attributes()}
         res = cls(**attr_val)
         if include_aim_id and hasattr(db_obj, 'aim_id'):
@@ -306,7 +306,7 @@ class SqlAlchemyStore(AimStore):
                         models.SystemSecurityGroupRule}
 
     resource_map = {}
-    for k, v in db_model_map.items():
+    for k, v in list(db_model_map.items()):
         resource_map[v] = k
 
     def __init__(self, db_session):
@@ -354,16 +354,16 @@ class SqlAlchemyStore(AimStore):
         query = self._query(db_klass, resource_klass, **filters)
         # Commit hook is not called after update call for some reason
         for obj in query.all():
-            for k, v in kwargs.items():
+            for k, v in list(kwargs.items()):
                 setattr(obj, k, v)
             self.add(obj)
 
     def _query(self, db_obj_type, resource_klass, in_=None, notin_=None,
                order_by=None, lock_update=False, **filters):
         query = self.db_session.query(db_obj_type)
-        for k, v in (in_ or {}).items():
+        for k, v in list((in_ or {}).items()):
             query = query.filter(getattr(db_obj_type, k).in_(v))
-        for k, v in (notin_ or {}).items() or {}:
+        for k, v in list((notin_ or {}).items()) or {}:
             query = query.filter(getattr(db_obj_type, k).notin_(
                 [(x or '') for x in v]))
         if filters:
@@ -389,7 +389,8 @@ class SqlAlchemyStore(AimStore):
             subq = self.db_session.query(getattr(klass, 'aim_id'))
             subq = subq.filter(
                 or_(*[
-                    and_(*[getattr(klass, k) == v for k, v in ids.items()])
+                    and_(*[getattr(klass, k) == v
+                           for k, v in list(ids.items())])
                     for ids in db_ids_by_type[klass]]))
             in_query.append(subq)
         query = query.filter(or_(*[status_model.Status.resource_id.in_(sub)
@@ -498,7 +499,7 @@ class SqlAlchemyStore(AimStore):
                     res = store.make_resource(res_cls, db_obj)
                     res_list.append(res)
 
-        for f in copy.copy(SqlAlchemyStore._update_listeners).values():
+        for f in list(copy.copy(SqlAlchemyStore._update_listeners).values()):
             LOG.debug("Invoking pre-commit hook %s with %d add(s), "
                       "%d update(s), %d delete(s)",
                       f.__name__, len(added), len(updated), len(deleted))
@@ -555,7 +556,8 @@ class SqlAlchemyStore(AimStore):
             deleted = list(session._aim_stash['deleted'])
         except AttributeError:
             return
-        for f in copy.copy(SqlAlchemyStore._postcommit_listeners).values():
+        for f in list(copy.copy(
+            SqlAlchemyStore._postcommit_listeners).values()):
             LOG.debug("Invoking after transaction commit hook %s with "
                       "%d add(s), %d update(s))",
                       f.__name__, len(added), len(updated))
@@ -657,7 +659,7 @@ class K8sStore(AimStore):
                     api_v1.AciContainersObject, self.namespace,
                     label_selector=','.join(
                         ['%s=%s' % (k, v) for k, v in
-                         db_obj['metadata']['labels'].items()]))
+                         list(db_obj['metadata']['labels'].items())]))
             else:
                 self.klient.delete(type(db_obj), db_obj['metadata']['name'],
                                    obj_ns, {})
@@ -715,7 +717,7 @@ class K8sStore(AimStore):
             db_obj.update(item)
             if aim_id_val is not None and db_obj.aim_id != aim_id_val:
                 continue
-            for aux_a, aux_kls in db_obj_type.aux_objects.items():
+            for aux_a, aux_kls in list(db_obj_type.aux_objects.items()):
                 try:
                     aux_item_raw = self.klient.read(
                         aux_kls,
@@ -730,15 +732,15 @@ class K8sStore(AimStore):
             item_attr = db_obj.to_attr(resource_klass,
                                        defaults=self.attribute_defaults)
             if filters or in_ or notin_:
-                for k, v in filters.items():
+                for k, v in list(filters.items()):
                     if item_attr.get(k) != v:
                         break
                 else:
-                    for k, v in (in_ or {}).items():
+                    for k, v in list((in_ or {}).items()):
                         if item_attr.get(k) not in v:
                             break
                     else:
-                        for k, v in (notin_ or {}).items():
+                        for k, v in list((notin_ or {}).items()):
                             if item_attr.get(k) in v:
                                 break
                         else:

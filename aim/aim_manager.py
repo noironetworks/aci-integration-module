@@ -213,11 +213,11 @@ class AimManager(object):
                 if (fix_ownership and old_monitored is not None and
                         old_monitored != new_monitored):
                     raise exc.InvalidMonitoredStateUpdate(object=resource)
-                attr_val = {k: v for k, v in update_attr_val.items()
-                            if k in resource.other_attributes.keys()}
+                attr_val = {k: v for k, v in list(update_attr_val.items())
+                            if k in list(resource.other_attributes.keys())}
                 if attr_val:
                     old_resource_copy = copy.deepcopy(old_resource)
-                    for k, v in attr_val.items():
+                    for k, v in list(attr_val.items()):
                         setattr(old_resource, k, v)
                     if old_resource.user_equal(
                             old_resource_copy) and not force_update:
@@ -284,7 +284,7 @@ class AimManager(object):
         Returns a list of resources that match.
         """
         self._validate_resource_class(resource_class)
-        attr_val = {k: v for k, v in kwargs.items()
+        attr_val = {k: v for k, v in list(kwargs.items())
                     if k in resource_class.attributes() +
                     ['in_', 'notin_', 'order_by']}
         return self._delete_db(context.store, resource_class, **attr_val)
@@ -329,7 +329,7 @@ class AimManager(object):
         Returns a list of resources that match.
         """
         self._validate_resource_class(resource_class)
-        attr_val = {k: v for k, v in kwargs.items()
+        attr_val = {k: v for k, v in list(kwargs.items())
                     if k in resource_class.attributes() +
                     ['in_', 'notin_', 'order_by']}
         result = []
@@ -342,7 +342,7 @@ class AimManager(object):
 
     def count(self, context, resource_class, **kwargs):
         self._validate_resource_class(resource_class)
-        attr_val = {k: v for k, v in kwargs.items()
+        attr_val = {k: v for k, v in list(kwargs.items())
                     if k in resource_class.attributes() +
                     ['in_', 'notin_', 'order_by']}
         return self._count_db(context.store, resource_class, **attr_val)

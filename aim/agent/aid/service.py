@@ -200,7 +200,7 @@ class AID(object):
         for tenant in delete_candidates:
             # All the universes agree on this tenant cleanup
             for pair in self.multiverse:
-                for universe in pair.values():
+                for universe in list(pair.values()):
                     LOG.info("%s removing tenant from AID %s" %
                              (universe.name, tenant))
                     universe.cleanup_state(aim_ctx, tenant)

@@ -82,7 +82,7 @@ class ConfigurationDBManager(object):
         :return:
         """
         with context.store.begin(subtransactions=True):
-            for conf, v in configs.items():
+            for conf, v in list(configs.items()):
                 group, key, host = conf
                 cfg = resource.Configuration(group=group, key=key, host=host,
                                              value=v)

@@ -255,7 +255,7 @@ class TestAciClientMixin(object):
         by_root = {}
         for res in aim_res:
             by_root.setdefault(res.root, []).append(res)
-        for root, updates in by_root.items():
+        for root, updates in list(by_root.items()):
             tree_manager.AimHashTreeMaker().update(
                 state.setdefault(root, structured_tree.StructuredHashTree()),
                 updates)
@@ -265,7 +265,7 @@ class TestAciClientMixin(object):
         by_root = {}
         for res in aim_res:
             by_root.setdefault(res.root, []).append(res)
-        for root, updates in by_root.items():
+        for root, updates in list(by_root.items()):
             tree_manager.AimHashTreeMaker().delete(
                 state.setdefault(root, structured_tree.StructuredHashTree()),
                 updates)

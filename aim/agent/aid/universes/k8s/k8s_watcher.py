@@ -91,7 +91,8 @@ class K8sWatcher(object):
         for aim_res in aim_manager.AimManager.aim_resources:
             if issubclass(aim_res, resource.AciResourceBase):
                 k8s_type = self.ctx.store.resource_to_db_type(aim_res)
-                for ktype in ([k8s_type] + k8s_type.aux_objects.values()):
+                for ktype in (
+                        [k8s_type] + list(k8s_type.aux_objects.values())):
                     self._k8s_types_to_observe.add(ktype)
                     self._k8s_kinds.add(ktype.kind)
                     if ktype != api_v1.AciContainersObject:
@@ -104,7 +105,7 @@ class K8sWatcher(object):
     def run(self):
         threads = {'observer': self.observer_thread,
                    'persister': self.persistence_thread}
-        for attr, thd in threads.items():
+        for attr, thd in list(threads.items()):
             thd = utils.spawn_thread(thd)
             setattr(self, attr, thd)
 
@@ -177,7 +178,7 @@ class K8sWatcher(object):
 
         exc = self._check_observers()
         if exc:
-            for ts in self._observe_thread_state.values():
+            for ts in list(self._observe_thread_state.values()):
                 ts['watch_stop'] = True
             if self.klient.watch:
                 self.klient.stop_watch()

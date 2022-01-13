@@ -107,7 +107,7 @@ class TestDataMigration(base.TestAimDBBase):
             res = self.mgr.create(
                 self.ctx, res_klass(
                     **{k: utils.generate_uuid()
-                       for k in res_klass.identity_attributes.keys()}))
+                       for k in list(res_klass.identity_attributes.keys())}))
             status = self.mgr.get_status(self.ctx, res)
             if not status:
                 continue
@@ -136,7 +136,7 @@ class TestDataMigration(base.TestAimDBBase):
             res = self.mgr.create(
                 self.ctx, res_klass(
                     **{k: utils.generate_uuid()
-                       for k in res_klass.identity_attributes.keys()}))
+                       for k in list(res_klass.identity_attributes.keys())}))
             status = self.mgr.get_status(self.ctx, res)
             if not status:
                 continue

@@ -130,7 +130,7 @@ ipv6_cidr = {
 ip_cidr = {"type": "string", "oneOf": [ipv4_cidr, ipv6_cidr]}
 port = {
     "type": "string",
-    "oneOf": [enum(*ports.values()),
+    "oneOf": [enum(*list(ports.values())),
               {"type": "string",
                "pattern": "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|"
                           "65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$"}]
@@ -143,7 +143,7 @@ static_path = {
     "properties": {"encap": {"type": "string"},
                    "path": {"type": "string"},
                    "mode": {"type": "string",
-                            "oneOf": [enum(*spmodes.values())]},
+                            "oneOf": [enum(*list(spmodes.values()))]},
                    "host": {"type": "string"}}}
 list_of_static_paths = {"type": "array", "items": static_path}
 ip_cidr_obj = {

@@ -57,7 +57,7 @@ class TreeManager(object):
                 obj.tree = str(hash_tree).encode('utf-8')
                 context.store.add(obj)
 
-            for hash_tree in trees.values():
+            for hash_tree in list(trees.values()):
                 # Tree creation
                 empty_tree = structured_tree.StructuredHashTree()
                 # Create base tree
@@ -319,7 +319,7 @@ class AimHashTreeMaker(object):
         pending = getattr(aim_res, '_pending', None)
         to_aci = converter.AimToAciModelConverter()
         for obj in to_aci.convert([aim_res]):
-            for mo, v in obj.items():
+            for mo, v in list(obj.items()):
                 attr = v.get('attributes', {})
                 dn = attr.pop('dn', None)
                 key = AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
@@ -345,7 +345,7 @@ class AimHashTreeMaker(object):
         to_update = {}
         for aim_res in updates:
             to_update.update(self._prepare_aim_resource(tree, aim_res))
-        for k, v in to_update.items():
+        for k, v in list(to_update.items()):
             tree.add(k, **v)
         return tree
 
@@ -374,7 +374,7 @@ class AimHashTreeMaker(object):
         """
         to_aci = converter.AimToAciModelConverter()
         for obj in to_aci.convert(resources):
-            for mo, v in obj.items():
+            for mo, v in list(obj.items()):
                 attr = v.get('attributes', {})
                 dn = attr.pop('dn', None)
                 key = AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
@@ -513,7 +513,7 @@ class HashTreeBuilder(object):
                     updates_by_root[key][conf][tree_index].append(res)
 
         upd_trees, udp_op_trees, udp_mon_trees = [], [], []
-        for root, upd in updates_by_root.items():
+        for root, upd in list(updates_by_root.items()):
             try:
                 ttree = tree_map[self.CONFIG][root]
                 ttree_operational = tree_map[self.OPER][root]

@@ -139,7 +139,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         # Deletion candidates will be decided solely by the AIM configuration
         # universe.
         my_state = self.state
-        for tenant, tree in my_state.items():
+        for tenant, tree in list(my_state.items()):
             if not tree.root and tenant not in vetoes:
                 # The desired state for this tentant is empty
                 delete_candidates.add(tenant)
@@ -395,7 +395,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
                                  delete_candidates, vetoes):
         my_state = self.state
         # Veto tenants with non-dummy roots
-        for tenant, tree in my_state.items():
+        for tenant, tree in list(my_state.items()):
             if tree.root and not tree.root.dummy:
                 delete_candidates.discard(tenant)
                 vetoes.add(tenant)

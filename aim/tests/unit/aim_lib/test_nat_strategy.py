@@ -841,14 +841,17 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
 
     def _check_connect_vrf_multiple(self, stage):
         if stage == 'stage1':
-            v1_e1 = self._get_vrf_1_ext_net_1_objects().values()
-            v1_e2 = self._get_vrf_1_ext_net_2_objects().values()
+            v1_e1 = list(self._get_vrf_1_ext_net_1_objects().values())
+            v1_e2 = list(self._get_vrf_1_ext_net_2_objects().values())
         elif stage == 'stage2':
-            v1_e1 = self._get_vrf_1_ext_net_1_objects(connected=False).values()
-            v1_e2 = self._get_vrf_1_ext_net_2_objects().values()
+            v1_e1 = list(self._get_vrf_1_ext_net_1_objects(
+                connected=False).values())
+            v1_e2 = list(self._get_vrf_1_ext_net_2_objects().values())
         elif stage == 'stage3':
-            v1_e1 = self._get_vrf_1_ext_net_1_objects(connected=False).values()
-            v1_e2 = self._get_vrf_1_ext_net_2_objects(connected=False).values()
+            v1_e1 = list(self._get_vrf_1_ext_net_1_objects(
+                connected=False).values())
+            v1_e2 = list(self._get_vrf_1_ext_net_2_objects(
+                connected=False).values())
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
         self._verify(present=(list(v1_e1) + list(v1_e2)))
@@ -1035,9 +1038,9 @@ class TestNatStrategyVmmAndPhysDomains(TestNoNatStrategy,
         self.mgr.create(self.ctx, a_res.VMMDomain(type='VMware',
                                                   name='vmware1'))
         self.mgr.create(self.ctx, a_res.PhysicalDomain(name='phys2'))
-        self.vmm_domains = [{'type': u'OpenStack', 'name': u'ostack'},
-                            {'type': u'OpenStack', 'name': u'ostack2'},
-                            {'type': u'VMware', 'name': u'vmware1'}]
+        self.vmm_domains = [{'type': 'OpenStack', 'name': 'ostack'},
+                            {'type': 'OpenStack', 'name': 'ostack2'},
+                            {'type': 'VMware', 'name': 'vmware1'}]
         self.phys_domains = [{'name': 'phys'}, {'name': 'phys2'}]
 
     def test_l3outside_vmm_domains_all_domains(self):
