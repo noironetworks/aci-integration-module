@@ -986,6 +986,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def test_aci_types_not_convertible_if_monitored(self):
         self.assertEqual({'fvRsProv': ['l3extInstP'],
                           'fvRsCons': ['l3extInstP'],
+                          'hostprotPol': ['hostprotPol'],
+                          'hostprotRemoteIp': ['hostprotRule'],
+                          'hostprotRule': ['hostprotRule'],
+                          'hostprotSubj': ['hostprotSubj'],
                           'infraRsSpanVSrcGrp': ['infraAccBndlGrp'],
                           'infraRsSpanVDestGrp': ['infraAccBndlGrp']},
                          aci_tenant.ACI_TYPES_NOT_CONVERT_IF_MONITOR)

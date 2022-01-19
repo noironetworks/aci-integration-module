@@ -1241,9 +1241,11 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
                           'converter': converter.ethertype}},
          'skip': ['remoteIps', 'remoteGroupId'],
          'converter': converter.hostprot_rule_converter,
+         'convert_monitored': False,
          'resource': 'hostprotRule'},
         {'exceptions': {},
          'converter': converter.hostprot_remoteIp_converter,
+         'convert_monitored': False,
          'resource': 'hostprotRemoteIp'}]
     sample_input = [get_example_aci_security_group_rule(),
                     get_example_aci_security_group_rule(
