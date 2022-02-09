@@ -315,6 +315,9 @@ class WebSocketContext(object):
                                                 code=resp.status_code,
                                                 text=resp.text)
 
+    def refresh_subscriptions(self, url=None):
+        self.session.refresh_subscriptions(url=url)
+
     def get_event_data(self, urls):
         result = []
         for url in urls:

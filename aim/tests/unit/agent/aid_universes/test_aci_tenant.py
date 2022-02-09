@@ -537,6 +537,24 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         # Main loop is not raising
         manager._main_loop()
 
+    def test_event_loop_refresh(self):
+        ws_context = aci_universe.get_websocket_context(self.cfg_manager, None)
+        manager = aci_tenant.AciTenantManager(
+            'tn-1', self.cfg_manager,
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            ws_context)
+        # Set resubscription timeout artificially low for the test, and make
+        # sure we do enough iterations of the main loop to trigger a refresh
+        # (two iterations with a 1 second pause after each one).
+        manager.ws_subscription_to = '2'
+        manager.num_loop_runs = 2
+        manager.polling_yield = 1
+        manager.ws_context.refresh_subscriptions = mock.Mock()
+        self.assertIsNone(getattr(manager, 'scheduled_reset', None))
+        manager._main_loop()
+        manager.ws_context.refresh_subscriptions.assert_called_once_with(
+            urls=[manager.tenant._get_instance_subscription_urls()[0]])
+
     def test_tenant_reset(self):
         manager = aci_tenant.AciTenantManager(
             'tn-1', self.cfg_manager,
