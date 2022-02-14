@@ -15,6 +15,7 @@
 
 import collections
 import random
+import requests.exceptions as rexc
 import time
 import traceback
 
@@ -415,6 +416,36 @@ def get_websocket_context(apic_config, aim_manager):
     return ws_context
 
 
+class AciCRUDLoginManager(utils.AIMThread):
+    def __init__(self, apic_client):
+        super(AciCRUDLoginManager, self).__init__(self)
+        self._apic_client = apic_client
+        self._login_timeout = self._apic_client.session_timeout
+        self._exit = False
+
+    def exit(self):
+        self._exit = True
+
+    def run(self):
+        while not self._exit:
+            time.sleep(self._login_timeout)
+            try:
+                self._apic_client.login()
+                self._login_timeout = self._apic_client.session_timeout
+            except rexc.ConnectionError:
+                LOG.error(
+                    'Could not refresh APIC login due to ConnectionError')
+                self._login_timeout = 5
+            except rexc.Timeout:
+                LOG.error('Could not refresh APIC login due to Timeout')
+            else:
+                continue
+            finally:
+                # We need to make sure that this thread dies upon
+                # GreenletExit
+                return
+
+
 class AciUniverse(base.HashTreeStoredUniverse):
     """HashTree Universe of the ACI state.
 
@@ -426,6 +457,8 @@ class AciUniverse(base.HashTreeStoredUniverse):
         super(AciUniverse, self).initialize(conf_mgr, multiverse)
         self._aim_converter = converter.AciToAimModelConverter()
         self.aci_session = self.establish_aci_session(self.conf_manager)
+        self._aci_login_manager = AciCRUDLoginManager(self.aci_session)
+        self._aci_login_manager.start()
         # Initialize children MOS here so that it globally fails if there's
         # any bug or network partition.
         aci_tenant.get_children_mos(self.aci_session, 'tn-common')

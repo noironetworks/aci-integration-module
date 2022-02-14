@@ -14,6 +14,8 @@
 #    under the License.
 
 import mock
+import requests.exceptions as rexc
+import time
 
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
@@ -474,6 +476,36 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
                       operational.serving_tenants)
         for key, value in self.universe.serving_tenants.items():
             self.assertIs(operational.serving_tenants[key], value)
+
+    def test_apic_login(self):
+        apic_client = mock.Mock()
+        apic_client.session_timeout = 1
+        self._test_apic_login(apic_client)
+
+    def test_apic_connect_eror(self):
+        apic_client = mock.Mock()
+        apic_client.session_timeout = 1
+        self._test_apic_login(apic_client, error=rexc.ConnectionError)
+
+    def test_apic_timeout_eror(self):
+        apic_client = mock.Mock()
+        apic_client.session_timeout = 1
+        self._test_apic_login(apic_client, error=rexc.Timeout)
+
+    def _test_apic_login(self, apic_client, error=None):
+        if error:
+            apic_client.login = mock.Mock(side_effect=error)
+        else:
+            apic_client.login = mock.Mock()
+        crud_login = aci_universe.AciCRUDLoginManager(apic_client)
+        self.assertEqual(1, crud_login._login_timeout)
+        crud_login.start()
+        time.sleep(2)
+        crud_login._apic_client.login.assert_called_once_with()
+        if error == rexc.ConnectionError:
+            self.assertEqual(5, crud_login._login_timeout)
+        else:
+            self.assertEqual(1, crud_login._login_timeout)
 
     def test_track_universe_actions(self):
         pass
