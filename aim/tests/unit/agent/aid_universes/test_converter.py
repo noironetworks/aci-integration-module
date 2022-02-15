@@ -1225,15 +1225,31 @@ def get_example_aci_security_group_rule(**kwargs):
 
 class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
                                              base.TestAimDBBase):
+    def _test_convert(self, example, expected):
+        result = self.converter.convert(example)
+        self.assertEqual(len(expected), len(result))
+        for item in expected:
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
+
+    def test_convert(self):
+        self.assertEqual(len(self.sample_input), len(self.sample_output))
+
+        for index, sample_input in enumerate(self.sample_input):
+            self._test_convert(self._to_list(sample_input),
+                               [self.sample_output[index]])
+
     resource_type = resource.SecurityGroupRule
     reverse_map_output = [
         {'exceptions': {
             'ip_protocol': {'other': 'protocol',
                             'converter': converter.ip_protocol},
             'from_port': {'other': 'fromPort',
-                          'converter': converter.port},
+                          'converter': converter.port_with_ssh},
             'to_port': {'other': 'toPort',
-                        'converter': converter.port},
+                        'converter': converter.port_with_ssh},
             'icmp_type': {'other': 'icmpType'},
             'icmp_code': {'other': 'icmpCode',
                           'converter': converter.icmpv4_code},
@@ -1251,7 +1267,11 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
                     get_example_aci_security_group_rule(
                         dn='uni/tn-t1/pol-sg1/subj-sgs2/rule-rule1',
                         connTrack='normal', icmpType='0xffff',
-                        protocol='eigrp', ethertype='ipv4', icmpCode='0')]
+                        protocol='eigrp', ethertype='ipv4', icmpCode='0'),
+                    get_example_aci_security_group_rule(
+                        dn='uni/tn-t1/pol-sg1/subj-sgs2/rule-rule2',
+                        direction='egress', ethertype='ipv4',
+                        protocol='tcp', fromPort='ssh', toPort='ssh')]
 
     sample_output = [
         resource.SecurityGroupRule(
@@ -1264,7 +1284,12 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
             security_group_subject_name='sgs2', name='rule1',
             conn_track='normal', icmp_type='0xffff', icmp_code='0',
             ip_protocol='eigrp', ethertype='ipv4',
-            remote_group_id='')
+            remote_group_id=''),
+        resource.SecurityGroupRule(
+            tenant_name='t1', security_group_name='sg1',
+            security_group_subject_name='sgs2', name='rule2',
+            direction='egress', ethertype='ipv4', ip_protocol='tcp',
+            from_port='22', to_port='22')
     ]
 
 
@@ -2246,15 +2271,31 @@ def get_example_aci_system_security_group_rule(**kwargs):
 
 class TestAciToAimConverterSystemSecurityGroupRule(TestAciToAimConverterBase,
                                                    base.TestAimDBBase):
+    def _test_convert(self, example, expected):
+        result = self.converter.convert(example)
+        self.assertEqual(len(expected), len(result))
+        for item in expected:
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
+
+    def test_convert(self):
+        self.assertEqual(len(self.sample_input), len(self.sample_output))
+
+        for index, sample_input in enumerate(self.sample_input):
+            self._test_convert(self._to_list(sample_input),
+                               [self.sample_output[index]])
+
     resource_type = resource.SystemSecurityGroupRule
     reverse_map_output = [
         {'exceptions': {
             'ip_protocol': {'other': 'protocol',
                             'converter': converter.ip_protocol},
             'from_port': {'other': 'fromPort',
-                          'converter': converter.port},
+                          'converter': converter.port_with_ssh},
             'to_port': {'other': 'toPort',
-                        'converter': converter.port},
+                        'converter': converter.port_with_ssh},
             'icmp_type': {'other': 'icmpType'},
             'icmp_code': {'other': 'icmpCode',
                           'converter': converter.icmpv4_code},
@@ -2272,7 +2313,13 @@ class TestAciToAimConverterSystemSecurityGroupRule(TestAciToAimConverterBase,
                            'pol-openstack_aid_SystemSecurityGroup/'
                            'subj-sgs2/rule-rule1',
                         connTrack='normal', icmpType='0xffff',
-                        protocol='eigrp', ethertype='ipv4', icmpCode='0')]
+                        protocol='eigrp', ethertype='ipv4', icmpCode='0'),
+                    get_example_aci_system_security_group_rule(
+                        dn='uni/tn-common/'
+                           'pol-openstack_aid_SystemSecurityGroup/'
+                           'subj-sgs2/rule-rule2',
+                        direction='egress', ethertype='ipv4',
+                        protocol='tcp', fromPort='ssh', toPort='ssh')]
 
     sample_output = [
         resource.SystemSecurityGroupRule(
@@ -2286,7 +2333,13 @@ class TestAciToAimConverterSystemSecurityGroupRule(TestAciToAimConverterBase,
             security_group_name='openstack_aid_SystemSecurityGroup',
             security_group_subject_name='sgs2', name='rule1',
             conn_track='normal', icmp_type='0xffff', icmp_code='0',
-            ip_protocol='eigrp', ethertype='ipv4')
+            ip_protocol='eigrp', ethertype='ipv4'),
+        resource.SystemSecurityGroupRule(
+            tenant_name='common',
+            security_group_name='openstack_aid_SystemSecurityGroup',
+            security_group_subject_name='sgs2', name='rule2',
+            direction='egress', ethertype='ipv4', ip_protocol='tcp',
+            from_port='22', to_port='22')
     ]
 
 
