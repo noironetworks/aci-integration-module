@@ -341,7 +341,7 @@ class TestManager(base.TestShell):
         res = _get_output_bytes(result).split('\n')[1:-1]
         output = []
         for token in res:
-            output.append(tuple(filter(None, token.split(' '))))
+            output.append(tuple([_f for _f in token.split(' ') if _f]))
         return output
 
     def test_sync_state_find(self):
@@ -466,14 +466,14 @@ class TestManagerResourceOpsBase(object):
             if k == 'static_paths' or is_list_of_dicts:
                 return "'%s'" % ' '.join(
                     [','.join(x) for x in
-                     [['%s=%s' % (key, v) for key, v in y.items()]
+                     [['%s=%s' % (key, v) for key, v in list(y.items())]
                       for y in li]])
             elif isinstance(li, list):
                 return ','.join(li) if li else "''"
             return li if li not in ['', None] else "''"
         identity = get_identity()
         other = ['--%s %s' % (k, transform_list(k, v))
-                 for k, v in attributes.items()
+                 for k, v in list(attributes.items())
                  if k in klass.other_attributes]
         return self.run_command(
             'manager ' + res_command + '-%s ' % command + ' '.join(
@@ -572,8 +572,8 @@ class TestManagerResourceOpsBase(object):
         if not (set(test_identity_attributes.keys()) -
                 set(test_required_attributes.keys())):
             l_raises = True
-            if (len(test_identity_attributes.keys()) == 0 and
-                    len(test_required_attributes.keys()) == 0):
+            if (len(list(test_identity_attributes.keys())) == 0 and
+                    len(list(test_required_attributes.keys())) == 0):
                 l_raises = False
 
             self.run_command('manager ' + res_command + '-create',
@@ -587,29 +587,30 @@ class TestManagerResourceOpsBase(object):
             self.run_command('manager ' + res_command + '-show',
                              raises=l_raises)
 
-        if not (len(test_identity_attributes.keys()) == 0 and
-                len(test_required_attributes.keys()) == 0):
+        if not (len(list(test_identity_attributes.keys())) == 0 and
+                len(list(test_required_attributes.keys())) == 0):
             creation_attributes = {}
             creation_attributes.update(test_required_attributes),
             creation_attributes.update(test_identity_attributes)
 
             # Verify successful creation
             r1 = self.create(res_command, creation_attributes)
-            for k, v in creation_attributes.items():
+            for k, v in list(creation_attributes.items()):
                 self.assertTrue(utils.is_equal(
                                 v, test_aim_manager.getattr_canonical(r1, k)))
 
-            id_attr_val = {k: v for k, v in test_identity_attributes.items()
+            id_attr_val = {k: v
+                           for k, v in list(test_identity_attributes.items())
                            if k in r1.identity_attributes}
             # Verify get
             r1 = self.get(res_command, id_attr_val)
-            for k, v in creation_attributes.items():
+            for k, v in list(creation_attributes.items()):
                 self.assertTrue(utils.is_equal(
                                 v, test_aim_manager.getattr_canonical(r1, k)))
 
             # Verify show
             r1 = self.show(res_command, id_attr_val)
-            for k, v in creation_attributes.items():
+            for k, v in list(creation_attributes.items()):
                 self.assertTrue(utils.is_equal(
                                 v, test_aim_manager.getattr_canonical(r1, k)))
 
@@ -618,7 +619,7 @@ class TestManagerResourceOpsBase(object):
             updates.update(id_attr_val)
             updates.update(test_update_attributes)
             r1 = self.update(res_command, updates)
-            for k, v in test_update_attributes.items():
+            for k, v in list(test_update_attributes.items()):
                 self.assertTrue(utils.is_equal(
                                 v, test_aim_manager.getattr_canonical(r1, k)))
 

@@ -59,9 +59,9 @@ class ResourceBase(object):
             raise exc.IdentityAttributesMissing(klass=type(self).__name__,
                                                 attr=unset_attr)
         if kwargs.pop('_set_default', True):
-            for k, v in defaults.items():
+            for k, v in list(defaults.items()):
                 setattr(self, k, v)
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             setattr(self, k, v)
 
     def __getattr__(self, item):
@@ -71,7 +71,8 @@ class ResourceBase(object):
 
     @property
     def identity(self):
-        return [str(getattr(self, x)) for x in self.identity_attributes.keys()]
+        return [str(getattr(self, x))
+                for x in list(self.identity_attributes.keys())]
 
     @classmethod
     def attributes(cls):
@@ -102,7 +103,7 @@ class ResourceBase(object):
                 return sorted(make_serializable(None, x) for x in attr)
             if isinstance(attr, dict):
                 return sorted([(k, make_serializable(k, v))
-                               for k, v in attr.items()])
+                               for k, v in list(attr.items())])
             if isinstance(attr, set):
                 return sorted([(make_serializable(None, x) for x in attr)])
             if isinstance(attr, (int, float, bool, type(None))):
@@ -976,7 +977,7 @@ class L3OutInterface(AciResourceBase):
         ('primary_addr_b', t.ip_cidr),
         ('secondary_addr_b_list', t.list_of_ip_cidr_obj),
         ('encap', t.string()),
-        ('mode', t.enum(*t.spmodes.values())),
+        ('mode', t.enum(*list(t.spmodes.values()))),
         ('host', t.string()),
         ('type', t.enum("ext-svi")),
         ('monitored', t.bool))

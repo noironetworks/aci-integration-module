@@ -130,7 +130,7 @@ class AttributeMixin(object):
         # Since in Py2, string are bytes-like objects, encoding won't
         # make a difference.
         encoded_attr_dict = {}
-        for k, v in resource_attr.items():
+        for k, v in list(resource_attr.items()):
             if k not in getattr(self, '_exclude_from', []):
                 if k == 'object_dict':
                     if isinstance(v, six.text_type):

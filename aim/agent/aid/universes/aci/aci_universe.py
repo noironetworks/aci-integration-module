@@ -533,7 +533,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # Copy state accumulated so far
         global serving_tenants
         new_state = {}
-        for tenant in serving_tenants.keys():
+        for tenant in list(serving_tenants.keys()):
             # Only copy state if the tenant is warm
             with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX + tenant):
                 if serving_tenants[tenant].is_warm():
@@ -614,7 +614,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # Organize by tenant, and push into APIC
         global serving_tenants
         by_tenant = {}
-        for method, objects in resources.items():
+        for method, objects in list(resources.items()):
             for data in objects:
                 tenant_name = self._retrieve_tenant_rn(data)
                 if tenant_name:
@@ -622,13 +622,13 @@ class AciUniverse(base.HashTreeStoredUniverse):
                         method, []).append(data)
 
         self._filter_resources(context, by_tenant)
-        for tenant, conf in by_tenant.items():
+        for tenant, conf in list(by_tenant.items()):
             try:
                 serving_tenants[tenant]
             except KeyError:
                 LOG.warn("Tenant %s is not being served anymore. "
                          "Currently served tenants: %s" % (
-                             tenant, serving_tenants.keys()))
+                             tenant, list(serving_tenants.keys())))
             else:
                 serving_tenants[tenant].push_aim_resources(conf)
 

@@ -600,7 +600,7 @@ class TestAimDBBase(BaseTestCase):
         schema-invalid. kwargs can be passed to fix that.
         """
         res_dict = {x: utils.generate_uuid()
-                    for x in aim_type.identity_attributes.keys()}
+                    for x in list(aim_type.identity_attributes.keys())}
         res_dict.update(kwargs)
         return aim_type(**res_dict)
 

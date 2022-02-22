@@ -406,7 +406,7 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                 p.host = updated_static_path.get('host', '')
                 p.mode = updated_static_path.get('mode', 'regular')
 
-            for p in new_static_paths_map.values():
+            for p in list(new_static_paths_map.values()):
                 if (p.get('path') and p.get('encap') and
                         p['path'] not in existing_static_paths_map):
                     self.static_paths.append(EndpointGroupStaticPath(

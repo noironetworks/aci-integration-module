@@ -165,7 +165,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         session = aci_universe.AciUniverse.establish_aci_session(
             self.cfg_manager)
         for pair in aid.multiverse:
-            for universe in pair.values():
+            for universe in list(pair.values()):
                 if getattr(universe, 'aci_session', None):
                     universe.aci_session = session
                     session._data_stash = {}
@@ -356,7 +356,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
-        for tenant in agent.current_universe.serving_tenants.values():
+        for tenant in list(agent.current_universe.serving_tenants.values()):
             self._current_manager = tenant
             tenant._event_loop()
 
@@ -394,7 +394,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Push state
         currentserving_tenants = {
             k: v for k, v in
-            agent.current_universe.serving_tenants.items()}
+            list(agent.current_universe.serving_tenants.items())}
         agent._reconciliation_cycle()
         self.assertIs(agent.current_universe.serving_tenants[tn1.rn],
                       currentserving_tenants[tn1.rn])
@@ -408,7 +408,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             agent.current_universe.serving_tenants[tn2.rn].
             object_backlog.empty())
         # Get events
-        for tenant in agent.current_universe.serving_tenants.values():
+        for tenant in list(agent.current_universe.serving_tenants.values()):
             self._current_manager = tenant
             tenant._event_loop()
         agent._reconciliation_cycle()
@@ -436,14 +436,15 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertIs(agent.current_universe.serving_tenants[tn2.rn],
                       currentserving_tenants[tn2.rn])
         # Get events
-        for tenant in agent.current_universe.serving_tenants.values():
+        for tenant in list(agent.current_universe.serving_tenants.values()):
             self._current_manager = tenant
             tenant._event_loop()
         # Depending on the order of operation, we might need another
         # iteration to cleanup the tree completely
         if agent.current_universe.serving_tenants[tn1.rn]._state.root:
             agent._reconciliation_cycle()
-            for tenant in agent.current_universe.serving_tenants.values():
+            for tenant in list(
+                    agent.current_universe.serving_tenants.values()):
                 self._current_manager = tenant
                 tenant._event_loop()
         # Tenant still exist on AIM because observe didn't run yet
@@ -2158,7 +2159,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                          desired_monitor.get_relevant_state_for_read())
 
     def _observe_aci_events(self, aci_universe):
-        for tenant in aci_universe.serving_tenants.values():
+        for tenant in list(aci_universe.serving_tenants.values()):
             self._current_manager = tenant
             tenant._event_loop()
 
@@ -2167,13 +2168,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         def printable_state(universe):
             return json.dumps({x: y.root.to_dict() if y.root else {}
-                               for x, y in universe.state.items()},
+                               for x, y in list(universe.state.items())},
                               indent=2)
         desired.observe(self.ctx)
         current.observe(self.ctx)
         # Because of the possible error nodes, we need to verify that the
         # diff is empty
-        self.assertEqual(current.state.keys(), desired.state.keys(),
+        self.assertEqual(list(current.state.keys()),
+                         list(desired.state.keys()),
                          'Not in sync:\n current(%s)\n: %s \n\n '
                          'desired(%s)\n: %s' %
                          (current.name, printable_state(current), desired.name,
@@ -2206,8 +2208,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         listener = hashtree_db_listener.HashTreeDbListener(self.aim_manager)
         listener._delete_trees(self.ctx, root=tenant)
         current = self._get_aim_trees_by_tenant(filters)
-        for trees in current.values():
-            for t in trees.values():
+        for trees in list(current.values()):
+            for t in list(trees.values()):
                 self.assertEqual('{}', str(t))
         listener._recreate_trees(self.ctx, root=tenant)
         # Check if they are still the same

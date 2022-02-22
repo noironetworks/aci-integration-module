@@ -123,7 +123,7 @@ class AIMController(object):
         include_config = kwargs.pop('include-config', None)
         if obj_type:
             klasses = {self.sneak_name_to_klass.get(obj_type)}
-            filters = {x: y for x, y in kwargs.items()
+            filters = {x: y for x, y in list(kwargs.items())
                        if x not in STATIC_QUERY_PARAMS}
         else:
             klasses = {x for x in self.mgr.aim_resources}

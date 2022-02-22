@@ -557,7 +557,7 @@ class AciTenantManager(utils.AIMThread):
                              self.tenant_name):
             while not self.object_backlog.empty():
                 request = self.object_backlog.get()
-                for method, aim_objects in request.items():
+                for method, aim_objects in list(request.items()):
                     # Method will be either "create" or "delete"
                     # sort the aim_objects based on DN first for DELETE method
                     sorted_aim_objs = aim_objects

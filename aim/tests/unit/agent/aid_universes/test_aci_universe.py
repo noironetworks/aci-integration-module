@@ -75,9 +75,9 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
         # Test same tenants cause a noop
         serving_tenants_copy = dict(
-            [(k, v) for k, v in self.universe.serving_tenants.items()])
+            [(k, v) for k, v in list(self.universe.serving_tenants.items())])
         self.universe.serve(self.ctx, tenant_list)
-        for k, v in serving_tenants_copy.items():
+        for k, v in list(serving_tenants_copy.items()):
             # Serving tenant values are the same
             self.assertIs(v, self.universe.serving_tenants[k])
 
@@ -86,7 +86,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.serving_tenants['tn-19'].is_dead = mock.Mock(
             return_value=True)
         self.universe.serve(self.ctx, tenant_list)
-        for k, v in serving_tenants_copy.items():
+        for k, v in list(serving_tenants_copy.items()):
             if k != 'tn-19':
                 # Serving tenant values are the same
                 self.assertIs(v, self.universe.serving_tenants[k])
@@ -302,7 +302,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             [('fvTenant|tn1', 'fvBD|monitoredBD')])
         self.assertEqual(1, len(result))
         result = result[0]
-        self.assertEqual('tagInst', result.keys()[0])
+        self.assertEqual('tagInst', list(result.keys())[0])
         self.assertEqual('uni/tn-tn1/BD-monitoredBD/tag-openstack_aid',
                          list(result.values())[0]['attributes']['dn'])
 
@@ -321,7 +321,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
               'fvRsProv|p1')])
         self.assertEqual(1, len(result))
         result = result[0]
-        self.assertEqual('fvRsProv', result.keys()[0])
+        self.assertEqual('fvRsProv', list(result.keys())[0])
         self.assertEqual('uni/tn-tn1/out-out/instP-inet/rsprov-p1',
                          list(result.values())[0]['attributes']['dn'])
 
@@ -472,7 +472,7 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
         self.universe.serve(self.ctx, tenant_list)
         self.assertIs(self.universe.serving_tenants,
                       operational.serving_tenants)
-        for key, value in self.universe.serving_tenants.items():
+        for key, value in list(self.universe.serving_tenants.items()):
             self.assertIs(operational.serving_tenants[key], value)
 
     def test_track_universe_actions(self):

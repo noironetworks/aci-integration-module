@@ -18,7 +18,7 @@ import collections
 from aim import aim_manager
 from aim.common import utils
 
-writable_classes = aim_manager.AimManager._db_model_map.keys()
+writable_classes = list(aim_manager.AimManager._db_model_map.keys())
 schema_spec = "http://json-schema.org/draft-04/schema#"
 
 
@@ -37,7 +37,7 @@ def generate_schema():
         properties = {}
         for attr in [klass.identity_attributes, klass.other_attributes,
                      klass.db_attributes]:
-            for k, v in attr.items():
+            for k, v in list(attr.items()):
                 properties[k] = v
         title = klass.__name__
         name = utils.camel_to_snake(title)

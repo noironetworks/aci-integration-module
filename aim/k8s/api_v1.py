@@ -84,7 +84,7 @@ class K8sObject(dict):
 
     def from_attr(self, resource_klass, attribute_dict):
         self.setdefault('spec', copy.copy(self.default_spec))
-        for k, v in attribute_dict.items():
+        for k, v in list(attribute_dict.items()):
             k8s_attrs = self.attribute_map.get(k)
             if k8s_attrs:
                 d = self
@@ -117,7 +117,7 @@ class K8sObject(dict):
         label_selectors = []
         name = None
         ns = None
-        for fltr, value in filters.items():
+        for fltr, value in list(filters.items()):
             k8s_attrs = self.attribute_map.get(fltr)
             if not k8s_attrs:
                 continue
@@ -276,7 +276,7 @@ class Service(K8sObject):
         except ValueError:
             # check well-defined string names for ports
             port_str = port_str.lower()
-            for p_num, p_name in types.ports.items():
+            for p_num, p_name in list(types.ports.items()):
                 if p_name == port_str:
                     return int(p_num)
         return port_str
@@ -284,7 +284,7 @@ class Service(K8sObject):
     def from_attr(self, resource_klass, attr):
         # fix service_type
         if 'service_type' in attr:
-            for st_k, st_a in self.service_types.items():
+            for st_k, st_a in list(self.service_types.items()):
                 if st_a == attr['service_type']:
                     attr['service_type'] = st_k
         if attr.get('cluster_ip') == '0.0.0.0':

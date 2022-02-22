@@ -112,7 +112,7 @@ class ConsistentHashRing(object):
         # Remove nodes already in the ring, this could be a weight update
         # operation
         self.remove_nodes(set(self._nodes.keys()) & set(nodes.keys()))
-        for node, weight in nodes.items():
+        for node, weight in list(nodes.items()):
             for h4sh in self._hashi(node, weight):
                 bisect.insort(self._ring, Star(h4sh, node))
         self._nodes.update(nodes)

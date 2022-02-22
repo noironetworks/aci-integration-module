@@ -66,7 +66,7 @@ def log(method):
 def deep_sort(obj):
     if isinstance(obj, dict):
         obj = OrderedDict(sorted(obj.items()))
-        for k, v in obj.items():
+        for k, v in list(obj.items()):
             if isinstance(v, dict) or isinstance(v, list):
                 obj[k] = deep_sort(v)
 
@@ -355,7 +355,7 @@ def _byteify(data, ignore_dicts=False):
         return {
             _byteify(key, ignore_dicts=True): _byteify(value,
                                                        ignore_dicts=True)
-            for key, value in data.items()
+            for key, value in list(data.items())
         }
     return data
 

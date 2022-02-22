@@ -584,7 +584,7 @@ def contract_converter(object_dict, otype, helper,
         others = utils.do_attribute_conversion(object_dict, attribute,
                                                helper.get('exceptions', {}),
                                                to_aim=to_aim)
-        for other_k, other_v in others.items():
+        for other_k, other_v in list(others.items()):
             # Identity was already converted
             if other_k not in destination_identity_attributes:
                 res_dict[other_k] = other_v
@@ -620,7 +620,7 @@ def hostprot_pol_converter(object_dict, otype, helper,
         others = utils.do_attribute_conversion(object_dict, attribute,
                                                helper.get('exceptions', {}),
                                                to_aim=to_aim)
-        for other_k, other_v in others.items():
+        for other_k, other_v in list(others.items()):
             # Identity was already converted
             if other_k not in destination_identity_attributes:
                 res_dict[other_k] = other_v
@@ -656,7 +656,7 @@ def hostprot_subj_converter(object_dict, otype, helper,
         others = utils.do_attribute_conversion(object_dict, attribute,
                                                helper.get('exceptions', {}),
                                                to_aim=to_aim)
-        for other_k, other_v in others.items():
+        for other_k, other_v in list(others.items()):
             # Identity was already converted
             if other_k not in destination_identity_attributes:
                 res_dict[other_k] = other_v
@@ -692,7 +692,7 @@ def hostprot_rule_converter(object_dict, otype, helper,
         others = utils.do_attribute_conversion(object_dict, attribute,
                                                helper.get('exceptions', {}),
                                                to_aim=to_aim)
-        for other_k, other_v in others.items():
+        for other_k, other_v in list(others.items()):
             # Identity was already converted
             if other_k not in destination_identity_attributes:
                 res_dict[other_k] = other_v
@@ -1330,7 +1330,7 @@ resource_map.update(service_graph.resource_map)
 
 # Build the reverse map for reverse translation
 reverse_resource_map = {}
-for apic_type, rule_list in resource_map.items():
+for apic_type, rule_list in list(resource_map.items()):
     for rules in rule_list:
         klass = rules['resource']
         mapped_klass = reverse_resource_map.setdefault(klass, [])
@@ -1472,7 +1472,7 @@ class AciToAimModelConverter(BaseConverter):
                 (res._aci_mo_name,) + tuple(res.identity),
                 klass(**dict([(y, res.identity[x]) for x, y in
                               enumerate(klass.identity_attributes)])))
-            for k, v in res.__dict__.items():
+            for k, v in list(res.__dict__.items()):
                 if isinstance(v, list):
                     for item in v:
                         if isinstance(item, dict) and '_converter_id' in item:

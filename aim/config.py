@@ -215,8 +215,8 @@ class ConfigManager(object):
         host = host or ''
         # Create a DB session
         result = {}
-        for group, congifs in self.map.items():
-            for k, v in congifs.items():
+        for group, congifs in list(self.map.items()):
+            for k, v in list(congifs.items()):
                 try:
                     if group == 'default':
                         value = getattr(cfg_obj, k)
@@ -487,8 +487,8 @@ class ConfigSubscriber(utils.AIMThread):
         # Unsubscribe all the options of a callback
         call_id = self._get_call_id(callback)
         # Copy to avoid runtime changes
-        for group, items in copy.deepcopy(self.map_by_callback_id.get(
-                call_id, {})).items():
+        for group, items in list(copy.deepcopy(self.map_by_callback_id.get(
+                call_id, {})).items()):
             for item in items:
                 self.unregister_callback_option(callback, item, group)
 
@@ -514,9 +514,9 @@ class ConfigSubscriber(utils.AIMThread):
         # prepare call
         configs = {}
         # Copy the sub dictionary which might change during the iteration
-        for group, items in copy.copy(self.subscription_map).items():
-            for item, callbacks in copy.copy(items).items():
-                for call_id, values in copy.copy(callbacks).items():
+        for group, items in list(copy.copy(self.subscription_map).items()):
+            for item, callbacks in list(copy.copy(items).items()):
+                for call_id, values in list(copy.copy(callbacks).items()):
                     for host in values['hosts']:
                         try:
                             # TODO(ivar): optimize to make a single DB call

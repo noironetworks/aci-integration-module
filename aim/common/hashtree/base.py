@@ -194,5 +194,5 @@ class OrderedList(object):
     def __lt__(self, other):
         return (self._stash < other._stash)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return len(self) != 0
