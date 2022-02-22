@@ -83,6 +83,18 @@ ip_protocol = mapped_attribute(t.ip_protocol)
 ethertype = mapped_attribute(t.ethertype)
 
 
+def port_with_ssh(object_dict, attribute, to_aim=True):
+    # ACI releases prior to 5.x  wouldn't aaccept 'ssh' as a valid
+    # fromPort or toPort value. In order to support both 5.x and prior
+    # releases, we have to ensure that 'ssh' is never sent to ACI when
+    # creating an MO. However, the 5.x releases will return the value
+    # of 'ssh' in websocket notifications, even if '22' was sent.
+    if (attribute == 'fromPort' or attribute == 'toPort') and (
+            object_dict[attribute] == 'ssh'):
+        object_dict[attribute] = '22'
+    return port(object_dict, attribute, to_aim=to_aim)
+
+
 def fault_inst_to_resource(converted, helper, to_aim=True):
     fault_prefix = 'fault-'
     if to_aim:
@@ -1128,9 +1140,9 @@ resource_map = {
              'protocol': {'other': 'ip_protocol',
                           'converter': ip_protocol},
              'fromPort': {'other': 'from_port',
-                          'converter': port},
+                          'converter': port_with_ssh},
              'toPort': {'other': 'to_port',
-                        'converter': port},
+                        'converter': port_with_ssh},
              'ethertype': {'other': 'ethertype',
                            'converter': ethertype},
              'icmpType': {'other': 'icmp_type'},
@@ -1144,9 +1156,9 @@ resource_map = {
              'protocol': {'other': 'ip_protocol',
                           'converter': ip_protocol},
              'fromPort': {'other': 'from_port',
-                          'converter': port},
+                          'converter': port_with_ssh},
              'toPort': {'other': 'to_port',
-                        'converter': port},
+                        'converter': port_with_ssh},
              'ethertype': {'other': 'ethertype',
                            'converter': ethertype},
              'icmpType': {'other': 'icmp_type'},
