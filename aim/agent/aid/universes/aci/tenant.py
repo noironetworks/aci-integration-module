@@ -47,7 +47,8 @@ CHILDREN_MOS_UNI = None
 CHILDREN_MOS_TOPOLOGY = None
 SUPPORTS_ANNOTATIONS = None
 RESET_INTERVAL = 3600
-DEFAULT_WS_TO = '900'
+DEFAULT_WS_TO = '60'
+BASELINE_WS_TO = '900'
 
 
 class ScheduledReset(Exception):
@@ -142,7 +143,7 @@ class Root(acitoolkit.BaseACIObject):
             ws_subscription_to=ws_subscription_to)
 
     def _get_instance_subscription_urls(self,
-                                        ws_subscription_to=DEFAULT_WS_TO):
+                                        ws_subscription_to=BASELINE_WS_TO):
         if not self.dn.startswith('topology'):
             url = ('/api/node/mo/{}.json?query-target=subtree&'
                    'rsp-prop-include=config-only&rsp-subtree-include=faults&'
@@ -311,10 +312,13 @@ class AciTenantManager(utils.AIMThread):
         self.tenant_name = tenant_name
         children_mos = get_children_mos(self.aci_session, self.tenant_name)
         ws_subscription_to = self.apic_config.get_option(
-            'websocket_subscription_timeout', 'aim') or DEFAULT_WS_TO
+            'websocket_subscription_timeout', 'aim') or BASELINE_WS_TO
+        if int(ws_subscription_to) < int(DEFAULT_WS_TO):
+            ws_subscription_to = DEFAULT_WS_TO
+        self.ws_subscription_to = ws_subscription_to
         self.tenant = Root(self.tenant_name, filtered_children=children_mos,
                            rn=self.tenant_name,
-                           ws_subscription_to=ws_subscription_to)
+                           ws_subscription_to=self.ws_subscription_to)
         self._state = structured_tree.StructuredHashTree()
         self._operational_state = structured_tree.StructuredHashTree()
         self._monitored_state = structured_tree.StructuredHashTree()
@@ -407,6 +411,10 @@ class AciTenantManager(utils.AIMThread):
                 start = time.time()
                 if start > self.scheduled_reset:
                     raise ScheduledReset()
+                if start > self.refresh_time:
+                    self.ws_context.refresh_subscriptions(
+                        urls=self.tenant.urls)
+                    self.refresh_time = self._schedule_websocket_refresh()
                 self._event_loop()
                 curr_time = time.time() - start
                 if abs(curr_time - last_time) > epsilon:
@@ -646,6 +654,10 @@ class AciTenantManager(utils.AIMThread):
         self.scheduled_reset = utils.schedule_next_event(RESET_INTERVAL, 0.2)
         self._event_loop()
         self._warm = True
+        self.refresh_time = self._schedule_websocket_refresh()
+
+    def _schedule_websocket_refresh(self):
+        return utils.get_time() + int(self.ws_subscription_to) / 2
 
     def _event_to_tree(self, events):
         """Parse the event and push it into the tree

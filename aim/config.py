@@ -106,7 +106,7 @@ agent_opts = [
                      "be sent in websocket subscriptions. If it is set to 0, "
                      "then a timeout will not be sent in websocket "
                      "subscriptions, and APIC will use it's default timeout "
-                     "of 80 seconds. If set to a non-zero value, then the "
+                     "of 60 seconds. If set to a non-zero value, then the "
                      "timeout value will be provided when AID subscribes to "
                      "a URL on APIC. NOTE: the subscription timeout is not "
                      "supported by APIC versions before 3.2(3), so this "
