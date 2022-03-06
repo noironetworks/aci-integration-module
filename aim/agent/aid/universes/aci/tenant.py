@@ -368,7 +368,8 @@ class AciTenantManager(utils.AIMThread):
 
     def get_state_copy(self):
         return structured_tree.StructuredHashTree.from_string(
-            str(self._state), root_key=self._state.root_key)
+            str(self._state), root_key=self._state.root_key,
+            has_populated=self._state.has_populated)
 
     def get_operational_state_copy(self):
         return structured_tree.StructuredHashTree.from_string(

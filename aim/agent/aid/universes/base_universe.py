@@ -337,10 +337,13 @@ class HashTreeStoredUniverse(AimUniverse):
                                  delete_candidates, vetoes):
         pass
 
-    def finalize_deletion_candidates(self, context, other_universe,
-                                     delete_candidates):
+    def _pop_up_sync_log(self, delete_candidates):
         for root in delete_candidates:
             self._sync_log.pop(root, None)
+
+    def finalize_deletion_candidates(self, context, other_universe,
+                                     delete_candidates):
+        self._pop_up_sync_log(delete_candidates)
 
     def _reconcile(self, context, other_universe):
         # "self" is always the current state, "other" the desired
