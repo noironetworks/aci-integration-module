@@ -61,6 +61,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         self.addCleanup(self._reset_apic_client)
         self._do_aci_mocks()
+        self.mock_auth_mgr = mock.patch(
+            'aim.agent.aid.universes.aci.aci_universe.AciCRUDLoginManager')
+        self.mock_auth_mgr.start()
         self.tenant_thread = mock.patch(
             'aim.agent.aid.universes.aci.tenant.AciTenantManager.run')
         self.tenant_thread.start()
@@ -91,6 +94,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.service.AID._spawn_heartbeat_loop')
         self.hb_loop.start()
 
+        self.addCleanup(self.mock_auth_mgr.stop)
         self.addCleanup(self.tenant_thread.stop)
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
