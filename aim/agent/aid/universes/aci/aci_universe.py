@@ -21,6 +21,7 @@ import traceback
 
 from acitoolkit import acitoolkit
 from apicapi import apic_client
+from apicapi import exceptions as cexc
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
@@ -41,6 +42,7 @@ from aim import tree_manager
 NORMAL_PURPOSE = 'normal'
 BACKUP_PURPOSE = 'backup'
 RECOVERY_PURPOSE = 'recovery'
+DEFAULT_LOGIN_TIMEOUT = 60
 
 LOG = logging.getLogger(__name__)
 
@@ -420,33 +422,66 @@ def get_websocket_context(apic_config, aim_manager):
 
 
 class AciCRUDLoginManager(utils.AIMThread):
+    """Manager to ensure ACI CRUD client keeps a valid login session
+
+    THe apicapi module provides a login API for ACI REST CRUD when
+    password-based logins are used. The module doesn't keep the login
+    refreshed in some cases - for example, when a 401 or 403 error is
+    returned by ACI (e.g. due to delay in TACACS server responding to
+    an authentication request for the login). In order to ensure that we
+    keep a valid login with ACI, this manager class keeps a thread that
+    attempts to periodically log in to APIC 5 seconds before the
+    expiration value/time retunred from the last valid login. It also
+    retries logins in the face of a login error. Having a single class
+    do this ensures that we don't make duplicate requests in other
+    objects, such as AciTenantManager objects.
+    """
     def __init__(self, apic_client):
         super(AciCRUDLoginManager, self).__init__(self)
         self._apic_client = apic_client
+        if not self._apic_client.session_timeout:
+            self._login_timeout = DEFAULT_LOGIN_TIMEOUT
+        else:
+            self._login_timeout = self._apic_client.session_timeout
         self._login_timeout = self._apic_client.session_timeout
         self._exit = False
 
     def exit(self):
         self._exit = True
 
+    def _do_login_loop(self):
+        if self._apic_client._is_cert_auth():
+            return
+        try:
+            self._apic_client.login()
+            # Get the timeout value returned by the apic_client.
+            # The timeout is the value returned by APIC, minus 5 seconds
+            if not self._apic_client.session_timeout:
+                self._login_timeout = DEFAULT_LOGIN_TIMEOUT
+            else:
+                self._login_timeout = self._apic_client.session_timeout
+        except cexc.ApicHostNoResponse:
+            LOG.error('Could not refresh APIC login due to ApicHostNoResponse')
+        except rexc.ConnectionError:
+            LOG.error('Could not refresh APIC login due to ConnectionError')
+        except cexc.ApicResponseNotOk as not_okay:
+            # for authentication based errors, retry logins faster.
+            for err_code in apic_client.REFRESH_CODES:
+                if err_code in str(not_okay):
+                    self._login_timeout = 5
+            LOG.error(
+                'Could not refresh APIC login due to ApicResponseNotOk')
+        # All others - just login after timeout
+        except Exception:
+            pass
+
     def run(self):
+        if self._apic_client._is_cert_auth():
+            return
+        # No need to do logins for cert-based auth
         while not self._exit:
             time.sleep(self._login_timeout)
-            try:
-                self._apic_client.login()
-                self._login_timeout = self._apic_client.session_timeout
-            except rexc.ConnectionError:
-                LOG.error(
-                    'Could not refresh APIC login due to ConnectionError')
-                self._login_timeout = 5
-            except rexc.Timeout:
-                LOG.error('Could not refresh APIC login due to Timeout')
-            else:
-                continue
-            finally:
-                # We need to make sure that this thread dies upon
-                # GreenletExit
-                return
+            self._do_login_loop()
 
 
 class AciUniverse(base.HashTreeStoredUniverse):

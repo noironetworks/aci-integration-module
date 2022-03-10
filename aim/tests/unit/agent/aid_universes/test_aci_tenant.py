@@ -391,6 +391,10 @@ class TestAciClientMixin(object):
         self.ws_login = mock.patch('acitoolkit.acitoolkit.Session.login')
         self.ws_login.start()
 
+        self.mock_auth_mgr = mock.patch(
+            'aim.agent.aid.universes.aci.aci_universe.AciCRUDLoginManager')
+        self.mock_auth_mgr.start()
+
         self.ws_logged_in = mock.patch(
             'acitoolkit.acitoolkit.Session.logged_in', return_value=True)
         self.ws_logged_in.start()
@@ -425,6 +429,7 @@ class TestAciClientMixin(object):
         self.old_transaction_commit = apic_client.Transaction.commit
 
         self.addCleanup(self.ws_login.stop)
+        self.addCleanup(self.mock_auth_mgr.stop)
         self.addCleanup(self.ws_logged_in.stop)
         self.addCleanup(self.apic_login.stop)
         self.addCleanup(self.tn_subscribe.stop)

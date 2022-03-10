@@ -15,7 +15,8 @@
 
 import mock
 import requests.exceptions as rexc
-import time
+
+from apicapi import exceptions
 
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
@@ -37,6 +38,12 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         super(TestAciUniverseMixin, self).setUp()
         self._do_aci_mocks()
         self.backend_state = {}
+        self.mock_auth_mgr = mock.patch(
+            'aim.agent.aid.universes.aci.aci_universe.AciCRUDLoginManager')
+        self.mock_auth_mgr.start()
+        self.mock_cert_auth = mock.patch(
+            'apicapi.apic_client.ApicSession._is_cert_auth')
+        self.mock_cert_auth.start()
         self.universe = (universe_klass or
                          aci_universe.AciUniverse)().initialize(
             aim_cfg.ConfigManager(self.ctx, 'h1'), [])
@@ -56,6 +63,8 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.mock_is_warm.start()
 
         aci_tenant.AciTenantManager.kill = _kill_thread
+        self.addCleanup(self.mock_auth_mgr.stop)
+        self.addCleanup(self.mock_cert_auth.stop)
         self.addCleanup(self.mock_start.stop)
         self.addCleanup(self.mock_is_dead.stop)
         self.addCleanup(self.mock_is_warm.stop)
@@ -468,47 +477,70 @@ class TestAciUniverse(TestAciUniverseMixin, base.TestAimDBBase):
             aci_universe.AciOperationalUniverse)
 
     def test_shared_served_tenants(self):
-        operational = aci_universe.AciOperationalUniverse().initialize(
-            aim_cfg.ConfigManager(self.ctx, ''), [])
         tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(self.ctx, tenant_list)
         self.assertIs(self.universe.serving_tenants,
-                      operational.serving_tenants)
+                      self.universe.serving_tenants)
         for key, value in list(self.universe.serving_tenants.items()):
-            self.assertIs(operational.serving_tenants[key], value)
-
-    def test_apic_login(self):
-        apic_client = mock.Mock()
-        apic_client.session_timeout = 1
-        self._test_apic_login(apic_client)
-
-    def test_apic_connect_eror(self):
-        apic_client = mock.Mock()
-        apic_client.session_timeout = 1
-        self._test_apic_login(apic_client, error=rexc.ConnectionError)
-
-    def test_apic_timeout_eror(self):
-        apic_client = mock.Mock()
-        apic_client.session_timeout = 1
-        self._test_apic_login(apic_client, error=rexc.Timeout)
-
-    def _test_apic_login(self, apic_client, error=None):
-        if error:
-            apic_client.login = mock.Mock(side_effect=error)
-        else:
-            apic_client.login = mock.Mock()
-        crud_login = aci_universe.AciCRUDLoginManager(apic_client)
-        self.assertEqual(1, crud_login._login_timeout)
-        crud_login.start()
-        time.sleep(2)
-        crud_login._apic_client.login.assert_called_once_with()
-        if error == rexc.ConnectionError:
-            self.assertEqual(5, crud_login._login_timeout)
-        else:
-            self.assertEqual(1, crud_login._login_timeout)
+            self.assertIs(self.universe.serving_tenants[key], value)
 
     def test_track_universe_actions(self):
         pass
+
+
+class TestAciUniverseLogin(base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestAciUniverseLogin, self).setUp()
+
+    def test_apic_login(self):
+        self._test_apic_login()
+
+    def test_apic_cert_auth(self):
+        self._test_apic_login(cert_auth=True)
+
+    def test_apic_connect_eror(self):
+        self._test_apic_login(error=rexc.ConnectionError)
+
+    def test_apic_timeout_eror(self):
+        self._test_apic_login(error=exceptions.ApicHostNoResponse)
+
+    def test_apic_login_other_exception(self):
+        self._test_apic_login(error=KeyError)
+
+    def test_apic_auth_erors(self):
+        exc_kwargs = {
+            'request': 'http://1.1.1.1/aaaLogin',
+            'status': 401,
+            'reason': 'sillystuff',
+            'err_text': 'moresillystuff',
+            'err_code': 401}
+        self._test_apic_login(error=exceptions.ApicResponseNotOk(
+            **exc_kwargs))
+        exc_kwargs['status'] = 403
+        exc_kwargs['err_code'] = 403
+        self._test_apic_login(error=exceptions.ApicResponseNotOk(
+            **exc_kwargs))
+
+    def _test_apic_login(self, error=None, cert_auth=False):
+        apic_client = mock.Mock()
+        apic_client.session_timeout = 0
+        apic_client._is_cert_auth.return_value = cert_auth
+        if error:
+            apic_client.login.side_effect = error
+        crud_mgr = aci_universe.AciCRUDLoginManager(apic_client)
+        crud_mgr._do_login_loop()
+        if not cert_auth:
+            apic_client.login.assert_called_with()
+            if error.__class__ == exceptions.ApicResponseNotOk and (
+                    str(401) in str(error) or str(403) in str(error)):
+                self.assertEqual(5, crud_mgr._login_timeout)
+            elif error:
+                self.assertEqual(0, crud_mgr._login_timeout)
+            else:
+                self.assertEqual(60, crud_mgr._login_timeout)
+        else:
+            apic_client.login.assert_not_called()
 
 
 class TestAciOperationalUniverse(TestAciUniverseMixin, base.TestAimDBBase):
