@@ -538,6 +538,22 @@ def get_example_aci_filter_entry(**kwargs):
 
 class TestAciToAimConverterFilterEntry(TestAciToAimConverterBase,
                                        base.TestAimDBBase):
+    def _test_convert(self, example, expected):
+        result = self.converter.convert(example)
+        self.assertEqual(len(expected), len(result))
+        for item in expected:
+            self.assertTrue(
+                item in result,
+                'Expected\n%s\nnot in\n%s' % (self._dump(item),
+                                              self._dump(result)))
+
+    def test_convert(self):
+        self.assertEqual(len(self.sample_input), len(self.sample_output))
+
+        for index, sample_input in enumerate(self.sample_input):
+            self._test_convert(self._to_list(sample_input),
+                               [self.sample_output[index]])
+
     resource_type = resource.FilterEntry
     reverse_map_output = [{
         'resource': 'vzEntry',
@@ -553,13 +569,13 @@ class TestAciToAimConverterFilterEntry(TestAciToAimConverterBase,
             'icmpv6_type': {'other': 'icmpv6T',
                             'converter': converter.icmpv6_type},
             'source_from_port': {'other': 'sFromPort',
-                                 'converter': converter.port},
+                                 'converter': converter.port_with_ssh},
             'source_to_port': {'other': 'sToPort',
-                               'converter': converter.port},
+                               'converter': converter.port_with_ssh},
             'dest_from_port': {'other': 'dFromPort',
-                               'converter': converter.port},
+                               'converter': converter.port_with_ssh},
             'dest_to_port': {'other': 'dToPort',
-                             'converter': converter.port},
+                             'converter': converter.port_with_ssh},
             'tcp_flags': {'other': 'tcpRules',
                           'converter': converter.tcp_flags},
             'stateful': {'other': 'stateful',
@@ -574,6 +590,13 @@ class TestAciToAimConverterFilterEntry(TestAciToAimConverterBase,
                         etherT='unspecified',
                         dFromPort='unspecified', dToPort='unspecified',
                         stateful='no',
+                        applyToFrag='yes', nameAlias='alias'),
+                    get_example_aci_filter_entry(
+                        dn='uni/tn-test-tenant/flt-f1/e-e3',
+                        etherT='unspecified',
+                        prot='tcp',
+                        dFromPort='ssh', dToPort='ssh',
+                        stateful='no',
                         applyToFrag='yes', nameAlias='alias')]
     sample_output = [
         resource.FilterEntry(tenant_name='test-tenant', filter_name='f1',
@@ -584,6 +607,13 @@ class TestAciToAimConverterFilterEntry(TestAciToAimConverterBase,
         resource.FilterEntry(tenant_name='test-tenant', filter_name='f1',
                              name='e2', arp_opcode='req',
                              source_from_port='200', source_to_port='https',
+                             tcp_flags='est', fragment_only=True,
+                             display_name='alias'),
+        resource.FilterEntry(tenant_name='test-tenant', filter_name='f1',
+                             name='e3', arp_opcode='req',
+                             ip_protocol='tcp',
+                             source_from_port='200', source_to_port='https',
+                             dest_from_port='22', dest_to_port='22',
                              tcp_flags='est', fragment_only=True,
                              display_name='alias')]
     partial_change_input = _aci_obj('vzEntry',
