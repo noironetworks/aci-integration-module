@@ -89,7 +89,9 @@ def port_with_ssh(object_dict, attribute, to_aim=True):
     # releases, we have to ensure that 'ssh' is never sent to ACI when
     # creating an MO. However, the 5.x releases will return the value
     # of 'ssh' in websocket notifications, even if '22' was sent.
-    if (attribute == 'fromPort' or attribute == 'toPort') and (
+    if (attribute == 'fromPort' or attribute == 'toPort' or
+        attribute == 'sFromPort' or attribute == 'sToPort' or
+        attribute == 'dFromPort' or attribute == 'dToPort') and (
             object_dict[attribute] == 'ssh'):
         object_dict[attribute] = '22'
     return port(object_dict, attribute, to_aim=to_aim)
@@ -960,13 +962,13 @@ resource_map = {
             'icmpv6T': {'other': 'icmpv6_type',
                         'converter': icmpv6_type},
             'sFromPort': {'other': 'source_from_port',
-                          'converter': port},
+                          'converter': port_with_ssh},
             'sToPort': {'other': 'source_to_port',
-                        'converter': port},
+                        'converter': port_with_ssh},
             'dFromPort': {'other': 'dest_from_port',
-                          'converter': port},
+                          'converter': port_with_ssh},
             'dToPort': {'other': 'dest_to_port',
-                        'converter': port},
+                        'converter': port_with_ssh},
             'tcpRules': {'other': 'tcp_flags',
                          'converter': tcp_flags},
             'stateful': {'converter': boolean},
