@@ -30,6 +30,7 @@ from aim.agent.aid.universes import base_universe
 from aim.agent.aid.universes import constants as lcon
 from aim.common.hashtree import structured_tree
 from aim.common import utils
+from aim import exceptions as aim_exceptions
 from aim import tree_manager
 
 LOG = logging.getLogger(__name__)
@@ -205,8 +206,10 @@ class OwnershipManager(object):
             for obj in to_push:
                 if not list(obj.keys())[0].startswith(TAG_KEY):
                     dn = list(obj.values())[0]['attributes']['dn']
+                    mo = apic_client.DNManager().aci_decompose_dn_guess(
+                        dn, list(obj.keys())[0])
                     dn += '/tag-%s' % self.tag_key
-                    tags.append({"%s__%s" % (TAG_KEY, list(obj.keys())[0]):
+                    tags.append({"%s__%s" % (TAG_KEY, mo[0]):
                                  {"attributes": {"dn": dn}}})
             result.extend(tags)
         return result
@@ -272,8 +275,8 @@ class OwnershipManager(object):
             return self.is_owned_dn('/'.join(decomposed[:-1]))
         else:
             owned = self.is_owned_dn(dn)
-            if not owned and AciTenantManager.is_child_object(
-                    type) and check_parent:
+            if not owned and AciTenantManager.is_contained_mo(
+                    type, dn) and check_parent:
                 # Check for parent ownership
                 try:
                     decomposed = (
@@ -673,6 +676,7 @@ class AciTenantManager(utils.AIMThread):
         filtered_events = []
         # Set the owned events
         for event in events:
+            dn = list(event.values())[0]['attributes']['dn']
             # Exclude some events from monitored objects.
             # Some RS objects can be set from AIM even for monitored
             # objects, therefore we need to exclude events regarding those
@@ -700,12 +704,11 @@ class AciTenantManager(utils.AIMThread):
                             event, check_parent=False) and
                             self.ownership_mgr.is_owned(event)):
                         continue
-            if self.is_child_object(type) and self.is_deleting(event):
+            if self.is_contained_mo(type, dn) and self.is_deleting(event):
                 # Can be excluded, we expect parent objects
                 continue
 
             if self.is_deleting(event):
-                dn = list(event.values())[0]['attributes']['dn']
                 removing_dns.add(dn)
             filtered_events.append(event)
         for event in self.to_aim_converter.convert(filtered_events):
@@ -768,7 +771,8 @@ class AciTenantManager(utils.AIMThread):
             res_type = list(event.keys())[0]
             status = (resource['attributes'].get(STATUS_FIELD) or '').lower()
             raw_dn = resource['attributes'].get('dn')
-            if self.is_child_object(res_type) and res_type != FAULT_KEY:
+            if self.is_contained_mo(res_type, raw_dn) and (
+                    res_type != FAULT_KEY):
                 # We need to make sure to retrieve the parent object as well
                 try:
                     decomposed = (
@@ -887,9 +891,52 @@ class AciTenantManager(utils.AIMThread):
         return status in [converter.DELETED_STATUS, converter.CLEARED_SEVERITY]
 
     @staticmethod
-    def is_child_object(type):
+    def is_contained_mo(type, dn):
+        """Check if MO is contained by parent MO
+
+        Some managed objects (MOs) in ACI don't have their own resources in
+        AIM, and instead are just members of an AIM resource for their parent
+        MO (examples include resolver objects, such as contract resolvers
+        under endpoint groups).  This method returns True if the current MO
+        is contained in the parent resource, and False if it has it's own
+        top-level resource in AIM.
+        """
+        # Tags are always contained resources
         if type == TAG_KEY:
             return True
-        aim_res = converter.resource_map.get(type, [])
-        return aim_res and type not in [x['resource']._aci_mo_name
-                                        for x in aim_res]
+
+        # We know it's a contained MO if the resource map in the converter
+        # has a different MO type than what the MO's DN describes. However,
+        # the resource map supports multiple mappings, so we have to find
+        # the right one. We do this by looking at the parent's MO type of our
+        # resource (extracted from the DN), and seeing if it's the same type
+        # as an MO from the decoder's resource map. If it is, then we know
+        # that this resource should be contained by that parent AIM resource.
+        try:
+            decomposed = apic_client.DNManager().aci_decompose_dn_guess(dn,
+                                                                        type)
+            parent_dn = apic_client.DNManager().build(decomposed[1][:-1])
+            stop_idx = len(decomposed[1])
+            start_idx = max(stop_idx - 2, 0)
+            parent_type = decomposed[1][start_idx:stop_idx][0][0]
+        except apic_client.DNManager.InvalidNameFormat:
+            parent_type = None
+            parent_dn = []
+        except KeyError:
+            # This happens for fault delegate MOs
+            return False
+        aim_resources = converter.resource_map.get(type, [])
+        for res in aim_resources:
+            try:
+                parent_res = res['resource'].from_dn(parent_dn)
+            except AttributeError:
+                # Some resources, such as faults, don't implement from_dn,
+                # so skip those potential parent resources.
+                continue
+            except aim_exceptions.InvalidDNForAciResource:
+                # This can't be our resource, since it wasn't a
+                # valid DN, so skip it.
+                continue
+            if parent_res._aci_mo_name == parent_type:
+                return True
+        return False

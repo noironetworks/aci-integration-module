@@ -1351,8 +1351,7 @@ class TestExternalNetworkMixin(object):
                                 'provided_contract_names': ['k', 'p1', 'p2'],
                                 'consumed_contract_names': ['c1', 'c2', 'k']}
     test_search_attributes = {'name': 'net1'}
-    test_update_attributes = {'provided_contract_names': ['c2', 'k'],
-                              'consumed_contract_names': []}
+    test_update_attributes = {'display_name': 'new-display-name'}
     test_default_values = {'nat_epg_dn': '',
                            'provided_contract_names': [],
                            'consumed_contract_names': []}

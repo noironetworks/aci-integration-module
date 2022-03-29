@@ -886,21 +886,38 @@ class L3OutInterface(model_base.Base, model_base.HasAimId,
         return res_attr
 
 
-class ExternalNetworkContract(model_base.Base):
-    """DB model for Contracts used by ExternalNetwork."""
-    __tablename__ = 'aim_external_network_contracts'
+class ExternalNetworkProvidedContract(model_base.Base, model_base.HasAimId,
+                                      model_base.HasName,
+                                      model_base.HasTenantName,
+                                      model_base.AttributeMixin,
+                                      model_base.IsMonitored):
+    """DB model for Contracts provided by ExternalNetwork."""
+    __tablename__ = 'aim_external_network_provided_contracts'
+    model_base.uniq_column(__tablename__, 'tenant_name', 'l3out_name',
+                           'ext_net_name')
 
-    ext_net_aim_id = sa.Column(sa.Integer,
-                               sa.ForeignKey('aim_external_networks.aim_id'),
-                               primary_key=True)
+    l3out_name = model_base.name_column(primary_key=True)
+    ext_net_name = model_base.name_column(primary_key=True)
     name = model_base.name_column(primary_key=True)
-    provides = sa.Column(sa.Boolean, primary_key=True)
+
+
+class ExternalNetworkConsumedContract(model_base.Base, model_base.HasAimId,
+                                      model_base.HasName,
+                                      model_base.HasTenantName,
+                                      model_base.AttributeMixin,
+                                      model_base.IsMonitored):
+    """DB model for Contracts consumed by ExternalNetwork."""
+    __tablename__ = 'aim_external_network_consumed_contracts'
+
+    l3out_name = model_base.name_column(primary_key=True)
+    ext_net_name = model_base.name_column(primary_key=True)
+    name = model_base.name_column(primary_key=True)
 
 
 class ExternalNetwork(model_base.Base, model_base.HasAimId,
                       model_base.HasName, model_base.HasDisplayName,
                       model_base.HasTenantName,
-                      ContractRelationMixin, model_base.IsMonitored):
+                      model_base.AttributeMixin, model_base.IsMonitored):
     """DB model for ExternalNetwork."""
 
     __tablename__ = 'aim_external_networks'
@@ -913,11 +930,94 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
 
     nat_epg_dn = sa.Column(sa.String(1024))
 
-    _contract_relation_class = ExternalNetworkContract
-    contracts = orm.relationship(ExternalNetworkContract,
-                                 backref='extnet',
-                                 cascade='all, delete-orphan',
-                                 lazy='joined')
+    def query_existing(self, session):
+        # REVISIT: used a variable here, in order to make PEP8
+        # happy when performing the filter operation.
+        monitored = False
+        existing_provided = session.query(
+            ExternalNetworkProvidedContract).filter(
+            ExternalNetworkProvidedContract.tenant_name ==
+            self.tenant_name).filter(
+            ExternalNetworkProvidedContract.l3out_name ==
+            self.l3out_name).filter(
+            ExternalNetworkProvidedContract.ext_net_name ==
+            self.name).filter(
+            ExternalNetworkProvidedContract.monitored == monitored).all()
+        existing_consumed = session.query(
+            ExternalNetworkConsumedContract).filter(
+            ExternalNetworkConsumedContract.tenant_name ==
+            self.tenant_name).filter(
+            ExternalNetworkConsumedContract.l3out_name ==
+            self.l3out_name).filter(
+            ExternalNetworkConsumedContract.ext_net_name ==
+            self.name).filter(
+            ExternalNetworkConsumedContract.monitored == monitored).all()
+        return existing_provided, existing_consumed
+
+    def from_attr(self, session, res_attr):
+
+        with session.begin(subtransactions=True):
+            # We need the primary keys for the provided and consumed
+            # contracts. For create operations, they are available in
+            # the passed parameters. For update operations, they are
+            # available in the passed resource
+            primary_keys = {'tenant_name': None,
+                            'l3out_name': None,
+                            'name': None}
+            for primary_key in primary_keys.keys():
+                if res_attr.get(primary_key):
+                    primary_keys[primary_key] = res_attr[primary_key]
+                else:
+                    primary_keys[primary_key] = self.__dict__[primary_key]
+            existing_provided, existing_consumed = self.query_existing(session)
+            if 'provided_contract_names' in res_attr:
+                old_prov = set([prov.name for prov in existing_provided])
+                new_prov = set(res_attr.pop(
+                    'provided_contract_names', []) or [])
+                added_prov = new_prov - old_prov
+                removed_prov = old_prov - new_prov
+                for add_prov in added_prov:
+                    session.add(ExternalNetworkProvidedContract(
+                        tenant_name=primary_keys['tenant_name'],
+                        l3out_name=primary_keys['l3out_name'],
+                        ext_net_name=primary_keys['name'],
+                        name=add_prov, monitored=False))
+                for remove_prov in removed_prov:
+                    for oldp in existing_provided:
+                        if remove_prov == oldp.name:
+                            session.delete(oldp)
+            if 'consumed_contract_names' in res_attr:
+                old_cons = set([cons.name for cons in existing_consumed])
+                new_cons = set(res_attr.pop(
+                    'consumed_contract_names', []) or [])
+                added_cons = new_cons - old_cons
+                removed_cons = old_cons - new_cons
+                for add_cons in added_cons:
+                    session.add(ExternalNetworkConsumedContract(
+                        tenant_name=primary_keys['tenant_name'],
+                        l3out_name=primary_keys['l3out_name'],
+                        ext_net_name=primary_keys['name'],
+                        name=add_cons, monitored=False))
+                for remove_cons in removed_cons:
+                    for oldc in existing_consumed:
+                        if remove_cons == oldc.name:
+                            session.delete(oldc)
+        super(ExternalNetwork, self).from_attr(session, res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(ExternalNetwork, self).to_attr(session)
+        if not session:
+            # REVISIT: In order to avoid circular dependencies
+            # for py27 at module load time, we import the API at runtime.
+            from aim.db import api
+            session = api.get_session()
+        with session.begin(subtransactions=True):
+            provided, consumed = self.query_existing(session)
+        for attr, values in (('provided_contract_names', provided),
+                             ('consumed_contract_names', consumed)):
+            for c in values:
+                res_attr.setdefault(attr, []).append(c.name)
+        return res_attr
 
 
 class ExternalSubnet(model_base.Base, model_base.HasAimId,

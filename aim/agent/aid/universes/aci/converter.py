@@ -46,6 +46,7 @@ default_to_resource_strict = utils.default_to_resource_strict
 boolean = utils.boolean
 mapped_attribute = utils.mapped_attribute
 child_list = utils.child_list
+contract_rs = utils.contract_rs
 
 
 def fault_identity_converter(object_dict, otype, helper,
@@ -783,10 +784,8 @@ vzInTerm_vzRsFiltAtt_converter = child_list('in_filters', 'tnVzFilterName',
                                             aci_mo='vzRsFiltAtt__In')
 vzOutTerm_vzRsFiltAtt_converter = child_list('out_filters', 'tnVzFilterName',
                                              aci_mo='vzRsFiltAtt__Out')
-fvRsProv_Ext_converter = child_list('provided_contract_names', 'tnVzBrCPName',
-                                    aci_mo='fvRsProv__Ext')
-fvRsCons_Ext_converter = child_list('consumed_contract_names', 'tnVzBrCPName',
-                                    aci_mo='fvRsCons__Ext')
+fvRsProv_Ext_converter = contract_rs('tnVzBrCPName', aci_mo='fvRsProv__Ext')
+fvRsCons_Ext_converter = contract_rs('tnVzBrCPName', aci_mo='fvRsCons__Ext')
 infraRsSpanVSrcGrp_ap_converter = child_list('span_vsource_group_names',
                                              'tnSpanVSrcGrpName',
                                              aci_mo='infraRsSpanVSrcGrp__ap')
@@ -926,17 +925,17 @@ resource_map = {
     'fvRsProv': [{'resource': resource.EndpointGroup,
                   'converter': fvRsProv_converter,
                   'skip_for_managed': True},
-                 {'resource': resource.ExternalNetwork,
+                 {'resource': resource.ExternalNetworkProvidedContract,
                   'converter': fvRsProv_Ext_converter,
                   'convert_pre_existing': True,
-                  'convert_monitored': False}],
+                  'convert_monitored': True}],
     'fvRsCons': [{'resource': resource.EndpointGroup,
                   'converter': fvRsCons_converter,
                   'skip_for_managed': True},
-                 {'resource': resource.ExternalNetwork,
+                 {'resource': resource.ExternalNetworkConsumedContract,
                   'converter': fvRsCons_Ext_converter,
                   'convert_pre_existing': True,
-                  'convert_monitored': False}],
+                  'convert_monitored': True}],
     'fvRsDomAtt': [{
         'resource': resource.EndpointGroup,
         'converter': fv_rs_dom_att_converter,
@@ -1381,11 +1380,11 @@ resource_map.update({
                          'converter': vzInTerm_vzRsFiltAtt_converter}],
     'vzRsFiltAtt__Out': [{'resource': resource.ContractSubject,
                           'converter': vzOutTerm_vzRsFiltAtt_converter}],
-    'fvRsProv__Ext': [{'resource': resource.ExternalNetwork,
+    'fvRsProv__Ext': [{'resource': resource.ExternalNetworkProvidedContract,
                        'converter': fvRsProv_Ext_converter,
                        'convert_pre_existing': True,
                        'convert_monitored': False}],
-    'fvRsCons__Ext': [{'resource': resource.ExternalNetwork,
+    'fvRsCons__Ext': [{'resource': resource.ExternalNetworkConsumedContract,
                        'converter': fvRsCons_Ext_converter,
                        'convert_pre_existing': True,
                        'convert_monitored': False}],

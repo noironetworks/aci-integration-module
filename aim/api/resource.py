@@ -1055,6 +1055,44 @@ class ExternalNetwork(AciResourceBase):
             **kwargs)
 
 
+class ExternalNetworkProvidedContract(AciResourceBase):
+    """Resource representing Contract Refrences used by ExternalNetwork."""
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('ext_net_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'fvRsProv__Ext'
+    _tree_parent = ExternalNetwork
+
+    def __init__(self, **kwargs):
+        super(ExternalNetworkProvidedContract, self).__init__({
+            'monitored': False}, **kwargs)
+
+
+class ExternalNetworkConsumedContract(AciResourceBase):
+    """Resource representing Contract Refrences used by ExternalNetwork."""
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('l3out_name', t.name),
+        ('ext_net_name', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'fvRsCons__Ext'
+    _tree_parent = ExternalNetwork
+
+    def __init__(self, **kwargs):
+        super(ExternalNetworkConsumedContract, self).__init__({
+            'monitored': False}, **kwargs)
+
+
 class ExternalSubnet(AciResourceBase):
     """Resource representing an external subnet.
 
