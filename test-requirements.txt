@@ -26,3 +26,4 @@ testscenarios>=0.4
 testtools>=1.4.0
 mock
 tabulate>=0.7.5
+voluptuous!=0.13.0
