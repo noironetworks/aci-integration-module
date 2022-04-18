@@ -431,12 +431,18 @@ class AciTenantManager(utils.AIMThread):
                 self.recovery_retries = None
         except ScheduledReset:
             LOG.info("Scheduled tree reset for root %s" % self.tenant_name)
-            self._unsubscribe_tenant()
+            try:
+                self._unsubscribe_tenant()
+            except Exception:
+                pass
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, str(e)))
             LOG.error(traceback.format_exc())
-            self._unsubscribe_tenant()
+            try:
+                self._unsubscribe_tenant()
+            except Exception:
+                pass
             self.recovery_retries = utils.exponential_backoff(
                 TENANT_FAILURE_MAX_WAIT, tentative=self.recovery_retries)
             if self.recovery_retries.get() >= self.max_retries:
