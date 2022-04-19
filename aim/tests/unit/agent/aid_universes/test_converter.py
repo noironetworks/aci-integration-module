@@ -122,13 +122,13 @@ class TestAciToAimConverterBase(object):
         self.assertEqual(2, len(self.sample_output))
 
         self._test_convert(self._to_list(self.sample_input[0]),
-                           [self.sample_output[0]],
+                           self._to_list(self.sample_output[0]),
                            self._to_list(self.sample_input[1]),
-                           [self.sample_output[1]])
+                           self._to_list(self.sample_output[1]))
 
     def test_non_existing_resource(self):
         self._test_non_existing_resource(self._to_list(self.sample_input[0]),
-                                         [self.sample_output[0]])
+                                         self._to_list(self.sample_output[0]))
 
     def test_partial_change(self):
         self._test_partial_change([self.partial_change_input],
@@ -136,7 +136,7 @@ class TestAciToAimConverterBase(object):
 
     def test_deleted_object(self):
         self._test_deleted_object(self._to_list(self.sample_input[0]),
-                                  [self.sample_output[0]])
+                                  self._to_list(self.sample_output[0]))
 
 
 def _aci_obj(mo_type, **attr):
@@ -1178,17 +1178,7 @@ class TestAciToAimConverterExternalNetwork(TestAciToAimConverterBase,
                   'consumedContractNames']},
         {'resource': 'l3extRsInstPToNatMappingEPg',
          'exceptions': {'nat_epg_dn': {'other': 'tDn'}, },
-         'to_resource': converter.default_to_resource_strict},
-        {'resource': 'fvRsProv',
-         'exceptions': {},
-         'converter': converter.fvRsProv_Ext_converter,
-         'convert_pre_existing': True,
-         'convert_monitored': False},
-        {'resource': 'fvRsCons',
-         'exceptions': {},
-         'converter': converter.fvRsCons_Ext_converter,
-         'convert_pre_existing': True,
-         'convert_monitored': False}
+         'to_resource': converter.default_to_resource_strict}
     ]
     sample_input = [[get_example_aci_external_network(nameAlias='alias'),
                      _aci_obj('l3extRsInstPToNatMappingEPg',
@@ -1209,15 +1199,32 @@ class TestAciToAimConverterExternalNetwork(TestAciToAimConverterBase,
                               tnVzBrCPName='k')],
                     get_example_aci_external_network(
                         dn='uni/tn-t1/out-o2/instP-inet2')]
-    sample_output = [
+    sample_output = [[
         resource.ExternalNetwork(tenant_name='t1', l3out_name='o1',
                                  name='inet1',
                                  nat_epg_dn='uni/tn-t1/ap-a1/epg-g1',
-                                 provided_contract_names=['p1', 'k'],
-                                 consumed_contract_names=['c1', 'k'],
+                                 provided_contract_names=[],
+                                 consumed_contract_names=[],
                                  display_name='alias'),
-        resource.ExternalNetwork(tenant_name='t1', l3out_name='o2',
-                                 name='inet2')]
+        resource.ExternalNetworkProvidedContract(tenant_name='t1',
+                                                 l3out_name='o1',
+                                                 ext_net_name='inet1',
+                                                 name='p1'),
+        resource.ExternalNetworkProvidedContract(tenant_name='t1',
+                                                 l3out_name='o1',
+                                                 ext_net_name='inet1',
+                                                 name='k'),
+        resource.ExternalNetworkConsumedContract(tenant_name='t1',
+                                                 l3out_name='o1',
+                                                 ext_net_name='inet1',
+                                                 name='c1'),
+        resource.ExternalNetworkConsumedContract(tenant_name='t1',
+                                                 l3out_name='o1',
+                                                 ext_net_name='inet1',
+                                                 name='k')],
+                     resource.ExternalNetwork(tenant_name='t1',
+                                              l3out_name='o2',
+                                              name='inet2')]
 
 
 def get_example_aci_external_subnet(**kwargs):
@@ -3269,18 +3276,12 @@ class TestAimToAciConverterExternalNetwork(TestAimToAciConverterBase,
         get_example_aim_external_network(
             name='inet2',
             nat_epg_dn='uni/foo',
-            provided_contract_names=['k', 'p1'],
-            consumed_contract_names=['c1', 'k'],
             display_name='alias'),
         get_example_aim_external_network(
             nat_epg_dn='uni/foo',
-            provided_contract_names=['k', 'p1'],
-            consumed_contract_names=['c1', 'k'],
             pre_existing=True),
         get_example_aim_external_network(
             nat_epg_dn='uni/foo',
-            provided_contract_names=['k', 'p1'],
-            consumed_contract_names=['c1', 'k'],
             monitored=True)]
     sample_output = [
         [_aci_obj('l3extInstP', dn='uni/tn-t1/out-l1/instP-inet2',
@@ -3288,31 +3289,8 @@ class TestAimToAciConverterExternalNetwork(TestAimToAciConverterBase,
          _aci_obj('l3extRsInstPToNatMappingEPg',
                   dn=('uni/tn-t1/out-l1/instP-inet2/'
                       'rsInstPToNatMappingEPg'),
-                  tDn='uni/foo'),
-         _aci_obj('fvRsProv__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet2/rsprov-k',
-                  tnVzBrCPName='k'),
-         _aci_obj('fvRsProv__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet2/rsprov-p1',
-                  tnVzBrCPName='p1'),
-         _aci_obj('fvRsCons__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet2/rscons-k',
-                  tnVzBrCPName='k'),
-         _aci_obj('fvRsCons__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet2/rscons-c1',
-                  tnVzBrCPName='c1')],
-        [_aci_obj('fvRsProv__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet1/rsprov-k',
-                  tnVzBrCPName='k'),
-         _aci_obj('fvRsProv__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet1/rsprov-p1',
-                  tnVzBrCPName='p1'),
-         _aci_obj('fvRsCons__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet1/rscons-k',
-                  tnVzBrCPName='k'),
-         _aci_obj('fvRsCons__Ext',
-                  dn='uni/tn-t1/out-l1/instP-inet1/rscons-c1',
-                  tnVzBrCPName='c1')],
+                  tDn='uni/foo')],
+        [],
         [_aci_obj('l3extInstP', dn='uni/tn-t1/out-l1/instP-inet1',
                   nameAlias=''),
          _aci_obj('l3extRsInstPToNatMappingEPg',
@@ -3323,6 +3301,45 @@ class TestAimToAciConverterExternalNetwork(TestAimToAciConverterBase,
     missing_ref_output = [_aci_obj('l3extInstP',
                                    dn='uni/tn-t1/out-l1/instP-inet1',
                                    nameAlias='')]
+
+
+def get_example_aim_external_network_provided_contract(**kwargs):
+    example = resource.ExternalNetworkProvidedContract(tenant_name='t1',
+                                                       l3out_name='l1',
+                                                       ext_net_name='inet1',
+                                                       name='p1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+def get_example_aim_external_network_consumed_contract(**kwargs):
+    example = resource.ExternalNetworkConsumedContract(tenant_name='t1',
+                                                       l3out_name='l1',
+                                                       ext_net_name='inet1',
+                                                       name='c1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterExternalNetworkContracts(
+        TestAimToAciConverterBase, base.TestAimDBBase):
+    sample_input = [
+        get_example_aim_external_network_provided_contract(
+            name='p1'),
+        get_example_aim_external_network_consumed_contract(
+            name='c1'),
+        get_example_aim_external_network_provided_contract(
+            name='p1',
+            monitored=True),
+        get_example_aim_external_network_consumed_contract(
+            name='c1',
+            monitored=True)]
+    sample_output = [[
+        _aci_obj('fvRsProv',
+                 dn='uni/tn-t1/out-l1/instP-inet1/rsprov-p1')],
+        [_aci_obj('fvRsCons',
+                  dn='uni/tn-t1/out-l1/instP-inet1/rscons-c1')],
+        [], []]
 
 
 def get_example_aim_external_subnet(**kwargs):

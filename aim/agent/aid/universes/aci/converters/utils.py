@@ -257,6 +257,33 @@ def child_list(aim_attr, aci_attr, aci_mo=None):
     return func
 
 
+def contract_rs(aci_attr, aci_mo=None):
+    def func(object_dict, otype, helper,
+             source_identity_attributes,
+             destination_identity_attributes, to_aim=True):
+        result = []
+        if to_aim:
+            res_dict = {}
+            aci_type = aci_mo or otype
+            try:
+                id = default_identity_converter(object_dict, aci_type, helper,
+                                                to_aim=True)
+            except apic_client.DNManager.InvalidNameFormat:
+                return result
+            for index, attr in enumerate(destination_identity_attributes):
+                res_dict[attr] = id[index]
+            result.append(default_to_resource(res_dict, helper, to_aim=True))
+        else:
+            aci_type = aci_mo or helper['resource']
+            dn = default_identity_converter(
+                object_dict, otype, helper,
+                aci_mo_type=aci_type, to_aim=False)[0]
+            result.append({helper['resource']: {
+                'attributes': {'dn': dn}}})
+        return result
+    return func
+
+
 def reverse_attribute_mapping_info(mapping_info, to_aim=True):
     result = {}
     for exception, value in list(mapping_info.items()):

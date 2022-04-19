@@ -227,6 +227,10 @@ class SqlAlchemyStore(AimStore):
                         models.L3OutInterfaceProfile),
                     api_res.L3OutInterface: models.L3OutInterface,
                     api_res.ExternalNetwork: models.ExternalNetwork,
+                    api_res.ExternalNetworkProvidedContract: (
+                        models.ExternalNetworkProvidedContract),
+                    api_res.ExternalNetworkConsumedContract: (
+                        models.ExternalNetworkConsumedContract),
                     api_res.ExternalSubnet: models.ExternalSubnet,
                     api_infra.HostLink: infra_model.HostLink,
                     api_infra.OpflexDevice: infra_model.OpflexDevice,

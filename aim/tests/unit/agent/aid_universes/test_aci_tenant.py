@@ -1007,9 +1007,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.assertEqual(2, len(self.manager.object_backlog.queue))
 
     def test_aci_types_not_convertible_if_monitored(self):
-        self.assertEqual({'fvRsProv': ['l3extInstP'],
-                          'fvRsCons': ['l3extInstP'],
-                          'hostprotPol': ['hostprotPol'],
+        self.assertEqual({'hostprotPol': ['hostprotPol'],
                           'hostprotRemoteIp': ['hostprotRule'],
                           'hostprotRule': ['hostprotRule'],
                           'hostprotSubj': ['hostprotSubj'],
