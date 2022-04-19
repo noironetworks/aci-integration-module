@@ -1007,10 +1007,7 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
     def to_attr(self, session):
         res_attr = super(ExternalNetwork, self).to_attr(session)
         if not session:
-            # REVISIT: In order to avoid circular dependencies
-            # for py27 at module load time, we import the API at runtime.
-            from aim.db import api
-            session = api.get_session()
+            return res_attr
         with session.begin(subtransactions=True):
             provided, consumed = self.query_existing(session)
         for attr, values in (('provided_contract_names', provided),
