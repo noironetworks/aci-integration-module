@@ -930,46 +930,51 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
 
     nat_epg_dn = sa.Column(sa.String(1024))
 
-    def query_existing(self, session):
-        # REVISIT: used a variable here, in order to make PEP8
-        # happy when performing the filter operation.
-        monitored = False
+    def _get_primary_keys(self, res_attr):
+        # We need the primary keys for the provided and consumed
+        # contracts. For create operations, they are available in
+        # the passed parameters. For update operations, they are
+        # available in the passed resource
+        primary_keys = {'tenant_name': None,
+                        'l3out_name': None,
+                        'name': None}
+        for primary_key in primary_keys.keys():
+            if res_attr.get(primary_key):
+                primary_keys[primary_key] = res_attr[primary_key]
+            else:
+                primary_keys[primary_key] = self.__dict__[primary_key]
+        primary_keys['monitored'] = False
+        return primary_keys
+
+    def query_existing(self, session, primary_keys):
         existing_provided = session.query(
             ExternalNetworkProvidedContract).filter(
             ExternalNetworkProvidedContract.tenant_name ==
-            self.tenant_name).filter(
+            primary_keys.get('tenant_name')).filter(
             ExternalNetworkProvidedContract.l3out_name ==
-            self.l3out_name).filter(
+            primary_keys.get('l3out_name')).filter(
             ExternalNetworkProvidedContract.ext_net_name ==
-            self.name).filter(
-            ExternalNetworkProvidedContract.monitored == monitored).all()
+            primary_keys.get('name')).filter(
+            ExternalNetworkProvidedContract.monitored ==
+            primary_keys.get('monitored')).all()
         existing_consumed = session.query(
             ExternalNetworkConsumedContract).filter(
             ExternalNetworkConsumedContract.tenant_name ==
-            self.tenant_name).filter(
+            primary_keys.get('tenant_name')).filter(
             ExternalNetworkConsumedContract.l3out_name ==
-            self.l3out_name).filter(
+            primary_keys.get('l3out_name')).filter(
             ExternalNetworkConsumedContract.ext_net_name ==
-            self.name).filter(
-            ExternalNetworkConsumedContract.monitored == monitored).all()
+            primary_keys.get('name')).filter(
+            ExternalNetworkConsumedContract.monitored ==
+            primary_keys.get('monitored')).all()
         return existing_provided, existing_consumed
 
     def from_attr(self, session, res_attr):
 
+        primary_keys = self._get_primary_keys(res_attr)
         with session.begin(subtransactions=True):
-            # We need the primary keys for the provided and consumed
-            # contracts. For create operations, they are available in
-            # the passed parameters. For update operations, they are
-            # available in the passed resource
-            primary_keys = {'tenant_name': None,
-                            'l3out_name': None,
-                            'name': None}
-            for primary_key in primary_keys.keys():
-                if res_attr.get(primary_key):
-                    primary_keys[primary_key] = res_attr[primary_key]
-                else:
-                    primary_keys[primary_key] = self.__dict__[primary_key]
-            existing_provided, existing_consumed = self.query_existing(session)
+            existing_provided, existing_consumed = self.query_existing(
+                session, primary_keys)
             if 'provided_contract_names' in res_attr:
                 old_prov = set([prov.name for prov in existing_provided])
                 new_prov = set(res_attr.pop(
@@ -1008,8 +1013,9 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
         res_attr = super(ExternalNetwork, self).to_attr(session)
         if not session:
             return res_attr
+        primary_keys = self._get_primary_keys(res_attr)
         with session.begin(subtransactions=True):
-            provided, consumed = self.query_existing(session)
+            provided, consumed = self.query_existing(session, primary_keys)
         for attr, values in (('provided_contract_names', provided),
                              ('consumed_contract_names', consumed)):
             for c in values:
