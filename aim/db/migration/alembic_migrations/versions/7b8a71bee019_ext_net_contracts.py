@@ -43,6 +43,10 @@ def upgrade():
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.Column('epoch', sa.BigInteger(), nullable=False,
                   server_default='0'),
+        sa.UniqueConstraint('tenant_name', 'l3out_name', 'ext_net_name',
+                            'name', name='uniq_aim_ext_net_pcon_identity'),
+        sa.Index('idx_aim_ext_net_pcon_identity',
+                 'tenant_name', 'l3out_name', 'ext_net_name', 'name'),
         sa.PrimaryKeyConstraint('aim_id'))
 
     op.create_table(
@@ -55,6 +59,10 @@ def upgrade():
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.Column('epoch', sa.BigInteger(), nullable=False,
                   server_default='0'),
+        sa.UniqueConstraint('tenant_name', 'l3out_name', 'ext_net_name',
+                            'name', name='uniq_aim_ext_net_ccon_identity'),
+        sa.Index('idx_aim_ext_net_ccon_identity',
+                 'tenant_name', 'l3out_name', 'ext_net_name', 'name'),
         sa.PrimaryKeyConstraint('aim_id'))
 
     # Migrate the data to the new tables
