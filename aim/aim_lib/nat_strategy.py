@@ -377,6 +377,7 @@ class NatStrategyMixin(NatStrategy):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if ext_net_db:
                 self._manage_external_subnets(ctx, ext_net_db, [])
+                self._delete_external_contracts(ctx, ext_net_db)
                 if not ext_net_db.monitored:
                     self.mgr.delete(ctx, ext_net)
                 else:
@@ -385,6 +386,22 @@ class NatStrategyMixin(NatStrategy):
                     contract = self._get_nat_contract(ctx, l3out)
                     self._update_contract(ctx, ext_net_db, contract,
                                           is_remove=True)
+
+    def _delete_external_contracts(self, ctx, ext_net):
+        ext_contract_attr = dict(tenant_name=ext_net.tenant_name,
+                                 l3out_name=ext_net.l3out_name,
+                                 ext_net_name=ext_net.name)
+        provided = self.mgr.find(ctx, resource.ExternalNetworkProvidedContract,
+                                 **ext_contract_attr)
+        consumed = self.mgr.find(ctx, resource.ExternalNetworkConsumedContract,
+                                 **ext_contract_attr)
+        with ctx.store.begin(subtransactions=True):
+            for prov in provided:
+                if prov.name in ext_net.provided_contract_names:
+                    self.mgr.delete(ctx, prov)
+            for cons in consumed:
+                if cons.name in ext_net.consumed_contract_names:
+                    self.mgr.delete(ctx, cons)
 
     def _manage_external_subnets(self, ctx, ext_net, new_cidrs):
         new_cidrs = new_cidrs[:] if new_cidrs else []
