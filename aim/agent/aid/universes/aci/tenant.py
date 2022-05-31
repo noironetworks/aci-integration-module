@@ -911,6 +911,23 @@ class AciTenantManager(utils.AIMThread):
         if type == TAG_KEY:
             return True
 
+        def is_intermediate_object(mo_class):
+            # intmnl is an example of intermediate node
+            fmt = apic_client.ManagedObjectClass.supported_mos[mo_class].rn_fmt
+            return '-' not in fmt and not fmt.startswith('rs')
+
+        def get_mo_parent(mo_type, mo_dn):
+            decomposed = apic_client.DNManager().aci_decompose_dn_guess(
+                mo_dn, mo_type)
+            stop_idx = len(decomposed[1])
+            start_idx = max(stop_idx - 2, 0)
+            parent_type = decomposed[1][start_idx:stop_idx][0][0]
+            parent_dn = apic_client.DNManager().build(decomposed[1][:-1])
+            if is_intermediate_object(parent_type):
+                return get_mo_parent(parent_type, parent_dn)
+            else:
+                return (parent_type, parent_dn)
+
         # We know it's a contained MO if the resource map in the converter
         # has a different MO type than what the MO's DN describes. However,
         # the resource map supports multiple mappings, so we have to find
@@ -919,12 +936,7 @@ class AciTenantManager(utils.AIMThread):
         # as an MO from the decoder's resource map. If it is, then we know
         # that this resource should be contained by that parent AIM resource.
         try:
-            decomposed = apic_client.DNManager().aci_decompose_dn_guess(dn,
-                                                                        type)
-            parent_dn = apic_client.DNManager().build(decomposed[1][:-1])
-            stop_idx = len(decomposed[1])
-            start_idx = max(stop_idx - 2, 0)
-            parent_type = decomposed[1][start_idx:stop_idx][0][0]
+            parent_type, parent_dn = get_mo_parent(type, dn)
         except apic_client.DNManager.InvalidNameFormat:
             parent_type = None
             parent_dn = []
