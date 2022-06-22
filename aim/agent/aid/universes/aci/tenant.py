@@ -302,7 +302,7 @@ class OwnershipManager(object):
 
 class AciTenantManager(utils.AIMThread):
 
-    def __init__(self, tenant_name, apic_config, apic_session, ws_context,
+    def __init__(self, tenant_name, apic_config, ac_context,
                  creation_succeeded=None, creation_failed=None,
                  aim_system_id=None, get_resources=None, *args, **kwargs):
         super(AciTenantManager, self).__init__(*args, **kwargs)
@@ -310,10 +310,10 @@ class AciTenantManager(utils.AIMThread):
         self.get_resources = get_resources
         self.apic_config = apic_config
         # Each tenant has its own sessions
-        self.aci_session = apic_session
         self.dn_manager = apic_client.DNManager()
         self.tenant_name = tenant_name
-        children_mos = get_children_mos(self.aci_session, self.tenant_name)
+        children_mos = get_children_mos(ac_context.aci_session,
+                                        self.tenant_name)
         ws_subscription_to = self.apic_config.get_option(
             'websocket_subscription_timeout', 'aim') or BASELINE_WS_TO
         if int(ws_subscription_to) < int(DEFAULT_WS_TO):
@@ -340,14 +340,14 @@ class AciTenantManager(utils.AIMThread):
         # Warm bit to avoid rushed synchronization before receiving the first
         # batch of APIC events
         self._warm = False
-        self.ws_context = ws_context
+        self.ac_context = ac_context
         self.recovery_retries = None
         self.max_retries = 5
         self.error_handler = error.APICAPIErrorHandler()
         # For testing purposes
         self.num_loop_runs = float('inf')
-        self.ownership_mgr = OwnershipManager(apic_session, apic_config,
-                                              aim_system_id)
+        self.ownership_mgr = OwnershipManager(self.ac_context.aci_session,
+                                              apic_config, aim_system_id)
         # Initialize tenant tree
 
     def _reset_object_backlog(self):
@@ -416,7 +416,7 @@ class AciTenantManager(utils.AIMThread):
                 if start > self.scheduled_reset:
                     raise ScheduledReset()
                 if start > self.refresh_time:
-                    self.ws_context.refresh_subscriptions(
+                    self.ac_context.refresh_subscriptions(
                         urls=self.tenant.urls)
                     self.refresh_time = self._schedule_websocket_refresh()
                 self._event_loop()
@@ -460,10 +460,10 @@ class AciTenantManager(utils.AIMThread):
         # all the events we generate here are likely caught in this
         # iteration.
         self._push_aim_resources()
-        if self.ws_context.has_event(self.tenant.urls):
+        if self.ac_context.has_event(self.tenant.urls):
             with utils.get_rlock(lcon.ACI_TREE_LOCK_NAME_PREFIX +
                                  self.tenant_name):
-                events = self.ws_context.get_event_data(self.tenant.urls)
+                events = self.ac_context.get_event_data(self.tenant.urls)
                 for event in events:
                     # REVISIT(ivar): remove vmmDomP once websocket ACI bug is
                     # fixed
@@ -556,7 +556,7 @@ class AciTenantManager(utils.AIMThread):
             return
         dn_mgr = apic_client.DNManager()
         decompose = dn_mgr.aci_decompose_dn_guess
-        with self.aci_session.transaction(
+        with self.ac_context.aci_session.transaction(
                 top_send=True) as trs:
             for obj in to_push:
                 attr = list(obj.values())[0]['attributes']
@@ -565,8 +565,8 @@ class AciTenantManager(utils.AIMThread):
                 mo, parents_rns = decompose(
                     attr.pop('dn'), list(obj.keys())[0])
                 rns = dn_mgr.filter_rns(parents_rns)
-                getattr(self.aci_session, mo).create(*rns, transaction=trs,
-                                                     **attr)
+                getattr(self.ac_context.aci_session, mo).create(
+                    *rns, transaction=trs, **attr)
 
     def _push_aim_resources(self):
         dn_mgr = apic_client.DNManager()
@@ -626,7 +626,7 @@ class AciTenantManager(utils.AIMThread):
                                 LOG.debug("DELETING from APIC: %s" % to_delete)
                                 for obj in to_delete:
                                     attr = list(obj.values())[0]['attributes']
-                                    self.aci_session.DELETE(
+                                    self.ac_context.aci_session.DELETE(
                                         '/mo/%s.json' % attr.pop('dn'))
                                 LOG.debug("UPDATING in APIC: %s" % to_update)
                                 # Update object ownership
@@ -650,17 +650,17 @@ class AciTenantManager(utils.AIMThread):
                                                      err_type)
 
     def _unsubscribe_tenant(self, kill=False):
-        LOG.info("Unsubscribing tenant websocket %s" % self.tenant_name)
+        LOG.info("Unsubscribing tenant apic clients %s" % self.tenant_name)
         self._warm = False
         urls = self.tenant.urls
         if kill:
-            # Make sure this thread cannot use websocket anymore
-            self.tenant.urls = self.ws_context.EMPTY_URLS
-        self.ws_context.unsubscribe(urls)
+            # Make sure this thread cannot use apic clients anymore
+            self.tenant.urls = self.ac_context.EMPTY_URLS
+        self.ac_context.unsubscribe(urls)
         self._reset_object_backlog()
 
     def _subscribe_tenant(self):
-        self.ws_context.subscribe(self.tenant.urls)
+        self.ac_context.subscribe(self.tenant.urls)
         self.scheduled_reset = utils.schedule_next_event(RESET_INTERVAL, 0.2)
         self._event_loop()
         self._warm = True
