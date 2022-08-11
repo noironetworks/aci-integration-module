@@ -40,7 +40,8 @@ def upgrade():
         sa.Column('domain_type', sa.Enum('PhysDom',
                                          'OpenStack',
                                          'Kubernetes',
-                                         'VMware')),
+                                         'VMware',
+                                         name='enum_domain_type')),
         sa.PrimaryKeyConstraint('host_name', 'domain_name', 'domain_type')
     )
     session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
