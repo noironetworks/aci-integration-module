@@ -42,6 +42,7 @@ install -p -D -m 0644 rpm/%{aim_eventpool} %{buildroot}/%{_unitdir}/%{aim_eventp
 install -p -D -m 0644 rpm/%{aim_eventrpc} %{buildroot}/%{_unitdir}/%{aim_eventrpc}
 install -p -D -m 0644 rpm/%{aim_http} %{buildroot}/%{_unitdir}/%{aim_http}
 mkdir -p $RPM_BUILD_ROOT/run/aid/events
+chown -R neurton:neutron $RPM_BUILD_ROOT/run/aid
 # Install logrotate
 install -p -D -m 0644 etc/logrotate.d/aim %{buildroot}%{_sysconfdir}/logrotate.d/aim
 
