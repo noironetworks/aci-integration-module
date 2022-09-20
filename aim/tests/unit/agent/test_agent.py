@@ -765,15 +765,25 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn1.root])
         self._assert_reset_consistency()
         # Update ext_net to provide some contract
-        ext_net = self.aim_manager.update(self.ctx, ext_net,
-                                          provided_contract_names=['c1'])
+        c_con = resource.ExternalNetworkProvidedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name,
+            name='c1')
+        self.aim_manager.create(self.ctx, c_con)
         # Reconcile
         agent._reconciliation_cycle()
         self._observe_aci_events(current_config)
         # Observe
         agent._reconciliation_cycle()
-        ext_net = self.aim_manager.get(self.ctx, ext_net)
-        self.assertEqual(['c1'], ext_net.provided_contract_names)
+        contract_params = {
+            'tenant_name': ext_net.tenant_name,
+            'l3out_name': ext_net.l3out_name,
+            'ext_net_name': ext_net.name}
+        contracts = self.aim_manager.find(
+            self.ctx, resource.ExternalNetworkProvidedContract,
+            **contract_params)
+        self.assertEqual(1, len(contracts))
         # Verify contract is provided in ACI
         prov = test_aci_tenant.mock_get_data(
             desired_monitor.serving_tenants[tn1.rn].aci_session,
@@ -1058,19 +1068,33 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertTrue(ext_net.monitored)
         self.assertEqual([], ext_net.provided_contract_names)
 
-        self.aim_manager.update(self.ctx, ext_net,
-                                provided_contract_names=['p1'])
+        p_con = resource.ExternalNetworkProvidedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name='p1')
+        p_con_db = self.aim_manager.create(self.ctx, p_con)
         ext_net = self.aim_manager.get(self.ctx, ext_net)
-        self.assertEqual(['p1'], ext_net.provided_contract_names)
+        self.assertEqual([], ext_net.provided_contract_names)
+        # Should be the only contract
+        contract_params = {
+            'tenant_name': ext_net.tenant_name,
+            'l3out_name': ext_net.l3out_name,
+            'ext_net_name': ext_net.name}
+        contracts = self.aim_manager.find(
+            self.ctx, resource.ExternalNetworkProvidedContract,
+            **contract_params)
+        self.assertEqual(1, len(contracts))
+        self.assertEqual(p_con_db, contracts[0])
 
         agent._reconciliation_cycle()
         self._observe_aci_events(current_config)
         self.assertTrue(self._is_object_owned(
             desired_monitor, ext_net.dn + '/rsprov-p1', tn.rn))
-        self.aim_manager.update(self.ctx, ext_net,
-                                provided_contract_names=[])
-        ext_net = self.aim_manager.get(self.ctx, ext_net)
-        self.assertEqual([], ext_net.provided_contract_names)
+        self.aim_manager.delete(self.ctx, p_con)
+        contracts = self.aim_manager.find(
+            self.ctx, resource.ExternalNetworkProvidedContract,
+            **contract_params)
+        self.assertEqual([], contracts)
         agent._reconciliation_cycle()
         self._observe_aci_events(current_config)
         self.assertRaises(
