@@ -589,19 +589,24 @@ class NatStrategyMixin(NatStrategy):
                 self.mgr.delete(ctx, r)
 
     def _update_contract(self, ctx, ext_net, contract, is_remove):
+        prov = resource.ExternalNetworkProvidedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name=contract.name)
+        cons = resource.ExternalNetworkConsumedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name=contract.name)
         if is_remove:
-            prov = [c for c in ext_net.provided_contract_names
-                    if c != contract.name]
-            cons = [c for c in ext_net.consumed_contract_names
-                    if c != contract.name]
+            prov_db = self.mgr.get(ctx, prov)
+            if prov_db:
+                self.mgr.delete(ctx, prov_db)
+            cons_db = self.mgr.get(ctx, cons)
+            if cons_db:
+                self.mgr.delete(ctx, cons_db)
         else:
-            prov = [contract.name]
-            prov.extend(ext_net.provided_contract_names)
-            cons = [contract.name]
-            cons.extend(ext_net.consumed_contract_names)
-        ext_net = self.mgr.update(ctx, ext_net,
-                                  provided_contract_names=prov,
-                                  consumed_contract_names=cons)
+            self.mgr.create(ctx, prov)
+            self.mgr.create(ctx, cons)
         return ext_net
 
     def _is_visible(self, target_tenant, from_tenant):
