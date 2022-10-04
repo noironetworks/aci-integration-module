@@ -1348,8 +1348,8 @@ class TestExternalNetworkMixin(object):
                                 'l3out_name': 'l3out1',
                                 'name': 'net1',
                                 'nat_epg_dn': 'uni/tn-1/ap-a1/epg-g1',
-                                'provided_contract_names': [],
-                                'consumed_contract_names': []}
+                                'provided_contract_names': ['k', 'p1', 'p2'],
+                                'consumed_contract_names': ['c1', 'c2', 'k']}
     test_search_attributes = {'name': 'net1'}
     test_update_attributes = {'display_name': 'new-display-name'}
     test_default_values = {'nat_epg_dn': '',
@@ -1357,50 +1357,6 @@ class TestExternalNetworkMixin(object):
                            'consumed_contract_names': []}
     test_dn = 'uni/tn-tenant1/out-l3out1/instP-net1'
     res_command = 'external-network'
-
-
-class TestExternalNetworkProvidedContractMixin(object):
-    resource_class = resource.ExternalNetworkProvidedContract
-    resource_root_type = resource.Tenant._aci_mo_name
-    prereq_objects = [
-        resource.Tenant(name='tenant1'),
-        resource.L3Outside(tenant_name='tenant1', name='l3out1',
-                           vrf_name='ctx1', l3_domain_dn='uni/foo')]
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1',
-                                'ext_net_name': 'net1',
-                                'name': 'net1_p1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1',
-                                'ext_net_name': 'net1',
-                                'name': 'net1_p1'}
-    test_search_attributes = {'name': 'net1_p1'}
-    test_update_attributes = {}
-    test_default_values = {}
-    test_dn = 'uni/tn-tenant1/out-l3out1/instP-net1/rsprov-net1_p1'
-    res_command = 'external-network-provided-contract'
-
-
-class TestExternalNetworkConsumedContractMixin(object):
-    resource_class = resource.ExternalNetworkConsumedContract
-    resource_root_type = resource.Tenant._aci_mo_name
-    prereq_objects = [
-        resource.Tenant(name='tenant1'),
-        resource.L3Outside(tenant_name='tenant1', name='l3out1',
-                           vrf_name='ctx1', l3_domain_dn='uni/foo')]
-    test_identity_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1',
-                                'ext_net_name': 'net1',
-                                'name': 'net1_c1'}
-    test_required_attributes = {'tenant_name': 'tenant1',
-                                'l3out_name': 'l3out1',
-                                'ext_net_name': 'net1',
-                                'name': 'net1_c1'}
-    test_search_attributes = {'name': 'net1_c1'}
-    test_update_attributes = {}
-    test_default_values = {}
-    test_dn = 'uni/tn-tenant1/out-l3out1/instP-net1/rscons-net1_c1'
-    res_command = 'external-network-consumed-contract'
 
 
 class TestExternalSubnetMixin(object):
@@ -2730,18 +2686,6 @@ class TestL3OutInterface(TestL3OutInterfaceMixin, TestAciResourceOpsBase,
 
 class TestExternalNetwork(TestExternalNetworkMixin, TestAciResourceOpsBase,
                           base.TestAimDBBase):
-    pass
-
-
-class TestExternalNetworkProvidedContract(
-        TestExternalNetworkProvidedContractMixin, TestAciResourceOpsBase,
-        base.TestAimDBBase):
-    pass
-
-
-class TestExternalNetworkConsumedContract(
-        TestExternalNetworkConsumedContractMixin, TestAciResourceOpsBase,
-        base.TestAimDBBase):
     pass
 
 
