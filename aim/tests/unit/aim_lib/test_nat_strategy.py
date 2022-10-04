@@ -213,16 +213,24 @@ class TestNatStrategyBase(object):
 
         ext_net = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
-            display_name='INET1',
-            provided_contract_names=['foo'],
-            consumed_contract_names=['bar'])
-        self.ns.create_external_network(self.ctx, ext_net)
-        ext_net.provided_contract_names.append('EXT-o1')
-        ext_net.consumed_contract_names.append('EXT-o1')
+            display_name='INET1')
+        inet1_p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='foo')
+        inet1_c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='bar')
+        self.ns.create_external_network(self.ctx, ext_net,
+                                        provided_contracts=[inet1_p1],
+                                        consumed_contracts=[inet1_c1])
         self._verify(present=[ext_net])
+        self._verify(present=[inet1_p1])
+        self._verify(present=[inet1_c1])
 
         self.ns.delete_external_network(self.ctx, ext_net)
         self._verify(absent=[ext_net])
+        self._verify(absent=[inet1_p1])
+        self._verify(absent=[inet1_c1])
 
     @base.requires(['foreign_keys'])
     def test_external_network_pre(self):
@@ -236,20 +244,38 @@ class TestNatStrategyBase(object):
         ext_net = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
             display_name='INET1',
-            monitored=True,
-            provided_contract_names=['foo'],
-            consumed_contract_names=['bar'])
+            monitored=True)
+        inet1_p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='foo')
+        inet1_c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='bar')
         self.mgr.create(self.ctx, ext_net)
 
-        self.ns.create_external_network(self.ctx, ext_net)
-        ext_net.provided_contract_names.append('EXT-o1')
-        ext_net.consumed_contract_names.append('EXT-o1')
+        self.ns.create_external_network(self.ctx, ext_net,
+                                        provided_contracts=[inet1_p1],
+                                        consumed_contracts=[inet1_c1])
         self._verify(present=[ext_net])
+        self._verify(present=[inet1_p1])
+        self._verify(present=[inet1_c1])
 
+        # Deleting the monitored external network with no
+        # contracts passed should allow the contracts to
+        # continue to exist
         self.ns.delete_external_network(self.ctx, ext_net)
-        ext_net.provided_contract_names = ['foo']
-        ext_net.consumed_contract_names = ['bar']
         self._verify(present=[ext_net])
+        self._verify(present=[inet1_p1])
+        self._verify(present=[inet1_c1])
+
+        # Deleting the monitored external network with the
+        # contracts passed should delete everything.
+        self.ns.delete_external_network(self.ctx, ext_net,
+                                        provided_contracts=[inet1_p1],
+                                        consumed_contracts=[inet1_c1])
+        self._verify(present=[ext_net])
+        self._verify(absent=[inet1_p1])
+        self._verify(absent=[inet1_c1])
 
     @base.requires(['foreign_keys'])
     def test_connect_vrfs(self):
@@ -277,15 +303,29 @@ class TestNatStrategyBase(object):
                                  vrf_name='vrf1')
         self.mgr.create(self.ctx, vrf1)
         self.mgr.create(self.ctx, bd1)
-        ext_net.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
-        ext_net.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        inet1_p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='p1_vrf1')
+        inet1_p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='p2_vrf1')
+        inet1_c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='c1_vrf1')
+        inet1_c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='c2_vrf1')
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[inet1_p1, inet1_p2],
+                            consumed_contracts=[inet1_c1, inet1_c2])
         connected_vrfs = self.ns.read_vrfs(self.ctx, ext_net)
         self.assertEqual(vrf1, connected_vrfs[0])
         self._check_connect_vrfs('stage1')
 
         # connect vrf_1 again - should be no-op
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[inet1_p1, inet1_p2],
+                            consumed_contracts=[inet1_c1, inet1_c2])
         self._check_connect_vrfs('stage1')
 
         # connect vrf_2
@@ -296,11 +336,23 @@ class TestNatStrategyBase(object):
                                  vrf_name='vrf2')
         self.mgr.create(self.ctx, vrf2)
         self.mgr.create(self.ctx, bd2)
-        ext_net.provided_contract_names = ['p1_vrf2', 'p2_vrf2']
-        ext_net.consumed_contract_names = ['c1_vrf2', 'c2_vrf2']
+        vrf2_p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='p1_vrf2')
+        vrf2_p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='p2_vrf2')
+        vrf2_c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='c1_vrf2')
+        vrf2_c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='c2_vrf2')
         if self.fix_l3out_vrf:
             self.mgr.update(self.ctx, l3out, vrf_name=vrf2.name)
-        self.ns.connect_vrf(self.ctx, ext_net, vrf2)
+        self.ns.connect_vrf(self.ctx, ext_net, vrf2,
+                            provided_contracts=[vrf2_p1, vrf2_p2],
+                            consumed_contracts=[vrf2_c1, vrf2_c2])
         self._check_connect_vrfs('stage2')
 
         # disconnect vrf_1
@@ -344,22 +396,40 @@ class TestNatStrategyBase(object):
         self.mgr.create(self.ctx, vrf1)
         if self.fix_l3out_vrf:
             self.mgr.update(self.ctx, l3out, vrf_name=vrf1.name)
-        ext_net.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
-        ext_net.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
+        inet1_p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='p1_vrf1')
+        inet1_p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='p2_vrf1')
+        inet1_c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='c1_vrf1')
+        inet1_c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='c2_vrf1')
 
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[inet1_p1, inet1_p2],
+                            consumed_contracts=[inet1_c1, inet1_c2])
         self._check_vrf_contract_update('stage1')
 
         # update contracts
-        ext_net.provided_contract_names = ['arp', 'p2_vrf1']
-        ext_net.consumed_contract_names = ['arp', 'c2_vrf1']
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        inet1_parp = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='arp')
+        inet1_carp = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='arp')
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[inet1_parp, inet1_p2],
+                            consumed_contracts=[inet1_carp, inet1_c2])
         self._check_vrf_contract_update('stage2')
 
         # unset contracts
-        ext_net.provided_contract_names = []
-        ext_net.consumed_contract_names = []
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[],
+                            consumed_contracts=[])
         self._check_vrf_contract_update('stage3')
 
     @base.requires(['foreign_keys'])
@@ -381,9 +451,21 @@ class TestNatStrategyBase(object):
         self.mgr.create(self.ctx, vrf1)
         if self.fix_l3out_vrf:
             self.mgr.update(self.ctx, l3out, vrf_name=vrf1.name)
-        ext_net.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
-        ext_net.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        p1_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p1_vrf1')
+        p2_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf1')
+        c1_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c1_vrf1')
+        c2_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf1')
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[p1_vrf1, p2_vrf1],
+                            consumed_contracts=[c1_vrf1, c2_vrf1])
         self._check_external_subnet_update("stage1")
 
         # Add & remove external-subnet
@@ -428,12 +510,36 @@ class TestNatStrategyBase(object):
         if self.fix_l3out_vrf:
             self.mgr.update(self.ctx, l3out1, vrf_name=vrf1.name)
             self.mgr.update(self.ctx, l3out2, vrf_name=vrf1.name)
-        ext_net1.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
-        ext_net1.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
-        ext_net2.provided_contract_names = ['p3_vrf1', 'p4_vrf1']
-        ext_net2.consumed_contract_names = ['c3_vrf1', 'c4_vrf1']
-        self.ns.connect_vrf(self.ctx, ext_net1, vrf1)
-        self.ns.connect_vrf(self.ctx, ext_net2, vrf1)
+        p1_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p1_vrf1')
+        p2_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf1')
+        p3_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='p3_vrf1')
+        p4_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='p4_vrf1')
+        c1_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c1_vrf1')
+        c2_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf1')
+        c3_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='c3_vrf1')
+        c4_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='c4_vrf1')
+        self.ns.connect_vrf(self.ctx, ext_net1, vrf1,
+                            provided_contracts=[p1_vrf1, p2_vrf1],
+                            consumed_contracts=[c1_vrf1, c2_vrf1])
+        self.ns.connect_vrf(self.ctx, ext_net2, vrf1,
+                            provided_contracts=[p3_vrf1, p4_vrf1],
+                            consumed_contracts=[c3_vrf1, c4_vrf1])
         self._check_connect_vrf_multiple('stage1')
 
         self.ns.disconnect_vrf(self.ctx, ext_net1, vrf1)
@@ -462,18 +568,42 @@ class TestNatStrategyBase(object):
         self.mgr.create(self.ctx, vrf1)
         if self.fix_l3out_vrf:
             self.mgr.update(self.ctx, l3out, vrf_name=vrf1.name)
-        ext_net.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
-        ext_net.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        p1_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p1_vrf1')
+        p2_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf1')
+        c1_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c1_vrf1')
+        c2_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf1')
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[p1_vrf1, p2_vrf1],
+                            consumed_contracts=[c1_vrf1, c2_vrf1])
 
         vrf2 = a_res.VRF(tenant_name=self.vrf2_tenant_name, name='vrf2',
                          display_name='VRF2')
         self.mgr.create(self.ctx, vrf2)
         if self.fix_l3out_vrf:
             self.mgr.update(self.ctx, l3out, vrf_name=vrf2.name)
-        ext_net.provided_contract_names = ['p1_vrf2', 'p2_vrf2']
-        ext_net.consumed_contract_names = ['c1_vrf2', 'c2_vrf2']
-        self.ns.connect_vrf(self.ctx, ext_net, vrf2)
+        p1_vrf2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p1_vrf2')
+        p2_vrf2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf2')
+        c1_vrf2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c1_vrf2')
+        c2_vrf2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf2')
+        self.ns.connect_vrf(self.ctx, ext_net, vrf2,
+                            provided_contracts=[p1_vrf2, p2_vrf2],
+                            consumed_contracts=[c1_vrf2, c2_vrf2])
         self._check_delete_ext_net_with_vrf('stage1')
 
         self.ns.delete_external_network(self.ctx, ext_net)
@@ -503,9 +633,21 @@ class TestNatStrategyBase(object):
         self.mgr.create(self.ctx, vrf1)
         if self.fix_l3out_vrf:
             self.mgr.update(self.ctx, l3out, vrf_name=vrf1.name)
-        ext_net.provided_contract_names = ['p1_vrf1', 'p2_vrf1']
-        ext_net.consumed_contract_names = ['c1_vrf1', 'c2_vrf1']
-        self.ns.connect_vrf(self.ctx, ext_net, vrf1)
+        p1_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p1_vrf1')
+        p2_vrf1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf1')
+        c1_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c1_vrf1')
+        c2_vrf1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf1')
+        self.ns.connect_vrf(self.ctx, ext_net, vrf1,
+                            provided_contracts=[p1_vrf1, p2_vrf1],
+                            consumed_contracts=[c1_vrf1, c2_vrf1])
         self._check_delete_l3outside_with_vrf('stage1')
 
         self.ns.delete_l3outside(self.ctx, l3out)
@@ -533,10 +675,20 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
             a_res.ExternalNetwork(
                 tenant_name='dept1', l3out_name='o1-vrf1',
                 name='inet1', display_name='INET1',
-                provided_contract_names=['p1_vrf1', 'p2_vrf1'],
-                consumed_contract_names=['c1_vrf1', 'c2_vrf1'],
                 nat_epg_dn=('uni/tn-t1/ap-myapp/epg-EXT-o1'
                             if self.with_nat_epg else '')),
+            a_res.ExternalNetworkProvidedContract(
+                tenant_name='dept1', l3out_name='o1-vrf1',
+                ext_net_name='inet1', name='p1_vrf1'),
+            a_res.ExternalNetworkProvidedContract(
+                tenant_name='dept1', l3out_name='o1-vrf1',
+                ext_net_name='inet1', name='p2_vrf1'),
+            a_res.ExternalNetworkConsumedContract(
+                tenant_name='dept1', l3out_name='o1-vrf1',
+                ext_net_name='inet1', name='c1_vrf1'),
+            a_res.ExternalNetworkConsumedContract(
+                tenant_name='dept1', l3out_name='o1-vrf1',
+                ext_net_name='inet1', name='c2_vrf1'),
             a_res.ExternalSubnet(
                 tenant_name='dept1', l3out_name='o1-vrf1',
                 external_network_name='inet1', cidr='20.20.20.0/24'),
@@ -551,10 +703,20 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
             a_res.ExternalNetwork(
                 tenant_name='dept1', l3out_name='o2-vrf1',
                 name='inet2', display_name='INET2',
-                provided_contract_names=['p3_vrf1', 'p4_vrf1'],
-                consumed_contract_names=['c3_vrf1', 'c4_vrf1'],
                 nat_epg_dn=('uni/tn-t2/ap-myapp/epg-EXT-o2'
                             if self.with_nat_epg else '')),
+            a_res.ExternalNetworkProvidedContract(
+                tenant_name='dept1', l3out_name='o2-vrf1',
+                ext_net_name='inet2', name='p3_vrf1'),
+            a_res.ExternalNetworkProvidedContract(
+                tenant_name='dept1', l3out_name='o2-vrf1',
+                ext_net_name='inet2', name='p4_vrf1'),
+            a_res.ExternalNetworkConsumedContract(
+                tenant_name='dept1', l3out_name='o2-vrf1',
+                ext_net_name='inet2', name='c3_vrf1'),
+            a_res.ExternalNetworkConsumedContract(
+                tenant_name='dept1', l3out_name='o2-vrf1',
+                ext_net_name='inet2', name='c4_vrf1'),
             a_res.ExternalSubnet(
                 tenant_name='dept1', l3out_name='o2-vrf1',
                 external_network_name='inet2', cidr='0.0.0.0/0')]
@@ -566,10 +728,20 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
             a_res.ExternalNetwork(
                 tenant_name='dept2', l3out_name='o1-vrf2',
                 name='inet1', display_name='INET1',
-                provided_contract_names=['p1_vrf2', 'p2_vrf2'],
-                consumed_contract_names=['c1_vrf2', 'c2_vrf2'],
                 nat_epg_dn=('uni/tn-t1/ap-myapp/epg-EXT-o1'
                             if self.with_nat_epg else '')),
+            a_res.ExternalNetworkProvidedContract(
+                tenant_name='dept2', l3out_name='o1-vrf2',
+                ext_net_name='inet1', name='p1_vrf2'),
+            a_res.ExternalNetworkProvidedContract(
+                tenant_name='dept2', l3out_name='o1-vrf2',
+                ext_net_name='inet1', name='p2_vrf2'),
+            a_res.ExternalNetworkConsumedContract(
+                tenant_name='dept2', l3out_name='o1-vrf2',
+                ext_net_name='inet1', name='c1_vrf2'),
+            a_res.ExternalNetworkConsumedContract(
+                tenant_name='dept2', l3out_name='o1-vrf2',
+                ext_net_name='inet1', name='c2_vrf2'),
             a_res.ExternalSubnet(
                 tenant_name='dept2', l3out_name='o1-vrf2',
                 external_network_name='inet1', cidr='20.20.20.0/24'),
@@ -580,20 +752,28 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
     def _check_connect_vrfs(self, stage):
         en = a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
-            display_name='INET1',
-            provided_contract_names=['EXT-o1'],
-            consumed_contract_names=['EXT-o1'])
+            display_name='INET1')
+        prov = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='EXT-o1')
+        cons = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='EXT-o1')
         l3out_objs = self._get_l3out_objects()
         v1_e1 = self._get_vrf_1_ext_net_1_objects()
         v2_e1 = self._get_vrf_2_ext_net_1_objects()
         if stage == 'stage1':
-            self._verify(present=l3out_objs + [en] + v1_e1)
+            self._verify(present=l3out_objs +
+                         [en, prov, cons] + v1_e1)
         elif stage == 'stage2':
-            self._verify(present=l3out_objs + [en] + v1_e1 + v2_e1)
+            self._verify(present=l3out_objs +
+                         [en, prov, cons] + v1_e1 + v2_e1)
         elif stage == 'stage3':
-            self._verify(present=l3out_objs + [en] + v2_e1, absent=v1_e1)
+            self._verify(present=l3out_objs +
+                         [en, prov, cons] + v2_e1, absent=v1_e1)
         elif stage == 'stage4':
-            self._verify(present=l3out_objs + [en], absent=v1_e1 + v2_e1)
+            self._verify(present=l3out_objs +
+                         [en, prov, cons], absent=v1_e1 + v2_e1)
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
@@ -613,22 +793,33 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
         e1 = a_res.ExternalNetwork(
             tenant_name='dept1', l3out_name='o1-vrf1',
             name='inet1', display_name='INET1',
-            provided_contract_names=['p1_vrf1', 'p2_vrf1'],
-            consumed_contract_names=['c1_vrf1', 'c2_vrf1'],
             nat_epg_dn=('uni/tn-t1/ap-myapp/epg-EXT-o1'
                         if self.with_nat_epg else ''))
+        p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='dept1', l3out_name='o1-vrf1',
+            ext_net_name='inet1', name='p1_vrf1')
+        p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='dept1', l3out_name='o1-vrf1',
+            ext_net_name='inet1', name='p2_vrf1')
+        c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='dept1', l3out_name='o1-vrf1',
+            ext_net_name='inet1', name='c1_vrf1')
+        c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='dept1', l3out_name='o1-vrf1',
+            ext_net_name='inet1', name='c2_vrf1')
+        pa1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='dept1', l3out_name='o1-vrf1',
+            ext_net_name='inet1', name='arp')
+        ca1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='dept1', l3out_name='o1-vrf1',
+            ext_net_name='inet1', name='arp')
         e2 = copy.deepcopy(e1)
-        e2.provided_contract_names = ['arp', 'p2_vrf1']
-        e2.consumed_contract_names = ['arp', 'c2_vrf1']
-
         e3 = copy.deepcopy(e1)
-        e3.provided_contract_names = []
-        e3.consumed_contract_names = []
 
         if stage == 'stage1':
-            self._verify(present=[e1])
+            self._verify(present=[e1] + [p1, p2, c1, c2])
         elif stage == 'stage2':
-            self._verify(present=[e2])
+            self._verify(present=[e2] + [pa1, p2, ca1, c2])
         elif stage == 'stage3':
             self._verify(present=[e3])
         else:
@@ -657,9 +848,13 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
     def _check_delete_ext_net_with_vrf(self, stage):
         objs = [a_res.ExternalNetwork(
             tenant_name='t1', l3out_name='o1', name='inet1',
-            display_name='INET1',
-            provided_contract_names=['EXT-o1'],
-            consumed_contract_names=['EXT-o1'])]
+            display_name='INET1')]
+        objs += [a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='EXT-o1')]
+        objs += [a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='EXT-o1')]
         objs += self._get_vrf_1_ext_net_1_objects()
         objs += self._get_vrf_2_ext_net_1_objects()
         if stage == 'stage1':
@@ -676,14 +871,22 @@ class TestDistributedNatStrategy(TestNatStrategyBase,
                              gw_ip_mask='200.10.20.1/28'),
                 a_res.ExternalNetwork(
                     tenant_name='t1', l3out_name='o1', name='inet1',
-                    display_name='INET1',
-                    provided_contract_names=['EXT-o1'],
-                    consumed_contract_names=['EXT-o1']),
+                    display_name='INET1'),
                 a_res.ExternalNetwork(
                     tenant_name='t1', l3out_name='o1', name='inet1_1',
-                    display_name='INET1_1',
-                    provided_contract_names=['EXT-o1'],
-                    consumed_contract_names=['EXT-o1'])]
+                    display_name='INET1_1')]
+        objs += [a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='EXT-o1')]
+        objs += [a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1',
+            name='EXT-o1')]
+        objs += [a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1_1',
+            name='EXT-o1')]
+        objs += [a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1', ext_net_name='inet1_1',
+            name='EXT-o1')]
         objs += self._get_vrf_1_ext_net_1_objects()
         objs += self._get_l3out_objects()
         if stage == 'stage1':
@@ -707,20 +910,32 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
     fix_l3out_vrf = True
 
     def _get_vrf_1_ext_net_1_objects(self, connected=True):
-        return {
+        p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p1_vrf1')
+        p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf1')
+        c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c1_vrf1')
+        c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf1')
+        res_dict = {
             'l3out': a_res.L3Outside(
                 tenant_name='t1', name='o1',
                 display_name='OUT',
                 vrf_name='vrf1'),
             'ext_net': a_res.ExternalNetwork(
                 tenant_name='t1', l3out_name='o1',
-                name='inet1', display_name='INET1',
-                provided_contract_names=(
-                    ['EXT-o1', 'p1_vrf1', 'p2_vrf1']
-                    if connected else ['EXT-o1']),
-                consumed_contract_names=(
-                    ['EXT-o1', 'c1_vrf1', 'c2_vrf1']
-                    if connected else ['EXT-o1'])),
+                name='inet1', display_name='INET1'),
+            'prov': [a_res.ExternalNetworkProvidedContract(
+                tenant_name='t1', l3out_name='o1',
+                ext_net_name='inet1', name='EXT-o1')],
+            'cons': [a_res.ExternalNetworkConsumedContract(
+                tenant_name='t1', l3out_name='o1',
+                ext_net_name='inet1', name='EXT-o1')],
             'nat_bd': a_res.BridgeDomain(
                 tenant_name='t1', name='EXT-o1',
                 display_name='EXT-OUT',
@@ -733,22 +948,38 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             'ext_sub_2': a_res.ExternalSubnet(
                 tenant_name='t1', l3out_name='o1',
                 external_network_name='inet1', cidr='50.50.0.0/16')}
+        if connected:
+            res_dict['prov'].extend([p1, p2])
+            res_dict['cons'].extend([c1, c2])
+        return res_dict
 
     def _get_vrf_1_ext_net_2_objects(self, connected=True):
-        return {
+        p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='p3_vrf1')
+        p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='p4_vrf1')
+        c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='c3_vrf1')
+        c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t2', l3out_name='o2',
+            ext_net_name='inet2', name='c4_vrf1')
+        res_dict = {
             'l3out': a_res.L3Outside(
                 tenant_name='t2', name='o2',
                 display_name='OUT2',
                 vrf_name='vrf1'),
             'ext_net': a_res.ExternalNetwork(
                 tenant_name='t2', l3out_name='o2',
-                name='inet2', display_name='INET2',
-                provided_contract_names=(
-                    ['EXT-o2', 'p3_vrf1', 'p4_vrf1']
-                    if connected else ['EXT-o2']),
-                consumed_contract_names=(
-                    ['EXT-o2', 'c3_vrf1', 'c4_vrf1']
-                    if connected else ['EXT-o2'])),
+                name='inet2', display_name='INET2'),
+            'prov': [a_res.ExternalNetworkProvidedContract(
+                tenant_name='t2', l3out_name='o2',
+                ext_net_name='inet2', name='EXT-o2')],
+            'cons': [a_res.ExternalNetworkConsumedContract(
+                tenant_name='t2', l3out_name='o2',
+                ext_net_name='inet2', name='EXT-o2')],
             'nat_bd': a_res.BridgeDomain(
                 tenant_name='t2', name='EXT-o2',
                 display_name='EXT-OUT2',
@@ -758,6 +989,10 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
             'ext_sub_1': a_res.ExternalSubnet(
                 tenant_name='t2', l3out_name='o2',
                 external_network_name='inet2', cidr='0.0.0.0/0')}
+        if connected:
+            res_dict['prov'].extend([p1, p2])
+            res_dict['cons'].extend([c1, c2])
+        return res_dict
 
     def _check_bd_l3out(self, bridge_domain, l3outside):
         bridge_domain = self.mgr.get(self.ctx, bridge_domain)
@@ -768,6 +1003,8 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
         l3out = objs['l3out']
         ext_net = objs['ext_net']
         nat_bd = objs['nat_bd']
+        prov = objs.pop('prov')
+        cons = objs.pop('cons')
         l3out_objs = [o for o in self._get_l3out_objects()
                       if not isinstance(o, a_res.BridgeDomain)]
         bd1 = a_res.BridgeDomain(tenant_name='t1', name='bd1',
@@ -778,44 +1015,84 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
                                  vrf_name='vrf2',
                                  limit_ip_learn_to_subnets=True,
                                  l3out_names=['o1'])
+        p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name='EXT-o1')
+        p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name='p1_vrf2')
+        p3 = a_res.ExternalNetworkProvidedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name='p2_vrf2')
+        c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name='EXT-o1')
+        c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name='c1_vrf2')
+        c3 = a_res.ExternalNetworkConsumedContract(
+            tenant_name=ext_net.tenant_name,
+            l3out_name=ext_net.l3out_name,
+            ext_net_name=ext_net.name, name='c2_vrf2')
         if stage == 'stage1':
-            self._verify(present=list(objs.values()) + l3out_objs + [bd1])
+            self._verify(present=list(objs.values()) + prov +
+                         cons + l3out_objs + [bd1])
         elif stage == 'stage2' or stage == 'stage3':
             l3out.vrf_name = 'vrf2'
-            ext_net.provided_contract_names = ['EXT-o1', 'p1_vrf2', 'p2_vrf2']
-            ext_net.consumed_contract_names = ['EXT-o1', 'c1_vrf2', 'c2_vrf2']
-            self._verify(present=list(objs.values()) + l3out_objs + [bd1, bd2])
+            self._verify(present=list(objs.values()) + [p1, p2, p3] +
+                         [c1, c2, c3] + l3out_objs + [bd1, bd2])
         elif stage == 'stage4':
             bd2.l3out_names = []
             nat_bd.vrf_name = 'EXT-o1'
             l3out.vrf_name = 'vrf2'
-            ext_net.provided_contract_names = ['EXT-o1']
-            ext_net.consumed_contract_names = ['EXT-o1']
-            self._verify(present=list(objs.values()) + l3out_objs + [bd1, bd2])
+            self._verify(present=list(objs.values()) + [p1] +
+                         [c1] + l3out_objs + [bd1, bd2])
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
     def _check_vrf_contract_update(self, stage):
         objs = self._get_vrf_1_ext_net_1_objects()
+        objs.pop('prov')
+        objs.pop('cons')
         objs.pop('ext_sub_1')
         objs.pop('ext_sub_2')
         e1 = objs.pop('ext_net')
         objs = list(objs.values())
 
+        p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='EXT-o1')
+        pa1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='arp')
+        p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf1')
+        c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='EXT-o1')
+        ca1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='arp')
+        c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf1')
         e2 = copy.deepcopy(e1)
-        e2.provided_contract_names = ['EXT-o1', 'arp', 'p2_vrf1']
-        e2.consumed_contract_names = ['EXT-o1', 'arp', 'c2_vrf1']
-
         e3 = copy.deepcopy(e1)
-        e3.provided_contract_names = ['EXT-o1']
-        e3.consumed_contract_names = ['EXT-o1']
 
         if stage == 'stage1':
             self._verify(present=objs + [e1])
         elif stage == 'stage2':
-            self._verify(present=objs + [e2])
+            self._verify(
+                present=objs + [e2] +
+                [p1, pa1, p2] + [c1, ca1, c2])
         elif stage == 'stage3':
-            self._verify(present=objs + [e3])
+            self._verify(present=objs + [e3] + [p1] + [c1])
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
@@ -841,45 +1118,80 @@ class TestNoNatStrategy(TestNatStrategyBase, base.TestAimDBBase):
 
     def _check_connect_vrf_multiple(self, stage):
         if stage == 'stage1':
-            v1_e1 = list(self._get_vrf_1_ext_net_1_objects().values())
-            v1_e2 = list(self._get_vrf_1_ext_net_2_objects().values())
+            v1_e1_objs = self._get_vrf_1_ext_net_1_objects()
+            prov1 = v1_e1_objs.pop('prov')
+            cons1 = v1_e1_objs.pop('cons')
+            v1_e1 = list(v1_e1_objs.values()) + prov1 + cons1
+            v1_e2_objs = self._get_vrf_1_ext_net_2_objects()
+            prov2 = v1_e2_objs.pop('prov')
+            cons2 = v1_e2_objs.pop('cons')
+            v1_e2 = list(v1_e2_objs.values()) + prov2 + cons2
         elif stage == 'stage2':
-            v1_e1 = list(self._get_vrf_1_ext_net_1_objects(
-                connected=False).values())
-            v1_e2 = list(self._get_vrf_1_ext_net_2_objects().values())
+            v1_e1_objs = self._get_vrf_1_ext_net_1_objects(
+                connected=False)
+            prov1 = v1_e1_objs.pop('prov')
+            cons1 = v1_e1_objs.pop('cons')
+            v1_e1 = list(v1_e1_objs.values()) + prov1 + cons1
+            v1_e2_objs = self._get_vrf_1_ext_net_2_objects()
+            prov2 = v1_e2_objs.pop('prov')
+            cons2 = v1_e2_objs.pop('cons')
+            v1_e2 = list(v1_e2_objs.values()) + prov2 + cons2
         elif stage == 'stage3':
-            v1_e1 = list(self._get_vrf_1_ext_net_1_objects(
-                connected=False).values())
-            v1_e2 = list(self._get_vrf_1_ext_net_2_objects(
-                connected=False).values())
+            v1_e1_objs = self._get_vrf_1_ext_net_1_objects(
+                connected=False)
+            prov1 = v1_e1_objs.pop('prov')
+            cons1 = v1_e1_objs.pop('cons')
+            v1_e1 = list(v1_e1_objs.values()) + prov1 + cons1
+            v1_e2_objs = self._get_vrf_1_ext_net_2_objects(
+                connected=False)
+            prov2 = v1_e2_objs.pop('prov')
+            cons2 = v1_e2_objs.pop('cons')
+            v1_e2 = list(v1_e2_objs.values()) + prov2 + cons2
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
         self._verify(present=(list(v1_e1) + list(v1_e2)))
 
     def _check_delete_ext_net_with_vrf(self, stage):
+        p1 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p1_vrf2')
+        p2 = a_res.ExternalNetworkProvidedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='p2_vrf2')
+        c1 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c1_vrf2')
+        c2 = a_res.ExternalNetworkConsumedContract(
+            tenant_name='t1', l3out_name='o1',
+            ext_net_name='inet1', name='c2_vrf2')
         if stage == 'stage1':
             objs = self._get_vrf_1_ext_net_1_objects()
             objs['l3out'].vrf_name = 'vrf2'
-            objs['ext_net'].provided_contract_names = ['EXT-o1', 'p1_vrf2',
-                                                       'p2_vrf2']
-            objs['ext_net'].consumed_contract_names = ['EXT-o1', 'c1_vrf2',
-                                                       'c2_vrf2']
-            self._verify(present=list(objs.values()))
+            prov = objs.pop('prov')
+            cons = objs.pop('cons')
+            self._verify(
+                present=list(objs.values()) +
+                [prov[0], p1, p2] + [cons[0], c1, c2])
         elif stage == 'stage2':
             objs = self._get_vrf_1_ext_net_1_objects(connected=False)
             l3out = objs.pop('l3out')
             nat_bd = objs.pop('nat_bd')
+            prov = objs.pop('prov')
+            cons = objs.pop('cons')
             l3out.vrf_name = 'vrf2'
-            self._verify(present=[l3out, nat_bd], absent=list(objs.values()))
+            self._verify(present=[l3out, nat_bd],
+                         absent=list(objs.values()) + prov + cons)
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
     def _check_delete_l3outside_with_vrf(self, stage):
         objs = self._get_vrf_1_ext_net_1_objects()
+        prov = objs.pop('prov')
+        cons = objs.pop('cons')
         if stage == 'stage1':
-            self._verify(present=list(objs.values()))
+            self._verify(present=list(objs.values()) + prov + cons)
         elif stage == 'stage2':
-            self._verify(absent=list(objs.values()))
+            self._verify(absent=list(objs.values()) + prov + cons)
         else:
             self.assertFalse(True, 'Unknown test stage %s' % stage)
 
