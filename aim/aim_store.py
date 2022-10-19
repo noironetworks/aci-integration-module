@@ -202,6 +202,7 @@ class SqlAlchemyStore(AimStore):
                     api_res.Agent: agent_model.Agent,
                     api_res.Tenant: models.Tenant,
                     api_res.Subnet: models.Subnet,
+                    api_res.EPGSubnet: models.EPGSubnet,
                     api_res.VRF: models.VRF,
                     api_res.ApplicationProfile: models.ApplicationProfile,
                     api_res.EndpointGroup: models.EndpointGroup,

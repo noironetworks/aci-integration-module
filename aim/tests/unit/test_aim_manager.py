@@ -833,6 +833,32 @@ class TestSubnetMixin(object):
     res_command = 'subnet'
 
 
+class TestEPGSubnetMixin(object):
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.ApplicationProfile(tenant_name='tenant1', name='ap1'),
+        resource.EndpointGroup(tenant_name='tenant1',
+                               app_profile_name='ap1', name='epg1')]
+    gw_ip = resource.EPGSubnet.to_gw_ip_mask('192.168.10.1', 28)
+    resource_class = resource.EPGSubnet
+    resource_root_type = resource.Tenant._aci_mo_name
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'app_profile_name': 'ap1',
+                                'epg_name': 'epg1',
+                                'gw_ip_mask': gw_ip}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'app_profile_name': 'ap1',
+                                'epg_name': 'epg1',
+                                'gw_ip_mask': gw_ip}
+    test_search_attributes = {'app_profile_name': 'ap1', 'epg_name': 'epg1'}
+    test_update_attributes = {'display_name': 'sub1',
+                              'scope': resource.EPGSubnet.SCOPE_PRIVATE}
+    test_default_values = {
+        'scope': resource.EPGSubnet.SCOPE_PUBLIC}
+    test_dn = 'uni/tn-tenant1/ap-ap1/epg-epg1/subnet-[192.168.10.1/28]'
+    res_command = 'epg-subnet'
+
+
 class TestVRFMixin(object):
     resource_class = resource.VRF
     resource_root_type = resource.Tenant._aci_mo_name
@@ -2511,6 +2537,11 @@ class TestAgent(TestAgentMixin, TestResourceOpsBase, base.TestAimDBBase):
 
 
 class TestSubnet(TestSubnetMixin, TestAciResourceOpsBase, base.TestAimDBBase):
+    pass
+
+
+class TestEPGSubnet(TestEPGSubnetMixin,
+                    TestAciResourceOpsBase, base.TestAimDBBase):
     pass
 
 

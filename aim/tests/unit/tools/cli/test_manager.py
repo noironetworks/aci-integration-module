@@ -677,6 +677,12 @@ class TestSubnet(test_aim_manager.TestSubnetMixin, TestManagerResourceOpsBase,
     pass
 
 
+class TestEPGSubnet(test_aim_manager.TestEPGSubnetMixin,
+                    TestManagerResourceOpsBase,
+                    base.TestShell):
+    pass
+
+
 class TestVRF(test_aim_manager.TestVRFMixin, TestManagerResourceOpsBase,
               base.TestShell):
     pass

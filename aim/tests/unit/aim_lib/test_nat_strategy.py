@@ -206,6 +206,28 @@ class TestNatStrategyBase(object):
                                              '200.10.20.1/28'))
 
     @base.requires(['foreign_keys'])
+    def test_epg_subnet(self):
+        l3out = a_res.L3Outside(tenant_name='t1', name='o1',
+                                display_name='OUT')
+        self.ns.create_l3outside(self.ctx, l3out)
+
+        self.ns.create_epg_subnet(self.ctx, l3out, '200.10.20.1/28')
+        sub = a_res.EPGSubnet(tenant_name='t1', app_profile_name='myapp',
+                              epg_name='EXT-%s' % l3out.name,
+                              gw_ip_mask='200.10.20.1/28')
+        self._verify(present=[sub])
+
+        self._assert_res_eq(sub,
+                            self.ns.get_epg_subnet(self.ctx, l3out,
+                                                   '200.10.20.1/28'))
+
+        self.ns.delete_epg_subnet(self.ctx, l3out, '200.10.20.1/28')
+        self._verify(absent=[sub])
+
+        self.assertIsNone(self.ns.get_epg_subnet(self.ctx, l3out,
+                                                 '200.10.20.1/28'))
+
+    @base.requires(['foreign_keys'])
     def test_external_network(self):
         l3out = a_res.L3Outside(tenant_name='t1', name='o1',
                                 display_name='OUT')
