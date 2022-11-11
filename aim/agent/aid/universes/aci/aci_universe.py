@@ -48,14 +48,14 @@ LOG = logging.getLogger(__name__)
 
 # Dictionary of currently served tenants. For each tenant defined by name,
 # we store the corresponding TenantManager.
-# To avoid websocket subscription duplication, share the serving tenants
+# To avoid apic clients subscription duplication, share the serving tenants
 # between config and operational ACI universes
 # REVISIT(ivar): we are assuming that one single AciUniverse instance will
 # access this at any time. This is realistic today, because AciUniverse and
 # AciOperationalUniverse won't run in parallel, and there will be only one
 # instance of each per AID agent.
 serving_tenants = {}
-ws_context = None
+ac_context = None
 
 
 class WebSocketSessionLoginFailed(exceptions.AimException):
@@ -73,8 +73,8 @@ class WebSocketUnsubscriptionFailed(exceptions.AimException):
                "with error %(code)s: %(text)s")
 
 
-class WebSocketContext(object):
-    """Placeholder for websocket session"""
+class ApicClientsContext(object):
+    """Placeholder for apic clients session"""
     EMPTY_URLS = ["empty/url"]
 
     def __init__(self, apic_config, aim_manager):
@@ -94,6 +94,7 @@ class WebSocketContext(object):
         self.recovery_max_backoff = 600
         self.manager = aim_manager
         self.establish_ws_session()
+        self.establish_aci_session()
 
     def _spawn_monitors(self):
         self.login_thread = None
@@ -261,6 +262,27 @@ class WebSocketContext(object):
             # Some other thread is trying to reconnect
             return
 
+    def establish_aci_session(self):
+        self.aci_session = apic_client.RestClient(
+            logging, '',
+            [self.apic_assign_obj.apic_host.split('//')[1]],
+            self.apic_config.get_option('apic_username', group='apic'),
+            self.apic_config.get_option('apic_password', group='apic'),
+            self.apic_config.get_option('apic_use_ssl', group='apic'),
+            scope_names=False, scope_infra=False, renew_names=False,
+            verify=self.apic_config.get_option('verify_ssl_certificate',
+                                               group='apic'),
+            request_timeout=self.apic_config.get_option('apic_request_timeout',
+                                                        group='apic'),
+            cert_name=self.apic_config.get_option('certificate_name',
+                                                  group='apic'),
+            private_key_file=self.apic_config.get_option('private_key_file',
+                                                         group='apic'),
+            sign_algo=self.apic_config.get_option(
+                'signature_verification_algorithm', group='apic'),
+            sign_hash=self.apic_config.get_option(
+                'signature_hash_type', group='apic'))
+
     def _ws_config_callback(self, new_conf):
         # If any of the WS related configurations changed, reload fresh values
         # and reconnect the WS
@@ -269,6 +291,7 @@ class WebSocketContext(object):
                       "session.")
             # Log out WS
             self.establish_ws_session()
+            self.establish_aci_session()
 
     def _subscribe(self, urls):
         """Subscribe to the urls if not subscribed yet."""
@@ -303,6 +326,7 @@ class WebSocketContext(object):
             else:
                 if resp.status_code in [405, 598, 500]:
                     self.establish_ws_session()
+                    self.establish_aci_session()
                 raise WebSocketSubscriptionFailed(urls=urls,
                                                   code=resp.status_code,
                                                   text=resp.text)
@@ -314,6 +338,7 @@ class WebSocketContext(object):
         if resp is not None and not resp.ok:
             if resp.status_code in [405, 598, 500]:
                 self.establish_ws_session()
+                self.establish_aci_session()
             raise WebSocketUnsubscriptionFailed(urls=urls,
                                                 code=resp.status_code,
                                                 text=resp.text)
@@ -366,6 +391,7 @@ class WebSocketContext(object):
                                 tentative=name_to_retry[name])
                             try:
                                 self.establish_ws_session()
+                                self.establish_aci_session()
                             except Exception as e:
                                 LOG.debug(
                                     "Monitor for thread %s tried to reconnect "
@@ -385,6 +411,7 @@ class WebSocketContext(object):
                     if (len(self.ws_urls) > 1 and
                             utils.get_time() > recovery_timer):
                         self.establish_ws_session(recovery_mode=True)
+                        self.establish_aci_session()
                         # Still fail to recover
                         if self.need_recovery:
                             recovery_retry += 1
@@ -413,12 +440,12 @@ class WebSocketContext(object):
 
 
 # REVIST: see if there is a way that we don't have to pass aim_manager in
-# to get the WebSocketContext object initialized.
-def get_websocket_context(apic_config, aim_manager):
-    global ws_context
-    if not ws_context:
-        ws_context = WebSocketContext(apic_config, aim_manager)
-    return ws_context
+# to get the ApicClientsContext object initialized.
+def get_apic_clients_context(apic_config, aim_manager):
+    global ac_context
+    if not ac_context:
+        ac_context = ApicClientsContext(apic_config, aim_manager)
+    return ac_context
 
 
 class AciCRUDLoginManager(utils.AIMThread):
@@ -494,15 +521,15 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def initialize(self, conf_mgr, multiverse):
         super(AciUniverse, self).initialize(conf_mgr, multiverse)
         self._aim_converter = converter.AciToAimModelConverter()
-        self.aci_session = self.establish_aci_session(self.conf_manager)
-        self._aci_login_manager = AciCRUDLoginManager(self.aci_session)
+        self.ac_context = get_apic_clients_context(self.conf_manager,
+                                                   self.manager)
+        self._aci_login_manager = AciCRUDLoginManager(
+            self.ac_context.aci_session)
         self._aci_login_manager.start()
         # Initialize children MOS here so that it globally fails if there's
         # any bug or network partition.
-        aci_tenant.get_children_mos(self.aci_session, 'tn-common')
-        aci_tenant.get_children_mos(self.aci_session, 'pod-1')
-        self.ws_context = get_websocket_context(self.conf_manager,
-                                                self.manager)
+        aci_tenant.get_children_mos(self.ac_context.aci_session, 'tn-common')
+        aci_tenant.get_children_mos(self.ac_context.aci_session, 'pod-1')
         self.aim_system_id = self.conf_manager.get_option('aim_system_id',
                                                           'aim')
         return self
@@ -534,9 +561,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def serve(self, context, tenants):
         # Verify differences
         global serving_tenants
-        if self.ws_context.is_session_reconnected is True:
+        if self.ac_context.is_session_reconnected is True:
             self.reset(context, serving_tenants)
-            self.ws_context.is_session_reconnected = False
+            self.ac_context.is_session_reconnected = False
             return
         try:
             serving_tenant_copy = serving_tenants
@@ -579,10 +606,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
                         # Cleanup the tenant's state
                         serving_tenants[added].kill()
                     serving_tenants[added] = aci_tenant.AciTenantManager(
-                        added, self.conf_manager, self.aci_session,
-                        self.ws_context, self.creation_succeeded,
-                        self.tenant_creation_failed, self.aim_system_id,
-                        self.get_resources)
+                        added, self.conf_manager, self.ac_context,
+                        self.creation_succeeded, self.tenant_creation_failed,
+                        self.aim_system_id, self.get_resources)
                     # A subscription might be leaking here
                     serving_tenants[added]._unsubscribe_tenant()
                     serving_tenants[added].start()
@@ -768,28 +794,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
     def _get_state_copy(self, tenant):
         global serving_tenants
         return serving_tenants[tenant].get_state_copy()
-
-    @staticmethod
-    def establish_aci_session(apic_config):
-        return apic_client.RestClient(
-            logging, '',
-            apic_config.get_option('apic_hosts', group='apic'),
-            apic_config.get_option('apic_username', group='apic'),
-            apic_config.get_option('apic_password', group='apic'),
-            apic_config.get_option('apic_use_ssl', group='apic'),
-            scope_names=False, scope_infra=False, renew_names=False,
-            verify=apic_config.get_option('verify_ssl_certificate',
-                                          group='apic'),
-            request_timeout=apic_config.get_option('apic_request_timeout',
-                                                   group='apic'),
-            cert_name=apic_config.get_option('certificate_name',
-                                             group='apic'),
-            private_key_file=apic_config.get_option('private_key_file',
-                                                    group='apic'),
-            sign_algo=apic_config.get_option(
-                'signature_verification_algorithm', group='apic'),
-            sign_hash=apic_config.get_option(
-                'signature_hash_type', group='apic'))
 
     def update_status_objects(self, context, my_state, raw_diff, skip_keys):
         pass
