@@ -152,6 +152,26 @@ class Subnet(model_base.Base, model_base.HasAimId,
     scope = sa.Column(sa.String(16))
 
 
+class EPGSubnet(model_base.Base, model_base.HasAimId,
+                model_base.HasDisplayName,
+                model_base.HasTenantName,
+                model_base.AttributeMixin, model_base.IsMonitored):
+    """DB model for EPGSubnet."""
+
+    __tablename__ = 'aim_epg_subnets'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'app_profile_name',
+                               'epg_name', 'gw_ip_mask') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    app_profile_name = model_base.name_column(nullable=False)
+    epg_name = model_base.name_column(nullable=False)
+    gw_ip_mask = sa.Column(sa.String(64), nullable=False)
+
+    scope = sa.Column(sa.String(16))
+
+
 class VRF(model_base.Base, model_base.HasAimId,
           model_base.HasName, model_base.HasDisplayName,
           model_base.HasTenantName,

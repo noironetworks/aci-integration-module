@@ -57,6 +57,7 @@ class AimManager(object):
                      api_res.Agent,
                      api_res.Tenant,
                      api_res.Subnet,
+                     api_res.EPGSubnet,
                      api_res.VRF,
                      api_res.ApplicationProfile,
                      api_res.EndpointGroup,

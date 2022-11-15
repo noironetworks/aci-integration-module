@@ -568,6 +568,46 @@ def bgp_extp_converter(object_dict, otype, helper,
     return result
 
 
+def subnet_converter(object_dict, otype, helper,
+                     source_identity_attributes,
+                     destination_identity_attributes,
+                     to_aim=True):
+    result = []
+    res_dict = {}
+    if to_aim:
+        try:
+            identity = default_identity_converter(object_dict, otype, helper,
+                                                  to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            # It hits this exception if it's epg subnet only.
+            # Modify AIM resource to point to EPGSubnet and aci type
+            # to fvSubnet__epg
+            helper = resource_map['fvSubnet__epg'][0]
+            destination_identity_attributes = (
+                helper['resource'].identity_attributes)
+            identity = default_identity_converter(object_dict, otype, helper,
+                                                  aci_mo_type="fvSubnet__epg",
+                                                  to_aim=True)
+    else:
+        identity = default_identity_converter(object_dict, otype, helper,
+                                              to_aim=False)
+    for index, part in enumerate(destination_identity_attributes):
+        res_dict[part] = identity[index]
+    for attribute in object_dict:
+        if attribute in source_identity_attributes:
+            continue
+        others = utils.do_attribute_conversion(object_dict, attribute,
+                                               helper.get('exceptions', {}),
+                                               to_aim=to_aim)
+        for other_k, other_v in list(others.items()):
+            # Identity was already converted
+            if other_k not in destination_identity_attributes:
+                res_dict[other_k] = other_v
+    result = default_to_resource(res_dict, helper, to_aim=to_aim)
+
+    return [result] if result else []
+
+
 def contract_converter(object_dict, otype, helper,
                        source_identity_attributes,
                        destination_identity_attributes,
@@ -871,6 +911,10 @@ resource_map = {
     }],
     'fvSubnet': [{
         'resource': resource.Subnet,
+        'converter': subnet_converter,
+    }],
+    'fvSubnet__epg': [{
+        'resource': resource.EPGSubnet,
     }],
     'fvCtx': [{
         'resource': resource.VRF,

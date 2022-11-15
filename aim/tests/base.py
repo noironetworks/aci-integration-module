@@ -441,6 +441,27 @@ class TestAimDBBase(BaseTestCase):
         return example_sub
 
     @classmethod
+    def _get_example_aim_epg_subnet(cls, **kwargs):
+        example = resource.EPGSubnet(
+            tenant_name='t1', app_profile_name='ap1', epg_name='epg1',
+            gw_ip_mask='10.10.10.0/28')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
+    def _get_example_aci_epg_subnet(cls, **kwargs):
+        example_sub = {
+            "fvSubnet__epg": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-ap1/epg-epg1/subnet-[10.10.10.0/28]",
+                    "scope": "private"
+                }
+            }
+        }
+        example_sub['fvSubnet__epg']['attributes'].update(kwargs)
+        return example_sub
+
+    @classmethod
     def _get_example_aim_tenant(cls, **kwargs):
         example = resource.Tenant(name='test-tenant')
         example.__dict__.update(kwargs)

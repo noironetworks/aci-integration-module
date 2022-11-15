@@ -315,7 +315,8 @@ class TestAciToAimConverterVRF(TestAciToAimConverterBase, base.TestAimDBBase):
 class TestAciToAimConverterSubnet(TestAciToAimConverterBase,
                                   base.TestAimDBBase):
     resource_type = resource.Subnet
-    reverse_map_output = [{'exceptions': {},
+    reverse_map_output = [{'converter': converter.subnet_converter,
+                           'exceptions': {},
                            'resource': 'fvSubnet'}]
     sample_input = [base.TestAimDBBase._get_example_aci_subnet(),
                     base.TestAimDBBase._get_example_aci_subnet(
@@ -343,6 +344,42 @@ class TestAciToAimConverterSubnet(TestAciToAimConverterBase,
         bd_name='test',
         gw_ip_mask='10.10.10.0/28',
         scope=resource.Subnet.SCOPE_PUBLIC)
+
+
+class TestAciToAimConverterEPGSubnet(TestAciToAimConverterBase,
+                                     base.TestAimDBBase):
+    resource_type = resource.EPGSubnet
+    reverse_map_output = [{'exceptions': {},
+                           'resource': 'fvSubnet__epg'}]
+    sample_input = [base.TestAimDBBase._get_example_aci_epg_subnet(),
+                    base.TestAimDBBase._get_example_aci_epg_subnet(
+                        dn='uni/tn-t1/ap-ap1/epg-epg1/subnet-[10.10.20.0/28]',
+                        nameAlias='alias')]
+    sample_output = [
+        resource.EPGSubnet(tenant_name='t1',
+                           app_profile_name='ap1',
+                           epg_name='epg1',
+                           gw_ip_mask='10.10.10.0/28',
+                           scope=resource.EPGSubnet.SCOPE_PRIVATE),
+        resource.EPGSubnet(tenant_name='t1',
+                           app_profile_name='ap1',
+                           epg_name='epg1',
+                           gw_ip_mask='10.10.20.0/28',
+                           scope=resource.EPGSubnet.SCOPE_PRIVATE,
+                           display_name='alias')]
+    partial_change_input = {
+        'fvSubnet__epg': {
+            'attributes': {
+                'dn': 'uni/tn-t1/ap-ap1/epg-epg1/subnet-[10.10.10.0/28]',
+                'scope': 'public',
+                'modTs': '2016-03-24T14:55:12.867+00:00',
+                'rn': '', 'childAction': ''}}}
+    partial_change_output = resource.EPGSubnet(
+        tenant_name='t1',
+        app_profile_name='ap1',
+        epg_name='epg1',
+        gw_ip_mask='10.10.10.0/28',
+        scope=resource.EPGSubnet.SCOPE_PUBLIC)
 
 
 class TestAciToAimConverterTenant(TestAciToAimConverterBase,

@@ -163,6 +163,36 @@ class NatStrategy(object):
         """
 
     @abc.abstractmethod
+    def create_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+        """Create EPGSubnet in L3Outside.
+
+        :param ctx: AIM context
+        :param l3outside: L3Outside AIM resource
+        :param gw_ip_mask: Gateway+CIDR of epgsubnet to create
+        :return:
+        """
+
+    @abc.abstractmethod
+    def delete_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+        """Delete EPGSubnet in L3Outside.
+
+        :param ctx: AIM context
+        :param l3outside: L3Outside AIM resource
+        :param gw_ip_mask: Gateway+CIDR of epgsubnet to delete
+        :return:
+        """
+
+    @abc.abstractmethod
+    def get_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+        """Get EPGSubnet in L3Outside with specified Gateway+CIDR.
+
+        :param ctx: AIM context
+        :param l3outside: L3Outside AIM resource
+        :param gw_ip_mask: Gateway+CIDR of epgsubnet to fetch
+        :return: AIM epgSubnet if one is found
+        """
+
+    @abc.abstractmethod
     def create_external_network(self, ctx, external_network,
                                 provided_contracts=None,
                                 consumed_contracts=None):
@@ -323,6 +353,37 @@ class NatStrategyMixin(NatStrategy):
             sub = resource.Subnet(tenant_name=nat_bd.tenant_name,
                                   bd_name=nat_bd.name,
                                   gw_ip_mask=gw_ip_mask)
+            return self.mgr.get(ctx, sub)
+
+    def create_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+        l3outside = self.mgr.get(ctx, l3outside)
+        if l3outside:
+            ap, nat_epg = self._get_nat_ap_epg(ctx, l3outside)
+            sub = resource.EPGSubnet(tenant_name=nat_epg.tenant_name,
+                                     app_profile_name=ap.name,
+                                     epg_name=nat_epg.name,
+                                     gw_ip_mask=gw_ip_mask)
+            if not self.mgr.get(ctx, sub):
+                self.mgr.create(ctx, sub)
+
+    def delete_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+        l3outside = self.mgr.get(ctx, l3outside)
+        if l3outside:
+            ap, nat_epg = self._get_nat_ap_epg(ctx, l3outside)
+            sub = resource.EPGSubnet(tenant_name=nat_epg.tenant_name,
+                                     app_profile_name=ap.name,
+                                     epg_name=nat_epg.name,
+                                     gw_ip_mask=gw_ip_mask)
+            self.mgr.delete(ctx, sub)
+
+    def get_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+        l3outside = self.mgr.get(ctx, l3outside)
+        if l3outside:
+            ap, nat_epg = self._get_nat_ap_epg(ctx, l3outside)
+            sub = resource.EPGSubnet(tenant_name=nat_epg.tenant_name,
+                                     app_profile_name=ap.name,
+                                     epg_name=nat_epg.name,
+                                     gw_ip_mask=gw_ip_mask)
             return self.mgr.get(ctx, sub)
 
     def update_external_cidrs(self, ctx, external_network, external_cidrs):

@@ -524,6 +524,37 @@ class EndpointGroup(AciResourceBase):
                                             **kwargs)
 
 
+class EPGSubnet(AciResourceBase):
+    """Resource representing a EPGSubnet in ACI.
+
+    ...
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('app_profile_name', t.name),
+        ('epg_name', t.name),
+        ('gw_ip_mask', t.ip_cidr))
+    other_attributes = t.other(
+        ('scope', t.enum("", "public", "private", "shared")),
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'fvSubnet__epg'
+    _tree_parent = EndpointGroup
+
+    SCOPE_PRIVATE = 'private'
+    SCOPE_PUBLIC = 'public'
+
+    def __init__(self, **kwargs):
+        super(EPGSubnet, self).__init__({'scope': self.SCOPE_PUBLIC,
+                                         'monitored': False}, **kwargs)
+
+    @staticmethod
+    def to_gw_ip_mask(gateway_ip_address, prefix_len):
+        return '%s/%d' % (gateway_ip_address, prefix_len)
+
+
 class Filter(AciResourceBase):
     """Resource representing a contract filter in ACI.
 
