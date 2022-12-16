@@ -2254,9 +2254,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
     def _get_aim_trees_by_tenant(self, filters):
         result = {}
         for type in tree_manager.SUPPORTED_TREES:
-            for t in self.tt_mgr.find(self.ctx, tree=type, **filters):
-                rn = tree_manager.AimHashTreeMaker._extract_root_rn(t.root_key)
-                result.setdefault(rn, {})[type] = t
+            for t in self.tt_mgr.find_inmem(self.ctx, tree=type, **filters):
+                rn = t[0]
+                result.setdefault(rn, {})[type] = t[1]
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples, tenants=None):

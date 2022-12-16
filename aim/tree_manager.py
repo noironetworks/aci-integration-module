@@ -35,6 +35,7 @@ CONFIG_TREE = tree_res.ConfigTree
 OPERATIONAL_TREE = tree_res.OperationalTree
 MONITORED_TREE = tree_res.MonitoredTree
 SUPPORTED_TREES = [CONFIG_TREE, OPERATIONAL_TREE, MONITORED_TREE]
+HASHTREES = {}
 
 
 class TreeManager(object):
@@ -68,7 +69,7 @@ class TreeManager(object):
                         # Then put the updated tree in it
                         self._create_if_not_exist(
                             context, tree_klass, root_rn,
-                            tree=str(hash_tree).encode('utf-8'),
+                            tree=str(empty_tree).encode('utf-8'),
                             root_full_hash=hash_tree.root_full_hash or 'none')
                     else:
                         # Attempt to create an empty tree:
@@ -83,6 +84,21 @@ class TreeManager(object):
         return db_objs[0] if db_objs else None
 
     @utils.log
+    def delete_inmem_bulk(self, root_rns):
+        for root_rn in root_rns:
+            if root_rn in HASHTREES:
+                del HASHTREES[root_rn]
+
+    @utils.log
+    def delete_inmem_all(self):
+        HASHTREES.clear()
+
+    @utils.log
+    def delete_inmem_by_root_rn(self, root_rn):
+        if root_rn in HASHTREES:
+            del HASHTREES[root_rn]
+
+    @utils.log
     def delete_bulk(self, context, hash_trees):
         with context.store.begin(subtransactions=True):
             root_rns = [self.root_rn_funct(x) for x in hash_trees]
@@ -91,6 +107,7 @@ class TreeManager(object):
                                            in_={'root_rn': root_rns})
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
+            self.delete_inmem_bulk(root_rns)
 
     @utils.log
     def delete_all(self, context):
@@ -99,6 +116,7 @@ class TreeManager(object):
                 db_objs = self._find_query(context, type, lock_update=True)
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
+        self.delete_inmem_all()
 
     def update(self, context, hash_tree, tree=CONFIG_TREE):
         return self.update_bulk(context, [hash_tree], tree=tree)
@@ -114,9 +132,24 @@ class TreeManager(object):
                 for type in SUPPORTED_TREES:
                     self._delete_if_exist(context, type, root_rn,
                                           if_empty=if_empty)
+                    self.delete_inmem_by_root_rn(root_rn)
         except exc.HashTreeNotEmpty:
             LOG.warning("Hashtree not empty for root %s, rolling "
                         "back deletion." % root_rn)
+
+    @utils.log
+    def clean_all_inmem(self):
+        for root_rn in HASHTREES:
+            HASHTREES[root_rn] = (structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree())
+
+    @utils.log
+    def clean_inmem_by_root_rn(self, root_rn):
+        if root_rn in HASHTREES:
+            HASHTREES[root_rn] = (structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree())
 
     @utils.log
     def clean_by_root_rn(self, context, root_rn):
@@ -128,6 +161,7 @@ class TreeManager(object):
                 if obj:
                     obj[0].tree = str(empty_tree).encode('utf-8')
                     context.store.add(obj[0])
+                    self.clean_inmem_by_root_rn(root_rn)
             obj = self._find_query(context, ROOT_TREE, root_rn=root_rn,
                                    lock_update=True)
             if obj:
@@ -144,10 +178,24 @@ class TreeManager(object):
                 for db_obj in db_objs:
                     db_obj.tree = str(empty_tree).encode('utf-8')
                     context.store.add(db_obj)
+                self.clean_all_inmem()
             db_objs = self._find_query(context, ROOT_TREE, lock_update=True)
             for db_obj in db_objs:
                 db_obj.needs_reset = False
                 context.store.add(db_obj)
+
+    @utils.log
+    def find_inmem(self, context, tree=CONFIG_TREE, **kwargs):
+        ht_list = []
+        result = self._find_query(context, tree, in_=kwargs)
+        for x in result:
+            if tree == CONFIG_TREE:
+                ht_list.append((x.root_rn, HASHTREES[x.root_rn][0]))
+            elif tree == OPERATIONAL_TREE:
+                ht_list.append((x.root_rn, HASHTREES[x.root_rn][1]))
+            elif tree == MONITORED_TREE:
+                ht_list.append((x.root_rn, HASHTREES[x.root_rn][2]))
+        return ht_list
 
     @utils.log
     def find(self, context, tree=CONFIG_TREE, **kwargs):
@@ -157,26 +205,48 @@ class TreeManager(object):
             self.root_key_funct(x.root_rn)) for x in result]
 
     @utils.log
-    def get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
+    def get(self, root_rn, tree=CONFIG_TREE):
         try:
-            return self.tree_klass.from_string(str(
-                self._find_query(context, tree, lock_update=lock_update,
-                                 root_rn=root_rn)[0].tree.decode('utf-8')),
-                self.root_key_funct(root_rn))
-        except IndexError:
+            tenant_hash = HASHTREES[root_rn]
+            if tree == CONFIG_TREE:
+                return tenant_hash[0]
+            elif tree == OPERATIONAL_TREE:
+                return tenant_hash[1]
+            elif tree == MONITORED_TREE:
+                return tenant_hash[2]
+        except KeyError:
             raise exc.HashTreeNotFound(root_rn=root_rn)
 
     @utils.log
+    def _find_query_inmem(self, tenant_list, tree=CONFIG_TREE):
+        ht_list = []
+        if tenant_list in HASHTREES:
+            tenant_ht = HASHTREES[tenant_list]
+            if tree == CONFIG_TREE:
+                ht_list.append(tenant_ht[0])
+            elif tree == OPERATIONAL_TREE:
+                ht_list.append(tenant_ht[1])
+            elif tree == MONITORED_TREE:
+                ht_list.append(tenant_ht[2])
+        return ht_list
+
+    @utils.log
     def find_changed(self, context, root_map, tree=CONFIG_TREE):
+        ret = {}
         if not root_map:
-            return {}
-        return dict((
-            x.root_rn,
-            self.tree_klass.from_string(
-                str(x.tree.decode('utf-8')), self.root_key_funct(x.root_rn)))
-            for x in self._find_query(
-                context, tree, in_={'root_rn': list(root_map.keys())},
-                notin_={'root_full_hash': list(root_map.values())}))
+            return ret
+        root_rn_list = list(root_map.keys())
+        root_full_hash_list = list(root_map.values())
+
+        for root in root_rn_list:
+            query_result = self._find_query_inmem(root, tree)
+            for x in query_result:
+                if ((x.root_full_hash) == None or
+                        (x.root_full_hash not in root_full_hash_list)):
+                    tree_instance = self.tree_klass.from_string(
+                        str(x), self.root_key_funct(root))
+                    ret[root] = tree_instance
+        return ret
 
     @utils.log
     def get_roots(self, context):

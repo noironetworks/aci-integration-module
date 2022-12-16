@@ -660,7 +660,7 @@ class TestAciResourceOpsBase(TestResourceOpsBase):
             result[tenant.name] = {}
             for typ in tree_manager.SUPPORTED_TREES:
                 result[tenant.name][typ] = (
-                    self.tt_mgr.get(self.ctx, tenant.rn, tree=typ))
+                    self.tt_mgr.get(tenant.rn, tree=typ))
         return result
 
     def test_tree_reset(self):
