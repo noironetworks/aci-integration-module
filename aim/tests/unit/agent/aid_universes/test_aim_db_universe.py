@@ -44,6 +44,9 @@ class TestAimDbUniverseBase(object):
         self.universe.serve(self.ctx, tenants)
         self.assertEqual(set(tenants), set(self.universe._served_tenants))
 
+    # This has been skipped when removing DB persistance of hashtrees, as the
+    # hashtrees are not saved in the DB anymore.
+    @base.requires(['skip'])
     def test_state(self, tree_type=tree_manager.CONFIG_TREE):
         # Create some trees in the AIM DB
         data1 = tree.StructuredHashTree().include(
@@ -255,6 +258,9 @@ class TestAimDbUniverseBase(object):
             self.assertTrue(srp1_fault in result)
             self.assertTrue(dc_ctx1_fault in result)
 
+    # This has been skipped when removing DB persistance of hashtrees, as the
+    # hashtrees are not saved in the DB anymore.
+    @base.requires(['skip'])
     def test_cleanup_state(self, tree_type=tree_manager.CONFIG_TREE):
         tree_mgr = tree_manager.HashTreeManager()
         aim_mgr = aim_manager.AimManager()

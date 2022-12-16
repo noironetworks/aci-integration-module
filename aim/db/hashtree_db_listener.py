@@ -307,6 +307,7 @@ class HashTreeDbListener(object):
         conf = tree_manager.CONFIG_TREE
         monitor = tree_manager.MONITORED_TREE
         oper = tree_manager.OPERATIONAL_TREE
+
         for root_rn in log_by_root:
             try:
                 tree_map = {}
@@ -319,12 +320,11 @@ class HashTreeDbListener(object):
                                      'resetting trees' % root_rn)
                             self.reset(ctx.store, root_rn)
                             continue
-                        ttree_conf = self.tt_mgr.get(
-                            ctx, root_rn, lock_update=True, tree=conf)
-                        ttree_operational = self.tt_mgr.get(
-                            ctx, root_rn, lock_update=True, tree=oper)
-                        ttree_monitor = self.tt_mgr.get(
-                            ctx, root_rn, lock_update=True, tree=monitor)
+
+                        ttree_conf = self.tt_mgr.get(root_rn, tree=conf)
+                        ttree_operational = self.tt_mgr.get(root_rn, tree=oper)
+                        ttree_monitor = self.tt_mgr.get(root_rn, tree=monitor)
+
                     except hexc.HashTreeNotFound:
                         ttree_conf = htree.StructuredHashTree()
                         ttree_operational = htree.StructuredHashTree()
@@ -352,6 +352,11 @@ class HashTreeDbListener(object):
                         self.tt_mgr.update(ctx, ttree_operational, tree=oper)
                     if ttree_monitor.root_key:
                         self.tt_mgr.update(ctx, ttree_monitor, tree=monitor)
+
+                    tree_manager.HASHTREES.update({root_rn: ((ttree_conf,
+                                                             ttree_operational,
+                                                             ttree_monitor))})
+
                     if delete_logs:
                         self._delete_logs(ctx, log_by_root[root_rn])
             except Exception as e:
