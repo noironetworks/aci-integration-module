@@ -644,38 +644,37 @@ class TestHashTreeExceptions(base.BaseTestCase):
         self.assertRaises(KeyError, exc.MultipleRootTreeError, randomkey=None)
 
 
-class TestHashTreeManager(base.TestAimDBBase):
-
+class TestInMemoryHashTree(base.TestAimDBBase):
     def setUp(self):
-        super(TestHashTreeManager, self).setUp()
+        super(TestInMemoryHashTree, self).setUp()
         self.mgr = tree_manager.TreeManager(tree.StructuredHashTree)
 
-    def test_update(self):
-        data = tree.StructuredHashTree().include(
+    def test_update_inmem(self):
+        data1 = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
              {'key': ('keyA', 'keyC', 'keyD')}])
-        self.mgr.update(self.ctx, data)
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                 tree.StructuredHashTree(),
+                                                 tree.StructuredHashTree()))})
 
-        data2 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
-        self.assertEqual(data, data2)
+        self.mgr.update(self.ctx, data1)
+        filters = {'root_rn': ['keyA']}
+        data2 = self.mgr.find_inmem(self.ctx, tree=tree_manager.CONFIG_TREE,
+                                    **filters)
+        # First element in the list is the k,v for that root_rn
+        self.assertEqual(data1, data2[0][1])
 
         # Change an existing tree
-        data.add(('keyA', 'keyF'), test='test')
-        self.mgr.update(self.ctx, data)
-        data3 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
-        self.assertEqual(data, data3)
-        self.assertNotEqual(data, data2)
+        data1.add(('keyA', 'keyF'), test='test')
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                 tree.StructuredHashTree(),
+                                                 tree.StructuredHashTree()))})
+        data3 = self.mgr.find_inmem(self.ctx, tree=tree_manager.CONFIG_TREE,
+                                    **filters)
+        self.assertEqual(data1, data3[0][1])
+        self.assertNotEqual(data1, data2[0][1])
 
-        # Empty the tree completely
-        data3.remove(('keyA',))
-        self.assertEqual(('keyA',), data3.root_key)
-        self.mgr.update(self.ctx, data3)
-        data4 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
-        # Verify this is an empty tree
-        self.assertIsNone(data4.root)
-        self.assertEqual(data3.root_key, data4.root_key)
-
-    def test_update_bulk(self):
+    def test_update_bulk_inmem(self):
         data1 = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
              {'key': ('keyA', 'keyC', 'keyD')}])
@@ -684,35 +683,91 @@ class TestHashTreeManager(base.TestAimDBBase):
              {'key': ('keyA1', 'keyC', 'keyD')}])
 
         self.mgr.update_bulk(self.ctx, [data1, data2])
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                tree.StructuredHashTree(),
+                                                tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA1": ((copy.deepcopy(data2),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+
         found = {'keyA': None, 'keyA1': None}
-        result = self.mgr.find(self.ctx, root_rn=['keyA', 'keyA1'])
-        found[result[0].root.key[0]] = result[0]
-        found[result[1].root.key[0]] = result[1]
+        result = self.mgr.find_inmem(self.ctx, tree=tree_manager.CONFIG_TREE,
+                                     root_rn=['keyA', 'keyA1'])
+        found[result[0][0]] = result[0][1]
+        found[result[1][0]] = result[1][1]
         self.assertEqual(data1, found['keyA'])
         self.assertEqual(data2, found['keyA1'])
 
         # Change an existing tree
         data1.add(('keyA', 'keyF'), test='test')
-        self.mgr.update_bulk(self.ctx, [data1, data2])
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                 tree.StructuredHashTree(),
+                                                 tree.StructuredHashTree()))})
         found2 = {'keyA': None, 'keyA1': None}
-        result = self.mgr.find(self.ctx, root_rn=['keyA', 'keyA1'])
-        found2[result[0].root.key[0]] = result[0]
-        found2[result[1].root.key[0]] = result[1]
+        result = self.mgr.find_inmem(self.ctx, tree=tree_manager.CONFIG_TREE,
+                                     root_rn=['keyA', 'keyA1'])
+        found2[result[0][0]] = result[0][1]
+        found2[result[1][0]] = result[1][1]
 
         self.assertEqual(data1, found2['keyA'])
         self.assertNotEqual(data1, found['keyA'])
         self.assertEqual(data2, found['keyA1'])
         self.assertEqual(data2, found2['keyA1'])
 
-    def test_deleted(self):
-        data = tree.StructuredHashTree().include(
+    def test_delete_inmem_all(self):
+        data1 = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
              {'key': ('keyA', 'keyC', 'keyD')}])
-        self.mgr.update(self.ctx, data)
-        self.mgr.delete(self.ctx, data)
-        self.assertEqual([], self.mgr.find(self.ctx, root_rn=['keyA']))
+        data2 = tree.StructuredHashTree().include(
+            [{'key': ('keyA1', 'keyB')}, {'key': ('keyA1', 'keyC')},
+             {'key': ('keyA1', 'keyC', 'keyD')}])
 
-    def test_deleted_bulk(self):
+        self.mgr.update_bulk(self.ctx, [data1, data2])
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                tree.StructuredHashTree(),
+                                                tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA1": ((copy.deepcopy(data2),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+
+        self.mgr.delete(self.ctx, data1)
+        self.mgr.delete(self.ctx, data2)
+        self.mgr.delete_inmem_all()
+        self.assertEqual(0, len(tree_manager.HASHTREES))
+        self.assertEqual([], self.mgr.find_inmem(self.ctx,
+                                                 tree=tree_manager.CONFIG_TREE,
+                                                 root_rn=[]))
+
+    def test_delete_inmem_by_root_rn(self):
+        data1 = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+        data2 = tree.StructuredHashTree().include(
+            [{'key': ('keyA1', 'keyB')}, {'key': ('keyA1', 'keyC')},
+             {'key': ('keyA1', 'keyC', 'keyD')}])
+
+        self.mgr.update_bulk(self.ctx, [data1, data2])
+
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                tree.StructuredHashTree(),
+                                                tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA1": ((copy.deepcopy(data2),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+
+        self.mgr.delete(self.ctx, data1)
+        self.mgr.delete_inmem_by_root_rn('keyA')
+        self.assertEqual([], self.mgr.find_inmem(self.ctx,
+                                                 tree=tree_manager.CONFIG_TREE,
+                                                 root_rn=['keyA']))
+
+        self.assertNotEqual([], self.mgr.find_inmem(self.ctx,
+                            tree=tree_manager.CONFIG_TREE, root_rn=['keyA1']))
+
+    def test_delete_inmem_bulk(self):
         data1 = tree.StructuredHashTree().include(
             [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
              {'key': ('keyA', 'keyC', 'keyD')}])
@@ -724,11 +779,71 @@ class TestHashTreeManager(base.TestAimDBBase):
              {'key': ('keyA2', 'keyC', 'keyD')}])
 
         self.mgr.update_bulk(self.ctx, [data1, data2, data3])
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                tree.StructuredHashTree(),
+                                                tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA1": ((copy.deepcopy(data2),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA2": ((copy.deepcopy(data3),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+
         self.mgr.delete_bulk(self.ctx, [data1, data2])
-        self.assertEqual([], self.mgr.find(self.ctx,
-                                           root_rn=['keyA', 'keyA1']))
-        # data3 still persists
-        self.assertEqual([data3], self.mgr.find(self.ctx, root_rn=['keyA2']))
+        self.mgr.delete_inmem_bulk(['keyA', 'keyA1'])
+        self.assertEqual([], self.mgr.find_inmem(self.ctx,
+                                                 tree=tree_manager.CONFIG_TREE,
+                                                 root_rn=['keyA']))
+
+        self.assertNotEqual([], self.mgr.find_inmem(self.ctx,
+                            tree=tree_manager.CONFIG_TREE, root_rn=['keyA2']))
+
+        self.assertEqual(1, len(tree_manager.HASHTREES))
+
+    def test_clean_all_inmem(self):
+        data1 = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+        data2 = tree.StructuredHashTree().include(
+            [{'key': ('keyA1', 'keyB')}, {'key': ('keyA1', 'keyC')},
+             {'key': ('keyA1', 'keyC', 'keyD')}])
+
+        self.mgr.update_bulk(self.ctx, [data1, data2])
+
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                tree.StructuredHashTree(),
+                                                tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA1": ((copy.deepcopy(data2),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+        self.mgr.clean_all_inmem()
+        self.assertEqual(tree.StructuredHashTree(), self.mgr.find_inmem(
+            self.ctx, tree=tree_manager.CONFIG_TREE, root_rn=['keyA'])[0][1])
+
+    def test_clean_inmem_by_root_rn(self):
+        data1 = tree.StructuredHashTree().include(
+            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
+             {'key': ('keyA', 'keyC', 'keyD')}])
+        data2 = tree.StructuredHashTree().include(
+            [{'key': ('keyA1', 'keyB')}, {'key': ('keyA1', 'keyC')},
+             {'key': ('keyA1', 'keyC', 'keyD')}])
+
+        self.mgr.update_bulk(self.ctx, [data1, data2])
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                tree.StructuredHashTree(),
+                                                tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA1": ((copy.deepcopy(data2),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+        self.mgr.clean_inmem_by_root_rn('keyA')
+        self.assertEqual(tree.StructuredHashTree(), self.mgr.find_inmem(
+            self.ctx, tree=tree_manager.CONFIG_TREE, root_rn=['keyA'])[0][1])
+        self.assertNotEqual(tree.StructuredHashTree(), self.mgr.find_inmem(
+            self.ctx, tree=tree_manager.CONFIG_TREE, root_rn=['keyA1'])[0][1])
 
     def test_find_changed(self):
         data1 = tree.StructuredHashTree().include(
@@ -742,7 +857,20 @@ class TestHashTreeManager(base.TestAimDBBase):
              {'key': ('keyA2', 'keyC', 'keyD')}])
 
         self.mgr.update_bulk(self.ctx, [data1, data2, data3])
-        data1.add(('keyA',), test='test')
+        tree_manager.HASHTREES.update({"keyA": ((copy.deepcopy(data1),
+                                                tree.StructuredHashTree(),
+                                                tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA1": ((copy.deepcopy(data2),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+
+        tree_manager.HASHTREES.update({"keyA2": ((copy.deepcopy(data3),
+                                                  tree.StructuredHashTree(),
+                                                  tree.StructuredHashTree()))})
+
+        data1.add(('keyA', 'keyF'), test='test')
+        data1.root.full_hash = tree.StructuredHashTree()._hash(str(data1.root))
         changed = self.mgr.find_changed(
             self.ctx, {data1.root.key[0]: data1.root.full_hash,
                        data2.root.key[0]: data2.root.full_hash,
@@ -750,37 +878,12 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.assertEqual(1, len(changed))
         self.assertEqual(data1.root.key, list(changed.values())[0].root.key)
 
-    def test_get_tenants(self):
-        data1 = tree.StructuredHashTree().include(
-            [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
-             {'key': ('keyA', 'keyC', 'keyD')}])
-        data2 = tree.StructuredHashTree().include(
-            [{'key': ('keyA1', 'keyB')}, {'key': ('keyA1', 'keyC')},
-             {'key': ('keyA1', 'keyC', 'keyD')}])
-        data3 = tree.StructuredHashTree().include(
-            [{'key': ('keyA2', 'keyB')}, {'key': ('keyA2', 'keyC')},
-             {'key': ('keyA2', 'keyC', 'keyD')}])
 
-        self.mgr.update_bulk(self.ctx, [data1, data2, data3])
-        tenants = self.mgr.get_roots(self.ctx)
-        self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(tenants))
+class TestHashTreeManager(base.TestAimDBBase):
 
-    def test_single_session_multi_objects(self):
-        with self.ctx.store.begin(subtransactions=True):
-            data = tree.StructuredHashTree().include(
-                [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
-                 {'key': ('keyA', 'keyC', 'keyD')}])
-            self.mgr.update(self.ctx, data)
-            agent = resource.Agent(id='test', agent_type='aid', host='host3',
-                                   binary_file='binary', hash_trees=['keyA'],
-                                   version='1.0')
-            agent = aim_manager.AimManager().create(self.ctx, agent)
-
-        # Creation worked
-        self.assertEqual('test', agent.id)
-        data2 = self.mgr.find(self.ctx, root_rn=['keyA'])[0]
-        self.assertEqual(['keyA'], agent.hash_trees)
-        self.assertEqual(data, data2)
+    def setUp(self):
+        super(TestHashTreeManager, self).setUp()
+        self.mgr = tree_manager.TreeManager(tree.StructuredHashTree)
 
     def test_agents_to_trees_association(self):
         # N, M association
