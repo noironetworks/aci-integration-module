@@ -39,8 +39,10 @@ def get_apic_manager():
     manager = aim_manager.AimManager()
     db = infra_model.HostLinkManager(aim_ctx, manager)
     apic_system_id = config.CONF.apic_system_id
+    apic_system_id_length = config.CONF.apic_system_id_length
     return apic_manager.APICManager(db, logging, network_config, apic_config,
-                                    None, None, apic_system_id)
+                                    None, None, apic_system_id,
+                                    apic_system_id_length)
 
 
 @aimcli.aim.group(name='infra')
