@@ -26,6 +26,8 @@ DEFAULT_FORMAT = 'tables'
 global_opts = [
     config.cfg.StrOpt('apic_system_id',
                       help="Prefix for APIC domain/names/profiles created"),
+    config.cfg.IntOpt('apic_system_id_length', default=16,
+                      help=("Maximum lengh for APIC system ID.")),
 ]
 config.CONF.register_opts(global_opts)
 curr_format = DEFAULT_FORMAT
