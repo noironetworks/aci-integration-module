@@ -406,7 +406,7 @@ class TestManager(base.TestShell):
                         side_effect=get_mgr):
             with mock.patch('click.echo') as ce:
                 self.run_command('infra tag-list -t openstack_aid')
-        ce.called_once_with('uni/tn-tn1/tag-openstack_aid')
+        ce.assert_called_once_with('uni/tn-tn1/tag-openstack_aid')
 
     def test_tag_delete_command(self):
         apic_manager_object = mock.Mock()
@@ -420,7 +420,7 @@ class TestManager(base.TestShell):
                         side_effect=get_mgr):
             with mock.patch('click.echo') as ce:
                 self.run_command('infra tag-delete --dn uni/tn-tn1')
-        ce.called_once_with("uni/tn-tn1 object isn't a tag -- ignoring")
+        ce.assert_called_once_with("uni/tn-tn1 object isn't a tag -- ignoring")
         apic_manager_object.apic.transaction.assert_not_called()
 
         # Now actually delete a tag
@@ -429,7 +429,7 @@ class TestManager(base.TestShell):
             with mock.patch('click.echo') as ce:
                 self.run_command(
                     'infra tag-delete --dn uni/tn-tn1/tag-openstack_aid')
-        ce.called_once_with("uni/tn-tn1/tag-openstack_aid deleted")
+        ce.assert_called_once_with("uni/tn-tn1/tag-openstack_aid deleted")
         apic_manager_object.apic.DELETE.assert_called_with(
             '/mo/uni/tn-tn1/tag-openstack_aid.json')
 
