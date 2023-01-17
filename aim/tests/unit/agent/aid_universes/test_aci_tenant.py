@@ -145,9 +145,9 @@ class TestAciClientMixin(object):
         removed = None
         manager = manager if manager is not None else self.manager
         try:
-            manager.ac_context.aci_session._data_stash
+            manager.aci_session._data_stash
         except Exception:
-            manager.ac_context.aci_session._data_stash = {}
+            manager.aci_session._data_stash = {}
 
         def _tag_format(dn):
             return {
@@ -166,11 +166,11 @@ class TestAciClientMixin(object):
             decomposed = dn_mgr.aci_decompose_dn_guess(
                 list(resource.values())[0]['attributes']['dn'], data_type)[1]
             if add:
-                curr = manager.ac_context.aci_session._data_stash.setdefault(
+                curr = manager.aci_session._data_stash.setdefault(
                     decomposed[0][1], [])
             else:
-                curr = manager.ac_context.aci_session._data_stash.get(
-                    decomposed[0][1], [])
+                curr = manager.aci_session._data_stash.get(decomposed[0][1],
+                                                           [])
             prev = None
             child_index = None
             last_index = len(decomposed) - 1
@@ -228,14 +228,13 @@ class TestAciClientMixin(object):
             if not add:
                 if child_index is not None:
                     removed = prev.pop(child_index)
-                    if prev is manager.ac_context.aci_session._data_stash[
+                    if prev is manager.aci_session._data_stash[
                             decomposed[0][1]]:
                         # Tenant is now empty
-                        manager.ac_context.aci_session._data_stash.pop(
-                            decomposed[0][1])
+                        manager.aci_session._data_stash.pop(decomposed[0][1])
                 else:
                     # Root node
-                    removed = manager.ac_context.aci_session._data_stash.pop(
+                    removed = manager.aci_session._data_stash.pop(
                         decomposed[0][1])
             elif child_index is not None and not is_new:
                 children = list(prev[child_index].values())[0]['children']
@@ -378,13 +377,13 @@ class TestAciClientMixin(object):
                             list(item.values())[0]['attributes']['status'] = (
                                 'deleted')
                             event_list.append(item)
-        manager.ac_context.session.subscription_thread._events.setdefault(
+        manager.ws_context.session.subscription_thread._events.setdefault(
             manager.tenant._get_instance_subscription_urls()[0], []).extend([
                 dict([('imdata', [x])]) for x in event_list])
 
     def _do_aci_mocks(self):
         self.monitors = mock.patch(
-            'aim.agent.aid.universes.aci.aci_universe.ApicClientsContext.'
+            'aim.agent.aid.universes.aci.aci_universe.WebSocketContext.'
             '_spawn_monitors')
         self.monitors.start()
 
@@ -401,7 +400,7 @@ class TestAciClientMixin(object):
         self.ws_logged_in.start()
 
         self.tn_subscribe = mock.patch(
-            'aim.agent.aid.universes.aci.aci_universe.ApicClientsContext.'
+            'aim.agent.aid.universes.aci.aci_universe.WebSocketContext.'
             '_subscribe', return_value=FakeResponse())
         self.tn_subscribe.start()
 
@@ -451,8 +450,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             aim_cfg.ConfigManager(self.ctx, 'h1'), [])
         self.manager = aci_tenant.AciTenantManager(
             'tn-tenant-1', self.cfg_manager,
-            aci_universe.get_apic_clients_context(self.cfg_manager,
-                                                  universe.manager),
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager,
+                                               universe.manager),
             get_resources=universe.get_resources)
         self.manager._get_full_state = mock.Mock(
             return_value=[self.backend_state])
@@ -480,16 +480,16 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                     self.set_override('apic_hosts',
                                       ['1.1.1.1', '2.2.2.2', '3.3.3.3'],
                                       'apic')
-                    self.manager.ac_context.establish_ws_session(max_retries=1)
+                    self.manager.ws_context.establish_ws_session(max_retries=1)
                     self.assertEqual(1, hara.call_count)
                     self.assertEqual(['https://1.1.1.1', 'https://2.2.2.2',
                                       'https://3.3.3.3'],
-                                     list(self.manager.ac_context.ws_urls))
-                    self.manager.ac_context.establish_ws_session(max_retries=1)
+                                     list(self.manager.ws_context.ws_urls))
+                    self.manager.ws_context.establish_ws_session(max_retries=1)
                     self.assertEqual(2, hara.call_count)
                     self.assertEqual(['https://1.1.1.1', 'https://2.2.2.2',
                                       'https://3.3.3.3'],
-                                     list(self.manager.ac_context.ws_urls))
+                                     list(self.manager.ws_context.ws_urls))
 
     def test_login_good(self):
         # Mock response and login
@@ -497,38 +497,38 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                         return_value=FakeResponse(ok=True)):
             self.set_override(
                 'apic_hosts', ['1.1.1.1', '2.2.2.2'], 'apic')
-            self.manager.ac_context.establish_ws_session()
-            self.assertEqual(self.manager.ac_context.session.ipaddr, '1.1.1.1')
-            self.assertEqual(self.manager.ac_context.need_recovery, False)
+            self.manager.ws_context.establish_ws_session()
+            self.assertEqual(self.manager.ws_context.session.ipaddr, '1.1.1.1')
+            self.assertEqual(self.manager.ws_context.need_recovery, False)
 
             # Simulate a situation that 1.1.1.1 has been taken by
             # another aim-aid.
-            self.manager.ac_context.agent_id = 'test_id'
-            self.manager.ac_context.establish_ws_session()
-            self.assertEqual(self.manager.ac_context.session.ipaddr, '2.2.2.2')
-            self.assertEqual(self.manager.ac_context.need_recovery, False)
+            self.manager.ws_context.agent_id = 'test_id'
+            self.manager.ws_context.establish_ws_session()
+            self.assertEqual(self.manager.ws_context.session.ipaddr, '2.2.2.2')
+            self.assertEqual(self.manager.ws_context.need_recovery, False)
 
             # Simulate a situation that both IPs are taken, then
             # it will have to share with somebody.
-            self.manager.ac_context.agent_id = 'test_id1'
-            self.manager.ac_context.establish_ws_session()
-            self.assertEqual(self.manager.ac_context.need_recovery, True)
+            self.manager.ws_context.agent_id = 'test_id1'
+            self.manager.ws_context.establish_ws_session()
+            self.assertEqual(self.manager.ws_context.need_recovery, True)
 
             # Simulate running in the recovery mode where we will just
             # resume the ownership in the DB.
             api_infra.ApicAssignment.is_available = mock.Mock(
                 return_value=True)
-            self.manager.ac_context.establish_ws_session(recovery_mode=True)
-            self.assertEqual(self.manager.ac_context.session.ipaddr, '1.1.1.1')
-            self.assertEqual(self.manager.ac_context.need_recovery, False)
+            self.manager.ws_context.establish_ws_session(recovery_mode=True)
+            self.assertEqual(self.manager.ws_context.session.ipaddr, '1.1.1.1')
+            self.assertEqual(self.manager.ws_context.need_recovery, False)
 
             # Simulate running in the recovery mode where we will really
             # establish a new web socket session.
-            self.manager.ac_context.need_recovery = True
-            self.manager.ac_context.session.ipaddr = '2.2.2.2'
-            self.manager.ac_context.establish_ws_session(recovery_mode=True)
-            self.assertEqual(self.manager.ac_context.session.ipaddr, '1.1.1.1')
-            self.assertEqual(self.manager.ac_context.need_recovery, False)
+            self.manager.ws_context.need_recovery = True
+            self.manager.ws_context.session.ipaddr = '2.2.2.2'
+            self.manager.ws_context.establish_ws_session(recovery_mode=True)
+            self.assertEqual(self.manager.ws_context.session.ipaddr, '1.1.1.1')
+            self.assertEqual(self.manager.ws_context.need_recovery, False)
 
     def test_is_dead(self):
         self.assertFalse(self.manager.is_dead())
@@ -536,33 +536,35 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def test_event_loop_failure(self):
         manager = aci_tenant.AciTenantManager(
             'tn-1', self.cfg_manager,
-            aci_universe.get_apic_clients_context(self.cfg_manager, None))
-        manager.ac_context.has_event = mock.Mock(side_effect=KeyError)
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager, None))
+        manager.ws_context.has_event = mock.Mock(side_effect=KeyError)
         # Main loop is not raising
         manager._main_loop()
 
     def test_event_loop_refresh(self):
-        ac_context = aci_universe.get_apic_clients_context(self.cfg_manager,
-                                                           None)
+        ws_context = aci_universe.get_websocket_context(self.cfg_manager, None)
         manager = aci_tenant.AciTenantManager(
             'tn-1', self.cfg_manager,
-            ac_context)
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            ws_context)
         # Set resubscription timeout artificially low for the test, and make
         # sure we do enough iterations of the main loop to trigger a refresh
         # (two iterations with a 1 second pause after each one).
         manager.ws_subscription_to = '2'
         manager.num_loop_runs = 2
         manager.polling_yield = 1
-        manager.ac_context.refresh_subscriptions = mock.Mock()
+        manager.ws_context.refresh_subscriptions = mock.Mock()
         self.assertIsNone(getattr(manager, 'scheduled_reset', None))
         manager._main_loop()
-        manager.ac_context.refresh_subscriptions.assert_called_once_with(
+        manager.ws_context.refresh_subscriptions.assert_called_once_with(
             urls=[manager.tenant._get_instance_subscription_urls()[0]])
 
     def test_tenant_reset(self):
         manager = aci_tenant.AciTenantManager(
             'tn-1', self.cfg_manager,
-            aci_universe.get_apic_clients_context(self.cfg_manager, None))
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager, None))
         manager.polling_yield = 0
         self.assertIsNone(getattr(manager, 'scheduled_reset', None))
         min = time.time() + (aci_tenant.RESET_INTERVAL -
@@ -605,11 +607,11 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                       'test-tenant', 'test2'),
             mock.call(mock.ANY, transactions[2].get_top_level_roots()[0][1],
                       'test-tenant', 'c', 's')]
-        self._check_call_list(
-            exp_calls, self.manager.ac_context.aci_session.post_body_dict)
+        self._check_call_list(exp_calls,
+                              self.manager.aci_session.post_body_dict)
 
         # Delete AIM resources
-        self.manager.ac_context.aci_session.post_body_dict.reset_mock()
+        self.manager.aci_session.post_body_dict.reset_mock()
         f1 = {'vzRsFiltAtt__In': {'attributes': {
             'dn': 'uni/tn-test-tenant/brc-c/subj-s/intmnl/rsfiltAtt-i1'}}}
         f2 = {'vzRsFiltAtt__Out': {'attributes': {
@@ -643,11 +645,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                       + '.json'),
             mock.call('/mo/' + list(sg2.values())[0]['attributes']['dn']
                       + '.json')]
-        self._check_call_list(
-            exp_calls, self.manager.ac_context.aci_session.DELETE)
+        self._check_call_list(exp_calls, self.manager.aci_session.DELETE)
 
         # Create AND delete aim resources
-        self.manager.ac_context.aci_session.post_body_dict.reset_mock()
+        self.manager.aci_session.post_body_dict.reset_mock()
         self.manager.push_aim_resources(collections.OrderedDict(
             [('create', [bd1]), ('delete', [bda2])]))
         self.manager._push_aim_resources()
@@ -655,10 +656,10 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         exp_calls = [
             mock.call(mock.ANY, transactions[0].get_top_level_roots()[0][1],
                       'test-tenant', 'test')]
-        self._check_call_list(
-            exp_calls, self.manager.ac_context.aci_session.post_body_dict)
+        self._check_call_list(exp_calls,
+                              self.manager.aci_session.post_body_dict)
         # Failure in pushing object
-        self.manager.ac_context.aci_session.DELETE = mock.Mock(
+        self.manager.aci_session.DELETE = mock.Mock(
             side_effect=apic_client.cexc.ApicResponseNotOk
             (request='my_request', status=400,
              reason='bad request', err_text='bad request text', err_code=400))
@@ -1017,13 +1018,16 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
     def test_tenant_dn_root(self):
         manager = aci_tenant.AciTenantManager(
             'tn-test', self.cfg_manager,
-            aci_universe.get_apic_clients_context(self.cfg_manager, None))
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager, None))
         self.assertEqual('uni/tn-test', manager.tenant.dn)
         manager = aci_tenant.AciTenantManager(
             'phys-test', self.cfg_manager,
-            aci_universe.get_apic_clients_context(self.cfg_manager, None))
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager, None))
         self.assertEqual('uni/phys-test', manager.tenant.dn)
         manager = aci_tenant.AciTenantManager(
             'pod-test', self.cfg_manager,
-            aci_universe.get_apic_clients_context(self.cfg_manager, None))
+            aci_universe.AciUniverse.establish_aci_session(self.cfg_manager),
+            aci_universe.get_websocket_context(self.cfg_manager, None))
         self.assertEqual('topology/pod-test', manager.tenant.dn)

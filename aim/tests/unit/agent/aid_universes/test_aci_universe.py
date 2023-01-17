@@ -338,36 +338,36 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
 
     def test_ws_config_changed(self):
         # Refresh subscriptions
-        self.universe.ac_context = aci_universe.ApicClientsContext(
+        self.universe.ws_context = aci_universe.WebSocketContext(
             aim_cfg.ConfigManager(self.ctx, 'h1'), self.universe.manager)
-        current_ws = self.universe.ac_context.session
+        current_ws = self.universe.ws_context.session
         self.set_override('apic_hosts', ['3.1.1.1'], 'apic', poll=True)
         # Callback modified parameters
-        self.assertTrue(current_ws is not self.universe.ac_context.session)
-        self.assertEqual(['3.1.1.1'], self.universe.ac_context.apic_hosts)
-        self.assertTrue('3.1.1.1' in self.universe.ac_context.session.api)
+        self.assertTrue(current_ws is not self.universe.ws_context.session)
+        self.assertEqual(['3.1.1.1'], self.universe.ws_context.apic_hosts)
+        self.assertTrue('3.1.1.1' in self.universe.ws_context.session.api)
 
         # Change again to same value, there'll be no effect
-        current_ws = self.universe.ac_context.session
+        current_ws = self.universe.ws_context.session
         self.set_override('apic_hosts', ['3.1.1.1'], 'apic')
-        self.assertTrue(current_ws is self.universe.ac_context.session)
+        self.assertTrue(current_ws is self.universe.ws_context.session)
 
     def test_thread_monitor(self):
         self.set_override('apic_hosts', ['3.1.1.1', '3.1.1.2', '3.1.1.3'],
                           'apic')
-        self.universe.ac_context._reload_websocket_config()
-        self.universe.ac_context.monitor_max_backoff = 0
-        self.universe.ac_context.monitor_sleep_time = 0
+        self.universe.ws_context._reload_websocket_config()
+        self.universe.ws_context.monitor_max_backoff = 0
+        self.universe.ws_context.monitor_sleep_time = 0
         t = mock.Mock()
         t.isAlive = mock.Mock(return_value=False)
-        self.universe.ac_context.subs_thread = t
+        self.universe.ws_context.subs_thread = t
         with mock.patch.object(utils, 'perform_harakiri') as harakiri:
-            self.universe.ac_context._thread_monitor({'monitor_runs': 4})
+            self.universe.ws_context._thread_monitor({'monitor_runs': 4})
             self.assertEqual(4, t.isAlive.call_count)
             harakiri.assert_called_once_with(mock.ANY, mock.ANY)
             harakiri.reset_mock()
             t.isAlive = mock.Mock(return_value=True)
-            self.universe.ac_context._thread_monitor({'monitor_runs': 4})
+            self.universe.ws_context._thread_monitor({'monitor_runs': 4})
             self.assertEqual(0, harakiri.call_count)
 
     def test_track_universe_actions(self):
