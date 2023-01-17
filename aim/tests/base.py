@@ -164,7 +164,7 @@ class TestAimDBBase(BaseTestCase):
         super(TestAimDBBase, self).setUp()
         self.test_id = uuidutils.generate_uuid()
         aim_cfg.OPTION_SUBSCRIBER_MANAGER = None
-        aci_universe.ac_context = None
+        aci_universe.ws_context = None
         if not os.environ.get(K8S_STORE_VENV):
             CONF.set_override('aim_store', 'sql', 'aim')
             self.engine = api.get_engine()
