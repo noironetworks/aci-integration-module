@@ -154,8 +154,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             list(root.values())[0]['attributes']['status'] = 'created'
         elif status == 'deleted':
             # API call fails in case the item doesn't exist
-            if not test_aci_tenant.mock_get_data(manager.aci_session,
-                                                 'mo/' + dn):
+            if not test_aci_tenant.mock_get_data(
+                manager.ac_context.aci_session, 'mo/' + dn):
                 raise apic_client.cexc.ApicResponseNotOk(
                     request='delete', status='404',
                     reason='not found', err_text='not', err_code='404')
@@ -166,19 +166,21 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
     def _create_agent(self, host='h1'):
         self.set_override('aim_service_identifier', host, 'aim')
         aid = service.AID(config.CONF)
-        session = aci_universe.AciUniverse.establish_aci_session(
-            self.cfg_manager)
+        ac_context = aci_universe.get_apic_clients_context(self.cfg_manager,
+                                                           None)
+        session = ac_context.aci_session
         for pair in aid.multiverse:
             for universe in list(pair.values()):
-                if getattr(universe, 'aci_session', None):
-                    universe.aci_session = session
+                if getattr(universe, 'ac_context', None):
+                    universe.ac_context.aci_session = session
                     session._data_stash = {}
         return aid
 
     def _is_object_owned(self, desired_monitor, dn, tenant_rn):
         try:
             tag = test_aci_tenant.mock_get_data(
-                desired_monitor.serving_tenants[tenant_rn].aci_session,
+                desired_monitor.serving_tenants[
+                    tenant_rn].ac_context.aci_session,
                 'mo/' + dn + '/tag-openstack_aid')
             return tag != []
         except apic_client.cexc.ApicResponseNotOk:
@@ -584,7 +586,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         tenant_name = 'test_monitored_tree_serve_semantics'
-        self.assertEqual({}, desired_monitor.aci_session._data_stash)
+        self.assertEqual(
+            {}, desired_monitor.ac_context.aci_session._data_stash)
 
         # start by managing a single monitored tenant
         tn1 = resource.Tenant(name=tenant_name, monitored=True)
@@ -644,7 +647,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         current_monitor = agent.multiverse[2]['current']
 
         tenant_name = 'test_monitored_tree_relationship'
-        self.assertEqual({}, desired_monitor.aci_session._data_stash)
+        self.assertEqual(
+            {}, desired_monitor.ac_context.aci_session._data_stash)
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
@@ -786,7 +790,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual(1, len(contracts))
         # Verify contract is provided in ACI
         prov = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-c1' % tenant_name)
         self.assertNotEqual([], prov[0])
         self.assertTrue(self._is_object_owned(
@@ -795,7 +799,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             tn1.rn))
         # Old contract still exists
         prov_def = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/uni/tn-%s/out-default/instP-extnet/rsprov-default' %
             tenant_name)
         self.assertNotEqual([], prov_def[0])
@@ -893,7 +897,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                     'dn': 'uni/tn-test_manual_rs/ap-app/epg-epg/rsprov-c2',
                     'tnVzBrCPName': 'c2'}}}],
             test_aci_tenant.mock_get_data(
-                desired_monitor.serving_tenants[tn.rn].aci_session,
+                desired_monitor.serving_tenants[tn.rn].ac_context.aci_session,
                 'mo/' + aci_contract_rs['fvRsProv']['attributes']['dn']))
 
     def test_monitored_state_change(self):
@@ -1100,7 +1104,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
             test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
+            desired_monitor.serving_tenants[tn.rn].ac_context.aci_session,
             'mo/' + ext_net.dn + '/rsprov-p1')
         self.assertFalse(self._is_object_owned(
             desired_monitor, ext_net.dn + '/rsprov-p1', tn.rn))
@@ -1226,16 +1230,17 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._observe_aci_events(current_config)
 
         vmm = test_aci_tenant.mock_get_data(
-            current_config.serving_tenants['vmmp-OpenStack'].aci_session,
+            current_config.serving_tenants[
+                'vmmp-OpenStack'].ac_context.aci_session,
             'mo/' + vmm.dn)
         self.assertNotEqual([], vmm)
         physl = test_aci_tenant.mock_get_data(
-            current_config.serving_tenants[phys.rn].aci_session,
+            current_config.serving_tenants[phys.rn].ac_context.aci_session,
             'mo/' + phys.dn)
         self.assertNotEqual([], physl)
         self.assertEqual('topology/pod-1', pod.dn)
         pod = test_aci_tenant.mock_get_data(
-            current_config.serving_tenants[topology.rn].aci_session,
+            current_config.serving_tenants[topology.rn].ac_context.aci_session,
             'mo/' + pod.dn)
         self.assertNotEqual([], pod)
         self._assert_reset_consistency()
@@ -1289,7 +1294,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                (current_monitor, desired_monitor)],
                               tenants=[tn.root])
         dest = test_aci_tenant.mock_get_data(
-            current_config.serving_tenants[tn.rn].aci_session,
+            current_config.serving_tenants[tn.rn].ac_context.aci_session,
             'mo/' + srp.dn + '/RedirectDest_ip-[1.1.1.1]')
         self.assertNotEqual([], dest)
         # Create one manually
@@ -1309,7 +1314,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
             test_aci_tenant.mock_get_data,
-            current_config.serving_tenants[tn.rn].aci_session,
+            current_config.serving_tenants[tn.rn].ac_context.aci_session,
             'mo/' + srp.dn + '/RedirectDest_ip-[1.1.1.2]')
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
@@ -1444,7 +1449,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    (current_monitor, desired_monitor)],
                                   tenants=[tn.root])
             dest = test_aci_tenant.mock_get_data(
-                current_config.serving_tenants[tn.rn].aci_session,
+                current_config.serving_tenants[tn.rn].ac_context.aci_session,
                 'mo/' + bd.dn)
             self.assertNotEqual([], dest)
             # The tree needs_reset attribute should be set to False
@@ -1612,11 +1617,11 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertEqual([], aim_epg.provided_contract_names)
         self.assertEqual([], aim_epg.consumed_contract_names)
         dest = test_aci_tenant.mock_get_data(
-            current_config.serving_tenants[tn1.rn].aci_session,
+            current_config.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/' + aci_rsprov['fvRsProv']['attributes']['dn'])
         self.assertNotEqual([], dest)
         dest = test_aci_tenant.mock_get_data(
-            current_config.serving_tenants[tn1.rn].aci_session,
+            current_config.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/' + aci_rscons['fvRsCons']['attributes']['dn'])
         self.assertNotEqual([], dest)
         self._assert_universe_sync(desired_monitor, current_monitor,
@@ -1631,7 +1636,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         current_monitor = agent.multiverse[2]['current']
 
         tenant_name = 'test_skip_monitored_root'
-        self.assertEqual({}, desired_monitor.aci_session._data_stash)
+        self.assertEqual(
+            {}, desired_monitor.ac_context.aci_session._data_stash)
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
@@ -1711,7 +1717,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Verify epg in APIC
         prov = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
         self.assertNotEqual([], prov)
         # Flip sync flag
@@ -1724,7 +1730,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
             test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
         # Status doesn't re-create the object
         self.aim_manager.get_status(self.ctx, epg)
@@ -1734,7 +1740,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
             test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
         # Or even faults
         self.aim_manager.set_fault(
@@ -1748,7 +1754,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk,
             test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
         # Resetting sync flag will bring it back
         self.aim_manager.update(self.ctx, epg, sync=True)
@@ -1757,7 +1763,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
         # Verify epg in APIC
         prov = test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn1.rn].aci_session,
+            desired_monitor.serving_tenants[tn1.rn].ac_context.aci_session,
             'mo/uni/tn-%s/ap-test/epg-test' % tenant_name)
         self.assertNotEqual([], prov)
         # Verify all tree converged
@@ -2075,7 +2081,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Ip SLA RS doesn't exist
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
+            desired_monitor.serving_tenants[tn.rn].ac_context.aci_session,
             'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
         # Add only tenant name
         red_pol = self.aim_manager.update(
@@ -2087,7 +2093,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn.root])
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
+            desired_monitor.serving_tenants[tn.rn].ac_context.aci_session,
             'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
         # Add also policy name
         red_pol = self.aim_manager.update(
@@ -2098,7 +2104,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self._assert_universe_sync(desired_config, current_config,
                                    tenants=[tn.root])
         self.assertIsNotNone(test_aci_tenant.mock_get_data(
-            desired_monitor.serving_tenants[tn.rn].aci_session,
+            desired_monitor.serving_tenants[tn.rn].ac_context.aci_session,
             'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol'))
         # Reset tenant name
         red_pol = self.aim_manager.update(
@@ -2110,7 +2116,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                    tenants=[tn.root])
         self.assertRaises(
             apic_client.cexc.ApicResponseNotOk, test_aci_tenant.mock_get_data,
-            desired_monitor.serving_tenants[tn.rn].aci_session,
+            desired_monitor.serving_tenants[tn.rn].ac_context.aci_session,
             'mo/' + red_pol.dn + '/rsIPSLAMonitoringPol')
 
     def test_isolated_tenants(self):
@@ -2276,7 +2282,8 @@ class TestAgentAnnotation(TestAgent):
     def _is_object_owned(self, desired_monitor, dn, tenant_rn):
         try:
             obj = test_aci_tenant.mock_get_data(
-                desired_monitor.serving_tenants[tenant_rn].aci_session,
+                desired_monitor.serving_tenants[
+                    tenant_rn].ac_context.aci_session,
                 'mo/' + dn)
             return list(obj[0].values())[0]['attributes'].get(
                 'annotation', False)
@@ -2284,7 +2291,8 @@ class TestAgentAnnotation(TestAgent):
             # Fallback to tags
             try:
                 tag = test_aci_tenant.mock_get_data(
-                    desired_monitor.serving_tenants[tenant_rn].aci_session,
+                    desired_monitor.serving_tenants[
+                        tenant_rn].ac_context.aci_session,
                     'mo/' + dn + '/tag-openstack_aid')
                 return tag != []
             except apic_client.cexc.ApicResponseNotOk:
