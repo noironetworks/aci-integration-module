@@ -777,6 +777,9 @@ class NoNatStrategy(NatStrategyMixin):
                                     external_network.tenant_name):
                 raise VrfNotVisibleFromExternalNetwork(
                     vrf=vrf, ext_net=external_network)
+            ext_net = self.mgr.get(ctx, external_network)
+            if not ext_net:
+                return
             l3out = self.mgr.get(ctx,
                                  self._ext_net_to_l3out(external_network))
             old_vrf = self._vrf_by_name(ctx, l3out.vrf_name,
@@ -818,6 +821,9 @@ class NoNatStrategy(NatStrategyMixin):
         from their l3out_names.
         """
         with ctx.store.begin(subtransactions=True):
+            ext_net = self.mgr.get(ctx, external_network)
+            if not ext_net:
+                return
             l3out = self.mgr.get(ctx,
                                  self._ext_net_to_l3out(external_network))
             old_vrf = self._vrf_by_name(ctx, l3out.vrf_name,
