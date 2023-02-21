@@ -23,6 +23,7 @@ from oslo_utils import uuidutils
 from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
+from oslo_db.sqlalchemy import session, enginefacade
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
@@ -169,7 +170,7 @@ class TestAimDBBase(BaseTestCase):
         if not os.environ.get(K8S_STORE_VENV):
             CONF.set_override('aim_store', 'sql', 'aim')
             # self.engine = api.get_engine()
-            self.engine = db_api.CONTEXT_WRITER.get_engine()
+            self.engine = enginefacade.writer.get_engine()
             if not TestAimDBBase._TABLES_ESTABLISHED:
                 model_base.Base.metadata.create_all(self.engine)
                 TestAimDBBase._TABLES_ESTABLISHED = True
