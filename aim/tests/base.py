@@ -168,8 +168,8 @@ class TestAimDBBase(BaseTestCase):
         aci_universe.ws_context = None
         if not os.environ.get(K8S_STORE_VENV):
             CONF.set_override('aim_store', 'sql', 'aim')
-            # self.engine = api.get_engine()
-            self.engine = enginefacade.writer.get_engine()
+            self.engine = api.get_engine()
+            #self.engine = enginefacade.writer.get_engine()
             if not TestAimDBBase._TABLES_ESTABLISHED:
                 model_base.Base.metadata.create_all(self.engine)
                 TestAimDBBase._TABLES_ESTABLISHED = True
