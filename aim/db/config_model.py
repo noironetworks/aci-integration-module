@@ -81,12 +81,12 @@ class ConfigurationDBManager(object):
         {(group, key, host): value}
         :return:
         """
-        #with context.store.begin(subtransactions=True):
-        for conf, v in list(configs.items()):
-            group, key, host = conf
-            cfg = resource.Configuration(group=group, key=key, host=host,
-                                            value=v)
-            self.aim_mgr.create(context, cfg, overwrite=True)
+        with context.store.begin(subtransactions=True):
+            for conf, v in list(configs.items()):
+                group, key, host = conf
+                cfg = resource.Configuration(group=group, key=key, host=host,
+                                                value=v)
+                self.aim_mgr.create(context, cfg, overwrite=True)
 
     @utils.log
     def update(self, context, group, key, value, host=''):
@@ -101,15 +101,15 @@ class ConfigurationDBManager(object):
     @utils.log
     def delete_all(self, context, group=None, host=None):
         # Can filter by group, host or both
-        # with context.store.begin(subtransactions=True):
-        filters = {}
-        if group:
-            filters['group'] = group
-        if host:
-            filters['host'] = host
-        for entry in self.aim_mgr.find(context, resource.Configuration,
-                                        **filters):
-            self.aim_mgr.delete(context, entry)
+        with context.store.begin(subtransactions=True):
+            filters = {}
+            if group:
+                filters['group'] = group
+            if host:
+                filters['host'] = host
+            for entry in self.aim_mgr.find(context, resource.Configuration,
+                                            **filters):
+                self.aim_mgr.delete(context, entry)
 
     @utils.log
     def replace_all(self, context, configs, host=None):
