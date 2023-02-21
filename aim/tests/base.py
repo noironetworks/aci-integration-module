@@ -36,6 +36,7 @@ from aim.db import api
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import model_base
 from aim.k8s import api_v1 as k8s_api_v1
+#from neutron_lib.db import api as db_api
 from aim.tools.cli import shell  # noqa
 from aim import tree_manager
 
@@ -167,11 +168,56 @@ class TestAimDBBase(BaseTestCase):
         aci_universe.ws_context = None
         if not os.environ.get(K8S_STORE_VENV):
             CONF.set_override('aim_store', 'sql', 'aim')
+            
+            #self.engine = enginefacade.writer.get_engine()
+            #self.engine = create_engine("sqlite://")
+            #self.engine = db_api.CONTEXT_WRITER.get_engine()
+            
             self.engine = api.get_engine()
+            """
+            with self.engine.connect() as conn:
+                if conn.in_transaction():
+                conn.commit()  # commit current transaction
+            """
+            
             if not TestAimDBBase._TABLES_ESTABLISHED:
                 model_base.Base.metadata.create_all(self.engine)
                 TestAimDBBase._TABLES_ESTABLISHED = True
+                
+        """
+        self.db_session = n_context.get_admin_context().session
+        with db_api.CONTEXT_WRITER.using(self.db_session):
+            aim_cfg._get_option_subscriber_manager = mock.Mock()
+            self.aim_cfg_manager = aim_cfg.ConfigManager(
+                context.AimContext(db_session=self.db_session), '')
+            self.aim_cfg_manager.replace_all(aim_cfg.CONF)
+        """
+            
+        """
+            def get_engine():
+                facade = _create_facade_lazily()
+                engine = facade.get_engine()
 
+                with engine.connect() as conn:
+                    existing_tables = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table';")).fetchall()
+
+                    existing_table_names = set(row[0] for row in existing_tables)
+
+                    model_table_names = set(table.name for table in model_base.Base.metadata.tables.values())
+
+                    missing_tables = model_table_names - existing_table_names
+
+                    if missing_tables:
+                        model_base.Base.metadata.create_all(engine)
+                        TestAimDBBase._TABLES_ESTABLISHED = True
+
+                    elif not TestAimDBBase._TABLES_ESTABLISHED:
+                        model_base.Base.metadata.reflect(engine)
+                        TestAimDBBase._TABLES_ESTABLISHED = True
+
+                return engine
+        """
+            
             # Uncomment the line below to log SQL statements. Additionally, to
             # log results of queries, change INFO to DEBUG
             #

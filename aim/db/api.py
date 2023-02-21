@@ -14,11 +14,12 @@
 #    under the License.
 
 from oslo_config import cfg
-from oslo_db.sqlalchemy import session
+from oslo_db.sqlalchemy import session, enginefacade
 
 from aim import aim_store
 
 
+#context_manager = enginefacade.transaction_context()
 _FACADE = None
 
 
@@ -26,6 +27,8 @@ def _create_facade_lazily():
     global _FACADE
 
     if _FACADE is None:
+        """context_manager.configure(sqlite_fk=True, **cfg.CONF.database)
+            _FACADE = context_manager._factory.get_legacy_facade()"""
         _FACADE = session.EngineFacade.from_config(cfg.CONF, sqlite_fk=True)
 
     return _FACADE
