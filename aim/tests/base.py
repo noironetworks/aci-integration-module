@@ -36,6 +36,7 @@ from aim.db import api
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import model_base
 from aim.k8s import api_v1 as k8s_api_v1
+from neutron_lib.db import api as db_api
 from aim.tools.cli import shell  # noqa
 from aim import tree_manager
 
@@ -167,7 +168,8 @@ class TestAimDBBase(BaseTestCase):
         aci_universe.ws_context = None
         if not os.environ.get(K8S_STORE_VENV):
             CONF.set_override('aim_store', 'sql', 'aim')
-            self.engine = api.get_engine()
+            # self.engine = api.get_engine()
+            self.engine = db_api.CONTEXT_WRITER.get_engine()
             if not TestAimDBBase._TABLES_ESTABLISHED:
                 model_base.Base.metadata.create_all(self.engine)
                 TestAimDBBase._TABLES_ESTABLISHED = True
