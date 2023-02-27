@@ -186,16 +186,16 @@ class ApicClientsContext(object):
                     valid_session.close()
                     return False
             if purpose == BACKUP_PURPOSE or obj:
-                if self.session and self.session.session:
-                    self.session.close()
-                    self.is_session_reconnected = True
-                self.session = valid_session
-                self._spawn_monitors()
                 if purpose == BACKUP_PURPOSE:
                     self.need_recovery = True
                 else:
                     self.apic_assign_obj = obj
                     self.need_recovery = False
+                if self.session and self.session.session:
+                    self.session.close()
+                    self.is_session_reconnected = True
+                self.session = valid_session
+                self._spawn_monitors()
                 return True
 
         return False
