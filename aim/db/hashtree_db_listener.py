@@ -50,32 +50,32 @@ class HashTreeDbListener(object):
         # TODO(ivar): Use proper store context once dependency issue is fixed
         ctx = utils.FakeContext(store=store)
         resetting_roots = set()
-        with ctx.store.begin(subtransactions=True):
-            for i, resources in enumerate((added + updated, deleted)):
-                for res in resources:
-                    try:
-                        root = res.root
-                    except AttributeError:
-                        continue
-                    if i == 0 and getattr(res, 'sync', True):
-                        action = aim_tree.ActionLog.CREATE
-                    else:
-                        action = aim_tree.ActionLog.DELETE
-                    # TODO(ivar): root should never be None for any object!
-                    # We have some conversions broken
-                    if self._get_reset_count(ctx, root) > 0:
-                        resetting_roots.add(root)
-                    if not root or root in resetting_roots:
-                        continue
-                    if self._get_log_count(ctx, root) >= MAX_EVENTS_PER_ROOT:
-                        LOG.warn('Max events per root %s reached, '
-                                 'requesting a reset' % root)
-                        action = aim_tree.ActionLog.RESET
-                    log = aim_tree.ActionLog(
-                        root_rn=root, action=action,
-                        object_dict=utils.json_dumps(res.__dict__),
-                        object_type=type(res).__name__)
-                    self.aim_manager.create(ctx, log)
+        #with ctx.store.begin(subtransactions=True):
+        for i, resources in enumerate((added + updated, deleted)):
+            for res in resources:
+                try:
+                    root = res.root
+                except AttributeError:
+                    continue
+                if i == 0 and getattr(res, 'sync', True):
+                    action = aim_tree.ActionLog.CREATE
+                else:
+                    action = aim_tree.ActionLog.DELETE
+                # TODO(ivar): root should never be None for any object!
+                # We have some conversions broken
+                if self._get_reset_count(ctx, root) > 0:
+                    resetting_roots.add(root)
+                if not root or root in resetting_roots:
+                    continue
+                if self._get_log_count(ctx, root) >= MAX_EVENTS_PER_ROOT:
+                    LOG.warn('Max events per root %s reached, '
+                                'requesting a reset' % root)
+                    action = aim_tree.ActionLog.RESET
+                log = aim_tree.ActionLog(
+                    root_rn=root, action=action,
+                    object_dict=utils.json_dumps(res.__dict__),
+                    object_type=type(res).__name__)
+                self.aim_manager.create(ctx, log)
 
     def _get_log_count(self, ctx, root):
         return self.aim_manager.count(ctx, aim_tree.ActionLog, root_rn=root)
@@ -85,86 +85,86 @@ class HashTreeDbListener(object):
                                       action=aim_tree.ActionLog.RESET)
 
     def _delete_trees(self, aim_ctx, root=None):
-        with aim_ctx.store.begin(subtransactions=True):
-            # Delete existing trees
-            if root:
-                self.tt_mgr.clean_by_root_rn(aim_ctx, root)
-            else:
-                self.tt_mgr.clean_all(aim_ctx)
+        #with aim_ctx.store.begin(subtransactions=True):
+        # Delete existing trees
+        if root:
+            self.tt_mgr.clean_by_root_rn(aim_ctx, root)
+        else:
+            self.tt_mgr.clean_all(aim_ctx)
 
     def _recreate_trees(self, aim_ctx, root=None):
-        with aim_ctx.store.begin(subtransactions=True):
-            cache = {}
-            log_by_root = {}
-            # Delete existing trees
-            if root:
-                type, name = self.tt_mgr.root_key_funct(root)[0].split('|')
-            # Retrieve objects
-            for klass in self.aim_manager.aim_resources:
-                if issubclass(klass, resource.AciResourceBase):
-                    filters = {}
-                    if root:
-                        if self._retrieve_class_root_type(
-                                klass, cache=cache) != type:
-                            # Not the right subtree
-                            continue
-                        if type not in ROOTLESS_TYPES:
-                            filters[klass.root_ref_attribute()] = name
-                    # Get all objects of that type
-                    for obj in self.aim_manager.find(aim_ctx, klass,
-                                                     **filters):
-                        # We will not add this SG rule to AIM tree to
-                        # prevent it from showing up in APIC because its
-                        # a block-all rule.
-                        if (aim_cfg.CONF.aim.
-                            remove_remote_group_sg_rule_if_block_all and
-                            klass == resource.SecurityGroupRule and
-                            obj.remote_group_id and
-                                not obj.remote_ips):
-                            continue
-                        # Need all the faults and statuses as well
-                        stat = self.aim_manager.get_status(
-                            aim_ctx, obj, create_if_absent=False)
-                        if getattr(obj, 'sync', True):
-                            if stat:
-                                log_by_root.setdefault(obj.root, []).append(
-                                    (aim_tree.ActionLog.CREATE, stat, None))
-                                for f in stat.faults:
-                                    log_by_root.setdefault(
-                                        obj.root, []).append(
-                                        (aim_tree.ActionLog.CREATE, f, None))
-                                del stat.faults
+        #with aim_ctx.store.begin(subtransactions=True):
+        cache = {}
+        log_by_root = {}
+        # Delete existing trees
+        if root:
+            type, name = self.tt_mgr.root_key_funct(root)[0].split('|')
+        # Retrieve objects
+        for klass in self.aim_manager.aim_resources:
+            if issubclass(klass, resource.AciResourceBase):
+                filters = {}
+                if root:
+                    if self._retrieve_class_root_type(
+                            klass, cache=cache) != type:
+                        # Not the right subtree
+                        continue
+                    if type not in ROOTLESS_TYPES:
+                        filters[klass.root_ref_attribute()] = name
+                # Get all objects of that type
+                for obj in self.aim_manager.find(aim_ctx, klass,
+                                                    **filters):
+                    # We will not add this SG rule to AIM tree to
+                    # prevent it from showing up in APIC because its
+                    # a block-all rule.
+                    if (aim_cfg.CONF.aim.
+                        remove_remote_group_sg_rule_if_block_all and
+                        klass == resource.SecurityGroupRule and
+                        obj.remote_group_id and
+                            not obj.remote_ips):
+                        continue
+                    # Need all the faults and statuses as well
+                    stat = self.aim_manager.get_status(
+                        aim_ctx, obj, create_if_absent=False)
+                    if getattr(obj, 'sync', True):
+                        if stat:
                             log_by_root.setdefault(obj.root, []).append(
-                                (aim_tree.ActionLog.CREATE, obj, None))
-            # Reset the trees
-            self._push_changes_to_trees(aim_ctx, log_by_root,
-                                        delete_logs=False, check_reset=False)
+                                (aim_tree.ActionLog.CREATE, stat, None))
+                            for f in stat.faults:
+                                log_by_root.setdefault(
+                                    obj.root, []).append(
+                                    (aim_tree.ActionLog.CREATE, f, None))
+                            del stat.faults
+                        log_by_root.setdefault(obj.root, []).append(
+                            (aim_tree.ActionLog.CREATE, obj, None))
+        # Reset the trees
+        self._push_changes_to_trees(aim_ctx, log_by_root,
+                                    delete_logs=False, check_reset=False)
 
     def cleanup_zombie_status_objects(self, aim_ctx, roots=None):
-        with aim_ctx.store.begin(subtransactions=True):
-            # Retrieve objects
-            klass = api_status.AciStatus
-            filters = {}
-            if roots is not None:
-                filters['in_'] = {'resource_root': roots}
-            to_delete = []
-            for stat in self.aim_manager.find(aim_ctx, klass, **filters):
-                parent = self.aim_manager.get_by_id(
-                    aim_ctx, stat.parent_class, stat.resource_id)
-                if not parent or parent.root != stat.resource_root:
-                    to_delete.append(stat.id)
-            if to_delete:
-                LOG.info("Deleting parentless status objects "
-                         "%s" % to_delete)
-                self.aim_manager.delete_all(
-                    aim_ctx, klass, in_={'id': to_delete})
+        #with aim_ctx.store.begin(subtransactions=True):
+        # Retrieve objects
+        klass = api_status.AciStatus
+        filters = {}
+        if roots is not None:
+            filters['in_'] = {'resource_root': roots}
+        to_delete = []
+        for stat in self.aim_manager.find(aim_ctx, klass, **filters):
+            parent = self.aim_manager.get_by_id(
+                aim_ctx, stat.parent_class, stat.resource_id)
+            if not parent or parent.root != stat.resource_root:
+                to_delete.append(stat.id)
+        if to_delete:
+            LOG.info("Deleting parentless status objects "
+                        "%s" % to_delete)
+            self.aim_manager.delete_all(
+                aim_ctx, klass, in_={'id': to_delete})
 
     def reset(self, store, root=None):
         aim_ctx = utils.FakeContext(store=store)
-        with aim_ctx.store.begin(subtransactions=True):
-            self.cleanup_zombie_status_objects(aim_ctx, roots=[root])
-            self._delete_trees(aim_ctx, root=root)
-            self._recreate_trees(aim_ctx, root=root)
+        #with aim_ctx.store.begin(subtransactions=True):
+        self.cleanup_zombie_status_objects(aim_ctx, roots=[root])
+        self._delete_trees(aim_ctx, root=root)
+        self._recreate_trees(aim_ctx, root=root)
 
     def _retrieve_class_root_type(self, klass, cache=None):
         cache = cache if cache is not None else {}
@@ -193,20 +193,20 @@ class HashTreeDbListener(object):
         for served_tenant in served_tenants:
             if served_tenant != 'dummy_tenant':
                 kwargs['in_'] = {'root_rn': [served_tenant]}
-            with ctx.store.begin(subtransactions=True):
-                logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
-                if len(logs) > ACTION_LOG_THRESHOLD:
-                    LOG.info('Tenant %s has %s ActionLogs to be processed' %
-                             (served_tenant, len(logs)))
-                LOG.debug('Processing action logs: %s' % logs)
-                log_by_root, resetting_roots = self._preprocess_logs(ctx, logs)
-                self._cleanup_resetting_roots(
-                    ctx, log_by_root, resetting_roots)
-                self._push_changes_to_trees(ctx, log_by_root)
-                # REVISIT: This is temporary code for verifying solutions
-                # to concurrency issues. Remove when no longer needed.
-                if aim_cfg.CONF.aim.validate_config_trees:
-                    self._validate_config_trees(ctx, list(log_by_root.keys()))
+            #with ctx.store.begin(subtransactions=True):
+            logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
+            if len(logs) > ACTION_LOG_THRESHOLD:
+                LOG.info('Tenant %s has %s ActionLogs to be processed' %
+                            (served_tenant, len(logs)))
+            LOG.debug('Processing action logs: %s' % logs)
+            log_by_root, resetting_roots = self._preprocess_logs(ctx, logs)
+            self._cleanup_resetting_roots(
+                ctx, log_by_root, resetting_roots)
+            self._push_changes_to_trees(ctx, log_by_root)
+            # REVISIT: This is temporary code for verifying solutions
+            # to concurrency issues. Remove when no longer needed.
+            if aim_cfg.CONF.aim.validate_config_trees:
+                self._validate_config_trees(ctx, list(log_by_root.keys()))
 
     def _preprocess_logs(self, ctx, logs):
         resetting_roots = set()
@@ -293,10 +293,10 @@ class HashTreeDbListener(object):
 
     def _cleanup_resetting_roots(self, ctx, log_by_root, resetting_roots):
         for root in resetting_roots:
-            with ctx.store.begin(subtransactions=True):
-                self._delete_logs(ctx, log_by_root[root])
-                self.tt_mgr.set_needs_reset_by_root_rn(ctx, root)
-                log_by_root[root] = []
+            #with ctx.store.begin(subtransactions=True):
+            self._delete_logs(ctx, log_by_root[root])
+            self.tt_mgr.set_needs_reset_by_root_rn(ctx, root)
+            log_by_root[root] = []
 
     def _delete_logs(self, ctx, logs):
         self.aim_manager.delete_all(ctx, aim_tree.ActionLog,

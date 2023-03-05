@@ -229,33 +229,33 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         [resource])
                     resource = self._converter.convert(resource)[0]
                     resource.monitored = monitored
-                with context.store.begin(subtransactions=True):
-                    if isinstance(resource, aim_resource.AciRoot):
-                        # Roots should not be created by the
-                        # AIM monitored universe.
-                        # NOTE(ivar): there are contention cases
-                        # where a user might delete a Root object
-                        # right before the AIM Monitored Universe
-                        # pushes an update on it. If we run a
-                        # simple "create overwrite" this would
-                        # re-create the object and AID would keep
-                        # monitoring said root. by only updating
-                        # roots and never creating them, we give
-                        # full control over which trees to monitor
-                        # to the user.
-                        ext = context.store.extract_attributes
-                        obj = self.manager.update(
-                            context, resource, fix_ownership=monitored,
-                            **ext(resource, "other"))
-                        if obj:
-                            # Declare victory for the update
-                            self.creation_succeeded(resource)
-                    else:
-                        self.manager.create(
-                            context, resource, overwrite=True,
-                            fix_ownership=monitored)
-                        # Declare victory for the created object
+                #with context.store.begin(subtransactions=True):
+                if isinstance(resource, aim_resource.AciRoot):
+                    # Roots should not be created by the
+                    # AIM monitored universe.
+                    # NOTE(ivar): there are contention cases
+                    # where a user might delete a Root object
+                    # right before the AIM Monitored Universe
+                    # pushes an update on it. If we run a
+                    # simple "create overwrite" this would
+                    # re-create the object and AID would keep
+                    # monitoring said root. by only updating
+                    # roots and never creating them, we give
+                    # full control over which trees to monitor
+                    # to the user.
+                    ext = context.store.extract_attributes
+                    obj = self.manager.update(
+                        context, resource, fix_ownership=monitored,
+                        **ext(resource, "other"))
+                    if obj:
+                        # Declare victory for the update
                         self.creation_succeeded(resource)
+                else:
+                    self.manager.create(
+                        context, resource, overwrite=True,
+                        fix_ownership=monitored)
+                    # Declare victory for the created object
+                    self.creation_succeeded(resource)
             else:
                 if isinstance(resource, aim_resource.AciRoot) and monitored:
                     # Monitored Universe doesn't delete Tenant

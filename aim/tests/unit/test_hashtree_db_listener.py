@@ -470,17 +470,17 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
 
             # This transaction will generate some action logs, which
             # will trigger a 'reconcile' event.
-            with self.ctx.store.begin(subtransactions=True):
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn)
-                    self.mgr.create(self.ctx, ap)
-                    self.mgr.create(self.ctx, epg)
-                self.assertEqual(0, cast.call_count)
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn1)
-                    self.mgr.create(self.ctx, ap1)
-                    self.mgr.create(self.ctx, epg1)
-                self.assertEqual(0, cast.call_count)
+            #with self.ctx.store.begin(subtransactions=True):
+            #with self.ctx.store.begin(subtransactions=True):
+            self.mgr.create(self.ctx, tn)
+            self.mgr.create(self.ctx, ap)
+            self.mgr.create(self.ctx, epg)
+            self.assertEqual(0, cast.call_count)
+            #with self.ctx.store.begin(subtransactions=True):
+            self.mgr.create(self.ctx, tn1)
+            self.mgr.create(self.ctx, ap1)
+            self.mgr.create(self.ctx, epg1)
+            self.assertEqual(0, cast.call_count)
             exp_calls = [mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             cast.reset_mock()

@@ -160,39 +160,39 @@ class AimManager(object):
         integrity constraint violation is raised.
         """
         self._validate_resource_class(resource)
-        with context.store.begin(subtransactions=True):
-            old_db_obj = None
-            old_monitored = None
-            new_monitored = None
-            if overwrite:
-                old_db_obj = self._query_db_obj(context.store, resource)
-                if old_db_obj:
-                    old_monitored = getattr(old_db_obj, 'monitored', None)
-                    new_monitored = getattr(resource, 'monitored', None)
-                    if (fix_ownership and old_monitored is not None and
-                            old_monitored != new_monitored):
-                        raise exc.InvalidMonitoredStateUpdate(object=resource)
-                    attr_val = context.store.extract_attributes(resource,
-                                                                "other")
-                    old_resource = self._make_resource(context, resource,
-                                                       old_db_obj)
-                    if old_resource.user_equal(resource):
-                        # No need to update. Return old_resource for
-                        # updated DB attributes
-                        return old_resource
-                    context.store.from_attr(old_db_obj, type(resource),
-                                            attr_val)
-            db_obj = old_db_obj or context.store.make_db_obj(resource)
-            context.store.add(db_obj)
-            if self._should_set_pending(old_db_obj, old_monitored,
-                                        new_monitored):
-                # NOTE(ivar): we shouldn't change status in the AIM manager
-                # as this goes against the "AIM as a schema" principles.
-                # However, we need to do this at least for cases where
-                # we take ownership of the objects, which should be removed
-                # soon as it's causing most of our bugs.
-                self.set_resource_sync_pending(context, resource)
-            return self.get(context, resource)
+        #with context.store.begin(subtransactions=True):
+        old_db_obj = None
+        old_monitored = None
+        new_monitored = None
+        if overwrite:
+            old_db_obj = self._query_db_obj(context.store, resource)
+            if old_db_obj:
+                old_monitored = getattr(old_db_obj, 'monitored', None)
+                new_monitored = getattr(resource, 'monitored', None)
+                if (fix_ownership and old_monitored is not None and
+                        old_monitored != new_monitored):
+                    raise exc.InvalidMonitoredStateUpdate(object=resource)
+                attr_val = context.store.extract_attributes(resource,
+                                                            "other")
+                old_resource = self._make_resource(context, resource,
+                                                    old_db_obj)
+                if old_resource.user_equal(resource):
+                    # No need to update. Return old_resource for
+                    # updated DB attributes
+                    return old_resource
+                context.store.from_attr(old_db_obj, type(resource),
+                                        attr_val)
+        db_obj = old_db_obj or context.store.make_db_obj(resource)
+        context.store.add(db_obj)
+        if self._should_set_pending(old_db_obj, old_monitored,
+                                    new_monitored):
+            # NOTE(ivar): we shouldn't change status in the AIM manager
+            # as this goes against the "AIM as a schema" principles.
+            # However, we need to do this at least for cases where
+            # we take ownership of the objects, which should be removed
+            # soon as it's causing most of our bugs.
+            self.set_resource_sync_pending(context, resource)
+        return self.get(context, resource)
 
     @utils.log
     def update(self, context, resource, fix_ownership=False,
@@ -207,40 +207,40 @@ class AimManager(object):
         made to the database.
         """
         self._validate_resource_class(resource)
-        with context.store.begin(subtransactions=True):
-            db_obj = self._query_db_obj(context.store, resource)
-            if db_obj:
-                old_resource = self._make_resource(context, resource, db_obj)
-                old_monitored = getattr(db_obj, 'monitored', None)
-                new_monitored = update_attr_val.get('monitored')
-                if (fix_ownership and old_monitored is not None and
-                        old_monitored != new_monitored):
-                    raise exc.InvalidMonitoredStateUpdate(object=resource)
-                attr_val = {k: v for k, v in list(update_attr_val.items())
-                            if k in list(resource.other_attributes.keys())}
-                if attr_val:
-                    old_resource_copy = copy.deepcopy(old_resource)
-                    for k, v in list(attr_val.items()):
-                        setattr(old_resource, k, v)
-                    if old_resource.user_equal(
-                            old_resource_copy) and not force_update:
-                        # Nothing to do here
-                        return old_resource
-                elif resource.identity_attributes:
-                    # force update
-                    id_attr_0 = list(resource.identity_attributes.keys())[0]
-                    attr_val = {id_attr_0: getattr(resource, id_attr_0)}
-                context.store.from_attr(db_obj, type(resource), attr_val)
-                context.store.add(db_obj)
-                if self._should_set_pending(db_obj, old_monitored,
-                                            new_monitored):
-                    # NOTE(ivar): we shouldn't change status in the AIM manager
-                    # as this goes against the "AIM as a schema" principles.
-                    # However, we need to do this at least for cases where
-                    # we take ownership of the objects, which should be removed
-                    # soon as it's causing most of our bugs.
-                    self.set_resource_sync_pending(context, resource)
-                return self.get(context, resource)
+        #with context.store.begin(subtransactions=True):
+        db_obj = self._query_db_obj(context.store, resource)
+        if db_obj:
+            old_resource = self._make_resource(context, resource, db_obj)
+            old_monitored = getattr(db_obj, 'monitored', None)
+            new_monitored = update_attr_val.get('monitored')
+            if (fix_ownership and old_monitored is not None and
+                    old_monitored != new_monitored):
+                raise exc.InvalidMonitoredStateUpdate(object=resource)
+            attr_val = {k: v for k, v in list(update_attr_val.items())
+                        if k in list(resource.other_attributes.keys())}
+            if attr_val:
+                old_resource_copy = copy.deepcopy(old_resource)
+                for k, v in list(attr_val.items()):
+                    setattr(old_resource, k, v)
+                if old_resource.user_equal(
+                        old_resource_copy) and not force_update:
+                    # Nothing to do here
+                    return old_resource
+            elif resource.identity_attributes:
+                # force update
+                id_attr_0 = list(resource.identity_attributes.keys())[0]
+                attr_val = {id_attr_0: getattr(resource, id_attr_0)}
+            context.store.from_attr(db_obj, type(resource), attr_val)
+            context.store.add(db_obj)
+            if self._should_set_pending(db_obj, old_monitored,
+                                        new_monitored):
+                # NOTE(ivar): we shouldn't change status in the AIM manager
+                # as this goes against the "AIM as a schema" principles.
+                # However, we need to do this at least for cases where
+                # we take ownership of the objects, which should be removed
+                # soon as it's causing most of our bugs.
+                self.set_resource_sync_pending(context, resource)
+            return self.get(context, resource)
 
     def _should_set_pending(self, old_obj, old_monitored, new_monitored):
         return old_obj and old_monitored is False and new_monitored is True
@@ -254,28 +254,28 @@ class AimManager(object):
         If the object does not exist in the database, no error is reported.
         """
         self._validate_resource_class(resource)
-        with context.store.begin(subtransactions=True):
-            db_obj = self._query_db_obj(context.store, resource)
-            if db_obj:
-                if isinstance(resource, api_res.AciResourceBase):
-                    status = self.get_status(
-                        context, resource, create_if_absent=False)
-                    if status and getattr(
-                            db_obj, 'monitored', None) and not force:
-                        if status.sync_status == status.SYNC_PENDING:
-                            # Cannot delete monitored objects if sync status
-                            # is pending, or ownership flip might fail
-                            raise exc.InvalidMonitoredObjectDelete(
-                                object=resource)
-                    if status:
-                        self.delete(context, status, force=force)
-                context.store.delete(db_obj)
-            # When cascade is specified, delete the object's subtree even if
-            # the resource itself doesn't exist.
-            if cascade:
-                for child_res in self.get_subtree(context, resource):
-                    # Delete without cascade
-                    self.delete(context, child_res, force=force)
+        #with context.store.begin(subtransactions=True):
+        db_obj = self._query_db_obj(context.store, resource)
+        if db_obj:
+            if isinstance(resource, api_res.AciResourceBase):
+                status = self.get_status(
+                    context, resource, create_if_absent=False)
+                if status and getattr(
+                        db_obj, 'monitored', None) and not force:
+                    if status.sync_status == status.SYNC_PENDING:
+                        # Cannot delete monitored objects if sync status
+                        # is pending, or ownership flip might fail
+                        raise exc.InvalidMonitoredObjectDelete(
+                            object=resource)
+                if status:
+                    self.delete(context, status, force=force)
+            context.store.delete(db_obj)
+        # When cascade is specified, delete the object's subtree even if
+        # the resource itself doesn't exist.
+        if cascade:
+            for child_res in self.get_subtree(context, resource):
+                # Delete without cascade
+                self.delete(context, child_res, force=force)
 
     @utils.log
     def delete_all(self, context, resource_class, for_update=False, **kwargs):
@@ -359,29 +359,29 @@ class AimManager(object):
         be left unspecified.
         """
 
-        with context.store.begin(subtransactions=True):
-            if isinstance(resource, api_res.AciResourceBase):
-                res_type, res_id = self._get_status_params(context, resource)
-                if res_type and res_id is not None:
-                    status = self.get(context, api_status.AciStatus(
-                        resource_type=res_type, resource_id=res_id,
-                        resource_root=resource.root), for_update=for_update)
-                    if not status:
-                        if not create_if_absent:
-                            return
-                        # Create one with default values
-                        # NOTE(ivar): Sometimes we need the status of an object
-                        # even if AID wasn't able to calculate it yet
-                        # (eg. storing faults). In this case the status object
-                        # will be created with N/A sync_status.
-                        return self.update_status(
-                            context, resource, api_status.AciStatus(
-                                resource_type=res_type, resource_id=res_id,
-                                resource_root=resource.root,
-                                resource_dn=resource.dn))
-                    status.faults = self.find(context, api_status.AciFault,
-                                              status_id=status.id)
-                    return status
+        #with context.store.begin(subtransactions=True):
+        if isinstance(resource, api_res.AciResourceBase):
+            res_type, res_id = self._get_status_params(context, resource)
+            if res_type and res_id is not None:
+                status = self.get(context, api_status.AciStatus(
+                    resource_type=res_type, resource_id=res_id,
+                    resource_root=resource.root), for_update=for_update)
+                if not status:
+                    if not create_if_absent:
+                        return
+                    # Create one with default values
+                    # NOTE(ivar): Sometimes we need the status of an object
+                    # even if AID wasn't able to calculate it yet
+                    # (eg. storing faults). In this case the status object
+                    # will be created with N/A sync_status.
+                    return self.update_status(
+                        context, resource, api_status.AciStatus(
+                            resource_type=res_type, resource_id=res_id,
+                            resource_root=resource.root,
+                            resource_dn=resource.dn))
+                status.faults = self.find(context, api_status.AciFault,
+                                            status_id=status.id)
+                return status
         return None
 
     def get_statuses(self, context, resources):
@@ -396,90 +396,90 @@ class AimManager(object):
         to determine the object whose status will be updated; other
         attributes may be left unspecified.
         """
-        with context.store.begin(subtransactions=True):
-            if isinstance(resource, api_res.AciResourceBase):
-                res_type, res_id = self._get_status_params(context, resource)
-                if res_type and res_id is not None:
-                    status.resource_type = res_type
-                    status.resource_id = res_id
-                    return self.create(context, status, overwrite=True)
+        #with context.store.begin(subtransactions=True):
+        if isinstance(resource, api_res.AciResourceBase):
+            res_type, res_id = self._get_status_params(context, resource)
+            if res_type and res_id is not None:
+                status.resource_type = res_type
+                status.resource_id = res_id
+                return self.create(context, status, overwrite=True)
 
     def _set_resource_sync(self, context, resource, sync_status, message='',
                            exclude=None):
         if isinstance(resource, api_status.AciStatus):
             return False
-        with context.store.begin(subtransactions=True):
-            self._validate_resource_class(resource)
-            status = self.get_status(context, resource)
-            exclude = exclude or []
-            if status and status.sync_status not in exclude:
-                self.update(context, status, sync_status=sync_status,
-                            sync_message=message, force_update=True)
-                return True
-            return False
+        #with context.store.begin(subtransactions=True):
+        self._validate_resource_class(resource)
+        status = self.get_status(context, resource)
+        exclude = exclude or []
+        if status and status.sync_status not in exclude:
+            self.update(context, status, sync_status=sync_status,
+                        sync_message=message, force_update=True)
+            return True
+        return False
 
     def set_resource_sync_synced(self, context, resource):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
     def recover_root_errors(self, context, root):
-        with context.store.begin(subtransactions=True):
-            context.store.update_all(
-                api_status.AciStatus,
-                filters={'sync_status': api_status.AciStatus.SYNC_FAILED,
-                         'resource_root': root},
-                sync_status=api_status.AciStatus.SYNC_PENDING,
-                sync_message='')
+        #with context.store.begin(subtransactions=True):
+        context.store.update_all(
+            api_status.AciStatus,
+            filters={'sync_status': api_status.AciStatus.SYNC_FAILED,
+                        'resource_root': root},
+            sync_status=api_status.AciStatus.SYNC_PENDING,
+            sync_message='')
 
     def set_resource_sync_pending(self, context, resource, top=True,
                                   cascade=True):
         # When a resource goes in pending state, propagate to both parent
         # and subtree
-        with context.store.begin(subtransactions=True):
-            # If resource is already in pending or synced state stop
-            # propagation
-            if self._set_resource_sync(
-                    context, resource, api_status.AciStatus.SYNC_PENDING,
-                    exclude=[api_status.AciStatus.SYNCED,
-                             api_status.AciStatus.SYNC_PENDING,
-                             api_status.AciStatus.SYNC_NA]
-                    if not top else [api_status.AciStatus.SYNC_PENDING]):
-                # Change parent first
-                parent_klass = resource._tree_parent
-                if parent_klass:
-                    identity = {v: resource.identity[i]
-                                for i, v in enumerate(
-                        parent_klass.identity_attributes)}
-                    self.set_resource_sync_pending(context,
-                                                   parent_klass(**identity),
-                                                   top=False)
-                if cascade:
-                    for child_res in self.get_subtree(context, resource):
-                        self.set_resource_sync_pending(context, child_res,
-                                                       top=False,
-                                                       cascade=False)
+        #with context.store.begin(subtransactions=True):
+        # If resource is already in pending or synced state stop
+        # propagation
+        if self._set_resource_sync(
+                context, resource, api_status.AciStatus.SYNC_PENDING,
+                exclude=[api_status.AciStatus.SYNCED,
+                            api_status.AciStatus.SYNC_PENDING,
+                            api_status.AciStatus.SYNC_NA]
+                if not top else [api_status.AciStatus.SYNC_PENDING]):
+            # Change parent first
+            parent_klass = resource._tree_parent
+            if parent_klass:
+                identity = {v: resource.identity[i]
+                            for i, v in enumerate(
+                    parent_klass.identity_attributes)}
+                self.set_resource_sync_pending(context,
+                                                parent_klass(**identity),
+                                                top=False)
+            if cascade:
+                for child_res in self.get_subtree(context, resource):
+                    self.set_resource_sync_pending(context, child_res,
+                                                    top=False,
+                                                    cascade=False)
 
     def set_resource_sync_error(self, context, resource, message='', top=True):
-        with context.store.begin(subtransactions=True):
-            # No need to set sync_error for resources already in that state
-            if self._set_resource_sync(
-                    context, resource, api_status.AciStatus.SYNC_FAILED,
-                    message=message,
-                    exclude=[api_status.AciStatus.SYNC_FAILED]) and top:
-                # Set sync_error for the whole subtree
-                for child_res in self.get_subtree(context, resource):
-                    self.set_resource_sync_error(
-                        context, child_res,
-                        message="Parent resource %s is "
-                                "in error state" % str(resource), top=False)
+        #with context.store.begin(subtransactions=True):
+        # No need to set sync_error for resources already in that state
+        if self._set_resource_sync(
+                context, resource, api_status.AciStatus.SYNC_FAILED,
+                message=message,
+                exclude=[api_status.AciStatus.SYNC_FAILED]) and top:
+            # Set sync_error for the whole subtree
+            for child_res in self.get_subtree(context, resource):
+                self.set_resource_sync_error(
+                    context, child_res,
+                    message="Parent resource %s is "
+                            "in error state" % str(resource), top=False)
 
     @utils.log
     def set_fault(self, context, resource, fault):
         fault = copy.deepcopy(fault)
-        with context.store.begin(subtransactions=True):
-            status = self.get_status(context, resource)
-            if status:
-                fault.status_id = status.id
-                self.create(context, fault, overwrite=True)
+        #with context.store.begin(subtransactions=True):
+        status = self.get_status(context, resource)
+        if status:
+            fault.status_id = status.id
+            self.create(context, fault, overwrite=True)
 
     @utils.log
     def clear_fault(self, context, fault, **kwargs):

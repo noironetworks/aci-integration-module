@@ -606,7 +606,7 @@ class TestResourceOpsBase(object):
                 self.skipTest("Resource %s doesn't have enough string "
                               "update attributes to test race." % res)
             store1 = self.ctx.store
-            store1.db_session.begin()
+            #store1.db_session.begin()
             db_type = store1.resource_to_db_type(res.__class__)
             db_obj1 = store1.query(db_type, res.__class__)[0]
             setattr(db_obj1, updates[0][0], updates[0][1])

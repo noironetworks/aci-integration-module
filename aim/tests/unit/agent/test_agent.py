@@ -1394,12 +1394,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         sub = resource.ContractSubject(
             tenant_name=tenant_name, contract_name=ctr.name,
             name='route', bi_filters=['noirolab_AnyFilter'])
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.create(self.ctx, ctr)
-            self.aim_manager.create(self.ctx, sub)
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.delete(self.ctx, sub)
-            self.aim_manager.delete(self.ctx, ctr)
+        #with self.ctx.store.begin(subtransactions=True):
+        self.aim_manager.create(self.ctx, ctr)
+        self.aim_manager.create(self.ctx, sub)
+        #with self.ctx.store.begin(subtransactions=True):
+        self.aim_manager.delete(self.ctx, sub)
+        self.aim_manager.delete(self.ctx, ctr)
         desired_config.observe(self.ctx)
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
