@@ -106,7 +106,8 @@ class NatStrategy(object):
 
     @abc.abstractmethod
     def create_l3outside(self, ctx, l3outside,
-                         vmm_domains=None, phys_domains=None):
+                         vmm_domains=None, phys_domains=None,
+                         epg_name=None):
         """Create L3Outside object if needed.
 
         :param ctx: AIM context
@@ -115,7 +116,7 @@ class NatStrategy(object):
         """
 
     @abc.abstractmethod
-    def delete_l3outside(self, ctx, l3outside):
+    def delete_l3outside(self, ctx, l3outside, epg_name=None):
         """Delete L3Outside object.
 
         :param ctx: AIM context
@@ -124,7 +125,7 @@ class NatStrategy(object):
         """
 
     @abc.abstractmethod
-    def get_l3outside_resources(self, ctx, l3outside):
+    def get_l3outside_resources(self, ctx, l3outside, epg_name=None):
         """Get AIM resources that are created for an L3Outside object.
 
         :param ctx: AIM context
@@ -195,7 +196,8 @@ class NatStrategy(object):
     @abc.abstractmethod
     def create_external_network(self, ctx, external_network,
                                 provided_contracts=None,
-                                consumed_contracts=None):
+                                consumed_contracts=None,
+                                epg_name=None):
         """Create ExternalNetwork object if needed.
 
         :param ctx: AIM context
@@ -206,7 +208,8 @@ class NatStrategy(object):
     @abc.abstractmethod
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
-                                consumed_contracts=None):
+                                consumed_contracts=None,
+                                epg_name=None):
         """Delete ExternalNetwork object.
 
         :param ctx: AIM context
@@ -291,20 +294,22 @@ class NatStrategyMixin(NatStrategy):
         self.db = model.CloneL3OutManager()
 
     def create_l3outside(self, ctx, l3outside,
-                         vmm_domains=None, phys_domains=None):
+                         vmm_domains=None, phys_domains=None,
+                         epg_name=None):
         return self._create_l3out(ctx, l3outside,
                                   vmm_domains=vmm_domains,
-                                  phys_domains=phys_domains)
+                                  phys_domains=phys_domains,
+                                  epg_name=epg_name)
 
-    def delete_l3outside(self, ctx, l3outside):
-        self._delete_l3out(ctx, l3outside)
+    def delete_l3outside(self, ctx, l3outside, epg_name=None):
+        self._delete_l3out(ctx, l3outside, epg_name=epg_name)
 
-    def get_l3outside_resources(self, ctx, l3outside):
+    def get_l3outside_resources(self, ctx, l3outside, epg_name=None):
         res = []
         l3out = self.mgr.get(ctx, l3outside)
         if l3out:
             res.append(l3out)
-            for obj in self._get_nat_objects(ctx, l3out):
+            for obj in self._get_nat_objects(ctx, l3out, epg_name=epg_name):
                 obj_db = self.mgr.get(ctx, obj)
                 if obj_db:
                     res.append(obj_db)
@@ -315,17 +320,19 @@ class NatStrategyMixin(NatStrategy):
 
     def create_external_network(self, ctx, external_network,
                                 provided_contracts=None,
-                                consumed_contracts=None):
+                                consumed_contracts=None,
+                                epg_name=None):
         return self._create_ext_net(
             ctx, external_network, provided_contracts=provided_contracts,
-            consumed_contracts=consumed_contracts)
+            consumed_contracts=consumed_contracts, epg_name=epg_name)
 
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
-                                consumed_contracts=None):
+                                consumed_contracts=None,
+                                epg_name=None):
         self._delete_ext_net(
             ctx, external_network, provided_contracts=provided_contracts,
-            consumed_contracts=consumed_contracts)
+            consumed_contracts=consumed_contracts, epg_name=epg_name)
 
     def create_subnet(self, ctx, l3outside, gw_ip_mask):
         l3outside = self.mgr.get(ctx, l3outside)
@@ -399,7 +406,8 @@ class NatStrategyMixin(NatStrategy):
     def unset_bd_l3out(self, ctx, bridge_domain, l3outside):
         pass
 
-    def _create_l3out(self, ctx, l3out, vmm_domains=None, phys_domains=None):
+    def _create_l3out(self, ctx, l3out, vmm_domains=None, phys_domains=None,
+                      epg_name=None):
         """Create NAT EPG etc. in addition to creating L3Out."""
 
         with ctx.store.begin(subtransactions=True):
@@ -416,10 +424,11 @@ class NatStrategyMixin(NatStrategy):
                 l3out_db = self.mgr.create(ctx, l3out_db)
             self._create_nat_epg(ctx, l3out_db,
                                  vmm_domains=vmm_domains,
-                                 phys_domains=phys_domains)
+                                 phys_domains=phys_domains,
+                                 epg_name=epg_name)
             return l3out_db
 
-    def _delete_l3out(self, ctx, l3out, delete_epg=True):
+    def _delete_l3out(self, ctx, l3out, delete_epg=True, epg_name=None):
         """Delete NAT EPG etc. in addition to deleting L3Out."""
 
         with ctx.store.begin(subtransactions=True):
@@ -432,12 +441,12 @@ class NatStrategyMixin(NatStrategy):
                 if not l3out_db.monitored:
                     self.mgr.delete(ctx, l3out)
                 if delete_epg:
-                    self._delete_nat_epg(ctx, l3out_db)
+                    self._delete_nat_epg(ctx, l3out_db, epg_name=epg_name)
                     # delete NAT VRF if any
                     self.mgr.delete(ctx, self._get_nat_vrf(ctx, l3out_db))
 
     def _create_ext_net(self, ctx, ext_net, provided_contracts=None,
-                        consumed_contracts=None):
+                        consumed_contracts=None, epg_name=None):
         with ctx.store.begin(subtransactions=True):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if not ext_net_db:
@@ -446,7 +455,8 @@ class NatStrategyMixin(NatStrategy):
                                  self._ext_net_to_l3out(ext_net))
             p_refs = provided_contracts or []
             c_refs = consumed_contracts or []
-            contract = self._get_nat_contract(ctx, l3out)
+            contract = self._get_nat_contract(ctx, l3out,
+                                              wanted_epg_name=epg_name)
             p_nat = resource.ExternalNetworkProvidedContract(
                 tenant_name=contract.tenant_name, l3out_name=l3out.name,
                 ext_net_name=ext_net.name, name=contract.name)
@@ -463,7 +473,8 @@ class NatStrategyMixin(NatStrategy):
 
     def _delete_ext_net(self, ctx, ext_net,
                         provided_contracts=None,
-                        consumed_contracts=None):
+                        consumed_contracts=None,
+                        epg_name=None):
         with ctx.store.begin(subtransactions=True):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if ext_net_db:
@@ -478,7 +489,8 @@ class NatStrategyMixin(NatStrategy):
                         consumed_contracts=consumed_contracts)
                     l3out = self.mgr.get(
                         ctx, self._ext_net_to_l3out(ext_net))
-                    contract = self._get_nat_contract(ctx, l3out)
+                    contract = self._get_nat_contract(ctx, l3out,
+                                                      wanted_epg_name=epg_name)
                     self._update_contract(ctx, ext_net_db, contract,
                                           is_remove=True)
 
@@ -527,11 +539,15 @@ class NatStrategyMixin(NatStrategy):
     def _display_name(self, res):
         return (getattr(res, 'display_name', None) or res.name)
 
-    def _get_nat_ap_epg(self, ctx, l3out):
+    def _get_nat_ap_epg(self, ctx, l3out, wanted_epg_name=None):
         d_name = self._display_name(l3out)
         ap_name = getattr(self, 'app_profile_name', None) or l3out.name
         ap_name = self._scope_name_if_common(l3out.tenant_name, ap_name)
         ap_display_name = aim_utils.sanitize_display_name(ap_name or d_name)
+        epg_name = 'EXT-%s' % l3out.name
+        if wanted_epg_name is not None:
+            epg_name = 'EXT-%s' % wanted_epg_name
+            d_name = wanted_epg_name
         ap = resource.ApplicationProfile(
             tenant_name=l3out.tenant_name,
             name=ap_name,
@@ -539,14 +555,18 @@ class NatStrategyMixin(NatStrategy):
         epg = resource.EndpointGroup(
             tenant_name=ap.tenant_name,
             app_profile_name=ap.name,
-            name='EXT-%s' % l3out.name,
+            name=epg_name,
             display_name=aim_utils.sanitize_display_name('EXT-%s' % d_name))
         return (ap, epg)
 
-    def _get_nat_contract(self, ctx, l3out):
+    def _get_nat_contract(self, ctx, l3out, wanted_epg_name=None):
+        epg_name = 'EXT-%s' % l3out.name
         d_name = self._display_name(l3out)
+        if wanted_epg_name is not None:
+            epg_name = 'EXT-%s' % wanted_epg_name
+            d_name = wanted_epg_name
         contract_name = self._scope_name_if_common(l3out.tenant_name,
-                                                   'EXT-%s' % l3out.name)
+                                                   epg_name)
         return resource.Contract(
             tenant_name=l3out.tenant_name,
             name=contract_name,
@@ -554,10 +574,14 @@ class NatStrategyMixin(NatStrategy):
                 l3out.tenant_name,
                 aim_utils.sanitize_display_name('EXT-%s' % d_name)))
 
-    def _get_nat_bd(self, ctx, l3out):
+    def _get_nat_bd(self, ctx, l3out, wanted_epg_name=None):
+        epg_name = 'EXT-%s' % l3out.name
         d_name = self._display_name(l3out)
+        if wanted_epg_name is not None:
+            epg_name = 'EXT-%s' % wanted_epg_name
+            d_name = wanted_epg_name
         bd_name = self._scope_name_if_common(l3out.tenant_name,
-                                             'EXT-%s' % l3out.name)
+                                             epg_name)
         return resource.BridgeDomain(
             tenant_name=l3out.tenant_name,
             name=bd_name,
@@ -578,7 +602,7 @@ class NatStrategyMixin(NatStrategy):
                 l3out.tenant_name,
                 aim_utils.sanitize_display_name('EXT-%s' % d_name)))
 
-    def _get_nat_objects(self, ctx, l3out):
+    def _get_nat_objects(self, ctx, l3out, epg_name=None):
         sani = aim_utils.sanitize_display_name
         scope = self._scope_name_if_common
         d_name = self._display_name(l3out)
@@ -592,15 +616,15 @@ class NatStrategyMixin(NatStrategy):
             filter_name=fltr.name,
             name='Any',
             display_name='Any')
-        contract = self._get_nat_contract(ctx, l3out)
+        contract = self._get_nat_contract(ctx, l3out, wanted_epg_name=epg_name)
         subject = resource.ContractSubject(
             tenant_name=contract.tenant_name,
             contract_name=contract.name,
             name='Allow', display_name='Allow',
             bi_filters=[fltr.name])
-        bd = self._get_nat_bd(ctx, l3out)
+        bd = self._get_nat_bd(ctx, l3out, wanted_epg_name=epg_name)
         bd.vrf_name = l3out.vrf_name
-        ap, epg = self._get_nat_ap_epg(ctx, l3out)
+        ap, epg = self._get_nat_ap_epg(ctx, l3out, wanted_epg_name=epg_name)
         vm_doms = getattr(
             self, 'vmm_domains',
             [{'type': d.type, 'name': d.name} for d in
@@ -624,8 +648,9 @@ class NatStrategyMixin(NatStrategy):
                 if phys_domains is not None:
                     obj.physical_domains = phys_domains
 
-    def _create_nat_epg(self, ctx, l3out, vmm_domains=None, phys_domains=None):
-        objs = self._get_nat_objects(ctx, l3out)
+    def _create_nat_epg(self, ctx, l3out, vmm_domains=None, phys_domains=None,
+                        epg_name=None):
+        objs = self._get_nat_objects(ctx, l3out, epg_name=epg_name)
         self._select_domains(objs, vmm_domains=vmm_domains,
                              phys_domains=phys_domains)
         with ctx.store.begin(subtransactions=True):
@@ -633,14 +658,15 @@ class NatStrategyMixin(NatStrategy):
                 if not self.mgr.get(ctx, r):
                     self.mgr.create(ctx, r)
 
-    def _delete_nat_epg(self, ctx, l3out):
+    def _delete_nat_epg(self, ctx, l3out, epg_name=None):
         with ctx.store.begin(subtransactions=True):
-            nat_bd = self._get_nat_bd(ctx, l3out)
+            nat_bd = self._get_nat_bd(ctx, l3out, wanted_epg_name=epg_name)
             for sub in self.mgr.find(ctx, resource.Subnet,
                                      tenant_name=nat_bd.tenant_name,
                                      bd_name=nat_bd.name):
                 self.mgr.delete(ctx, sub)
-            for r in reversed(self._get_nat_objects(ctx, l3out)):
+            for r in reversed(
+                self._get_nat_objects(ctx, l3out, epg_name=epg_name)):
                 if isinstance(r, resource.ApplicationProfile):
                     epgs = self.mgr.find(ctx, resource.EndpointGroup,
                                          tenant_name=r.tenant_name,
@@ -747,7 +773,8 @@ class NoNatStrategy(NatStrategyMixin):
 
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
-                                consumed_contracts=None):
+                                consumed_contracts=None,
+                                epg_name=None):
         """Clean-up any connected VRFs before deleting the external network."""
 
         with ctx.store.begin(subtransactions=True):
@@ -761,7 +788,8 @@ class NoNatStrategy(NatStrategyMixin):
                 self._disconnect_vrf_from_l3out(ctx, l3out, vrf)
             self._delete_ext_net(
                 ctx, ext_net, provided_contracts=provided_contracts,
-                consumed_contracts=consumed_contracts)
+                consumed_contracts=consumed_contracts,
+                epg_name=epg_name)
 
     def connect_vrf(self, ctx, external_network, vrf,
                     provided_contracts=None,
@@ -930,7 +958,8 @@ class DistributedNatStrategy(NatStrategyMixin):
 
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
-                                consumed_contracts=None):
+                                consumed_contracts=None,
+                                epg_name=None):
         """Delete external-network from main and cloned L3Outs.
 
         """
@@ -950,11 +979,12 @@ class DistributedNatStrategy(NatStrategyMixin):
                     self._delete_ext_net(
                         ctx, clone_ext_net,
                         provided_contracts=provided_contracts,
-                        consumed_contracts=consumed_contracts)
+                        consumed_contracts=consumed_contracts,
+                        epg_name=epg_name)
                     self._delete_unused_l3out(ctx, clone)
             self._delete_ext_net(
                 ctx, ext_net_db, provided_contracts=provided_contracts,
-                consumed_contracts=consumed_contracts)
+                consumed_contracts=consumed_contracts, epg_name=epg_name)
 
     def update_external_cidrs(self, ctx, external_network, external_cidrs):
         """Update external CIDRs in main and cloned ExternalNetworks."""
