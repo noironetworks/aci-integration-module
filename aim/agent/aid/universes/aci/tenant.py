@@ -357,8 +357,8 @@ class AciTenantManager(utils.AIMThread):
         try:
             self._unsubscribe_tenant(kill=True)
         except Exception as e:
-            LOG.warn("Failed to unsubscribe tenant during kill "
-                     "procedure: %s %s" % (self.tenant_name, str(e)))
+            LOG.warning("Failed to unsubscribe tenant during kill "
+                        "procedure: %s %s" % (self.tenant_name, str(e)))
         finally:
             super(AciTenantManager, self).kill(*args, **kwargs)
 

@@ -1505,8 +1505,8 @@ class AciToAimModelConverter(BaseConverter):
                     resource['nameAlias'] = resource['displayName']
                     del resource['displayName']
             except Exception as e:
-                LOG.warn("Could not convert object"
-                         "%s with error %s" % (object, str(e)))
+                LOG.warning("Could not convert object"
+                            "%s with error %s" % (object, str(e)))
                 LOG.debug(traceback.format_exc())
         squashed = self._squash(result)
         if aci_objects:
@@ -1592,8 +1592,8 @@ class AimToAciModelConverter(BaseConverter):
                     object.__dict__['display_name'] = object.name_alias
                     del object.__dict__['name_alias']
             except Exception as e:
-                LOG.warn("Could not convert object"
-                         "%s with error %s" % (object.__dict__, str(e)))
+                LOG.warning("Could not convert object"
+                            "%s with error %s" % (object.__dict__, str(e)))
                 LOG.debug(traceback.format_exc())
 
         squashed = self._squash(result)

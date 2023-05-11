@@ -39,7 +39,7 @@ class APICErrorHandler(object):
 
     def analyze_request_exception(self, e):
         if isinstance(e, request_exc.Timeout):
-            LOG.warn("APIC didn't respond and the request timed out.")
+            LOG.warning("APIC didn't respond and the request timed out.")
             return errors.SYSTEM_TRANSIENT
         elif isinstance(e, request_exc.ConnectionError):
             return errors.SYSTEM_TRANSIENT
@@ -48,10 +48,10 @@ class APICErrorHandler(object):
         elif isinstance(e, request_exc.InvalidURL):
             return errors.OPERATION_CRITICAL
         elif isinstance(e, request_exc.RequestException):
-            LOG.warn("A generic request exception occurred: %s", str(e))
+            LOG.warning("A generic request exception occurred: %s", str(e))
             return errors.OPERATION_TRANSIENT
         else:
-            LOG.warn("An unknown error occurred: %s", str(e))
+            LOG.warning("An unknown error occurred: %s", str(e))
             return errors.UNKNOWN
 
     def analyze_apic_error(self, error_status, error_code):
@@ -63,16 +63,16 @@ class APICErrorHandler(object):
             if error_code in self.APIC_SYSTEM_TRANSIENT:
                 return errors.SYSTEM_TRANSIENT
             else:
-                LOG.warn("Unmanaged error code %s from APIC", error_code)
+                LOG.warning("Unmanaged error code %s from APIC", error_code)
                 return errors.UNKNOWN
         elif error_status == 403:
-            LOG.warn("Forbidden operation, re-login required.")
+            LOG.warning("Forbidden operation, re-login required.")
             return errors.SYSTEM_TRANSIENT
         elif error_status >= 500:
-            LOG.warn("Server error, APIC might recover by itself.")
+            LOG.warning("Server error, APIC might recover by itself.")
             return errors.SYSTEM_TRANSIENT
         else:
-            LOG.warn("Unknown status code %s from APIC", error_status)
+            LOG.warning("Unknown status code %s from APIC", error_status)
             return errors.UNKNOWN
 
 
@@ -124,7 +124,7 @@ class APICAPIErrorHandler(APICErrorHandler):
             if err_type in errors.CRITICAL_ERRORS:
                 LOG.error(msg)
             else:
-                LOG.warn(msg)
+                LOG.warning(msg)
         return err_type
 
     def _handle_apic_error(self, e):

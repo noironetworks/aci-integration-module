@@ -526,8 +526,8 @@ class AimManager(object):
         try:
             res_id = db_obj.aim_id
         except AttributeError:
-            LOG.warn("Resource with type %s doesn't support status" %
-                     res_type)
+            LOG.warning("Resource with type %s doesn't support"
+                        "status" % res_type)
             return None, None
         return res_type, res_id
 

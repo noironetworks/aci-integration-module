@@ -164,9 +164,9 @@ class EventHandler(EventHandlerBase):
         try:
             EventHandler.q.put_nowait(event)
         except queue.Full:
-            LOG.warn("Event queue is full, discard %s event" % event)
+            LOG.warning("Event queue is full, discard %s event" % event)
         except AttributeError:
-            LOG.warn("Event queue not initialized, cannot set event")
+            LOG.warning("Event queue not initialized, cannot set event")
 
 
 class EventSender(SenderBase):

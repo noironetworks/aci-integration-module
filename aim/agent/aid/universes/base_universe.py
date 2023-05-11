@@ -637,16 +637,16 @@ class HashTreeStoredUniverse(AimUniverse):
                 curr['retries'] += 1
                 if curr['retries'] > curr['limit']:
                     if curr['action'] == ACTION_RESET:
-                        LOG.warn("AIM object %s failed %s more than %s "
-                                 "times, resetting its root" %
-                                 (str(res), action, curr['retries']))
+                        LOG.warning("AIM object %s failed %s more than %s "
+                                    "times, resetting its root" %
+                                    (str(res), action, curr['retries']))
                         reset = True
                         curr['limit'] = self.purge_retry_limit
                         curr['action'] = ACTION_PURGE
                     else:
-                        LOG.warn("AIM object %s failed %s more than %s "
-                                 "times, going to ERROR state" %
-                                 (str(res), action, curr['retries']))
+                        LOG.warning("AIM object %s failed %s more than %s "
+                                    "times, going to ERROR state" %
+                                    (str(res), action, curr['retries']))
                         curr['limit'] += 5
                         fail.append((action, res))
         self._sync_log[root] = new_state
