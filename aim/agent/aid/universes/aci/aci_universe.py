@@ -165,8 +165,8 @@ class ApicClientsContext(object):
                 key=self.private_key_file)
             resp = session.login()
             if not resp.ok:
-                LOG.warn('%s Websocket connection failed: %s',
-                         purpose, resp.text)
+                LOG.warning('%s Websocket connection failed: %s',
+                            purpose, resp.text)
                 retries += 1
                 if session.session:
                     session.close()
@@ -537,7 +537,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
             else:
                 return self.multiverse[type]['desired'].state
         except IndexError:
-            LOG.warn('Requested universe type %s not found', type)
+            LOG.warning('Requested universe type %s not found', type)
             return self.state
 
     def get_relevant_state_for_read(self):
@@ -637,7 +637,7 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # Reset can only be called during reconciliation. serving_tenants
         # can't be modified meanwhile
         global serving_tenants
-        LOG.warn('Reset called for roots %s' % tenants)
+        LOG.warning('Reset called for roots %s' % tenants)
         for root in tenants:
             if root in serving_tenants:
                 try:
@@ -719,9 +719,9 @@ class AciUniverse(base.HashTreeStoredUniverse):
             try:
                 serving_tenants[tenant]
             except KeyError:
-                LOG.warn("Tenant %s is not being served anymore. "
-                         "Currently served tenants: %s" % (
-                             tenant, list(serving_tenants.keys())))
+                LOG.warning("Tenant %s is not being served anymore. "
+                            "Currently served tenants: %s" % (
+                                tenant, list(serving_tenants.keys())))
             else:
                 serving_tenants[tenant].push_aim_resources(conf)
 

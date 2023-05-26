@@ -289,7 +289,7 @@ class AID(object):
                 semantic_version.Version(y).major)
 
     def _handle_sigterm(self, signum, frame):
-        LOG.warn("Agent caught SIGTERM, quitting daemon loop.")
+        LOG.warning("Agent caught SIGTERM, quitting daemon loop.")
         self.run_daemon_loop = False
         if self.k8s_watcher:
             self.k8s_watcher.stop_threads()

@@ -372,8 +372,8 @@ class Agent(ResourceBase):
         result = current - self.heartbeat_timestamp >= datetime.timedelta(
             seconds=cfg.CONF.aim.agent_down_time)
         if result:
-            LOG.warn("Agent %s is down. Last heartbeat was %s" %
-                     (self.id, self.heartbeat_timestamp))
+            LOG.warning("Agent %s is down. Last heartbeat was %s" %
+                        (self.id, self.heartbeat_timestamp))
         else:
             LOG.debug("Agent %s is alive, its last heartbeat was %s" %
                       (self.id, self.heartbeat_timestamp))

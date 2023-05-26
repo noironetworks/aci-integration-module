@@ -62,7 +62,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             else:
                 return self.multiverse[type]['current'].state
         except IndexError:
-            LOG.warn('Requested universe type %s not found', type)
+            LOG.warning('Requested universe type %s not found', type)
             return self.state
 
     def get_relevant_state_for_read(self):
@@ -102,7 +102,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         self._state.update(self.get_optimized_state(context, self.state))
 
     def reset(self, context, tenants):
-        LOG.warn('Reset called for roots %s' % tenants)
+        LOG.warning('Reset called for roots %s' % tenants)
         for root in tenants:
             hashtree_db_listener.HashTreeDbListener(
                 self.manager).tt_mgr.set_needs_reset_by_root_rn(context, root)
@@ -191,7 +191,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                 except aim_exc.InvalidMonitoredStateUpdate as e:
                     msg = ("Failed to %s object %s in AIM: %s." %
                            (method, resource, str(e)))
-                    LOG.warn(msg)
+                    LOG.warning(msg)
                 except Exception as e:
                     LOG.error("Failed to %s object %s in AIM: %s." %
                               (method, resource, str(e)))

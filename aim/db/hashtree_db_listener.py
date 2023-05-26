@@ -68,8 +68,8 @@ class HashTreeDbListener(object):
                     if not root or root in resetting_roots:
                         continue
                     if self._get_log_count(ctx, root) >= MAX_EVENTS_PER_ROOT:
-                        LOG.warn('Max events per root %s reached, '
-                                 'requesting a reset' % root)
+                        LOG.warning('Max events per root %s reached, '
+                                    'requesting a reset' % root)
                         action = aim_tree.ActionLog.RESET
                     log = aim_tree.ActionLog(
                         root_rn=root, action=action,
@@ -227,7 +227,7 @@ class HashTreeDbListener(object):
                 except ImportError:
                     pass
             if not aim_res:
-                LOG.warn('Aim resource for event %s not found' % log)
+                LOG.warning('Aim resource for event %s not found' % log)
                 continue
             # REVISIT: We currently only query the DB for
             # SecurityGroupRule resources, but should treat all
@@ -244,8 +244,8 @@ class HashTreeDbListener(object):
                 db_aim_res = self.aim_manager.get(ctx, aim_res)
                 if db_aim_res:
                     if action == aim_tree.ActionLog.DELETE:
-                        LOG.warn("AIM resource %s exists in DB for delete "
-                                 "action" % db_aim_res)
+                        LOG.warning("AIM resource %s exists in DB for delete "
+                                    "action" % db_aim_res)
                         action = aim_tree.ActionLog.SKIP
                     else:
                         # Use current resource from DB so that list
@@ -264,8 +264,8 @@ class HashTreeDbListener(object):
                             action = aim_tree.ActionLog.DELETE
                 else:
                     if action != aim_tree.ActionLog.DELETE:
-                        LOG.warn("AIM resource %s does not exist in DB "
-                                 "for create/update action" % aim_res)
+                        LOG.warning("AIM resource %s does not exist in DB "
+                                    "for create/update action" % aim_res)
                         action = aim_tree.ActionLog.SKIP
 
                 # Queue up these SG rules first as we really just need
@@ -315,8 +315,8 @@ class HashTreeDbListener(object):
                         ttree = self.tt_mgr.get_base_tree(ctx, root_rn,
                                                           lock_update=True)
                         if check_reset and ttree and ttree.needs_reset:
-                            LOG.warn('RESET action received for root %s, '
-                                     'resetting trees' % root_rn)
+                            LOG.warning('RESET action received for root %s, '
+                                        'resetting trees' % root_rn)
                             self.reset(ctx.store, root_rn)
                             continue
                         ttree_conf = self.tt_mgr.get(

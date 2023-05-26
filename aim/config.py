@@ -277,7 +277,7 @@ class ConfigManager(object):
             elif isinstance(obj, cfg.FloatOpt):
                 db_conf['value'] = self._float_opt(value)
             else:
-                LOG.warn(
+                LOG.warning(
                     "Unsupported option type %s of item %s in group %s for "
                     "host %s. Returning None" % (type(obj), item, group, host))
             return db_conf
