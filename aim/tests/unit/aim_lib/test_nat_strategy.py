@@ -73,10 +73,14 @@ class TestNatStrategyBase(object):
 
     def _get_l3out_objects(self, l3out_name=None, l3out_display_name=None,
                            nat_vrf_name=None, vmm_domains=None,
-                           phys_domains=None):
+                           phys_domains=None, epg_name=None):
         name = 'EXT-%s' % (l3out_name or 'o1')
         d_name = 'EXT-%s' % (l3out_display_name or 'OUT')
         nat_vrf = a_res.VRF(tenant_name='t1', name=name, display_name=d_name)
+        epg_d_name = 'EXT-%s' % (epg_name if epg_name is not None else
+                                 (l3out_display_name or 'OUT'))
+        epg_name = 'EXT-%s' % (epg_name if epg_name is not None else
+                               (l3out_name or 'o1'))
         if vmm_domains is not None:
             vmm_doms = vmm_domains
         else:
@@ -90,23 +94,23 @@ class TestNatStrategyBase(object):
                          display_name=d_name),
             a_res.FilterEntry(tenant_name='t1', filter_name=name,
                               name='Any', display_name='Any'),
-            a_res.Contract(tenant_name='t1', name=name,
-                           display_name=d_name),
-            a_res.ContractSubject(tenant_name='t1', contract_name=name,
+            a_res.Contract(tenant_name='t1', name=epg_name,
+                           display_name=epg_d_name),
+            a_res.ContractSubject(tenant_name='t1', contract_name=epg_name,
                                   name='Allow', display_name='Allow',
                                   bi_filters=[name]),
-            a_res.BridgeDomain(tenant_name='t1', name=name,
-                               display_name=d_name,
+            a_res.BridgeDomain(tenant_name='t1', name=epg_name,
+                               display_name=epg_d_name,
                                vrf_name=nat_vrf_name or name,
                                limit_ip_learn_to_subnets=True,
                                l3out_names=[l3out_name or 'o1']),
             a_res.ApplicationProfile(tenant_name='t1', name='myapp',
                                      display_name='myapp'),
             a_res.EndpointGroup(tenant_name='t1', app_profile_name='myapp',
-                                name=name, display_name=d_name,
-                                bd_name=name,
-                                provided_contract_names=[name],
-                                consumed_contract_names=[name],
+                                name=epg_name, display_name=epg_d_name,
+                                bd_name=epg_name,
+                                provided_contract_names=[epg_name],
+                                consumed_contract_names=[epg_name],
                                 # NOTE(ivar): Need to keep both VMM
                                 # representations since a GET on the EPG
                                 # will also return the domain name list
@@ -139,6 +143,28 @@ class TestNatStrategyBase(object):
         self._verify(absent=[l3out] + other_objs)
 
         get_objs = self.ns.get_l3outside_resources(self.ctx, l3out)
+        self.assertEqual([], get_objs)
+
+    @base.requires(['foreign_keys'])
+    def test_l3outside_epg_name(self):
+        l3out = a_res.L3Outside(tenant_name='t1', name='o1',
+                                display_name='OUT')
+        res = self.ns.create_l3outside(self.ctx, l3out, epg_name='epnam')
+        self.assertIsNotNone(res)
+        other_objs = self._get_l3out_objects(epg_name="epnam")
+        l3out.vrf_name = 'EXT-o1'
+        self._verify(present=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out,
+                                                   epg_name='epnam')
+        other_objs.append(l3out)
+        self._assert_res_list_eq(get_objs, other_objs)
+
+        self.ns.delete_l3outside(self.ctx, l3out, epg_name='epnam')
+        self._verify(absent=[l3out] + other_objs)
+
+        get_objs = self.ns.get_l3outside_resources(self.ctx, l3out,
+                                                   epg_name='epnam')
         self.assertEqual([], get_objs)
 
     @base.requires(['foreign_keys'])
