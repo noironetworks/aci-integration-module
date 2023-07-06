@@ -116,7 +116,8 @@ class NatStrategy(object):
         """
 
     @abc.abstractmethod
-    def delete_l3outside(self, ctx, l3outside, epg_name=None):
+    def delete_l3outside(self, ctx, l3outside, epg_name=None,
+                         cidrs=None):
         """Delete L3Outside object.
 
         :param ctx: AIM context
@@ -209,7 +210,8 @@ class NatStrategy(object):
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
                                 consumed_contracts=None,
-                                epg_name=None):
+                                epg_name=None,
+                                cidrs=None):
         """Delete ExternalNetwork object.
 
         :param ctx: AIM context
@@ -301,8 +303,10 @@ class NatStrategyMixin(NatStrategy):
                                   phys_domains=phys_domains,
                                   epg_name=epg_name)
 
-    def delete_l3outside(self, ctx, l3outside, epg_name=None):
-        self._delete_l3out(ctx, l3outside, epg_name=epg_name)
+    def delete_l3outside(self, ctx, l3outside, epg_name=None,
+                         cidrs=None):
+        self._delete_l3out(ctx, l3outside, epg_name=epg_name,
+                           cidrs=cidrs)
 
     def get_l3outside_resources(self, ctx, l3outside, epg_name=None):
         res = []
@@ -329,10 +333,11 @@ class NatStrategyMixin(NatStrategy):
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
                                 consumed_contracts=None,
-                                epg_name=None):
+                                epg_name=None, cidrs=None):
         self._delete_ext_net(
             ctx, external_network, provided_contracts=provided_contracts,
-            consumed_contracts=consumed_contracts, epg_name=epg_name)
+            consumed_contracts=consumed_contracts, epg_name=epg_name,
+            cidrs=cidrs)
 
     def create_subnet(self, ctx, l3outside, gw_ip_mask):
         l3outside = self.mgr.get(ctx, l3outside)
@@ -383,10 +388,12 @@ class NatStrategyMixin(NatStrategy):
                                      gw_ip_mask=gw_ip_mask)
             self.mgr.delete(ctx, sub)
 
-    def get_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+    def get_epg_subnet(self, ctx, l3outside, gw_ip_mask,
+                       epg_name=None):
         l3outside = self.mgr.get(ctx, l3outside)
         if l3outside:
-            ap, nat_epg = self._get_nat_ap_epg(ctx, l3outside)
+            ap, nat_epg = self._get_nat_ap_epg(ctx, l3outside,
+                                               wanted_epg_name=epg_name)
             sub = resource.EPGSubnet(tenant_name=nat_epg.tenant_name,
                                      app_profile_name=ap.name,
                                      epg_name=nat_epg.name,
@@ -428,7 +435,8 @@ class NatStrategyMixin(NatStrategy):
                                  epg_name=epg_name)
             return l3out_db
 
-    def _delete_l3out(self, ctx, l3out, delete_epg=True, epg_name=None):
+    def _delete_l3out(self, ctx, l3out, delete_epg=True, epg_name=None,
+                      cidrs=None):
         """Delete NAT EPG etc. in addition to deleting L3Out."""
 
         with ctx.store.begin(subtransactions=True):
@@ -437,7 +445,9 @@ class NatStrategyMixin(NatStrategy):
                 for en in self.mgr.find(ctx, resource.ExternalNetwork,
                                         tenant_name=l3out.tenant_name,
                                         l3out_name=l3out.name):
-                    self.delete_external_network(ctx, en)
+                    self.delete_external_network(ctx, en,
+                                                 epg_name=epg_name,
+                                                 cidrs=cidrs)
                 if not l3out_db.monitored:
                     self.mgr.delete(ctx, l3out)
                 if delete_epg:
@@ -474,11 +484,16 @@ class NatStrategyMixin(NatStrategy):
     def _delete_ext_net(self, ctx, ext_net,
                         provided_contracts=None,
                         consumed_contracts=None,
-                        epg_name=None):
+                        epg_name=None,
+                        cidrs=None):
         with ctx.store.begin(subtransactions=True):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if ext_net_db:
-                self._manage_external_subnets(ctx, ext_net_db, [])
+                if cidrs == None:
+                    self._manage_external_subnets(ctx, ext_net_db, [])
+                else:
+                    self._delete_create_external_subnets(ctx, ext_net_db,
+                                                         cidrs, True)
                 if not ext_net_db.monitored:
                     self._delete_external_contracts(ctx, ext_net_db,
                                                     delete_all=True)
@@ -531,6 +546,22 @@ class NatStrategyMixin(NatStrategy):
             for c in new_cidrs:
                 self.mgr.create(ctx, resource.ExternalSubnet(cidr=c,
                                                              **ext_sub_attr))
+
+    def _delete_create_external_subnets(self, ctx, ext_net, cidrs, to_delete):
+        ext_sub_attr = dict(tenant_name=ext_net.tenant_name,
+                            l3out_name=ext_net.l3out_name,
+                            external_network_name=ext_net.name)
+        with ctx.store.begin(subtransactions=True):
+            if to_delete:
+                cur_ext_subs = self.mgr.find(ctx, resource.ExternalSubnet,
+                                             **ext_sub_attr)
+                for sub in cur_ext_subs:
+                    if sub.cidr in cidrs:
+                        self.mgr.delete(ctx, sub)
+            else:
+                for c in cidrs:
+                    self.mgr.create(ctx, resource.ExternalSubnet(cidr=c,
+                                    **ext_sub_attr))
 
     def _ext_net_to_l3out(self, ext_net):
         return resource.L3Outside(tenant_name=ext_net.tenant_name,
@@ -774,7 +805,7 @@ class NoNatStrategy(NatStrategyMixin):
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
                                 consumed_contracts=None,
-                                epg_name=None):
+                                epg_name=None, cidrs=None):
         """Clean-up any connected VRFs before deleting the external network."""
 
         with ctx.store.begin(subtransactions=True):
@@ -789,7 +820,7 @@ class NoNatStrategy(NatStrategyMixin):
             self._delete_ext_net(
                 ctx, ext_net, provided_contracts=provided_contracts,
                 consumed_contracts=consumed_contracts,
-                epg_name=epg_name)
+                epg_name=epg_name, cidrs=cidrs)
 
     def connect_vrf(self, ctx, external_network, vrf,
                     provided_contracts=None,
@@ -959,7 +990,7 @@ class DistributedNatStrategy(NatStrategyMixin):
     def delete_external_network(self, ctx, external_network,
                                 provided_contracts=None,
                                 consumed_contracts=None,
-                                epg_name=None):
+                                epg_name=None, cidrs=None):
         """Delete external-network from main and cloned L3Outs.
 
         """
@@ -980,11 +1011,12 @@ class DistributedNatStrategy(NatStrategyMixin):
                         ctx, clone_ext_net,
                         provided_contracts=provided_contracts,
                         consumed_contracts=consumed_contracts,
-                        epg_name=epg_name)
+                        epg_name=epg_name, cidrs=cidrs)
                     self._delete_unused_l3out(ctx, clone)
             self._delete_ext_net(
                 ctx, ext_net_db, provided_contracts=provided_contracts,
-                consumed_contracts=consumed_contracts, epg_name=epg_name)
+                consumed_contracts=consumed_contracts, epg_name=epg_name,
+                cidrs=cidrs)
 
     def update_external_cidrs(self, ctx, external_network, external_cidrs):
         """Update external CIDRs in main and cloned ExternalNetworks."""
