@@ -154,3 +154,16 @@ class ApicAssignment(resource.ResourceBase):
             LOG.debug("APIC %s is not available. Last update time was %s" %
                       (self.apic_host, self.last_update_timestamp))
             return False
+
+
+class ACISupportedMo(resource.ResourceBase):
+    """ACI version which supports Remote IP Container mo"""
+
+    identity_attributes = t.identity(
+        ('name', t.string(64)))
+    other_attributes = t.other(
+        ('supports', t.bool))
+
+    def __init__(self, **kwargs):
+        super(ACISupportedMo, self).__init__({'supports': False},
+                                             **kwargs)

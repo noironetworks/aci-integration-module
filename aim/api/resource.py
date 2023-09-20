@@ -1223,6 +1223,7 @@ class SecurityGroupRule(AciResourceBase):
         ('icmp_type', t.string()),
         ('icmp_code', t.string()),
         ('remote_group_id', t.name),
+        ('tDn', t.string(256)),
         ('monitored', t.bool))
 
     _aci_mo_name = 'hostprotRule'
@@ -1240,6 +1241,7 @@ class SecurityGroupRule(AciResourceBase):
              'icmp_code': self.UNSPECIFIED,
              'conn_track': 'reflexive',
              'remote_group_id': '',
+             'tDn': '',
              'monitored': False}, **kwargs)
 
 
@@ -1924,3 +1926,47 @@ class SystemSecurityGroupRule(AciResourceBase):
                     'monitored': False}
         super(SystemSecurityGroupRule, self).__init__(
             defaults, **kwargs)
+
+
+class SecurityGroupRemoteIpContainer(AciResourceBase):
+    """Resource representing a SG Remote IP Container.
+
+    Identity attributes: name of ACI tenant, name of security group, name of
+    the remote IP container
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name))
+    other_attributes = t.other(
+        ('name', t.name),
+        ('display_name', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'hostprotRemoteIpContainer'
+    _tree_parent = SecurityGroup
+
+    def __init__(self, **kwargs):
+        super(SecurityGroupRemoteIpContainer, self).__init__(
+            {'monitored': False}, **kwargs)
+
+
+class SecurityGroupRemoteIp(AciResourceBase):
+    """Resource representing a Security Group Remote IP under the container
+
+    Identity attributes: name of ACI tenant and name of security group,
+                         name of the container
+    """
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('security_group_name', t.name),
+        ('addr', t.ip_cidr))
+    other_attributes = t.other(
+        ('monitored', t.bool),
+        ('display_name', t.name))
+
+    _aci_mo_name = 'hostprotRemoteIp__cont'
+    _tree_parent = SecurityGroupRemoteIpContainer
+
+    def __init__(self, **kwargs):
+        super(SecurityGroupRemoteIp, self).__init__(
+            {'monitored': False}, **kwargs)

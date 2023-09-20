@@ -756,6 +756,47 @@ def hostprot_rule_converter(object_dict, otype, helper,
     return [result] if result else []
 
 
+def hostprot_rs_remoteipcont_converter(object_dict, otype, helper,
+                                       source_identity_attributes,
+                                       destination_identity_attributes,
+                                       to_aim=True):
+    result = []
+    if to_aim:
+        res_dict = {}
+        try:
+            id = default_identity_converter(object_dict, otype, helper,
+                                            to_aim=True)
+        except apic_client.DNManager.InvalidNameFormat:
+            return []
+        for index, attr in enumerate(destination_identity_attributes):
+            res_dict[attr] = id[index]
+        res_dict['tDn'] = object_dict.get('tDn', None)
+        result.append(default_to_resource(res_dict, helper, to_aim=True))
+    else:
+        if (object_dict.get('tenant_name') and
+           object_dict.get('security_group_name') and
+           object_dict.get('security_group_subject_name') and
+           object_dict.get('name') and
+           object_dict.get('tDn')):
+            attrs = [object_dict.get('tenant_name'),
+                     object_dict.get('security_group_name'),
+                     object_dict.get('security_group_subject_name'),
+                     object_dict.get('name'),
+                     object_dict.get('tDn')
+                     ]
+            try:
+                dn = apic_client.ManagedObjectClass(
+                    'hostprotRsRemoteIpContainer').dn(*attrs)
+            except Exception as e:
+                LOG.error('Failed to make DN for %s with %s: %s',
+                          helper['resource'], attrs, e)
+                raise
+            result.append({
+                helper['resource']:
+                    {'attributes': {'dn': dn, 'tDn': object_dict['tDn']}}})
+    return result
+
+
 def hostprot_remoteIp_converter(object_dict, otype, helper,
                                 source_identity_attributes,
                                 destination_identity_attributes,
@@ -773,7 +814,13 @@ def hostprot_remoteIp_converter(object_dict, otype, helper,
             id = default_identity_converter(object_dict, aci_type,
                                             helper, to_aim=True)
         except apic_client.DNManager.InvalidNameFormat:
-            return []
+            helper = resource_map['hostprotRemoteIp__cont'][0]
+            destination_identity_attributes = (
+                helper['resource'].identity_attributes)
+            id = default_identity_converter(
+                object_dict, otype, helper,
+                aci_mo_type="hostprotRemoteIp__cont",
+                to_aim=True)
         for index, attr in enumerate(destination_identity_attributes):
             res_dict[attr] = id[index]
         if object_dict.get(aci_attr):
@@ -1180,7 +1227,7 @@ resource_map = {
         {'resource': resource.SecurityGroupRule,
          'converter': hostprot_rule_converter,
          'convert_monitored': False,
-         'skip': ['remote_ips', 'remote_group_id'],
+         'skip': ['remote_ips', 'remote_group_id', 'tDn'],
          'exceptions': {
              'protocol': {'other': 'ip_protocol',
                           'converter': ip_protocol},
@@ -1217,6 +1264,19 @@ resource_map = {
          'convert_monitored': False, },
         {'resource': resource.SystemSecurityGroupRule,
          'converter': hostprot_remoteIp_converter, }
+    ],
+    'hostprotRemoteIpContainer': [
+        {'resource': resource.SecurityGroupRemoteIpContainer,
+         'convert_monitored': False, }
+    ],
+    'hostprotRsRemoteIpContainer': [
+        {'resource': resource.SecurityGroupRule,
+         'converter': hostprot_rs_remoteipcont_converter,
+         'convert_monitored': False, }
+    ],
+    'hostprotRemoteIp__cont': [
+        {'resource': resource.SecurityGroupRemoteIp,
+         'convert_monitored': False, }
     ],
     'opflexODev': [{
         'resource': aim_infra.OpflexDevice,

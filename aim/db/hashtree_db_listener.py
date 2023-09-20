@@ -116,11 +116,13 @@ class HashTreeDbListener(object):
                         # We will not add this SG rule to AIM tree to
                         # prevent it from showing up in APIC because its
                         # a block-all rule.
+                        # tDn is a new parameter added to distinguish between
+                        # normalized and non-normalized security groups.
                         if (aim_cfg.CONF.aim.
                             remove_remote_group_sg_rule_if_block_all and
                             klass == resource.SecurityGroupRule and
-                            obj.remote_group_id and
-                                not obj.remote_ips):
+                            obj.remote_group_id and not obj.remote_ips and
+                                not obj.tDn):
                             continue
                         # Need all the faults and statuses as well
                         stat = self.aim_manager.get_status(
@@ -260,7 +262,7 @@ class HashTreeDbListener(object):
                         if (aim_cfg.CONF.aim.
                             remove_remote_group_sg_rule_if_block_all and
                             aim_res.remote_group_id and
-                                not aim_res.remote_ips):
+                                not aim_res.remote_ips and not aim_res.tDn):
                             action = aim_tree.ActionLog.DELETE
                 else:
                     if action != aim_tree.ActionLog.DELETE:
