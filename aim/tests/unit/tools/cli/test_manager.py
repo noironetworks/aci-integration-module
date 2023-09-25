@@ -74,10 +74,10 @@ class TestManager(base.TestShell):
         self.assertIsNotNone(
             self.mgr.get(self.ctx, resource.VMMDomain(type='OpenStack',
                                                       name='ostack2')))
-        self.assertIsNotNone(
+        self.assertIsNone(
             self.mgr.get(self.ctx, resource.VMMDomain(type='VMware',
                                                       name='vmware')))
-        self.assertIsNotNone(
+        self.assertIsNone(
             self.mgr.get(self.ctx, resource.VMMDomain(type='VMware',
                                                       name='vmware2')))
         # EPGs are still empty
@@ -95,7 +95,7 @@ class TestManager(base.TestShell):
         self.run_command('manager load-domains --replace --no-mappings')
 
         # Now only 2 Domains each exist
-        self.assertEqual(4, len(self.mgr.find(self.ctx, resource.VMMDomain)))
+        self.assertEqual(2, len(self.mgr.find(self.ctx, resource.VMMDomain)))
         self.assertEqual(2, len(self.mgr.find(self.ctx,
                                               resource.PhysicalDomain)))
 
@@ -121,17 +121,13 @@ class TestManager(base.TestShell):
             return {'name': name}
 
         self.assertEqual(utils.deep_sort([get_vmm('OpenStack', 'ostack'),
-                                          get_vmm('OpenStack', 'ostack2'),
-                                          get_vmm('VMware', 'vmware'),
-                                          get_vmm('VMware', 'vmware2')]),
+                                          get_vmm('OpenStack', 'ostack2')]),
                          utils.deep_sort(pre_epg1.vmm_domains))
         self.assertEqual(utils.deep_sort([get_phys('phys'),
                                           get_phys('phys2')]),
                          utils.deep_sort(pre_epg1.physical_domains))
         self.assertEqual(utils.deep_sort([get_vmm('OpenStack', 'ostack'),
-                                          get_vmm('OpenStack', 'ostack2'),
-                                          get_vmm('VMware', 'vmware'),
-                                          get_vmm('VMware', 'vmware2')]),
+                                          get_vmm('OpenStack', 'ostack2')]),
                          utils.deep_sort(pre_epg2.vmm_domains))
         self.assertEqual(utils.deep_sort([get_phys('phys'),
                                           get_phys('phys2')]),
@@ -162,13 +158,7 @@ class TestManager(base.TestShell):
                               'domain_name': 'ostack'},
                              {'domain_type': 'OpenStack',
                               'host_name': '*',
-                              'domain_name': 'ostack'},
-                             {'domain_type': 'VMware',
-                              'host_name': '*',
-                              'domain_name': 'vmware'},
-                             {'domain_type': 'VMware',
-                              'host_name': '*',
-                              'domain_name': 'vmware2'}]
+                              'domain_name': 'ostack'}]
         for mapping in existing_mappings:
             mapping = infra.HostDomainMappingV2(
                 host_name=mapping['host_name'],
@@ -181,17 +171,13 @@ class TestManager(base.TestShell):
 
         self.assertEqual(utils.deep_sort(
                          [get_vmm('OpenStack', 'ostack'),
-                          get_vmm('OpenStack', 'ostack2'),
-                          get_vmm('VMware', 'vmware'),
-                          get_vmm('VMware', 'vmware2')]),
+                          get_vmm('OpenStack', 'ostack2')]),
                          utils.deep_sort(pre_epg1.vmm_domains))
         self.assertEqual(utils.deep_sort([get_phys('phys'),
                                           get_phys('phys2')]),
                          utils.deep_sort(pre_epg1.physical_domains))
         self.assertEqual(utils.deep_sort([get_vmm('OpenStack', 'ostack'),
-                                          get_vmm('OpenStack', 'ostack2'),
-                                          get_vmm('VMware', 'vmware'),
-                                          get_vmm('VMware', 'vmware2')]),
+                                          get_vmm('OpenStack', 'ostack2')]),
                          utils.deep_sort(pre_epg2.vmm_domains))
         self.assertEqual(utils.deep_sort([get_phys('phys'),
                                           get_phys('phys2')]),
@@ -221,13 +207,7 @@ class TestManager(base.TestShell):
                          'domain_type': 'OpenStack'},
                         {'host_name': '*',
                          'domain_name': 'ostack2',
-                         'domain_type': 'OpenStack'},
-                        {'host_name': '*',
-                         'domain_name': 'vmware',
-                         'domain_type': 'VMware'},
-                        {'host_name': '*',
-                         'domain_name': 'vmware2',
-                         'domain_type': 'VMware'}]
+                         'domain_type': 'OpenStack'}]
         for mapping in cfg_mappings:
             if mapping['domain_type'] is 'PhysDom':
                 domain = resource.PhysicalDomain(name=mapping['domain_name'])
@@ -266,13 +246,7 @@ class TestManager(base.TestShell):
                          'domain_name': 'ostack'},
                         {'domain_type': 'OpenStack',
                          'host_name': '*',
-                         'domain_name': 'ostack2'},
-                        {'domain_type': 'VMware',
-                         'host_name': '*',
-                         'domain_name': 'vmware'},
-                        {'domain_type': 'VMware',
-                         'host_name': '*',
-                         'domain_name': 'vmware2'}]
+                         'domain_name': 'ostack2'}]
         existing_mappings = [{'domain_type': 'PhysDom',
                               'host_name': '*',
                               'domain_name': 'phys3'},
@@ -284,13 +258,7 @@ class TestManager(base.TestShell):
                               'domain_name': 'ostack3'},
                              {'domain_type': 'OpenStack',
                               'host_name': 'vm2',
-                              'domain_name': 'ostack4'},
-                             {'domain_type': 'VMware',
-                              'host_name': '*',
-                              'domain_name': 'vmware3'},
-                             {'domain_type': 'VMware',
-                              'host_name': 'vm3',
-                              'domain_name': 'vmware4'}]
+                              'domain_name': 'ostack4'}]
         for mapping in cfg_mappings:
             if mapping['domain_type'] is 'PhysDom':
                 domain = resource.PhysicalDomain(name=mapping['domain_name'],
