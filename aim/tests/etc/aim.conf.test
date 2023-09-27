@@ -34,9 +34,3 @@ aim_system_id = openstack_aid
 [apic_vmdom:ostack2]
 apic_vmm_type=OpenStack
 
-[apic_vmdom:vmware]
-apic_vmm_type=vmware
-
-[apic_vmdom:vmware2]
-apic_vmm_type=VMware
-
