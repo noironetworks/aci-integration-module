@@ -34,6 +34,8 @@ class HostLink(model_base.Base, model_base.AttributeMixin):
     path = sa.Column(VARCHAR(512, charset='latin1'))
     pod_id = sa.Column(sa.String(128))
     from_config = sa.Column(sa.Boolean, default=False)
+    timestamp = sa.Column(sa.DateTime, server_default=func.now(),
+                          onupdate=func.now())
 
 
 class HostLinkManager(object):
