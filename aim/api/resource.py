@@ -317,13 +317,16 @@ class BridgeDomain(AciResourceBase):
     _tree_parent = Tenant
 
     def __init__(self, **kwargs):
+        gen1_hw = cfg.CONF.aim.support_gen1_hw_gratarps
+        ep_move = 'garp' if gen1_hw is True else ''
+
         super(BridgeDomain, self).__init__({'vrf_name': '',
                                             'enable_arp_flood': True,
                                             'enable_routing': True,
                                             'limit_ip_learn_to_subnets': False,
                                             'ip_learning': True,
                                             'l2_unknown_unicast_mode': 'proxy',
-                                            'ep_move_detect_mode': 'garp',
+                                            'ep_move_detect_mode': ep_move,
                                             'l3out_names': [],
                                             'monitored': False},
                                            **kwargs)

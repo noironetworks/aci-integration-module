@@ -123,6 +123,9 @@ agent_opts = [
     cfg.BoolOpt('remove_remote_group_sg_rule_if_block_all', default=True,
                 help=("(Temporary) Set to False if you still want such rules "
                       "to be added to the AIM tree.")),
+    cfg.BoolOpt('support_gen1_hw_gratarps', default=False,
+                help=("(Temporary) Set to True to ensure grat-ARPs are sent"
+                      "to fabric CPUs (gen1 hwardware support")),
 ]
 
 # TODO(ivar): move into AIM section
