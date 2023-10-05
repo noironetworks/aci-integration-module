@@ -216,9 +216,10 @@ class TestNatStrategyBase(object):
                                 display_name='OUT')
         self.ns.create_l3outside(self.ctx, l3out)
 
-        self.ns.create_subnet(self.ctx, l3out, '200.10.20.1/28')
+        scope = 'public,shared'
+        self.ns.create_subnet(self.ctx, l3out, '200.10.20.1/28', scope)
         sub = a_res.Subnet(tenant_name='t1', bd_name='EXT-o1',
-                           gw_ip_mask='200.10.20.1/28')
+                           gw_ip_mask='200.10.20.1/28', scope=scope)
         self._verify(present=[sub])
 
         self._assert_res_eq(sub,
@@ -237,10 +238,11 @@ class TestNatStrategyBase(object):
                                 display_name='OUT')
         self.ns.create_l3outside(self.ctx, l3out)
 
-        self.ns.create_epg_subnet(self.ctx, l3out, '200.10.20.1/28')
+        scope = 'shared'
+        self.ns.create_epg_subnet(self.ctx, l3out, '200.10.20.1/28', scope)
         sub = a_res.EPGSubnet(tenant_name='t1', app_profile_name='myapp',
                               epg_name='EXT-%s' % l3out.name,
-                              gw_ip_mask='200.10.20.1/28')
+                              gw_ip_mask='200.10.20.1/28', scope=scope)
         self._verify(present=[sub])
 
         self._assert_res_eq(sub,
