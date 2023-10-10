@@ -63,7 +63,7 @@ class NatStrategy(object):
                                name='inet2')
 
     ns.create_l3outside(ctx, l3out)
-    ns.create_subnet(ctx, l3out, '40.40.40.1/24')
+    ns.create_subnet(ctx, l3out, '40.40.40.1/24', 'public')
     ns.create_external_network(ctx, ext_net1)
     ns.create_external_network(ctx, ext_net2)
 
@@ -135,7 +135,7 @@ class NatStrategy(object):
         """
 
     @abc.abstractmethod
-    def create_subnet(self, ctx, l3outside, gw_ip_mask):
+    def create_subnet(self, ctx, l3outside, gw_ip_mask, scope='public'):
         """Create Subnet in L3Outside.
 
         :param ctx: AIM context
@@ -165,7 +165,7 @@ class NatStrategy(object):
         """
 
     @abc.abstractmethod
-    def create_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+    def create_epg_subnet(self, ctx, l3outside, gw_ip_mask, scope='public'):
         """Create EPGSubnet in L3Outside.
 
         :param ctx: AIM context
@@ -339,13 +339,14 @@ class NatStrategyMixin(NatStrategy):
             consumed_contracts=consumed_contracts, epg_name=epg_name,
             cidrs=cidrs)
 
-    def create_subnet(self, ctx, l3outside, gw_ip_mask):
+    def create_subnet(self, ctx, l3outside, gw_ip_mask, scope='public'):
         l3outside = self.mgr.get(ctx, l3outside)
         if l3outside:
             nat_bd = self._get_nat_bd(ctx, l3outside)
             sub = resource.Subnet(tenant_name=nat_bd.tenant_name,
                                   bd_name=nat_bd.name,
-                                  gw_ip_mask=gw_ip_mask)
+                                  gw_ip_mask=gw_ip_mask,
+                                  scope=scope)
             if not self.mgr.get(ctx, sub):
                 self.mgr.create(ctx, sub)
 
@@ -367,14 +368,15 @@ class NatStrategyMixin(NatStrategy):
                                   gw_ip_mask=gw_ip_mask)
             return self.mgr.get(ctx, sub)
 
-    def create_epg_subnet(self, ctx, l3outside, gw_ip_mask):
+    def create_epg_subnet(self, ctx, l3outside, gw_ip_mask, scope='public'):
         l3outside = self.mgr.get(ctx, l3outside)
         if l3outside:
             ap, nat_epg = self._get_nat_ap_epg(ctx, l3outside)
             sub = resource.EPGSubnet(tenant_name=nat_epg.tenant_name,
                                      app_profile_name=ap.name,
                                      epg_name=nat_epg.name,
-                                     gw_ip_mask=gw_ip_mask)
+                                     gw_ip_mask=gw_ip_mask,
+                                     scope=scope)
             if not self.mgr.get(ctx, sub):
                 self.mgr.create(ctx, sub)
 
