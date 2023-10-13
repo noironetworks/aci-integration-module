@@ -408,6 +408,8 @@ class Subnet(AciResourceBase):
 
     SCOPE_PRIVATE = 'private'
     SCOPE_PUBLIC = 'public'
+    SCOPE_SHARED = 'shared'
+    SCOPE_PUBLIC_SHARED = 'public,shared'
 
     def __init__(self, **kwargs):
         super(Subnet, self).__init__({'scope': self.SCOPE_PUBLIC,
