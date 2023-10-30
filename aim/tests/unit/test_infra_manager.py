@@ -18,6 +18,8 @@ from aim.api import infra
 from aim import config  # noqa
 from aim.db import infra_model
 from aim.tests import base
+from datetime import datetime
+from datetime import timedelta
 
 
 class TestAimInfraManager(base.TestAimDBBase):
@@ -38,6 +40,11 @@ class TestAimInfraManager(base.TestAimDBBase):
 
         hlink = self.infra_mgr.get_hostlink(host, ifname)
         self.assertEqual(hlink.path, hlinks_mgr[0].path)
+        self.assertIsNotNone(hlink.timestamp)
+        current_time = datetime.now()
+        time_difference = current_time - hlink.timestamp
+        max_time_difference = timedelta(minutes=5)
+        self.assertLessEqual(time_difference, max_time_difference)
 
         hlinks = self.infra_mgr.get_hostlinks()
         self.assertEqual(1, len(hlinks))
