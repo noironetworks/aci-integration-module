@@ -20,7 +20,9 @@ from aim.api import service_graph
 from aim.api import status as aim_status
 from aim.api import tree
 from aim.common import utils
+from aim import config
 from aim.db.migration.data_migration import add_host_column
+from aim.db.migration.data_migration import fix_bd_garp
 from aim.db.migration.data_migration import host_domain_mapping_v2
 from aim.db.migration.data_migration import status_add_tenant
 from aim.tests import base
@@ -143,3 +145,31 @@ class TestDataMigration(base.TestAimDBBase):
             status_add_tenant.migrate(self.ctx.db_session)
             status = self.mgr.get_status(self.ctx, res)
             self.assertEqual(res.dn, status.resource_dn)
+
+    def test_fix_bd_garp(self):
+        self.mgr.create(self.ctx, resource.BridgeDomain(
+            tenant_name='t1', name='bd1', ep_move_detect_mode='garp'))
+        self.mgr.create(self.ctx, resource.BridgeDomain(
+            tenant_name='t1', name='bd2', ep_move_detect_mode='garp',
+            monitored=True))
+        fix_bd_garp.migrate(self.ctx.db_session)
+        bds = self.mgr.find(self.ctx, resource.BridgeDomain)
+        self.assertEqual(len(bds), 2)
+        for bd in bds:
+            if bd.monitored is True:
+                self.assertEqual(bd.ep_move_detect_mode, 'garp')
+            else:
+                self.assertEqual(bd.ep_move_detect_mode, '')
+
+    def test_no_fix_bd_garp(self):
+        config.CONF.set_override('support_gen1_hw_gratarps', True, 'aim')
+        self.mgr.create(self.ctx, resource.BridgeDomain(
+            tenant_name='t1', name='bd1', ep_move_detect_mode='garp'))
+        self.mgr.create(self.ctx, resource.BridgeDomain(
+            tenant_name='t1', name='bd2', ep_move_detect_mode='garp',
+            monitored=True))
+        fix_bd_garp.migrate(self.ctx.db_session)
+        bds = self.mgr.find(self.ctx, resource.BridgeDomain)
+        self.assertEqual(len(bds), 2)
+        for bd in bds:
+            self.assertEqual(bd.ep_move_detect_mode, 'garp')
