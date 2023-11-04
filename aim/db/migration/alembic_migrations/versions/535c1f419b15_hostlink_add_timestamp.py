@@ -15,7 +15,7 @@
 
 """add_timestamp_column
 Revision ID: 535c1f419b15
-Revises: 60399662af3c
+Revises: 5e285945cf4d
 Create Date: 2023-09-27 12:24:17.786497
 """
 from alembic import op
@@ -25,7 +25,7 @@ from sqlalchemy.sql.expression import func
 
 # revision identifiers, used by Alembic.
 revision = '535c1f419b15'
-down_revision = '60399662af3c'
+down_revision = '5e285945cf4d'
 branch_labels = None
 depends_on = None
 
