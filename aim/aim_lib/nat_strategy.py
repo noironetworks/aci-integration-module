@@ -23,6 +23,7 @@ from aim.aim_lib.db import model
 from aim.api import resource
 from aim import exceptions
 from aim import utils as aim_utils
+from neutron_lib.db import api as db_api
 
 LOG = logging.getLogger(__name__)
 
@@ -417,7 +418,7 @@ class NatStrategyMixin(NatStrategy):
                       epg_name=None):
         """Create NAT EPG etc. in addition to creating L3Out."""
 
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             tenant = resource.Tenant(name=l3out.tenant_name)
             if not self.mgr.get(ctx, tenant):
                 self.mgr.create(ctx, tenant)
@@ -439,7 +440,7 @@ class NatStrategyMixin(NatStrategy):
                       cidrs=None):
         """Delete NAT EPG etc. in addition to deleting L3Out."""
 
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             l3out_db = self.mgr.get(ctx, l3out)
             if l3out_db:
                 for en in self.mgr.find(ctx, resource.ExternalNetwork,
@@ -457,7 +458,7 @@ class NatStrategyMixin(NatStrategy):
 
     def _create_ext_net(self, ctx, ext_net, provided_contracts=None,
                         consumed_contracts=None, epg_name=None):
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if not ext_net_db:
                 ext_net_db = self.mgr.create(ctx, ext_net)
@@ -486,7 +487,7 @@ class NatStrategyMixin(NatStrategy):
                         consumed_contracts=None,
                         epg_name=None,
                         cidrs=None):
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             ext_net_db = self.mgr.get(ctx, ext_net)
             if ext_net_db:
                 if cidrs == None:
@@ -526,7 +527,7 @@ class NatStrategyMixin(NatStrategy):
             provided = provided_contracts or []
             consumed = consumed_contracts or []
         provided.extend(consumed)
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             for contract_ref in provided:
                 self.mgr.delete(ctx, contract_ref)
 
@@ -537,7 +538,7 @@ class NatStrategyMixin(NatStrategy):
                             external_network_name=ext_net.name)
         old_ext_subs = self.mgr.find(ctx, resource.ExternalSubnet,
                                      **ext_sub_attr)
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             for sub in old_ext_subs:
                 if sub.cidr in new_cidrs:
                     new_cidrs.remove(sub.cidr)
@@ -551,7 +552,7 @@ class NatStrategyMixin(NatStrategy):
         ext_sub_attr = dict(tenant_name=ext_net.tenant_name,
                             l3out_name=ext_net.l3out_name,
                             external_network_name=ext_net.name)
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             if to_delete:
                 cur_ext_subs = self.mgr.find(ctx, resource.ExternalSubnet,
                                              **ext_sub_attr)
@@ -684,13 +685,13 @@ class NatStrategyMixin(NatStrategy):
         objs = self._get_nat_objects(ctx, l3out, epg_name=epg_name)
         self._select_domains(objs, vmm_domains=vmm_domains,
                              phys_domains=phys_domains)
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             for r in objs:
                 if not self.mgr.get(ctx, r):
                     self.mgr.create(ctx, r)
 
     def _delete_nat_epg(self, ctx, l3out, epg_name=None):
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             nat_bd = self._get_nat_bd(ctx, l3out, wanted_epg_name=epg_name)
             for sub in self.mgr.find(ctx, resource.Subnet,
                                      tenant_name=nat_bd.tenant_name,
@@ -759,7 +760,7 @@ class NatStrategyMixin(NatStrategy):
                                  l3out_name=ext_net.l3out_name,
                                  ext_net_name=ext_net.name)
         # Collect current contracts
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             prov = self.mgr.find(
                 ctx, resource.ExternalNetworkProvidedContract,
                 **ext_contract_attr)
@@ -808,7 +809,7 @@ class NoNatStrategy(NatStrategyMixin):
                                 epg_name=None, cidrs=None):
         """Clean-up any connected VRFs before deleting the external network."""
 
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             ext_net = self.mgr.get(ctx, external_network)
             if not ext_net:
                 return
@@ -831,7 +832,7 @@ class NoNatStrategy(NatStrategyMixin):
         Locate BDs referring to the VRF, and include L3Outside
         in their l3out_names.
         """
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             if not self._is_visible(vrf.tenant_name,
                                     external_network.tenant_name):
                 raise VrfNotVisibleFromExternalNetwork(
@@ -879,7 +880,7 @@ class NoNatStrategy(NatStrategyMixin):
         Locate BDs referring to the VRF, and exclude L3Outside
         from their l3out_names.
         """
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             ext_net = self.mgr.get(ctx, external_network)
             if not ext_net:
                 return
@@ -994,7 +995,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         """Delete external-network from main and cloned L3Outs.
 
         """
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             # Delete specified external-network from all cloned L3Outs.
             # Delete external-network from main L3Out.
             l3out = self.mgr.get(ctx,
@@ -1024,7 +1025,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         ext_net_db = self.mgr.get(ctx, external_network)
         if l3out and ext_net_db:
             clone_l3outs = self._find_l3out_clones(ctx, l3out)
-            with ctx.store.begin(subtransactions=True):
+            with db_api.CONTEXT_WRITER.using(ctx):
                 for clone in clone_l3outs:
                     clone_ext_net = resource.ExternalNetwork(
                         tenant_name=clone.tenant_name,
@@ -1047,7 +1048,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         Set vrf_name of shadow L3Outside to VRF.
 
         """
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             return self._create_shadow(
                 ctx, external_network, vrf,
                 provided_contracts=provided_contracts,
@@ -1061,7 +1062,7 @@ class DistributedNatStrategy(NatStrategyMixin):
         there are no more ExternalNetworks in the shadow
         L3Outside.
         """
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             self._delete_shadow(ctx, external_network, vrf)
 
     def read_vrfs(self, ctx, external_network):
@@ -1136,7 +1137,7 @@ class DistributedNatStrategy(NatStrategyMixin):
             _, nat_epg = self._get_nat_ap_epg(ctx, l3out)
             clone_ext_net.nat_epg_dn = nat_epg.dn
 
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             self.mgr.create(ctx, clone_l3out, overwrite=True)
             self.mgr.create(ctx, clone_ext_net, overwrite=True)
             self._update_external_network_contracts(
@@ -1164,7 +1165,7 @@ class DistributedNatStrategy(NatStrategyMixin):
             l3out_name=clone_l3out.name,
             name=ext_net.name)
 
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             self._delete_ext_net(ctx, clone_ext_net)
             self._delete_unused_l3out(ctx, clone_l3out)
 
@@ -1201,7 +1202,7 @@ class EdgeNatStrategy(DistributedNatStrategy):
         Set vrf_name of shadow L3Outside to VRF.
 
         """
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             return self._create_shadow(ctx, external_network, vrf,
                                        with_nat_epg=False,
                                        provided_contracts=provided_contracts,

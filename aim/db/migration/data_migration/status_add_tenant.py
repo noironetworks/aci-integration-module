@@ -18,6 +18,7 @@ import sqlalchemy as sa
 from sqlalchemy import update
 
 from aim import aim_store
+from neutron_lib.db import api as db_api
 
 resource_paths = ('aim.api.resource', 'aim.api.service_graph',
                   'aim.api.infra')
@@ -53,7 +54,7 @@ def get_root_klass(resource):
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(session):
         for st in session.query(Status).all():
             parent_table, parent_class = get_parent_class(st.resource_type)
             root_klass = get_root_klass(parent_class)

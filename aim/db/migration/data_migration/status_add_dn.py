@@ -19,6 +19,7 @@ from sqlalchemy.dialects import mysql
 from sqlalchemy import update
 
 from aim import aim_store
+from neutron_lib.db import api as db_api
 
 resource_paths = ('aim.api.resource', 'aim.api.service_graph',
                   'aim.api.infra')
@@ -50,7 +51,7 @@ def get_resource_class(resource_type):
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(session):
         store = aim_store.SqlAlchemyStore(None)
         for st in session.query(Status).all():
             res_table, res_class = get_resource_class(st.resource_type)

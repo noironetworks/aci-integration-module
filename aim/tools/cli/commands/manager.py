@@ -31,6 +31,7 @@ from aim.common import utils
 from aim import context
 from aim.db import api
 from aim.tools.cli.groups import aimcli
+from neutron_lib.db import api as db_api
 
 
 LOG = logging.getLogger(__name__)
@@ -139,12 +140,13 @@ def validate_attributes(klass, attributes, param_name, dn_is_valid=False):
 
 def create(klass):
     def _create(ctx, **kwargs):
-        plain = kwargs.pop('plain', False)
-        kwargs = filter_kwargs(klass, kwargs)
-        manager = ctx.obj['manager']
-        aim_ctx = ctx.obj['aim_ctx']
-        res = klass(**kwargs)
-        print_resource(manager.create(aim_ctx, res), plain=plain)
+        with db_api.CONTEXT_READER.using(ctx):
+            plain = kwargs.pop('plain', False)
+            kwargs = filter_kwargs(klass, kwargs)
+            manager = ctx.obj['manager']
+            aim_ctx = ctx.obj['aim_ctx']
+            res = klass(**kwargs)
+            print_resource(manager.create(aim_ctx, res), plain=plain)
     return _create
 
 
@@ -281,7 +283,7 @@ def load_domains(ctx, replace, enforce, mappings):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
 
-    with aim_ctx.store.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(aim_ctx):
         if replace:
             curr_vmms = manager.find(aim_ctx, resource.VMMDomain)
             curr_physds = manager.find(aim_ctx, resource.PhysicalDomain)
@@ -351,7 +353,7 @@ def load_mappings(ctx, replace):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
 
-    with aim_ctx.store.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(aim_ctx):
         vmm_doms, phys_doms = get_domains(aim_ctx, manager, create_doms=False)
         do_mappings(aim_ctx, manager, replace, vmm_doms=vmm_doms,
                     phys_doms=phys_doms)
@@ -373,7 +375,7 @@ def sync_state_find(ctx, state, plain):
             state = states[0]
             break
 
-    with aim_ctx.store.begin(subtransactions=True):
+    with db_api.CONTEXT_READER.using(aim_ctx):
         statuses = manager.find(aim_ctx, status_res.AciStatus,
                                 sync_status=state)
     # Could aggregate the queries to make it more efficient in future

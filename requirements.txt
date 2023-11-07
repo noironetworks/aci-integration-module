@@ -11,6 +11,7 @@ Click
 jsonschema<4.0.0;python_version=='2.7' # MIT
 jsonschema;python_version!='2.7' # MIT
 kubernetes
+neutron-lib>=3.6.1
 oslo.concurrency
 oslo.config
 oslo.db

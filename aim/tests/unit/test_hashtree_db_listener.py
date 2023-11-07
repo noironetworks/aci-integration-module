@@ -26,6 +26,7 @@ from aim.db import agent_model  # noqa
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.tests import base
 from aim import tree_manager
+from neutron_lib.db import api as db_api
 
 
 class TestHashTreeDbListener(base.TestAimDBBase):
@@ -470,13 +471,13 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
 
             # This transaction will generate some action logs, which
             # will trigger a 'reconcile' event.
-            with self.ctx.store.begin(subtransactions=True):
-                with self.ctx.store.begin(subtransactions=True):
+            with db_api.CONTEXT_WRITER.using(self.ctx):
+                with db_api.CONTEXT_WRITER.using(self.ctx):
                     self.mgr.create(self.ctx, tn)
                     self.mgr.create(self.ctx, ap)
                     self.mgr.create(self.ctx, epg)
                 self.assertEqual(0, cast.call_count)
-                with self.ctx.store.begin(subtransactions=True):
+                with db_api.CONTEXT_WRITER.using(self.ctx):
                     self.mgr.create(self.ctx, tn1)
                     self.mgr.create(self.ctx, ap1)
                     self.mgr.create(self.ctx, epg1)

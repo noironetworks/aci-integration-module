@@ -14,6 +14,7 @@
 #    under the License.
 
 import sqlalchemy as sa
+from neutron_lib.db import api as db_api
 
 
 HostDomainMappingV2 = sa.Table(
@@ -33,7 +34,7 @@ HostDomainMapping = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(session):
         migrations = []
         for mapping in session.query(HostDomainMapping).all():
             if mapping.vmm_domain_name:

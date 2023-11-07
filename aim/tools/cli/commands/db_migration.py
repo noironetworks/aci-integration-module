@@ -30,6 +30,7 @@ from aim.db import hashtree_db_listener
 from aim.db import migration
 from aim.db.migration import alembic_migrations
 from aim.tools.cli.groups import aimcli
+from neutron_lib.db import api as db_api
 
 
 @aimcli.aim.group(name='db-migration')
@@ -112,7 +113,7 @@ def fix_no_nat_l3out_ownership(aim_ctx):
         sa.Column('vrf_name', nullable=True))
     session = aim_ctx.store.db_session
     bind = session.get_bind()
-    with session.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(session):
         if not saved_l3out_table.exists(bind=bind):
             return
         results = session.execute(

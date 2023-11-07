@@ -21,6 +21,7 @@ from aim.api import resource
 from aim.common import utils
 from aim.db import model_base
 from aim import exceptions as exc
+from neutron_lib.db import api as db_api
 
 
 LOG = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class ConfigurationDBManager(object):
                 'version': db_cfg.version}
 
     def _get(self, context, group, key, host='', **kwargs):
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_READER.using(context):
             curr = self.aim_mgr.get(
                 context, resource.Configuration(group=group, key=key,
                                                 host=host))
@@ -81,7 +82,7 @@ class ConfigurationDBManager(object):
         {(group, key, host): value}
         :return:
         """
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             for conf, v in list(configs.items()):
                 group, key, host = conf
                 cfg = resource.Configuration(group=group, key=key, host=host,
@@ -90,7 +91,7 @@ class ConfigurationDBManager(object):
 
     @utils.log
     def update(self, context, group, key, value, host=''):
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             return self.update_bulk(
                 context, {(group, key, host): value})
 
@@ -101,7 +102,7 @@ class ConfigurationDBManager(object):
     @utils.log
     def delete_all(self, context, group=None, host=None):
         # Can filter by group, host or both
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             filters = {}
             if group:
                 filters['group'] = group
@@ -122,9 +123,9 @@ class ConfigurationDBManager(object):
         """
 
         # Remove all the existing config and override with new ones
-        with context.store.begin(subtransactions=True):
-            self.delete_all(context, host=host)
-            self.update_bulk(context, configs)
+        # with context.store.begin(subtransactions=True):
+        self.delete_all(context, host=host)
+        self.update_bulk(context, configs)
 
     def get_changed(self, context, configs):
         """Get changed configurations
@@ -134,7 +135,7 @@ class ConfigurationDBManager(object):
         {(group, key, host): version}
         :return: list configurations that don't match the provided version
         """
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             result = []
             all = self.aim_mgr.find(context, resource.Configuration)
             for cfg in all:

@@ -17,6 +17,7 @@
 import sqlalchemy as sa
 
 from aim.db import model_base
+from neutron_lib.db import api as db_api
 
 # Some aim_lib utilities may require additional DB model for keeping state.
 # Use this module for such purpose
@@ -60,7 +61,7 @@ class CloneL3OutManager(object):
         :param clone: L3Outside AIM resource
         :return:
         """
-        with context.db_session.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             obj = CloneL3Out(source_tenant_name=source.tenant_name,
                              source_name=source.name,
                              tenant_name=clone.tenant_name,
@@ -80,7 +81,7 @@ class CloneL3OutManager(object):
         :return: list of tuples where the first position is the clone L3Out
                  tenant_name and the second is its name.
         """
-        with context.db_session.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             result = []
             db_objs = self._find_query(
                 context, source_tenant_name=source.tenant_name,

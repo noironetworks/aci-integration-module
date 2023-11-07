@@ -28,6 +28,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim import context
 from aim.db import api
+from neutron_lib.db import api as db_api
 
 LOG = logging.getLogger(__name__)
 STATIC_QUERY_PARAMS = {
@@ -97,7 +98,7 @@ class AIMController(object):
 
     def POST(self, path_, *args, **kwargs):
         # Replace the whole model
-        with self.ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(self.ctx):
             self.DELETE(path_)
             self.PUT(path_)
 
@@ -106,14 +107,14 @@ class AIMController(object):
             body = cherrypy.request.json
         except AttributeError:
             body = json.loads(cherrypy.request.body.read())
-        with self.ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(self.ctx):
             for item in body:
                 res = self._generate_aim_resource(item)
                 self.mgr.create(self.ctx, res, overwrite=True)
 
     def DELETE(self, path_, *args, **kwargs):
         _, klasses, filters = self._inspect_selection_query(**kwargs)
-        with self.ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(self.ctx):
             for klass in klasses:
                 self.mgr.delete_all(self.ctx, klass, **filters)
 

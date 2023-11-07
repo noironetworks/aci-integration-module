@@ -26,6 +26,7 @@ from aim.common import utils
 from aim.db import hashtree_db_listener
 from aim import exceptions as aim_exc
 from aim import tree_manager
+from neutron_lib.db import api as db_api
 
 
 LOG = logging.getLogger(__name__)
@@ -115,7 +116,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def cleanup_state(self, context, key):
         # Only delete if state is still empty. Never remove a tenant if there
         # are leftovers.
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             # There could still be logs, but they will re-create the
             # tenants in the next iteration.
             self.tree_manager.delete_by_root_rn(context, key, if_empty=True)
@@ -229,7 +230,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         [resource])
                     resource = self._converter.convert(resource)[0]
                     resource.monitored = monitored
-                with context.store.begin(subtransactions=True):
+                with db_api.CONTEXT_WRITER.using(context):
                     if isinstance(resource, aim_resource.AciRoot):
                         # Roots should not be created by the
                         # AIM monitored universe.
@@ -265,12 +266,14 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                     return
                 if monitored:
                     # Only delete a resource if monitored
-                    with context.store.begin(subtransactions=True):
+                    with db_api.CONTEXT_READER.using(context):
                         existing = self.manager.get(context, resource)
+                    with db_api.CONTEXT_WRITER.using(context):
                         if existing and existing.monitored:
                             self.manager.delete(context, resource)
                 else:
-                    self.manager.delete(context, resource)
+                    with db_api.CONTEXT_WRITER.using(context):
+                        self.manager.delete(context, resource)
 
     def _get_state_pending_na_nodes(self, tenant_state):
         pending_nodes = []

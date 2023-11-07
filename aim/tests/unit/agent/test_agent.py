@@ -22,7 +22,8 @@ import mock
 
 from aim.agent.aid import service
 from aim.agent.aid.universes.aci import aci_universe
-from aim import aim_manager
+from aim import aim_manager_t as aim_manager
+from aim import aim_manager as aim_manager_t
 from aim.api import resource
 from aim.api import service_graph
 from aim.api import status as aim_status
@@ -34,7 +35,8 @@ from aim import context
 from aim.db import hashtree_db_listener
 from aim.tests import base
 from aim.tests.unit.agent.aid_universes import test_aci_tenant
-from aim import tree_manager
+from aim import tree_manager_t as tree_manager
+from neutron_lib.db import api as db_api
 
 
 def run_once_loop(agent):
@@ -52,10 +54,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
 
     def setUp(self):
         super(TestAgent, self).setUp(mock_store=False)
-        self.set_override('agent_down_time', 3600, 'aim')
-        self.set_override('agent_polling_interval', 0, 'aim')
-        self.set_override('aci_tenant_polling_yield', 0, 'aim')
+        with self.store.db_session.begin():
+            self.set_override('agent_down_time', 3600, 'aim')
+            self.set_override('agent_polling_interval', 0, 'aim')
+            self.set_override('aci_tenant_polling_yield', 0, 'aim')
         self.aim_manager = aim_manager.AimManager()
+        self.aim_manager_t = aim_manager_t.AimManager()
         self.tree_manager = tree_manager.TreeManager(tree.StructuredHashTree)
         self.old_post = apic_client.ApicSession.post_body_dict
 
@@ -164,7 +168,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             self._tree_to_event(child, result, dn, manager)
 
     def _create_agent(self, host='h1'):
-        self.set_override('aim_service_identifier', host, 'aim')
+        with self.store.db_session.begin():
+            self.set_override('aim_service_identifier', host, 'aim')
         aid = service.AID(config.CONF)
         ac_context = aci_universe.get_apic_clients_context(self.cfg_manager,
                                                            None)
@@ -913,6 +918,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         tn = resource.Tenant(name=tenant_name, monitored=True)
         # Create tenant in AIM to start serving it
+        # with self.store.db_session.begin():
         self.aim_manager.create(self.ctx, tn)
         # Run loop for serving tenant
         self._first_serve(agent)
@@ -938,6 +944,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                (current_monitor, desired_monitor)],
                               tenants=[tn.root])
         # retrieve the corresponding AIM objects
+        # with self.store.db_session.begin():
         ap = self.aim_manager.get(self.ctx, resource.ApplicationProfile(
             tenant_name=tenant_name, name='ap1'))
         epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
@@ -964,12 +971,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertTrue(self._is_object_owned(desired_monitor,
                                               epg.dn + '/rsprov-c', tn.rn))
         # Run an empty change on the EPG, bringing it to sync pending
+        # with self.store.db_session.begin():
         self.aim_manager.update(self.ctx, epg)
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)],
                               tenants=[tn.root])
         # Put back EPG into monitored state
+        # with self.store.db_session.begin():
         epg = self.aim_manager.update(self.ctx, epg, monitored=True)
         self.assertTrue(epg.monitored)
         self._sync_and_verify(agent, current_config,
@@ -981,6 +990,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                                epg.dn + '/rsprov-c', tn.rn))
         self.assertFalse(self._is_object_owned(desired_monitor, epg.dn, tn.rn))
         # Object is in monitored universe and in good shape
+        # with self.store.db_session.begin():
         epg = self.aim_manager.get(self.ctx, epg)
         self.assertTrue(epg.monitored)
         # Still keeping whatever contract we had, but monitored this time
@@ -989,6 +999,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)],
                               tenants=[tn.root])
+        # with self.store.db_session.begin():
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
 
@@ -1399,12 +1410,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         sub = resource.ContractSubject(
             tenant_name=tenant_name, contract_name=ctr.name,
             name='route', bi_filters=['noirolab_AnyFilter'])
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.create(self.ctx, ctr)
-            self.aim_manager.create(self.ctx, sub)
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.delete(self.ctx, sub)
-            self.aim_manager.delete(self.ctx, ctr)
+        # with db_api.CONTEXT_WRITER.using(self.ctx):
+        self.aim_manager.create(self.ctx, ctr)
+        self.aim_manager.create(self.ctx, sub)
+        # with db_api.CONTEXT_WRITER.using(self.ctx):
+        self.aim_manager.delete(self.ctx, sub)
+        self.aim_manager.delete(self.ctx, ctr)
         desired_config.observe(self.ctx)
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
@@ -1423,6 +1434,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        # with self.store.db_session.begin():
         tn = resource.Tenant(name=tenant_name)
         tn2 = resource.Tenant(name=tenant_name2)
         self.aim_manager.create(self.ctx, tn)
@@ -1707,6 +1719,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         epg = resource.EndpointGroup(tenant_name=tenant_name,
                                      app_profile_name='test', name='test')
         # Create tenant in AIM to start serving it
+        # with self.store.db_session.begin():
         self.aim_manager.create(self.ctx, tn1)
         self.aim_manager.create(self.ctx, ap)
         self.aim_manager.create(self.ctx, epg)
@@ -2204,8 +2217,9 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             return json.dumps({x: y.root.to_dict() if y.root else {}
                                for x, y in list(universe.state.items())},
                               indent=2)
-        desired.observe(self.ctx)
-        current.observe(self.ctx)
+        with self.store.db_session.begin():
+            desired.observe(self.ctx)
+            current.observe(self.ctx)
         # Because of the possible error nodes, we need to verify that the
         # diff is empty
         self.assertEqual(list(current.state.keys()),
@@ -2236,18 +2250,19 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         if tenant:
             filters = {'root_rn': [tenant]}
         # for each tenant, save their trees
-        old = self._get_aim_trees_by_tenant(filters)
-        self.assertNotEqual({}, old)
-        # Now reset trees
-        listener = hashtree_db_listener.HashTreeDbListener(self.aim_manager)
-        listener._delete_trees(self.ctx, root=tenant)
-        current = self._get_aim_trees_by_tenant(filters)
-        for trees in list(current.values()):
-            for t in list(trees.values()):
-                self.assertEqual('{}', str(t))
-        listener._recreate_trees(self.ctx, root=tenant)
-        # Check if they are still the same
-        new = self._get_aim_trees_by_tenant(filters)
+        with self.store.db_session.begin():
+            old = self._get_aim_trees_by_tenant(filters)
+            self.assertNotEqual({}, old)
+            # Now reset trees
+            listener = hashtree_db_listener.HashTreeDbListener(self.aim_manager_t)
+            listener._delete_trees(self.ctx, root=tenant)
+            current = self._get_aim_trees_by_tenant(filters)
+            for trees in list(current.values()):
+                for t in list(trees.values()):
+                    self.assertEqual('{}', str(t))
+            listener._recreate_trees(self.ctx, root=tenant)
+            # Check if they are still the same
+            new = self._get_aim_trees_by_tenant(filters)
         new.pop('comp', None)
         self.assertEqual(old, new)
 
@@ -2260,12 +2275,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples, tenants=None):
+        # with self.store.db_session.begin():
         agent._reconciliation_cycle()
         self._observe_aci_events(to_observe)
         agent._reconciliation_cycle()
         # Verify everything is fine
         for couple in couples:
-            self._assert_universe_sync(couple[0], couple[1], tenants=tenants)
+            self._assert_universe_sync(couple[0], couple[1],
+                                       tenants=tenants)
         self._assert_reset_consistency()
         self._verify_get_relevant_state(agent)
 

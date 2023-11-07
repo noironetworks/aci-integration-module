@@ -221,8 +221,9 @@ class TestAimDBBase(BaseTestCase):
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
         self.tt_mgr = tree_manager.HashTreeManager()
         resource.ResourceBase.__eq__ = resource_equal
-        self.cfg_manager.replace_all(CONF)
-        self.sys_id = self.cfg_manager.get_option('aim_system_id', 'aim')
+        with self.store.db_session.begin():
+            self.cfg_manager.replace_all(CONF)
+            self.sys_id = self.cfg_manager.get_option('aim_system_id', 'aim')
 
     def get_new_context(self):
         return context.AimContext(

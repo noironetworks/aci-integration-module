@@ -27,6 +27,7 @@ from aim.common.hashtree import structured_tree as htree
 from aim.common import utils
 from aim import config as aim_cfg
 from aim import tree_manager
+from neutron_lib.db import api as db_api
 
 ACTION_LOG_THRESHOLD = 1000
 MAX_EVENTS_PER_ROOT = 10000
@@ -50,7 +51,7 @@ class HashTreeDbListener(object):
         # TODO(ivar): Use proper store context once dependency issue is fixed
         ctx = utils.FakeContext(store=store)
         resetting_roots = set()
-        with ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(ctx):
             for i, resources in enumerate((added + updated, deleted)):
                 for res in resources:
                     try:
@@ -85,7 +86,7 @@ class HashTreeDbListener(object):
                                       action=aim_tree.ActionLog.RESET)
 
     def _delete_trees(self, aim_ctx, root=None):
-        with aim_ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(aim_ctx):
             # Delete existing trees
             if root:
                 self.tt_mgr.clean_by_root_rn(aim_ctx, root)
@@ -93,7 +94,7 @@ class HashTreeDbListener(object):
                 self.tt_mgr.clean_all(aim_ctx)
 
     def _recreate_trees(self, aim_ctx, root=None):
-        with aim_ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(aim_ctx):
             cache = {}
             log_by_root = {}
             # Delete existing trees
@@ -141,7 +142,7 @@ class HashTreeDbListener(object):
                                         delete_logs=False, check_reset=False)
 
     def cleanup_zombie_status_objects(self, aim_ctx, roots=None):
-        with aim_ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(aim_ctx):
             # Retrieve objects
             klass = api_status.AciStatus
             filters = {}
@@ -161,7 +162,7 @@ class HashTreeDbListener(object):
 
     def reset(self, store, root=None):
         aim_ctx = utils.FakeContext(store=store)
-        with aim_ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(aim_ctx):
             self.cleanup_zombie_status_objects(aim_ctx, roots=[root])
             self._delete_trees(aim_ctx, root=root)
             self._recreate_trees(aim_ctx, root=root)
@@ -193,7 +194,7 @@ class HashTreeDbListener(object):
         for served_tenant in served_tenants:
             if served_tenant != 'dummy_tenant':
                 kwargs['in_'] = {'root_rn': [served_tenant]}
-            with ctx.store.begin(subtransactions=True):
+            with db_api.CONTEXT_WRITER.using(ctx):
                 logs = self.aim_manager.find(ctx, aim_tree.ActionLog, **kwargs)
                 if len(logs) > ACTION_LOG_THRESHOLD:
                     LOG.info('Tenant %s has %s ActionLogs to be processed' %
@@ -293,7 +294,7 @@ class HashTreeDbListener(object):
 
     def _cleanup_resetting_roots(self, ctx, log_by_root, resetting_roots):
         for root in resetting_roots:
-            with ctx.store.begin(subtransactions=True):
+            with db_api.CONTEXT_WRITER.using(ctx):
                 self._delete_logs(ctx, log_by_root[root])
                 self.tt_mgr.set_needs_reset_by_root_rn(ctx, root)
                 log_by_root[root] = []
@@ -310,7 +311,7 @@ class HashTreeDbListener(object):
         for root_rn in log_by_root:
             try:
                 tree_map = {}
-                with ctx.store.begin(subtransactions=True):
+                with db_api.CONTEXT_WRITER.using(ctx):
                     try:
                         ttree = self.tt_mgr.get_base_tree(ctx, root_rn,
                                                           lock_update=True)
@@ -363,7 +364,7 @@ class HashTreeDbListener(object):
         LOG.info("validating config trees for roots: %s" % roots)
         for root in roots:
             LOG.info("validating config tree for root: %s" % root)
-            with ctx.store.begin(subtransactions=True):
+            with db_api.CONTEXT_WRITER.using(ctx):
                 before = copy.deepcopy(
                     self.tt_mgr.get(
                         ctx, root, tree=tree_manager.CONFIG_TREE))

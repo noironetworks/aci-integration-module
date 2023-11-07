@@ -24,6 +24,7 @@ from aim.api import status as api_status
 from aim.api import tree as api_tree
 from aim.common import utils
 from aim import exceptions as exc
+from neutron_lib.db import api as db_api
 
 
 LOG = logging.getLogger(__name__)
@@ -160,39 +161,39 @@ class AimManager(object):
         integrity constraint violation is raised.
         """
         self._validate_resource_class(resource)
-        with context.store.begin(subtransactions=True):
-            old_db_obj = None
-            old_monitored = None
-            new_monitored = None
-            if overwrite:
-                old_db_obj = self._query_db_obj(context.store, resource)
-                if old_db_obj:
-                    old_monitored = getattr(old_db_obj, 'monitored', None)
-                    new_monitored = getattr(resource, 'monitored', None)
-                    if (fix_ownership and old_monitored is not None and
-                            old_monitored != new_monitored):
-                        raise exc.InvalidMonitoredStateUpdate(object=resource)
-                    attr_val = context.store.extract_attributes(resource,
-                                                                "other")
-                    old_resource = self._make_resource(context, resource,
-                                                       old_db_obj)
-                    if old_resource.user_equal(resource):
-                        # No need to update. Return old_resource for
-                        # updated DB attributes
-                        return old_resource
-                    context.store.from_attr(old_db_obj, type(resource),
-                                            attr_val)
-            db_obj = old_db_obj or context.store.make_db_obj(resource)
-            context.store.add(db_obj)
-            if self._should_set_pending(old_db_obj, old_monitored,
-                                        new_monitored):
-                # NOTE(ivar): we shouldn't change status in the AIM manager
-                # as this goes against the "AIM as a schema" principles.
-                # However, we need to do this at least for cases where
-                # we take ownership of the objects, which should be removed
-                # soon as it's causing most of our bugs.
-                self.set_resource_sync_pending(context, resource)
-            return self.get(context, resource)
+        # with db_api.CONTEXT_WRITER.using(context):
+        old_db_obj = None
+        old_monitored = None
+        new_monitored = None
+        if overwrite:
+            old_db_obj = self._query_db_obj(context.store, resource)
+            if old_db_obj:
+                old_monitored = getattr(old_db_obj, 'monitored', None)
+                new_monitored = getattr(resource, 'monitored', None)
+                if (fix_ownership and old_monitored is not None and
+                        old_monitored != new_monitored):
+                    raise exc.InvalidMonitoredStateUpdate(object=resource)
+                attr_val = context.store.extract_attributes(resource,
+                                                            "other")
+                old_resource = self._make_resource(context, resource,
+                                                    old_db_obj)
+                if old_resource.user_equal(resource):
+                    # No need to update. Return old_resource for
+                    # updated DB attributes
+                    return old_resource
+                context.store.from_attr(old_db_obj, type(resource),
+                                        attr_val)
+        db_obj = old_db_obj or context.store.make_db_obj(resource)
+        context.store.add(db_obj)
+        if self._should_set_pending(old_db_obj, old_monitored,
+                                    new_monitored):
+            # NOTE(ivar): we shouldn't change status in the AIM manager
+            # as this goes against the "AIM as a schema" principles.
+            # However, we need to do this at least for cases where
+            # we take ownership of the objects, which should be removed
+            # soon as it's causing most of our bugs.
+            self.set_resource_sync_pending(context, resource)
+        return self.get(context, resource)
 
     @utils.log
     def update(self, context, resource, fix_ownership=False,
@@ -207,7 +208,7 @@ class AimManager(object):
         made to the database.
         """
         self._validate_resource_class(resource)
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             db_obj = self._query_db_obj(context.store, resource)
             if db_obj:
                 old_resource = self._make_resource(context, resource, db_obj)
@@ -254,7 +255,7 @@ class AimManager(object):
         If the object does not exist in the database, no error is reported.
         """
         self._validate_resource_class(resource)
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             db_obj = self._query_db_obj(context.store, resource)
             if db_obj:
                 if isinstance(resource, api_res.AciResourceBase):
@@ -337,7 +338,7 @@ class AimManager(object):
                     ['in_', 'notin_', 'order_by']}
         result = []
         for obj in self._query_db(context.store, resource_class,
-                                  for_update=for_update, **attr_val):
+                                    for_update=for_update, **attr_val):
             result.append(
                 context.store.make_resource(resource_class, obj,
                                             include_aim_id=include_aim_id))
@@ -359,7 +360,7 @@ class AimManager(object):
         be left unspecified.
         """
 
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             if isinstance(resource, api_res.AciResourceBase):
                 res_type, res_id = self._get_status_params(context, resource)
                 if res_type and res_id is not None:
@@ -385,7 +386,7 @@ class AimManager(object):
         return None
 
     def get_statuses(self, context, resources):
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_READER.using(context):
             return context.store.query_statuses(resources)
 
     @utils.log
@@ -396,7 +397,7 @@ class AimManager(object):
         to determine the object whose status will be updated; other
         attributes may be left unspecified.
         """
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             if isinstance(resource, api_res.AciResourceBase):
                 res_type, res_id = self._get_status_params(context, resource)
                 if res_type and res_id is not None:
@@ -408,7 +409,7 @@ class AimManager(object):
                            exclude=None):
         if isinstance(resource, api_status.AciStatus):
             return False
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             self._validate_resource_class(resource)
             status = self.get_status(context, resource)
             exclude = exclude or []
@@ -422,7 +423,7 @@ class AimManager(object):
         self._set_resource_sync(context, resource, api_status.AciStatus.SYNCED)
 
     def recover_root_errors(self, context, root):
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             context.store.update_all(
                 api_status.AciStatus,
                 filters={'sync_status': api_status.AciStatus.SYNC_FAILED,
@@ -434,7 +435,7 @@ class AimManager(object):
                                   cascade=True):
         # When a resource goes in pending state, propagate to both parent
         # and subtree
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             # If resource is already in pending or synced state stop
             # propagation
             if self._set_resource_sync(
@@ -459,7 +460,7 @@ class AimManager(object):
                                                        cascade=False)
 
     def set_resource_sync_error(self, context, resource, message='', top=True):
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             # No need to set sync_error for resources already in that state
             if self._set_resource_sync(
                     context, resource, api_status.AciStatus.SYNC_FAILED,
@@ -475,7 +476,7 @@ class AimManager(object):
     @utils.log
     def set_fault(self, context, resource, fault):
         fault = copy.deepcopy(fault)
-        with context.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(context):
             status = self.get_status(context, resource)
             if status:
                 fault.status_id = status.id

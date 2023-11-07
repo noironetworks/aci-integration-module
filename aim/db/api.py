@@ -46,8 +46,7 @@ def dispose():
 def get_session(autocommit=True, expire_on_commit=True, use_slave=False):
     """Helper method to grab session."""
     facade = _create_facade_lazily()
-    return facade.get_session(autocommit=autocommit,
-                              expire_on_commit=expire_on_commit,
+    return facade.get_session(expire_on_commit=expire_on_commit,
                               use_slave=use_slave)
 
 

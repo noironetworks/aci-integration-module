@@ -16,6 +16,7 @@
 import sqlalchemy as sa
 from sqlalchemy.dialects.mysql import VARCHAR
 from sqlalchemy import update
+from neutron_lib.db import api as db_api
 
 
 HostLink = sa.Table(
@@ -90,7 +91,7 @@ Status = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(session):
         host_links = session.query(HostLink).all()
         for hlink in host_links:
             session.execute(update(EndpointGroupStaticPath).where(

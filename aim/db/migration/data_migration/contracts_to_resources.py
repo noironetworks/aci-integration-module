@@ -16,6 +16,7 @@
 import sqlalchemy as sa
 
 from aim.common import utils
+from neutron_lib.db import api as db_api
 
 ExternalNetworkProvidedContracts = sa.Table(
     'aim_external_network_provided_contracts', sa.MetaData(),
@@ -54,7 +55,7 @@ ExternalNetwork = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with db_api.CONTEXT_WRITER.using(session):
         provides = []
         consumes = []
         ext_net_dict = {}

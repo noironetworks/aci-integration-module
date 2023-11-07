@@ -342,7 +342,7 @@ class SqlAlchemyStore(AimStore):
         return True
 
     def begin(self, **kwargs):
-        return self.db_session.begin(subtransactions=True)
+        return self.db_session.begin()
 
     def resource_to_db_type(self, resource_klass):
         return self.db_model_map.get(resource_klass)

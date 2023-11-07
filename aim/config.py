@@ -25,6 +25,7 @@ from oslo_log import log as logging
 from aim.common import utils
 from aim.db import config_model
 from aim import exceptions as exc
+from neutron_lib.db import api as db_api
 
 
 LOG = logging.getLogger(__name__)
@@ -263,7 +264,8 @@ class ConfigManager(object):
             if item not in self.map[group]:
                 raise exc.UnsupportedAIMConfig(group=group, conf=item)
 
-            db_conf = self.db.get(self.context, group, item, host=host)
+            with db_api.CONTEXT_READER.using(self.context):
+                db_conf = self.db.get(self.context, group, item, host=host)
             obj = self.map[group][item]
             value = db_conf['value']
             if isinstance(obj, cfg.IntOpt):

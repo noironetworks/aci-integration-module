@@ -23,6 +23,7 @@ from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree as tree
 from aim.tests import base
 from aim import tree_manager
+from neutron_lib.db import api as db_api
 
 
 class TestStructuredNode(base.BaseTestCase):
@@ -766,7 +767,7 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(tenants))
 
     def test_single_session_multi_objects(self):
-        with self.ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(self.ctx):
             data = tree.StructuredHashTree().include(
                 [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
                  {'key': ('keyA', 'keyC', 'keyD')}])
@@ -784,7 +785,7 @@ class TestHashTreeManager(base.TestAimDBBase):
 
     def test_agents_to_trees_association(self):
         # N, M association
-        with self.ctx.store.begin(subtransactions=True):
+        with db_api.CONTEXT_WRITER.using(self.ctx):
             data = tree.StructuredHashTree().include(
                 [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
                  {'key': ('keyA', 'keyC', 'keyD')}])

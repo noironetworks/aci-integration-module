@@ -32,6 +32,7 @@ from aim import config as aim_cfg
 from aim import context
 from aim.db import api
 from aim import tree_manager
+from neutron_lib.db import api as db_api
 
 LOG = logging.getLogger(__name__)
 AGENT_TYPE = 'Aci Synchronization Module'
@@ -231,7 +232,7 @@ class AID(object):
         self.agent = self.manager.update(aim_ctx, self.agent)
 
     def _calculate_tenants(self, aim_ctx):
-        with aim_ctx.store.begin(subtransactions=True):
+        with aim_ctx.store.begin():
             # Refresh this agent
             self.agent = self.manager.get(aim_ctx, self.agent)
             if not self.single_aid:

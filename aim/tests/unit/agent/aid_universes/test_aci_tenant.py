@@ -31,6 +31,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim.tests import base
 from aim import tree_manager
+from neutron_lib.db import api as db_api
 
 AMBIGUOUS_TYPES = [aci_tenant.TAG_KEY, aci_tenant.FAULT_KEY]
 
@@ -383,62 +384,63 @@ class TestAciClientMixin(object):
                 dict([('imdata', [x])]) for x in event_list])
 
     def _do_aci_mocks(self):
-        self.monitors = mock.patch(
-            'aim.agent.aid.universes.aci.aci_universe.ApicClientsContext.'
-            '_spawn_monitors')
-        self.monitors.start()
+        with self.store.db_session.begin():
+            self.monitors = mock.patch(
+                'aim.agent.aid.universes.aci.aci_universe.ApicClientsContext.'
+                '_spawn_monitors')
+            self.monitors.start()
 
-        self.set_override('apic_hosts', ['1.1.1.1'], 'apic')
-        self.ws_login = mock.patch('acitoolkit.acitoolkit.Session.login')
-        self.ws_login.start()
+            self.set_override('apic_hosts', ['1.1.1.1'], 'apic')
+            self.ws_login = mock.patch('acitoolkit.acitoolkit.Session.login')
+            self.ws_login.start()
 
-        self.mock_auth_mgr = mock.patch(
-            'aim.agent.aid.universes.aci.aci_universe.AciCRUDLoginManager')
-        self.mock_auth_mgr.start()
+            self.mock_auth_mgr = mock.patch(
+                'aim.agent.aid.universes.aci.aci_universe.AciCRUDLoginManager')
+            self.mock_auth_mgr.start()
 
-        self.ws_logged_in = mock.patch(
-            'acitoolkit.acitoolkit.Session.logged_in', return_value=True)
-        self.ws_logged_in.start()
+            self.ws_logged_in = mock.patch(
+                'acitoolkit.acitoolkit.Session.logged_in', return_value=True)
+            self.ws_logged_in.start()
 
-        self.tn_subscribe = mock.patch(
-            'aim.agent.aid.universes.aci.aci_universe.ApicClientsContext.'
-            '_subscribe', return_value=FakeResponse())
-        self.tn_subscribe.start()
+            self.tn_subscribe = mock.patch(
+                'aim.agent.aid.universes.aci.aci_universe.ApicClientsContext.'
+                '_subscribe', return_value=FakeResponse())
+            self.tn_subscribe.start()
 
-        self.process_q = mock.patch(
-            'acitoolkit.acisession.Subscriber._process_event_q')
-        self.process_q.start()
+            self.process_q = mock.patch(
+                'acitoolkit.acisession.Subscriber._process_event_q')
+            self.process_q.start()
 
-        self.post_body = mock.patch(
-            'apicapi.apic_client.ApicSession.post_body_dict')
-        self.post_body.start()
+            self.post_body = mock.patch(
+                'apicapi.apic_client.ApicSession.post_body_dict')
+            self.post_body.start()
 
-        self.delete = mock.patch(
-            'apicapi.apic_client.ApicSession.DELETE')
-        self.delete.start()
+            self.delete = mock.patch(
+                'apicapi.apic_client.ApicSession.DELETE')
+            self.delete.start()
 
-        self.get = mock.patch(
-            'apicapi.apic_client.ApicSession.GET')
-        self.get.start()
+            self.get = mock.patch(
+                'apicapi.apic_client.ApicSession.GET')
+            self.get.start()
 
-        self.apic_login = mock.patch(
-            'apicapi.apic_client.ApicSession.login')
-        self.apic_login.start()
-        apic_client.ApicSession.get_data = mock_get_data
+            self.apic_login = mock.patch(
+                'apicapi.apic_client.ApicSession.login')
+            self.apic_login.start()
+            apic_client.ApicSession.get_data = mock_get_data
 
-        # Monkey patch APIC Transactions
-        self.old_transaction_commit = apic_client.Transaction.commit
+            # Monkey patch APIC Transactions
+            self.old_transaction_commit = apic_client.Transaction.commit
 
-        self.addCleanup(self.ws_login.stop)
-        self.addCleanup(self.mock_auth_mgr.stop)
-        self.addCleanup(self.ws_logged_in.stop)
-        self.addCleanup(self.apic_login.stop)
-        self.addCleanup(self.tn_subscribe.stop)
-        self.addCleanup(self.process_q.stop)
-        self.addCleanup(self.post_body.stop)
-        self.addCleanup(self.delete.stop)
-        self.addCleanup(self.get.stop)
-        self.addCleanup(self.monitors.stop)
+            self.addCleanup(self.ws_login.stop)
+            self.addCleanup(self.mock_auth_mgr.stop)
+            self.addCleanup(self.ws_logged_in.stop)
+            self.addCleanup(self.apic_login.stop)
+            self.addCleanup(self.tn_subscribe.stop)
+            self.addCleanup(self.process_q.stop)
+            self.addCleanup(self.post_body.stop)
+            self.addCleanup(self.delete.stop)
+            self.addCleanup(self.get.stop)
+            self.addCleanup(self.monitors.stop)
 
 
 class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
@@ -447,8 +449,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         super(TestAciTenant, self).setUp()
         self._do_aci_mocks()
         self.backend_state = {}
-        universe = aci_universe.AciUniverse().initialize(
-            aim_cfg.ConfigManager(self.ctx, 'h1'), [])
+        with db_api.CONTEXT_WRITER.using(self.ctx):
+            universe = aci_universe.AciUniverse().initialize(
+                aim_cfg.ConfigManager(self.ctx, 'h1'), [])
         self.manager = aci_tenant.AciTenantManager(
             'tn-tenant-1', self.cfg_manager,
             aci_universe.get_apic_clients_context(self.cfg_manager,
