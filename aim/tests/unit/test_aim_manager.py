@@ -1578,6 +1578,40 @@ class TestSecurityGroupRuleMixin(object):
     res_command = 'security-group-rule'
 
 
+class TestSecurityGroupRemoteIpContainerMixin(object):
+    resource_class = resource.SecurityGroupRemoteIpContainer
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.SecurityGroup(tenant_name='tenant1', name='sg1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1'}
+    test_search_attributes = {'display_name': 'sgcont-display'}
+    test_update_attributes = {'display_name': 'sgcont-display-2'}
+    test_dn = 'uni/tn-tenant1/pol-sg1/remoteipcont'
+    res_command = 'security-group-remoteip-container'
+
+
+class TestSecurityGroupRemoteIpMixin(object):
+    resource_class = resource.SecurityGroupRemoteIp
+    resource_root_type = resource.Tenant._aci_mo_name
+    prereq_objects = [
+        resource.Tenant(name='tenant1'),
+        resource.SecurityGroup(tenant_name='tenant1', name='sg1')]
+    test_identity_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1',
+                                'addr': '10.3.2.1/24'}
+    test_required_attributes = {'tenant_name': 'tenant1',
+                                'security_group_name': 'sg1',
+                                'addr': '10.3.2.1/24'}
+    test_search_attributes = {'display_name': 'sgcont-display'}
+    test_update_attributes = {'display_name': 'sgcont-display-2'}
+    test_dn = 'uni/tn-tenant1/pol-sg1/remoteipcont/ip-[10.3.2.1/24]'
+    res_command = 'security-group-remoteip'
+
+
 class TestConfigurationMixin(object):
     resource_class = resource.Configuration
     test_identity_attributes = {'key': 'apic_hosts',

@@ -242,6 +242,8 @@ class SqlAlchemyStore(AimStore):
                     api_infra.HostLinkNetworkLabel: (
                         infra_model.HostLinkNetworkLabel),
                     api_infra.ApicAssignment: infra_model.ApicAssignment,
+                    api_infra.ACISupportedMo: (
+                        infra_model.ACISupportedMo),
                     api_res.SecurityGroup: models.SecurityGroup,
                     api_res.SecurityGroupSubject: models.SecurityGroupSubject,
                     api_res.SecurityGroupRule: models.SecurityGroupRule,
@@ -308,7 +310,11 @@ class SqlAlchemyStore(AimStore):
                     api_res.SystemSecurityGroupSubject:
                         models.SystemSecurityGroupSubject,
                     api_res.SystemSecurityGroupRule:
-                        models.SystemSecurityGroupRule}
+                        models.SystemSecurityGroupRule,
+                    api_res.SecurityGroupRemoteIpContainer:
+                        models.SGRemoteIpContainer,
+                    api_res.SecurityGroupRemoteIp:
+                        models.SGContainerRemoteIPs}
 
     resource_map = {}
     for k, v in list(db_model_map.items()):

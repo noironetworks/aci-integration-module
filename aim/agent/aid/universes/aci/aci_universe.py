@@ -29,6 +29,7 @@ from aim.agent.aid.universes.aci import tenant as aci_tenant
 from aim.agent.aid.universes import base_universe as base
 from aim.agent.aid.universes import constants as lcon
 from aim.agent.aid.universes import errors
+from aim import aim_manager
 from aim.api import infra as api_infra
 from aim.api import resource
 from aim.api import status
@@ -36,6 +37,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim import context as aim_ctx
 from aim.db import api
+from aim.db import infra_model as aim_infra_model
 from aim import exceptions
 from aim import tree_manager
 
@@ -56,6 +58,26 @@ LOG = logging.getLogger(__name__)
 # instance of each per AID agent.
 serving_tenants = {}
 ac_context = None
+
+
+def supports_remoteIPContainer(apic_session):
+    # this method does a Rest Call to check if hostprotRemoteIpContainer mo is
+    # supported in the APIC. It updates the DB with the status
+    aim_context = aim_ctx.AimContext(store=api.get_store())
+    manager = aim_manager.AimManager()
+    try:
+        mo_name = 'hostprotRemoteIpContainer'
+        apic_session.GET('/mo/uni/tn-common.json?'
+                         'target-subtree-class=%s' % mo_name)
+    except cexc.ApicResponseNotOk as e:
+        if int(e.err_status) == 400 and int(e.err_code) == 12:
+            LOG.info("RemoteIpContainer mo not supported in this aci version")
+    else:
+        # Update table ver check var to True
+        support_mo_mgr = aim_infra_model.ACISupportedMoManager(aim_context,
+                                                               manager)
+        support_mo_mgr.set_support_status('remoteipcont',
+                                          True)
 
 
 class WebSocketSessionLoginFailed(exceptions.AimException):
@@ -94,6 +116,7 @@ class ApicClientsContext(object):
         self.recovery_max_backoff = 600
         self.manager = aim_manager
         self.establish_sessions()
+        supports_remoteIPContainer(self.aci_session)
 
     def _spawn_monitors(self):
         self.login_thread = None
@@ -459,6 +482,7 @@ class AciCRUDLoginManager(utils.AIMThread):
     do this ensures that we don't make duplicate requests in other
     objects, such as AciTenantManager objects.
     """
+
     def __init__(self, apic_client):
         super(AciCRUDLoginManager, self).__init__(self)
         self._apic_client = apic_client

@@ -350,7 +350,23 @@ class TestAciClientMixin(object):
                 "tnFvCtxName": "test"}}},
             {"fvRsCtx": {"attributes": {
                 "dn": "uni/tn-test-tenant/BD-test-2/rsctx",
-                "tnFvCtxName": "test"}}}]
+                "tnFvCtxName": "test"}}},
+            {"hostprotPol": {"attributes": {
+                "dn": "uni/tn-test-tenant/pol-foo",
+                "name": "foo"
+            }}},
+            {"hostprotRemoteIpContainer": {"attributes": {
+                "dn": "uni/tn-test-tenant/pol-foo/remoteipcont",
+            }}},
+            {"hostprotRemoteIp": {"attributes": {
+                'addr': '4.5.3.2/2',
+                'descr': '',
+                'dn': 'uni/tn-test-tenant/pol-foo/remoteipcont/ip-[4.5.3.2/2]',
+                'name': '',
+                'nameAlias': '',
+                'ownerKey': '',
+                'ownerTag': '',
+                'rn': ''}}}]
 
     def _set_events(self, event_list, manager=None, tag=True,
                     create_parents=False):
@@ -1010,6 +1026,9 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                           'hostprotRemoteIp': ['hostprotRule'],
                           'hostprotRule': ['hostprotRule'],
                           'hostprotSubj': ['hostprotSubj'],
+                          'hostprotRemoteIpContainer': (
+                              ['hostprotRemoteIpContainer']),
+                          'hostprotRsRemoteIpContainer': (['hostprotRule']),
                           'infraRsSpanVSrcGrp': ['infraAccBndlGrp'],
                           'infraRsSpanVDestGrp': ['infraAccBndlGrp']},
                          aci_tenant.ACI_TYPES_NOT_CONVERT_IF_MONITOR)

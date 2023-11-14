@@ -1013,6 +1013,15 @@ class SecurityGroupSubject(model_base.Base, model_base.HasAimId,
     security_group_name = model_base.name_column(nullable=False)
 
 
+class SGRsRemoteIpContainer(model_base.Base):
+    """DB model SecurityGroup Rule which Reference to remote group."""
+    __tablename__ = 'aim_sg_remoteipcont_references'
+    security_group_rule_aim_id = sa.Column(
+        sa.Integer, sa.ForeignKey('aim_security_group_rules.aim_id'),
+        primary_key=True)
+    tDn = sa.Column(sa.String(256), nullable=False, primary_key=True)
+
+
 class SecurityGroupRuleRemoteIp(model_base.Base):
     __tablename__ = 'aim_security_group_rule_remote_ips'
 
@@ -1040,6 +1049,11 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
                                   backref='security_group_rule',
                                   cascade='all, delete-orphan',
                                   lazy='joined')
+    tDn = orm.relationship(SGRsRemoteIpContainer,
+                           backref='security_group_rule',
+                           uselist=False,
+                           cascade='all, delete-orphan',
+                           lazy='joined')
     direction = sa.Column(sa.String(16))
     ethertype = sa.Column(sa.String(16))
     ip_protocol = sa.Column(sa.String(16))
@@ -1069,13 +1083,60 @@ class SecurityGroupRule(model_base.Base, model_base.HasAimId,
                     SecurityGroupRuleRemoteIp(cidr=ip))
             res_attr.pop('remote_ips')
 
+        if 'tDn' in res_attr:
+            tDn = res_attr.pop('tDn', None)
+            if tDn:
+                self.tDn = SGRsRemoteIpContainer(tDn=tDn)
+            else:
+                self.tDn = None
+
         # map remaining attributes to model
         super(SecurityGroupRule, self).from_attr(session, res_attr)
 
     def to_attr(self, session):
         res_attr = super(SecurityGroupRule, self).to_attr(session)
         res_attr['remote_ips'] = [x.cidr for x in res_attr['remote_ips']]
+        tdn = res_attr.pop('tDn', '')
+        if tdn:
+            res_attr['tDn'] = tdn.tDn
+        else:
+            res_attr['tDn'] = ''
         return res_attr
+
+
+class SGContainerRemoteIPs(model_base.Base, model_base.HasAimId,
+                           model_base.HasDisplayName,
+                           model_base.HasTenantName,
+                           model_base.AttributeMixin,
+                           model_base.IsMonitored):
+    """DB model for Remote IPs under remote container in Security Group"""
+    __tablename__ = 'aim_sg_container_remote_ips'
+
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'security_group_name',
+                               'addr') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+
+    security_group_name = model_base.name_column(
+        nullable=False, primary_key=True)
+    addr = sa.Column(sa.String(64), nullable=False, primary_key=True)
+
+
+class SGRemoteIpContainer(model_base.Base, model_base.HasAimId,
+                          model_base.HasDisplayName,
+                          model_base.HasTenantName,
+                          model_base.AttributeMixin,
+                          model_base.IsMonitored):
+    """DB model SecurityGroup Remote IP Container Rule."""
+    __tablename__ = 'aim_sg_remoteip_containers'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'security_group_name') +
+        model_base.to_tuple(model_base.Base.__table_args__))
+    security_group_name = model_base.name_column(
+        nullable=False, primary_key=True)
+    name = model_base.name_column()
 
 
 class Pod(model_base.Base, model_base.HasAimId, model_base.AttributeMixin,

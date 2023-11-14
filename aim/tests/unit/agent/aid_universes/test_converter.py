@@ -1329,14 +1329,19 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
                           'converter': converter.icmpv4_code},
             'ethertype': {'other': 'ethertype',
                           'converter': converter.ethertype}},
-         'skip': ['remoteIps', 'remoteGroupId'],
+         'skip': ['remoteIps', 'remoteGroupId', 'tDn'],
          'converter': converter.hostprot_rule_converter,
          'convert_monitored': False,
          'resource': 'hostprotRule'},
         {'exceptions': {},
          'converter': converter.hostprot_remoteIp_converter,
          'convert_monitored': False,
-         'resource': 'hostprotRemoteIp'}]
+         'resource': 'hostprotRemoteIp'},
+        {'exceptions': {},
+         'converter': converter.hostprot_rs_remoteipcont_converter,
+         'resource': 'hostprotRsRemoteIpContainer',
+         'convert_monitored': False, }
+        ]
     sample_input = [get_example_aci_security_group_rule(),
                     get_example_aci_security_group_rule(
                         dn='uni/tn-t1/pol-sg1/subj-sgs2/rule-rule1',
@@ -1365,6 +1370,56 @@ class TestAciToAimConverterSecurityGroupRule(TestAciToAimConverterBase,
             direction='egress', ethertype='ipv4', ip_protocol='tcp',
             from_port='22', to_port='22')
     ]
+
+
+def get_example_aci_sg_remoteipcont(**kwargs):
+    attr = {'dn': 'uni/tn-t1/pol-p1/remoteipcont'}
+    attr.update(**kwargs)
+    return _aci_obj('hostprotRemoteIpContainer', **attr)
+
+
+class TestAciToAimSecurityGroupRemoteIpContainer(TestAciToAimConverterBase,
+                                                 base.TestAimDBBase):
+    resource_type = resource.SecurityGroupRemoteIpContainer
+    reverse_map_output = [{'exceptions': {},
+                           'convert_monitored': False,
+                           'resource': 'hostprotRemoteIpContainer'}]
+    sample_input = [get_example_aci_sg_remoteipcont(),
+                    get_example_aci_sg_remoteipcont(
+                        dn=('uni/tn-t2/pol-p2/remoteipcont'),
+                        nameAlias='alias')]
+    sample_output = [
+        resource.SecurityGroupRemoteIpContainer(tenant_name='t1',
+                                                security_group_name='p1'),
+        resource.SecurityGroupRemoteIpContainer(tenant_name='t2',
+                                                security_group_name='p2',
+                                                display_name='alias')]
+
+
+def get_example_aci_sg_cont_remoteip(**kwargs):
+    attr = {'dn': 'uni/tn-t1/pol-p1/remoteipcont/ip-[10.0.1.3/24]'}
+    attr.update(**kwargs)
+    return _aci_obj('hostprotRemoteIp__cont', **attr)
+
+
+class TestAciToAimSGContainerRemoteIp(TestAciToAimConverterBase,
+                                      base.TestAimDBBase):
+    resource_type = resource.SecurityGroupRemoteIp
+    reverse_map_output = [{'exceptions': {},
+                           'convert_monitored': False,
+                           'resource': 'hostprotRemoteIp__cont'}]
+    sample_input = [get_example_aci_sg_cont_remoteip(),
+                    get_example_aci_sg_cont_remoteip(
+                        dn=('uni/tn-t2/pol-p2/remoteipcont/ip-[20.1.10.1/32]'),
+                        nameAlias='alias')]
+    sample_output = [
+        resource.SecurityGroupRemoteIp(tenant_name='t1',
+                                       security_group_name='p1',
+                                       addr='10.0.1.3/24'),
+        resource.SecurityGroupRemoteIp(tenant_name='t2',
+                                       security_group_name='p2',
+                                       addr='20.1.10.1/32',
+                                       display_name='alias')]
 
 
 class TestAciToAimConverterDeviceCluster(TestAciToAimConverterBase,
@@ -2432,7 +2487,6 @@ class TestAimToAciConverterBase(object):
                 else res.__dict__)
 
     def _test_convert(self, example, expected):
-
         to_convert = []
         self.assertEqual(len(example), len(expected))
 
@@ -3451,7 +3505,7 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                         from_port='80', to_port='443',
                         direction='egress', ethertype='1',
                         conn_track='normal', icmp_type='3',
-                        icmp_code='0'),
+                        icmp_code='0', tDn='uni/test'),
                     base.TestAimDBBase._get_example_aim_security_group_rule(
                         security_group_name='sg3', ip_protocol=1,
                         from_port='80', to_port='443',
@@ -3464,7 +3518,7 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                         from_port='80', to_port='443',
                         direction='egress', ethertype='2',
                         conn_track='normal', icmp_type='unspecified',
-                        icmp_code='unspecified')]
+                        icmp_code='unspecified', tDn='uni/test')]
 
     sample_output = [
         [_aci_obj('hostprotRule',
@@ -3478,7 +3532,11 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                   protocol='l2tp', direction='egress',
                   fromPort='http', toPort='https',
                   ethertype='ipv4', nameAlias='', connTrack='normal',
-                  icmpCode='no-code', icmpType='3')],
+                  icmpCode='no-code', icmpType='3'),
+         _aci_obj('hostprotRsRemoteIpContainer',
+                  dn='uni/tn-t1/pol-sg2/subj-sgs1/rule-rule1/'
+                     'rsremoteIpContainer-[uni/test]',
+                  tDn='uni/test')],
         [_aci_obj('hostprotRule',
                   dn='uni/tn-t1/pol-sg3/subj-sgs1/rule-rule1',
                   protocol='icmp', direction='egress',
@@ -3498,7 +3556,55 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                   protocol='tcp', direction='egress',
                   fromPort='http', toPort='https',
                   ethertype='ipv6', nameAlias='', connTrack='normal',
-                  icmpCode='unspecified', icmpType='unspecified')]]
+                  icmpCode='unspecified', icmpType='unspecified'),
+         _aci_obj('hostprotRsRemoteIpContainer',
+                  dn='uni/tn-t1/pol-sg4/subj-sgs1/rule-rule1/'
+                  'rsremoteIpContainer-[uni/test]',
+                  tDn='uni/test')]]
+
+
+def get_example_aim_sg_remoteip_container(**kwargs):
+    example = resource.SecurityGroupRemoteIpContainer(
+        tenant_name='t1', security_group_name='sg1')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterSGRemoteIpContainer(TestAimToAciConverterBase,
+                                               base.TestAimDBBase):
+    sample_input = [get_example_aim_sg_remoteip_container(),
+                    get_example_aim_sg_remoteip_container(
+                        security_group_name='sg2')]
+
+    sample_output = [
+        [_aci_obj('hostprotRemoteIpContainer',
+                  dn='uni/tn-t1/pol-sg1/remoteipcont',
+                  nameAlias='')],
+        [_aci_obj('hostprotRemoteIpContainer',
+                  dn='uni/tn-t1/pol-sg2/remoteipcont',
+                  nameAlias='')]]
+
+
+def get_example_aim_sg_cont_remoteip(**kwargs):
+    example = resource.SecurityGroupRemoteIp(
+        tenant_name='t1', security_group_name='sg1', addr='10.0.1.109')
+    example.__dict__.update(kwargs)
+    return example
+
+
+class TestAimToAciConverterSGContRemoteIp(TestAimToAciConverterBase,
+                                          base.TestAimDBBase):
+    sample_input = [get_example_aim_sg_cont_remoteip(),
+                    get_example_aim_sg_cont_remoteip(
+                        security_group_name='sg2', addr='20.0.1.90')]
+
+    sample_output = [
+        [_aci_obj('hostprotRemoteIp__cont',
+                  dn='uni/tn-t1/pol-sg1/remoteipcont/ip-[10.0.1.109]',
+                  nameAlias='')],
+        [_aci_obj('hostprotRemoteIp__cont',
+                  dn='uni/tn-t1/pol-sg2/remoteipcont/ip-[20.0.1.90]',
+                  nameAlias='')]]
 
 
 def get_example_aim_device_cluster(**kwargs):

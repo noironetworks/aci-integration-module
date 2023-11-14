@@ -164,3 +164,34 @@ class ApicAssignment(model_base.Base, model_base.AttributeMixin):
     aim_aid_id = sa.Column(sa.String(64))
     last_update_timestamp = sa.Column(sa.TIMESTAMP, server_default=func.now(),
                                       onupdate=func.now())
+
+
+class ACISupportedMo(model_base.Base, model_base.AttributeMixin):
+    """DB model for ACI version supports Remote IP Container"""
+
+    __tablename__ = 'aim_aci_supported_mos'
+
+    name = sa.Column(sa.String(64), nullable=False,
+                     primary_key=True)
+    supports = sa.Column(sa.Boolean, nullable=False)
+
+
+class ACISupportedMoManager(object):
+    """DB model for managing all getting/setting aci mo support"""
+
+    def __init__(self, aim_context, aim_manager):
+        self.aim_context = aim_context
+        self.aim_manager = aim_manager
+
+    def get_current_support_status(self, name):
+        db_type = self.aim_context.store.resource_to_db_type(
+            infra.ACISupportedMo)
+        return self.aim_context.store.query(db_type, infra.ACISupportedMo,
+                                            name=name)
+
+    def set_support_status(self, name, status):
+        with self.aim_context.store.begin(subtransactions=True):
+            db_objs = self.get_current_support_status(name)
+            for obj in db_objs:
+                setattr(obj, "supports", status)
+                self.aim_context.store.add(obj)
