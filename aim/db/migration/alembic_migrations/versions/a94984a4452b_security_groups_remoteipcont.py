@@ -58,8 +58,8 @@ def upgrade():
 
     op.create_table(
         'aim_sg_remoteipcont_references',
-        sa.Column('security_group_rule_aim_id', sa.Integer, nullable=False),
-        sa.Column('monitored', sa.Boolean, nullable=False, default=False),
+        sa.Column('security_group_rule_aim_id',
+                  sa.String(255), nullable=False),
         sa.Column('epoch', sa.BigInteger(), nullable=False,
                   server_default='0'),
         sa.Column('tDn', sa.String(256), nullable=False),
