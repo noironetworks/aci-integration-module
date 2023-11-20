@@ -34,6 +34,7 @@ class HostLink(model_base.Base, model_base.AttributeMixin):
     path = sa.Column(VARCHAR(512, charset='latin1'))
     pod_id = sa.Column(sa.String(128))
     from_config = sa.Column(sa.Boolean, default=False)
+    timestamp = sa.Column(sa.TIMESTAMP, onupdate=func.now())
 
 
 class HostLinkManager(object):
@@ -45,11 +46,13 @@ class HostLinkManager(object):
         self.aim_manager = aim_manager
 
     def add_hostlink(self, host, ifname, ifmac, swid, module,
-                     port, path, pod_id='1', from_config=False):
+                     port, path, pod_id='1', from_config=False,
+                     timestamp=func.now()):
         link = infra.HostLink(
             host_name=host, interface_name=ifname,
             interface_mac=ifmac, switch_id=swid, module=module,
-            port=port, path=path, pod_id=pod_id, from_config=from_config)
+            port=port, path=path, pod_id=pod_id, from_config=from_config,
+            timestamp=timestamp)
         self.aim_manager.create(self.aim_context, link, overwrite=True)
 
     def delete_hostlink(self, host, ifname):
