@@ -913,6 +913,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
         tn = resource.Tenant(name=tenant_name, monitored=True)
         # Create tenant in AIM to start serving it
+        # with self.store.db_session.begin():
         self.aim_manager.create(self.ctx, tn)
         # Run loop for serving tenant
         self._first_serve(agent)
@@ -938,6 +939,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                (current_monitor, desired_monitor)],
                               tenants=[tn.root])
         # retrieve the corresponding AIM objects
+        # with self.store.db_session.begin():
         ap = self.aim_manager.get(self.ctx, resource.ApplicationProfile(
             tenant_name=tenant_name, name='ap1'))
         epg = self.aim_manager.get(self.ctx, resource.EndpointGroup(
@@ -964,12 +966,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertTrue(self._is_object_owned(desired_monitor,
                                               epg.dn + '/rsprov-c', tn.rn))
         # Run an empty change on the EPG, bringing it to sync pending
+        # with self.store.db_session.begin():
         self.aim_manager.update(self.ctx, epg)
         self._sync_and_verify(agent, current_config,
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)],
                               tenants=[tn.root])
         # Put back EPG into monitored state
+        # with self.store.db_session.begin():
         epg = self.aim_manager.update(self.ctx, epg, monitored=True)
         self.assertTrue(epg.monitored)
         self._sync_and_verify(agent, current_config,
@@ -981,6 +985,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                                                epg.dn + '/rsprov-c', tn.rn))
         self.assertFalse(self._is_object_owned(desired_monitor, epg.dn, tn.rn))
         # Object is in monitored universe and in good shape
+        # with self.store.db_session.begin():
         epg = self.aim_manager.get(self.ctx, epg)
         self.assertTrue(epg.monitored)
         # Still keeping whatever contract we had, but monitored this time
@@ -989,6 +994,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
                               [(desired_config, current_config),
                                (desired_monitor, current_monitor)],
                               tenants=[tn.root])
+        # with self.store.db_session.begin():
         status = self.aim_manager.get_status(self.ctx, epg)
         self.assertEqual(status.SYNCED, status.sync_status)
 
@@ -1399,12 +1405,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         sub = resource.ContractSubject(
             tenant_name=tenant_name, contract_name=ctr.name,
             name='route', bi_filters=['noirolab_AnyFilter'])
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.create(self.ctx, ctr)
-            self.aim_manager.create(self.ctx, sub)
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.delete(self.ctx, sub)
-            self.aim_manager.delete(self.ctx, ctr)
+        self.aim_manager.create(self.ctx, ctr)
+        self.aim_manager.create(self.ctx, sub)
+        self.aim_manager.delete(self.ctx, sub)
+        self.aim_manager.delete(self.ctx, ctr)
         desired_config.observe(self.ctx)
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
@@ -1423,6 +1427,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         apic_client.ApicSession.post_body_dict = (
             self._mock_current_manager_post)
         apic_client.ApicSession.DELETE = self._mock_current_manager_delete
+        # with self.store.db_session.begin():
         tn = resource.Tenant(name=tenant_name)
         tn2 = resource.Tenant(name=tenant_name2)
         self.aim_manager.create(self.ctx, tn)
@@ -1455,7 +1460,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             # The tree needs_reset attribute should be set to False
             for tenant in [tenant_name, tenant_name2]:
                 base_tree = self.tt_mgr.get_base_tree(self.ctx, 'tn-' + tenant)
-                self.assertFalse(base_tree.needs_reset)
+                with self.ctx.store.db_session.begin():
+                    self.assertFalse(base_tree.needs_reset)
         finally:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
 
@@ -1707,6 +1713,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         epg = resource.EndpointGroup(tenant_name=tenant_name,
                                      app_profile_name='test', name='test')
         # Create tenant in AIM to start serving it
+        # with self.store.db_session.begin():
         self.aim_manager.create(self.ctx, tn1)
         self.aim_manager.create(self.ctx, ap)
         self.aim_manager.create(self.ctx, epg)
@@ -2240,12 +2247,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertNotEqual({}, old)
         # Now reset trees
         listener = hashtree_db_listener.HashTreeDbListener(self.aim_manager)
-        listener._delete_trees(self.ctx, root=tenant)
+        with self.ctx.store.db_session.begin():
+            listener._delete_trees(self.ctx, root=tenant)
         current = self._get_aim_trees_by_tenant(filters)
         for trees in list(current.values()):
             for t in list(trees.values()):
                 self.assertEqual('{}', str(t))
-        listener._recreate_trees(self.ctx, root=tenant)
+        with self.ctx.store.db_session.begin():
+            listener._recreate_trees(self.ctx, root=tenant)
         # Check if they are still the same
         new = self._get_aim_trees_by_tenant(filters)
         new.pop('comp', None)
@@ -2260,6 +2269,7 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         return result
 
     def _sync_and_verify(self, agent, to_observe, couples, tenants=None):
+        # with self.store.db_session.begin():
         agent._reconciliation_cycle()
         self._observe_aci_events(to_observe)
         agent._reconciliation_cycle()

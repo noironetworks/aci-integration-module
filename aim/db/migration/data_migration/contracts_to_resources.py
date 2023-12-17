@@ -54,35 +54,34 @@ ExternalNetwork = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
-        provides = []
-        consumes = []
-        ext_net_dict = {}
-        for enc in session.query(ExternalNetworkContracts).all():
-            if not ext_net_dict.get(enc.ext_net_aim_id):
-                en = session.query(ExternalNetwork).filter(
-                    ExternalNetwork.c.aim_id == enc.ext_net_aim_id).one()
-                ext_net_dict[enc.ext_net_aim_id] = en
-            else:
-                en = ext_net_dict[enc.ext_net_aim_id]
-            if enc.provides:
-                provides.append({'aim_id': utils.generate_uuid(),
-                                 'tenant_name': en.tenant_name,
-                                 'l3out_name': en.l3out_name,
-                                 'ext_net_name': en.name,
-                                 'name': enc.name})
-            else:
-                consumes.append({'aim_id': utils.generate_uuid(),
-                                 'tenant_name': en.tenant_name,
-                                 'l3out_name': en.l3out_name,
-                                 'ext_net_name': en.name,
-                                 'name': enc.name})
-        session.execute(ExternalNetworkContracts.delete())
-        if provides:
-            for provided in provides:
-                session.execute(
-                    ExternalNetworkProvidedContracts.insert().values(provided))
-        if consumes:
-            for consumed in consumes:
-                session.execute(
-                    ExternalNetworkConsumedContracts.insert().values(consumed))
+    provides = []
+    consumes = []
+    ext_net_dict = {}
+    for enc in session.query(ExternalNetworkContracts).all():
+        if not ext_net_dict.get(enc.ext_net_aim_id):
+            en = session.query(ExternalNetwork).filter(
+                ExternalNetwork.c.aim_id == enc.ext_net_aim_id).one()
+            ext_net_dict[enc.ext_net_aim_id] = en
+        else:
+            en = ext_net_dict[enc.ext_net_aim_id]
+        if enc.provides:
+            provides.append({'aim_id': utils.generate_uuid(),
+                                'tenant_name': en.tenant_name,
+                                'l3out_name': en.l3out_name,
+                                'ext_net_name': en.name,
+                                'name': enc.name})
+        else:
+            consumes.append({'aim_id': utils.generate_uuid(),
+                                'tenant_name': en.tenant_name,
+                                'l3out_name': en.l3out_name,
+                                'ext_net_name': en.name,
+                                'name': enc.name})
+    session.execute(ExternalNetworkContracts.delete())
+    if provides:
+        for provided in provides:
+            session.execute(
+                ExternalNetworkProvidedContracts.insert().values(provided))
+    if consumes:
+        for consumed in consumes:
+            session.execute(
+                ExternalNetworkConsumedContracts.insert().values(consumed))

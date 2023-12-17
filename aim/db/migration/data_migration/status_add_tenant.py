@@ -53,7 +53,7 @@ def get_root_klass(resource):
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with session.begin():
         for st in session.query(Status).all():
             parent_table, parent_class = get_parent_class(st.resource_type)
             root_klass = get_root_klass(parent_class)

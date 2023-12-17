@@ -149,7 +149,7 @@ def _initialize_hooks(self):
 
 def _catch_up_logs(self, added, updated, removed):
     # Create new session and populate the hashtrees
-    session = api.get_session(autocommit=True, expire_on_commit=True,
+    session = api.get_session(expire_on_commit=True,
                               use_slave=False)
     store = aim_store.SqlAlchemyStore(session)
     ht_db_l.HashTreeDbListener(
@@ -221,6 +221,7 @@ class TestAimDBBase(BaseTestCase):
         self.cfg_manager = aim_cfg.ConfigManager(self.ctx, '')
         self.tt_mgr = tree_manager.HashTreeManager()
         resource.ResourceBase.__eq__ = resource_equal
+        # with self.store.db_session.begin():
         self.cfg_manager.replace_all(CONF)
         self.sys_id = self.cfg_manager.get_option('aim_system_id', 'aim')
 

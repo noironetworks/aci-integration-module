@@ -229,7 +229,7 @@ class AciRoot(AciResourceBase):
         return self.rn
 
 
-class Tenant(AciRoot):
+class  Tenant(AciRoot):
     """Resource representing a Tenant in ACI.
 
     Identity attribute is RN for ACI tenant.
@@ -364,6 +364,7 @@ class Agent(ResourceBase):
         return super(Agent, self).__hash__()
 
     def is_down(self, context):
+        # with context.store.db_session.begin():
         current = context.store.current_timestamp
         # When the store doesn't support timestamps the agent can never
         # be considered down.
@@ -376,7 +377,7 @@ class Agent(ResourceBase):
                         (self.id, self.heartbeat_timestamp))
         else:
             LOG.debug("Agent %s is alive, its last heartbeat was %s" %
-                      (self.id, self.heartbeat_timestamp))
+                    (self.id, self.heartbeat_timestamp))
         return result
 
     def down_time(self, context):

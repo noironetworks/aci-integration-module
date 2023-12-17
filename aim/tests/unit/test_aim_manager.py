@@ -517,7 +517,7 @@ class TestResourceOpsBase(object):
             self.test_default_values,
             self.test_dn)
         if prereq:
-            if len(prereq) > 2:
+            if len(prereq) >= 2:
                 self.mgr.delete(self.ctx, prereq[1])
             self.mgr.delete(self.ctx, prereq[0], cascade=True)
             for res in prereq:
@@ -584,12 +584,12 @@ class TestResourceOpsBase(object):
         res = self.resource_class(**creation_attributes)
         self.mgr.create(self.ctx, res)
         store2 = api.get_store()
-        store2.db_session.begin()
+        # store2.db_session.begin()
         db_type = store2.resource_to_db_type(res.__class__)
         db_obj = store2.query(db_type, res.__class__)[0]
         self.mgr.delete(self.ctx, res)
         store2.delete(db_obj)
-        store2.db_session.commit()
+        # store2.db_session.commit()
 
     @base.requires(['sql'])
     def test_race(self):

@@ -52,7 +52,7 @@ class CloneL3Out(model_base.Base):
 
 class CloneL3OutManager(object):
 
-    def set(self, context, source, clone):
+    def _set(self, context, source, clone):
         """Store L3outside clone key and the relationship to its source
 
         :param context: AIM context
@@ -60,19 +60,26 @@ class CloneL3OutManager(object):
         :param clone: L3Outside AIM resource
         :return:
         """
-        with context.db_session.begin(subtransactions=True):
-            obj = CloneL3Out(source_tenant_name=source.tenant_name,
-                             source_name=source.name,
-                             tenant_name=clone.tenant_name,
-                             name=clone.name)
-            context.db_session.add(obj)
+        obj = CloneL3Out(source_tenant_name=source.tenant_name,
+                            source_name=source.name,
+                            tenant_name=clone.tenant_name,
+                            name=clone.name)
+        context.db_session.add(obj)
 
-    def get(self, context, clone):
+    def set(self, context, source, clone):
+        with context.store.db_session.begin():
+            self._set(context, source, clone)
+
+    def _get(self, context, clone):
         rows = self._find_query(context, tenant_name=clone.tenant_name,
                                 name=clone.name).all()
         return rows
 
-    def get_clones(self, context, source):
+    def get(self, context, clone):
+        with context.store.db_session.begin():
+            return self._get(context, clone)
+
+    def _get_clones(self, context, source):
         """Given a source, find its clones' identity attributes
 
         :param context: AIM context
@@ -80,14 +87,17 @@ class CloneL3OutManager(object):
         :return: list of tuples where the first position is the clone L3Out
                  tenant_name and the second is its name.
         """
-        with context.db_session.begin(subtransactions=True):
-            result = []
-            db_objs = self._find_query(
-                context, source_tenant_name=source.tenant_name,
-                source_name=source.name).all()
-            for db_obj in db_objs:
-                result.append((db_obj.tenant_name, db_obj.name))
-            return result
+        result = []
+        db_objs = self._find_query(
+            context, source_tenant_name=source.tenant_name,
+            source_name=source.name).all()
+        for db_obj in db_objs:
+            result.append((db_obj.tenant_name, db_obj.name))
+        return result
+
+    def get_clones(self, context, source):
+        with context.store.db_session.begin():
+            return self._get_clones(context, source)
 
     def _find_query(self, context, **kwargs):
         query = context.db_session.query(CloneL3Out)

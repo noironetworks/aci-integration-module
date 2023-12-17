@@ -112,25 +112,24 @@ def fix_no_nat_l3out_ownership(aim_ctx):
         sa.Column('vrf_name', nullable=True))
     session = aim_ctx.store.db_session
     bind = session.get_bind()
-    with session.begin(subtransactions=True):
-        if not saved_l3out_table.exists(bind=bind):
-            return
-        results = session.execute(
-            saved_l3out_table.select(saved_l3out_table.c.monitored.is_(True)))
-        click.echo("Fixing ownership of no-NAT L3Outs")
-        rows = results.fetchall()
-        if rows:
-            cfg_mgr = config.ConfigManager(aim_ctx)
-            system_id = cfg_mgr.get_option('aim_system_id', 'aim')
-            aim_mgr = aim_manager.AimManager()
-            apic = aci_universe.AciUniverse.establish_aci_session(cfg_mgr)
-            for row in rows:
-                l3out = resource.L3Outside(tenant_name=row['tenant_name'],
-                                           name=row['name'])
-                aim_mgr.update(aim_ctx, l3out, monitored=True)
-                tag_dn = "/mo/" + l3out.dn + "/tag-" + system_id
-                click.echo('Deleting AIM tag %s' % tag_dn)
-                apic.DELETE(tag_dn + ".json")
+    if not saved_l3out_table.exists(bind=bind):
+        return
+    results = session.execute(
+        saved_l3out_table.select(saved_l3out_table.c.monitored.is_(True)))
+    click.echo("Fixing ownership of no-NAT L3Outs")
+    rows = results.fetchall()
+    if rows:
+        cfg_mgr = config.ConfigManager(aim_ctx)
+        system_id = cfg_mgr.get_option('aim_system_id', 'aim')
+        aim_mgr = aim_manager.AimManager()
+        apic = aci_universe.AciUniverse.establish_aci_session(cfg_mgr)
+        for row in rows:
+            l3out = resource.L3Outside(tenant_name=row['tenant_name'],
+                                        name=row['name'])
+            aim_mgr.update(aim_ctx, l3out, monitored=True)
+            tag_dn = "/mo/" + l3out.dn + "/tag-" + system_id
+            click.echo('Deleting AIM tag %s' % tag_dn)
+            apic.DELETE(tag_dn + ".json")
     # drop the table after the transaction completes because databases
     # like MySQL hold locks on the table
     saved_l3out_table.drop(bind=bind)

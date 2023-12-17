@@ -50,10 +50,10 @@ class HostLinkManager(object):
             host_name=host, interface_name=ifname,
             interface_mac=ifmac, switch_id=swid, module=module,
             port=port, path=path, pod_id=pod_id, from_config=from_config)
-        self.aim_manager.create(self.aim_context, link, overwrite=True)
+        self.aim_manager._create(self.aim_context, link, overwrite=True)
 
     def delete_hostlink(self, host, ifname):
-        self.aim_manager.delete(
+        self.aim_manager._delete(
             self.aim_context, infra.HostLink(host_name=host,
                                              interface_name=ifname))
 

@@ -42,7 +42,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # add
         tenant = 'tn-' + tenant
         self.db_l.on_commit(self.ctx.store, [resource], [], [])
-        self.db_l.catch_up_with_action_log(self.ctx.store)
+        with self.ctx.store.db_session.begin():
+            self.db_l.catch_up_with_action_log(self.ctx.store)
 
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects)
@@ -51,7 +52,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # update
         resource.__dict__.update(**updates)
         self.db_l.on_commit(self.ctx.store, [], [resource], [])
-        self.db_l.catch_up_with_action_log(self.ctx.store)
+        with self.ctx.store.db_session.begin():
+            self.db_l.catch_up_with_action_log(self.ctx.store)
 
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects_update)
@@ -59,7 +61,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
         # delete
         self.db_l.on_commit(self.ctx.store, [], [], [resource])
-        self.db_l.catch_up_with_action_log(self.ctx.store)
+        with self.ctx.store.db_session.begin():
+            self.db_l.catch_up_with_action_log(self.ctx.store)
         db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree()
         self.assertEqual(exp_tree, db_tree)
@@ -396,7 +399,8 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # to be created parentless in a first place.
         self.mgr.create(self.ctx, status)
         self.db_l.on_commit(self.ctx.store, [status], [], [])
-        self.db_l.catch_up_with_action_log(self.ctx.store)
+        with self.ctx.store.db_session.begin():
+            self.db_l.catch_up_with_action_log(self.ctx.store)
         # status doesn't exist anymore
         self.assertIsNone(self.mgr.get(self.ctx, status))
 
@@ -419,7 +423,8 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
                 conn_track='normal', icmp_type='255')
             rule = self.mgr.create(self.ctx, rule)
             rule = self.mgr.get(self.ctx, rule)
-            self.db_l.catch_up_with_action_log(self.ctx.store)
+            with self.ctx.store.db_session.begin():
+                self.db_l.catch_up_with_action_log(self.ctx.store)
             # One action log, one build() call for sure.
             tt_build.assert_called_once_with(
                 [rule], [], [], mock.ANY, aim_ctx=mock.ANY)
@@ -431,7 +436,8 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
                 self.ctx, rule, direction='ingress')
             # We've created 2 new action logs however build() will
             # only get called once with the latest AIM SG rule.
-            self.db_l.catch_up_with_action_log(self.ctx.store)
+            with self.ctx.store.db_session.begin():
+                self.db_l.catch_up_with_action_log(self.ctx.store)
             tt_build.assert_called_once_with(
                 [rule], [], [], mock.ANY, aim_ctx=mock.ANY)
 
@@ -442,7 +448,8 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
             # We've created 2 new action logs including a delete
             # operation however build() will only get called once
             # with the last delete rule.
-            self.db_l.catch_up_with_action_log(self.ctx.store)
+            with self.ctx.store.db_session.begin():
+                self.db_l.catch_up_with_action_log(self.ctx.store)
             tt_build.assert_called_once_with(
                 [], [], [rule], mock.ANY, aim_ctx=mock.ANY)
 
@@ -470,17 +477,14 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
 
             # This transaction will generate some action logs, which
             # will trigger a 'reconcile' event.
-            with self.ctx.store.begin(subtransactions=True):
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn)
-                    self.mgr.create(self.ctx, ap)
-                    self.mgr.create(self.ctx, epg)
-                self.assertEqual(0, cast.call_count)
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn1)
-                    self.mgr.create(self.ctx, ap1)
-                    self.mgr.create(self.ctx, epg1)
-                self.assertEqual(0, cast.call_count)
+            self.mgr.create(self.ctx, tn)
+            self.mgr.create(self.ctx, ap)
+            self.mgr.create(self.ctx, epg)
+            self.assertEqual(0, cast.call_count)
+            self.mgr.create(self.ctx, tn1)
+            self.mgr.create(self.ctx, ap1)
+            self.mgr.create(self.ctx, epg1)
+            self.assertEqual(0, cast.call_count)
             exp_calls = [mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             cast.reset_mock()
@@ -488,7 +492,8 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
             # There are 2 tenants so 2 transactions will be involved here,
             # each transaction will update the trees so 2 'serve' events
             # will be generated.
-            self.db_l.catch_up_with_action_log(self.ctx.store)
+            with self.ctx.store.db_session.begin():
+                self.db_l.catch_up_with_action_log(self.ctx.store)
             exp_calls = [
                 mock.call(mock.ANY, 'serve', None),
                 mock.call(mock.ANY, 'serve', None)]

@@ -335,14 +335,15 @@ class SqlAlchemyStore(AimStore):
 
     @property
     def current_timestamp(self):
-        return self.db_session.query(func.now()).scalar()
+        with self.db_session.begin():
+            return self.db_session.query(func.now()).scalar()
 
     @property
     def supports_foreign_keys(self):
         return True
 
     def begin(self, **kwargs):
-        return self.db_session.begin(subtransactions=True)
+        return self.db_session.begin()
 
     def resource_to_db_type(self, resource_klass):
         return self.db_model_map.get(resource_klass)
