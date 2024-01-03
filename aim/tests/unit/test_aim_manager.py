@@ -584,12 +584,10 @@ class TestResourceOpsBase(object):
         res = self.resource_class(**creation_attributes)
         self.mgr.create(self.ctx, res)
         store2 = api.get_store()
-        store2.db_session.begin()
         db_type = store2.resource_to_db_type(res.__class__)
         db_obj = store2.query(db_type, res.__class__)[0]
         self.mgr.delete(self.ctx, res)
         store2.delete(db_obj)
-        store2.db_session.commit()
 
     @base.requires(['sql'])
     def test_race(self):
@@ -2458,7 +2456,7 @@ class TestActionLog(TestActionLogMixin, TestResourceOpsBase,
         super(TestActionLog, self).setUp()
         self.catchup_logs = mock.patch(
             'aim.db.hashtree_db_listener.HashTreeDbListener.'
-            'catch_up_with_action_log')
+            '_catch_up_with_action_log')
         self.catchup_logs.start()
         self.addCleanup(self.catchup_logs.stop)
 
