@@ -43,7 +43,7 @@ def upgrade():
                                          'VMware')),
         sa.PrimaryKeyConstraint('host_name', 'domain_name', 'domain_type')
     )
-    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
+    session = sa.orm.Session(bind=op.get_bind())
     host_domain_mapping_v2.migrate(session)
 
 
