@@ -86,8 +86,10 @@ def is_equal(obj1, obj2):
 
 # In Py3, keyword 'cmp' is undefined
 def cmp(obj1, obj2):
-    _cmp = lambda x, y: (x > y) - (x < y)
-    return _cmp(obj1, obj2)
+
+    def compare(x, y):
+        return (x > y) - (x < y)
+    return compare(obj1, obj2)
 
 
 def generate_uuid():
