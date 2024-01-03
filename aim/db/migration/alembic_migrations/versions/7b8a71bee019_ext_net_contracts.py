@@ -66,7 +66,7 @@ def upgrade():
         sa.PrimaryKeyConstraint('aim_id'))
 
     # Migrate the data to the new tables
-    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
+    session = sa.orm.Session(bind=op.get_bind())
 
     contracts_to_resources.migrate(session)
 

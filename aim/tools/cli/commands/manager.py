@@ -285,7 +285,7 @@ def load_domains(ctx, replace, enforce, mappings):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
 
-    with aim_ctx.store.begin(subtransactions=True):
+    with aim_ctx.store.begin():
         if replace:
             curr_vmms = manager.find(aim_ctx, resource.VMMDomain)
             curr_physds = manager.find(aim_ctx, resource.PhysicalDomain)
@@ -308,7 +308,7 @@ def load_domains(ctx, replace, enforce, mappings):
             # have host-to-domain association information, so we
             # can't handle a host-specific and wildcard host combiniation.
             all_mappings = sorted(manager.find(aim_ctx,
-                                               infra.HostDomainMappingV2),
+                                  infra.HostDomainMappingV2),
                                   key=lambda x: x.domain_name)
             wild_mappings = sorted(manager.find(aim_ctx,
                                                 infra.HostDomainMappingV2,
@@ -328,7 +328,7 @@ def load_domains(ctx, replace, enforce, mappings):
             all_epgs = manager.find(aim_ctx, resource.EndpointGroup)
             # split into VMM and PhysDom
             vmm_mappings = [{'type': mapping.domain_type,
-                             'name': mapping.domain_name}
+                            'name': mapping.domain_name}
                             for mapping in wild_mappings
                             if mapping.domain_type != 'PhysDom']
             phys_mappings = [{'name': mapping.domain_name}
@@ -355,7 +355,7 @@ def load_mappings(ctx, replace):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
 
-    with aim_ctx.store.begin(subtransactions=True):
+    with aim_ctx.store.begin():
         vmm_doms, phys_doms = get_domains(aim_ctx, manager, create_doms=False)
         do_mappings(aim_ctx, manager, replace, vmm_doms=vmm_doms,
                     phys_doms=phys_doms)
@@ -377,7 +377,7 @@ def sync_state_find(ctx, state, plain):
             state = states[0]
             break
 
-    with aim_ctx.store.begin(subtransactions=True):
+    with aim_ctx.store.begin():
         statuses = manager.find(aim_ctx, status_res.AciStatus,
                                 sync_status=state)
     # Could aggregate the queries to make it more efficient in future

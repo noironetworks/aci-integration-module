@@ -41,7 +41,7 @@ def rebalance_tenants_across_nodes(ctx, vnodes):
     aim_ctx = ctx.obj['aim_ctx']
     dbsession = aim_ctx.store.db_session
     dbsession.get_bind()
-    with dbsession.begin(subtransactions=True):
+    with dbsession.begin():
         aim_consistent_hashring_params_table = sa.Table(
             'aim_consistent_hashring_params', sa.MetaData(),
             sa.Column('value', sa.Integer, nullable=False),

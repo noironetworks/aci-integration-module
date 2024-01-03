@@ -94,8 +94,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         if utils.get_time() > self._scheduled_recovery:
             for root in served_tenants:
                 self.manager.recover_root_errors(context, root)
-            htdbl.cleanup_zombie_status_objects(context, served_tenants)
-            self.schedule_next_recovery()
+            with context.store.db_session.begin():
+                htdbl.cleanup_zombie_status_objects(context, served_tenants)
+                self.schedule_next_recovery()
         htdbl.catch_up_with_action_log(context.store, served_tenants)
         # REVISIT(ivar): what if a root is marked as needs_reset? we could
         # avoid syncing it altogether
@@ -115,10 +116,9 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
     def cleanup_state(self, context, key):
         # Only delete if state is still empty. Never remove a tenant if there
         # are leftovers.
-        with context.store.begin(subtransactions=True):
-            # There could still be logs, but they will re-create the
-            # tenants in the next iteration.
-            self.tree_manager.delete_by_root_rn(context, key, if_empty=True)
+        # There could still be logs, but they will re-create the
+        # tenants in the next iteration.
+        self.tree_manager.delete_by_root_rn(context, key, if_empty=True)
         super(AimDbUniverse, self).cleanup_state(context, key)
 
     def _get_state(self, context, tree=tree_manager.CONFIG_TREE):
@@ -228,7 +228,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                         [resource])
                     resource = self._converter.convert(resource)[0]
                     resource.monitored = monitored
-                with context.store.begin(subtransactions=True):
+                with context.store.begin():
                     if isinstance(resource, aim_resource.AciRoot):
                         # Roots should not be created by the
                         # AIM monitored universe.
@@ -263,8 +263,8 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
                              (self.name, resource))
                     return
                 if monitored:
-                    # Only delete a resource if monitored
-                    with context.store.begin(subtransactions=True):
+                    with context.store.begin():
+                        # Only delete a resource if monitored
                         existing = self.manager.get(context, resource)
                         if existing and existing.monitored:
                             self.manager.delete(context, resource)

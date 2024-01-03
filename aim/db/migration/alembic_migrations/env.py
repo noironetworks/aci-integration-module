@@ -18,6 +18,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import Connection
 
 from aim.db import model_base
 
@@ -80,7 +81,11 @@ def run_migrations_online():
             prefix='sqlalchemy.',
             poolclass=pool.NullPool)
 
-    with connectable.connect() as connection:
+    if isinstance(connectable, Connection):
+        connection = connectable
+    else:
+        connection = connectable.connect()
+    with connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

@@ -39,7 +39,7 @@ def upgrade():
         'aim_statuses',
         sa.Column('resource_root', sa.String(64), nullable=False,
                   server_default='|unknown|'))
-    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
+    session = sa.orm.Session(bind=op.get_bind())
     status_add_tenant.migrate(session)
 
 

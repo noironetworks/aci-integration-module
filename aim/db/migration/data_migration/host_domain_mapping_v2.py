@@ -33,7 +33,7 @@ HostDomainMapping = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with session.begin():
         migrations = []
         for mapping in session.query(HostDomainMapping).all():
             if mapping.vmm_domain_name:

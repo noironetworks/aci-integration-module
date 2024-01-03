@@ -97,7 +97,7 @@ class AIMController(object):
 
     def POST(self, path_, *args, **kwargs):
         # Replace the whole model
-        with self.ctx.store.begin(subtransactions=True):
+        with self.ctx.store.begin():
             self.DELETE(path_)
             self.PUT(path_)
 
@@ -106,14 +106,14 @@ class AIMController(object):
             body = cherrypy.request.json
         except AttributeError:
             body = json.loads(cherrypy.request.body.read())
-        with self.ctx.store.begin(subtransactions=True):
+        with self.ctx.store.begin():
             for item in body:
                 res = self._generate_aim_resource(item)
                 self.mgr.create(self.ctx, res, overwrite=True)
 
     def DELETE(self, path_, *args, **kwargs):
         _, klasses, filters = self._inspect_selection_query(**kwargs)
-        with self.ctx.store.begin(subtransactions=True):
+        with self.ctx.store.begin():
             for klass in klasses:
                 self.mgr.delete_all(self.ctx, klass, **filters)
 
