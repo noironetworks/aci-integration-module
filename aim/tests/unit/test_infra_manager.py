@@ -33,7 +33,7 @@ class TestAimInfraManager(base.TestAimDBBase):
             1, 1, 'topology/pod-2/paths-101/pathep-[eth1/1]', 2, True)
         self.infra_mgr.add_hostlink(host, ifname, ifmac, swid, module, port,
                                     path, pod_id, from_config)
-        hlinks_mgr = self.mgr.find(self.ctx, infra.HostLink)
+        hlinks_mgr = self.mgr._find(self.ctx, infra.HostLink)
         self.assertEqual(1, len(hlinks_mgr))
 
         hlink = self.infra_mgr.get_hostlink(host, ifname)
@@ -87,4 +87,4 @@ class TestAimInfraManager(base.TestAimDBBase):
         # Idempotent
         self.infra_mgr.delete_hostlink(host, ifname)
         self.infra_mgr.delete_hostlink(host2, ifname2)
-        self.assertEqual(0, len(self.mgr.find(self.ctx, infra.HostLink)))
+        self.assertEqual(0, len(self.mgr._find(self.ctx, infra.HostLink)))

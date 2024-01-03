@@ -27,7 +27,7 @@ BridgeDomain = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with session.begin():
         gen1_hw = cfg.CONF.aim.support_gen1_hw_gratarps
         ep_move = 'garp' if gen1_hw is True else ''
         bds = session.query(BridgeDomain).all()
