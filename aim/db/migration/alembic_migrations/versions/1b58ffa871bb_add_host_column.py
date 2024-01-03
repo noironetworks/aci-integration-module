@@ -50,7 +50,7 @@ def upgrade():
         'aim_l3out_interfaces',
         sa.Column('host', sa.String(255), nullable=True, index=True)
     )
-    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
+    session = sa.orm.Session(bind=op.get_bind())
     add_host_column.migrate(session)
 
 

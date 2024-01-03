@@ -58,7 +58,7 @@ def upgrade():
     ctx = context.AimContext(db_session=session)
     new_vmms = []
     new_phys = []
-    with session.begin(subtransactions=True):
+    with session.begin():
         for vmm in session.query(old_vmm_table).all():
             new_vmms.append(resource.VMMDomain(type=vmm.type, name=vmm.name,
                                                monitored=True))
@@ -99,7 +99,7 @@ def upgrade():
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'))
 
-    with session.begin(subtransactions=True):
+    with session.begin():
         for obj in new_vmms + new_phys:
             mgr.create(ctx, obj)
 
