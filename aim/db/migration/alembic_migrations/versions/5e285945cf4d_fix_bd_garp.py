@@ -35,7 +35,7 @@ from aim.db.migration.data_migration import fix_bd_garp
 
 def upgrade():
 
-    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
+    session = sa.orm.Session(bind=op.get_bind())
     fix_bd_garp.migrate(session)
 
 

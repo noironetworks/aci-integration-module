@@ -36,7 +36,7 @@ from aim.db import api
 def upgrade():
 
     session = api.get_session(expire_on_commit=True)
-    with session.begin(subtransactions=True):
+    with session.begin():
         op.add_column(
             'aim_endpoint_group_static_paths',
             sa.Column('mode', sa.Enum('regular', 'native', 'untagged'),

@@ -22,5 +22,6 @@ command_exclude = set([])
 modules = glob.glob(path.dirname(__file__) + "/*.py")
 # Include all .py files except for those starting with '_'
 __all__ = [path.basename(f)[:-3] for f in modules
-           if (path.isfile(f) and not path.basename(f)[:-3].startswith('_')
-               and path.basename(f)[:-3] not in command_exclude)]
+           if (path.isfile(f) and not path.basename(f)[:-3].
+               startswith('_') and path.basename(f)[:-3] not in
+               command_exclude)]

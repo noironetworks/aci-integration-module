@@ -72,6 +72,7 @@ def list_of_dicts(*dict_keys_and_types):
             "items": {"type": "object",
                       "properties": dict(dict_keys_and_types)}}
 
+
 bool = {"type": "boolean"}
 integer = {"type": "integer"}
 name = {"type": "string", "pattern": "^[a-zA-Z0-9_.:-]{0,63}$"}
@@ -106,7 +107,7 @@ ipv6 = {
 ip = {"type": "string", "oneOf": [ipv4, ipv6]}
 ipv4_cidr = {
     "type": "string",
-    "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$"}
+    "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/([0-9]|[1-2][0-9]|3[0-2]))?$"}
 ipv6_cidr = {
     "type": "string",
     "pattern": "^s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]"
@@ -125,7 +126,7 @@ ipv6_cidr = {
                "4}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?"
                "d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}"
                "){0,5}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|["
-               "1-9]?d)){3}))|:)))(%.+)?s*(\/([0-9]|[1-9][0-9]|1[0-1][0-9]|12"
+               "1-9]?d)){3}))|:)))(%.+)?s*(/([0-9]|[1-9][0-9]|1[0-1][0-9]|12"
                "[0-8]))?$"}
 ip_cidr = {"type": "string", "oneOf": [ipv4_cidr, ipv6_cidr]}
 port = {

@@ -33,8 +33,8 @@ depends_on = None
 
 
 def upgrade():
-    session = sa.orm.Session(bind=op.get_bind(), autocommit=True)
-    with session.begin(subtransactions=True):
+    session = sa.orm.Session(bind=op.get_bind())
+    with session.begin():
         op.create_table(
             'aim_endpoint_group_static_paths_v2',
             sa.Column('aim_id', sa.String(255), nullable=False),

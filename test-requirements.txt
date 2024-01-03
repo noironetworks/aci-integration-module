@@ -5,28 +5,37 @@
 -e git+https://github.com/noironetworks/acitoolkit.git@noiro-lite#egg=acitoolkit
 -e git+https://github.com/noironetworks/apicapi.git@master#egg=apicapi
 
-hacking<0.11,>=0.10.0
+hacking>=3.0.0,<4
 
 cherrypy
 click<=7.1.2
 coverage>=3.6
+extras
 # Needed by apicapi
 PyMySQL!=v1.0.0,>=0.7.6;python_version=='2.7' # MIT License
 PyMySQL>=0.7.6;python_version!='2.7' # MIT License
 pyOpenSSL>=16.2.0,<=22.0.0
-greenlet<=1.1.3
+greenlet
 cryptography<=3.3.2;python_version!='2.7' # MIT License
 bcrypt<4.0.0;python_version!='2.7' # MIT License
 decorator<=4.2.1
+flake8>=3.8.0,<4.0
 python-subunit>=0.0.18
+pytest>=5.0,<6.0
 sphinx!=1.2.0,!=1.3b1,<1.3,>=1.1.2
+SQLAlchemy>=2.0
 oslosphinx>=2.5.0 # Apache-2.0
 oslotest>=1.10.0 # Apache-2.0
+oslo_db
+oslo.log
+oslo_messaging
 oslo.serialization!=2.19.1,>=2.18.0 # Apache-2.0
 testrepository>=0.0.18
 testscenarios>=0.4
 testtools>=1.4.0
 mock
+semantic_version
 extras
 tabulate>=0.7.5
+urllib3>=1.26.0,<1.27.0
 voluptuous!=0.13.0,<0.14.0

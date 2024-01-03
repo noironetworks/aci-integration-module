@@ -1413,12 +1413,10 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         sub = resource.ContractSubject(
             tenant_name=tenant_name, contract_name=ctr.name,
             name='route', bi_filters=['noirolab_AnyFilter'])
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.create(self.ctx, ctr)
-            self.aim_manager.create(self.ctx, sub)
-        with self.ctx.store.begin(subtransactions=True):
-            self.aim_manager.delete(self.ctx, sub)
-            self.aim_manager.delete(self.ctx, ctr)
+        self.aim_manager.create(self.ctx, ctr)
+        self.aim_manager.create(self.ctx, sub)
+        self.aim_manager.delete(self.ctx, sub)
+        self.aim_manager.delete(self.ctx, ctr)
         desired_config.observe(self.ctx)
         self._sync_and_verify(agent, current_config,
                               [(current_config, desired_config),
@@ -1469,7 +1467,8 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             # The tree needs_reset attribute should be set to False
             for tenant in [tenant_name, tenant_name2]:
                 base_tree = self.tt_mgr.get_base_tree(self.ctx, 'tn-' + tenant)
-                self.assertFalse(base_tree.needs_reset)
+                with self.ctx.store.db_session.begin():
+                    self.assertFalse(base_tree.needs_reset)
         finally:
             hashtree_db_listener.MAX_EVENTS_PER_ROOT = original_max_value
 
@@ -2222,12 +2221,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         current.observe(self.ctx)
         # Because of the possible error nodes, we need to verify that the
         # diff is empty
-        self.assertEqual(list(current.state.keys()),
-                         list(desired.state.keys()),
-                         'Not in sync:\n current(%s)\n: %s \n\n '
-                         'desired(%s)\n: %s' %
-                         (current.name, printable_state(current), desired.name,
-                          printable_state(desired)))
+        self.assertCountEqual(list(current.state.keys()),
+                              list(desired.state.keys()),
+                              'Not in sync:\n current(%s)\n: %s \n\n '
+                              'desired(%s)\n: %s' %
+                              (current.name, printable_state(current),
+                               desired.name, printable_state(desired)))
         for tenant in (tenants or current.state):
             if negative:
                 self.assertNotEqual(
@@ -2254,12 +2253,14 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.assertNotEqual({}, old)
         # Now reset trees
         listener = hashtree_db_listener.HashTreeDbListener(self.aim_manager)
-        listener._delete_trees(self.ctx, root=tenant)
+        with self.ctx.store.db_session.begin():
+            listener._delete_trees(self.ctx, root=tenant)
         current = self._get_aim_trees_by_tenant(filters)
         for trees in list(current.values()):
             for t in list(trees.values()):
                 self.assertEqual('{}', str(t))
-        listener._recreate_trees(self.ctx, root=tenant)
+        with self.ctx.store.db_session.begin():
+            listener._recreate_trees(self.ctx, root=tenant)
         # Check if they are still the same
         new = self._get_aim_trees_by_tenant(filters)
         new.pop('comp', None)

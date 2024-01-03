@@ -285,67 +285,66 @@ def load_domains(ctx, replace, enforce, mappings):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
 
-    with aim_ctx.store.begin(subtransactions=True):
-        if replace:
-            curr_vmms = manager.find(aim_ctx, resource.VMMDomain)
-            curr_physds = manager.find(aim_ctx, resource.PhysicalDomain)
+    if replace:
+        curr_vmms = manager.find(aim_ctx, resource.VMMDomain)
+        curr_physds = manager.find(aim_ctx, resource.PhysicalDomain)
 
-            for dom in curr_physds + curr_vmms:
-                click.echo("Deleting %s: %s" % (type(dom), dom.__dict__))
-                manager.delete(aim_ctx, dom)
+        for dom in curr_physds + curr_vmms:
+            click.echo("Deleting %s: %s" % (type(dom), dom.__dict__))
+            manager.delete(aim_ctx, dom)
 
-        vmm_doms, phys_doms = get_domains(aim_ctx, manager)
+    vmm_doms, phys_doms = get_domains(aim_ctx, manager)
 
-        if mappings:
-            # do not use replace entries in the host domain mappings table
-            # when used as part of the load-domains command
-            do_mappings(aim_ctx, manager, False, vmm_doms=vmm_doms,
-                        phys_doms=phys_doms)
+    if mappings:
+        # do not use replace entries in the host domain mappings table
+        # when used as part of the load-domains command
+        do_mappings(aim_ctx, manager, False, vmm_doms=vmm_doms,
+                    phys_doms=phys_doms)
 
-        if enforce:
-            # If there are host-specific mappings, and the user
-            # has requested enforce, then we error out -- we don't
-            # have host-to-domain association information, so we
-            # can't handle a host-specific and wildcard host combiniation.
-            all_mappings = sorted(manager.find(aim_ctx,
-                                               infra.HostDomainMappingV2),
-                                  key=lambda x: x.domain_name)
-            wild_mappings = sorted(manager.find(aim_ctx,
-                                                infra.HostDomainMappingV2,
-                                                host_name=infra.WILDCARD_HOST),
-                                   key=lambda x: x.domain_name)
-            if all_mappings != wild_mappings:
-                raise click.UsageError(
-                    'Cannot use --enforce option with --mappings when '
-                    'host-specific mappings exist in host mapping '
-                    'domains v2 table')
+    if enforce:
+        # If there are host-specific mappings, and the user
+        # has requested enforce, then we error out -- we don't
+        # have host-to-domain association information, so we
+        # can't handle a host-specific and wildcard host combiniation.
+        all_mappings = sorted(manager.find(aim_ctx,
+                                           infra.HostDomainMappingV2),
+                              key=lambda x: x.domain_name)
+        wild_mappings = sorted(manager.find(aim_ctx,
+                                            infra.HostDomainMappingV2,
+                                            host_name=infra.WILDCARD_HOST),
+                               key=lambda x: x.domain_name)
+        if all_mappings != wild_mappings:
+            raise click.UsageError(
+                'Cannot use --enforce option with --mappings when '
+                'host-specific mappings exist in host mapping '
+                'domains v2 table')
 
-            all_vmms = [{'type': x.type, 'name': x.name}
-                        for x in manager.find(aim_ctx, resource.VMMDomain)]
-            all_physds = [{'name': x.name}
-                          for x in manager.find(aim_ctx,
-                                                resource.PhysicalDomain)]
-            all_epgs = manager.find(aim_ctx, resource.EndpointGroup)
-            # split into VMM and PhysDom
-            vmm_mappings = [{'type': mapping.domain_type,
-                             'name': mapping.domain_name}
-                            for mapping in wild_mappings
-                            if mapping.domain_type != 'PhysDom']
-            phys_mappings = [{'name': mapping.domain_name}
-                             for mapping in wild_mappings
-                             if mapping.domain_type == 'PhysDom']
-            # limit domain association to what's in our table
-            if vmm_mappings:
-                all_vmms = [vmm for vmm in all_vmms
-                            if vmm in vmm_mappings]
-            if phys_mappings:
-                all_physds = [phys for phys in all_physds
-                              if phys in phys_mappings]
-            # Update the existing EPGs with the domain configuration
-            for epg in all_epgs:
-                print_resource(
-                    manager.update(aim_ctx, epg, vmm_domains=all_vmms,
-                                   physical_domains=all_physds))
+        all_vmms = [{'type': x.type, 'name': x.name}
+                    for x in manager.find(aim_ctx, resource.VMMDomain)]
+        all_physds = [{'name': x.name}
+                      for x in manager.find(aim_ctx,
+                                            resource.PhysicalDomain)]
+        all_epgs = manager.find(aim_ctx, resource.EndpointGroup)
+        # split into VMM and PhysDom
+        vmm_mappings = [{'type': mapping.domain_type,
+                         'name': mapping.domain_name}
+                        for mapping in wild_mappings
+                        if mapping.domain_type != 'PhysDom']
+        phys_mappings = [{'name': mapping.domain_name}
+                         for mapping in wild_mappings
+                         if mapping.domain_type == 'PhysDom']
+        # limit domain association to what's in our table
+        if vmm_mappings:
+            all_vmms = [vmm for vmm in all_vmms
+                        if vmm in vmm_mappings]
+        if phys_mappings:
+            all_physds = [phys for phys in all_physds
+                          if phys in phys_mappings]
+        # Update the existing EPGs with the domain configuration
+        for epg in all_epgs:
+            print_resource(
+                manager.update(aim_ctx, epg, vmm_domains=all_vmms,
+                               physical_domains=all_physds))
 
 
 @manager.command(name='load-mappings')
@@ -355,10 +354,9 @@ def load_mappings(ctx, replace):
     manager = ctx.obj['manager']
     aim_ctx = ctx.obj['aim_ctx']
 
-    with aim_ctx.store.begin(subtransactions=True):
-        vmm_doms, phys_doms = get_domains(aim_ctx, manager, create_doms=False)
-        do_mappings(aim_ctx, manager, replace, vmm_doms=vmm_doms,
-                    phys_doms=phys_doms)
+    vmm_doms, phys_doms = get_domains(aim_ctx, manager, create_doms=False)
+    do_mappings(aim_ctx, manager, replace, vmm_doms=vmm_doms,
+                phys_doms=phys_doms)
 
 
 @manager.command(name='sync-state-find')
@@ -376,10 +374,8 @@ def sync_state_find(ctx, state, plain):
         if state in states:
             state = states[0]
             break
-
-    with aim_ctx.store.begin(subtransactions=True):
-        statuses = manager.find(aim_ctx, status_res.AciStatus,
-                                sync_status=state)
+    statuses = manager.find(aim_ctx, status_res.AciStatus,
+                            sync_status=state)
     # Could aggregate the queries to make it more efficient in future
     rows = []
     for status in statuses:
@@ -430,6 +426,7 @@ def schema_get():
 def convert(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1).lower()
+
 
 for res in aim_manager.AimManager._db_model_map:
     # runtime create commands
