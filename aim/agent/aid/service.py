@@ -231,37 +231,36 @@ class AID(object):
         self.agent = self.manager.update(aim_ctx, self.agent)
 
     def _calculate_tenants(self, aim_ctx):
-        with aim_ctx.store.begin(subtransactions=True):
-            # Refresh this agent
-            self.agent = self.manager.get(aim_ctx, self.agent)
-            if not self.single_aid:
-                down_time = self.agent.down_time(aim_ctx)
-                if max(0, down_time or 0) > self.max_down_time:
-                    utils.perform_harakiri(LOG, "Agent has been down for %s "
-                                                "seconds." % down_time)
-                # Get peers
-                agents = [
-                    x for x in self.manager.find(aim_ctx, resource.Agent,
-                                                 admin_state_up=True)
-                    if not x.is_down(aim_ctx)]
-                # Validate agent version
-                if not agents:
-                    return []
-                max_version = max(agents, key=lambda x: x.version).version
-                if self._major_vercompare(self.agent.version, max_version) < 0:
-                    LOG.error("Agent version is outdated: Current %s Required "
-                              "%s" % (self.agent.version, max_version))
-                    return []
-                # Purge outdated agents
-                agents = [x for x in agents if
-                          self._major_vercompare(x.version, max_version) == 0]
-            else:
-                agents = [self.agent]
-            result = self._tenant_assignation_algorithm(aim_ctx, agents)
-            # Store result in DB
-            self.agent.hash_trees = result
-            self.manager.create(aim_ctx, self.agent, overwrite=True)
-            return result
+        # Refresh this agent
+        self.agent = self.manager.get(aim_ctx, self.agent)
+        if not self.single_aid:
+            down_time = self.agent.down_time(aim_ctx)
+            if max(0, down_time or 0) > self.max_down_time:
+                utils.perform_harakiri(LOG, "Agent has been down for %s "
+                                            "seconds." % down_time)
+            # Get peers
+            agents = [
+                x for x in self.manager.find(aim_ctx, resource.Agent,
+                                             admin_state_up=True)
+                if not x.is_down(aim_ctx)]
+            # Validate agent version
+            if not agents:
+                return []
+            max_version = max(agents, key=lambda x: x.version).version
+            if self._major_vercompare(self.agent.version, max_version) < 0:
+                LOG.error("Agent version is outdated: Current %s Required "
+                          "%s" % (self.agent.version, max_version))
+                return []
+            # Purge outdated agents
+            agents = [x for x in agents if
+                      self._major_vercompare(x.version, max_version) == 0]
+        else:
+            agents = [self.agent]
+        result = self._tenant_assignation_algorithm(aim_ctx, agents)
+        # Store result in DB
+        self.agent.hash_trees = result
+        self.manager.create(aim_ctx, self.agent, overwrite=True)
+        return result
 
     def _tenant_assignation_algorithm(self, aim_ctx, agents):
         # TODO(ivar): just randomly hash each tenant to agents for now. This

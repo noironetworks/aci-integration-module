@@ -50,16 +50,15 @@ def get_resource_class(resource_type):
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
-        store = aim_store.SqlAlchemyStore(None)
-        for st in session.query(Status).all():
-            res_table, res_class = get_resource_class(st.resource_type)
-            db_res = session.query(res_table).filter_by(
-                aim_id=st.resource_id).first()
-            try:
-                res = store.make_resource(res_class, db_res)
-                session.execute(update(Status).where(
-                    Status.c.id == st.id).values(resource_dn=res.dn))
-            except Exception:
-                # Silently ignore
-                pass
+    store = aim_store.SqlAlchemyStore(None)
+    for st in session.query(Status).all():
+        res_table, res_class = get_resource_class(st.resource_type)
+        db_res = session.query(res_table).filter_by(
+            aim_id=st.resource_id).first()
+        try:
+            res = store.make_resource(res_class, db_res)
+            session.execute(update(Status).where(
+                Status.c.id == st.id).values(resource_dn=res.dn))
+        except Exception:
+            # Silently ignore
+            pass
