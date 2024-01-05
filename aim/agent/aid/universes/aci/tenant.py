@@ -215,10 +215,14 @@ class OwnershipManager(object):
         return result
 
     def set_ownership_change(self, to_push):
+        to_delete = to_push
+        to_delete_tag = []
         to_update = []
-        if self.use_annotation:
-            for obj in to_push:
-                if list(obj.keys())[0].startswith(TAG_KEY):
+        for obj in to_push:
+            if list(obj.keys())[0].startswith(TAG_KEY):
+                to_delete.remove(obj)
+                to_delete_tag.append(obj)
+                if self.use_annotation:
                     dn = list(obj.values())[0]['attributes']['dn']
                     if dn.endswith('/tag-%s' % self.tag_key):
                         dec = apic_client.DNManager().aci_decompose_dn_guess(
@@ -229,7 +233,7 @@ class OwnershipManager(object):
                         to_update.append(
                             {parent_type: {'attributes': {'dn': parent_dn,
                                                           'annotation': ''}}})
-        return to_push, to_update
+        return to_delete, to_delete_tag, to_update
 
     def filter_ownership(self, events):
         managed = []
@@ -551,7 +555,7 @@ class AciTenantManager(utils.AIMThread):
             # iteration
             pass
 
-    def _post_with_transaction(self, to_push, modified=False):
+    def _post_with_transaction(self, to_push, modified=False, deleted=False):
         if not to_push:
             return
         dn_mgr = apic_client.DNManager()
@@ -562,6 +566,8 @@ class AciTenantManager(utils.AIMThread):
                 attr = list(obj.values())[0]['attributes']
                 if modified:
                     attr['status'] = converter.MODIFIED_STATUS
+                elif deleted:
+                    attr['status'] = converter.DELETED_STATUS
                 mo, parents_rns = decompose(
                     attr.pop('dn'), list(obj.keys())[0])
                 rns = dn_mgr.filter_rns(parents_rns)
@@ -618,22 +624,25 @@ class AciTenantManager(utils.AIMThread):
                                     to_push)
                                 LOG.debug("POSTING into APIC: %s" % to_push)
                                 self._post_with_transaction(to_push)
-                                self.creation_succeeded(aim_object)
                             else:
-                                to_delete, to_update = (
+                                to_delete, to_delete_tag, to_update = (
                                     self.ownership_mgr.set_ownership_change(
                                         to_push))
-                                LOG.debug("DELETING from APIC: %s" % to_delete)
-                                for obj in to_delete:
+                                LOG.debug("DELETING tags from APIC: "
+                                          "%s" % to_delete_tag)
+                                # Delete object ownership
+                                for obj in to_delete_tag:
                                     attr = list(obj.values())[0]['attributes']
                                     self.ac_context.aci_session.DELETE(
                                         '/mo/%s.json' % attr.pop('dn'))
+                                LOG.debug("DELETING from APIC: %s" % to_delete)
+                                self._post_with_transaction(to_delete,
+                                                            deleted=True)
                                 LOG.debug("UPDATING in APIC: %s" % to_update)
                                 # Update object ownership
                                 self._post_with_transaction(to_update,
                                                             modified=True)
-                                if to_update:
-                                    self.creation_succeeded(aim_object)
+                            self.creation_succeeded(aim_object)
                         except Exception as e:
                             LOG.debug(traceback.format_exc())
                             LOG.error("An error has occurred during %s for "

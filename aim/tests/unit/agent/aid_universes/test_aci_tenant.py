@@ -301,16 +301,20 @@ class TestAciClientMixin(object):
             result.append(transaction)
         return result
 
-    def _objects_transaction_delete(self, objs):
+    def _objects_transaction_delete(self, objs, top_send=True):
         result = []
         for obj in objs:
-            transaction = apic_client.Transaction(mock.Mock())
-            item = copy.deepcopy(obj)
-            getattr(transaction, list(obj.keys())[0]).remove(
-                *self._extract_rns(
-                    list(item.values())[0]['attributes'].pop('dn'),
-                    list(item.keys())[0]))
+            transaction = apic_client.Transaction(mock.Mock(),
+                                                  top_send=top_send)
             result.append(transaction)
+            item = copy.deepcopy(obj)
+            attr = list(item.values())[0]['attributes']
+            attr['status'] = converter.DELETED_STATUS
+            getattr(transaction, list(obj.keys())[0]).add(
+                *self._extract_rns(
+                    attr.pop('dn'),
+                    list(item.keys())[0]),
+                **attr)
         return result
 
     def _init_event(self):
@@ -646,31 +650,38 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
             bda1, bda2, f1, f2, sg_rule2, sg_rule1, sg_subj, sg2, sg1]})
         self.manager._push_aim_resources()
         # Verify expected calls, add deleted status
+        transactions = self._objects_transaction_delete([
+            bda1, bda2, f1, f2, sg1, sg2], top_send=True)
         exp_calls = [
-            mock.call('/mo/' + list(bda1.values())[0]['attributes']['dn']
-                      + '.json'),
-            mock.call('/mo/' + list(bda2.values())[0]['attributes']['dn']
-                      + '.json'),
-            mock.call('/mo/' + list(f1.values())[0]['attributes']['dn']
-                      + '.json'),
-            mock.call('/mo/' + list(f2.values())[0]['attributes']['dn']
-                      + '.json'),
-            mock.call('/mo/' + list(sg1.values())[0]['attributes']['dn']
-                      + '.json'),
-            mock.call('/mo/' + list(sg2.values())[0]['attributes']['dn']
-                      + '.json')]
+            mock.call(mock.ANY, transactions[0].get_top_level_roots()[0][1],
+                      'test-tenant', 'test'),
+            mock.call(mock.ANY, transactions[1].get_top_level_roots()[0][1],
+                      'test-tenant', 'test2'),
+            mock.call(mock.ANY, transactions[2].get_top_level_roots()[0][1],
+                      'test-tenant', 'c', 's', 'i1'),
+            mock.call(mock.ANY, transactions[3].get_top_level_roots()[0][1],
+                      'test-tenant', 'c', 's', 'o1'),
+            mock.call(mock.ANY, transactions[4].get_top_level_roots()[0][1],
+                      'test-tenant', 'sg'),
+            mock.call(mock.ANY, transactions[5].get_top_level_roots()[0][1],
+                      'test-tenant', 'sg2')]
         self._check_call_list(
-            exp_calls, self.manager.ac_context.aci_session.DELETE)
+            exp_calls, self.manager.ac_context.aci_session.post_body_dict)
 
         # Create AND delete aim resources
         self.manager.ac_context.aci_session.post_body_dict.reset_mock()
         self.manager.push_aim_resources(collections.OrderedDict(
             [('create', [bd1]), ('delete', [bda2])]))
         self.manager._push_aim_resources()
-        transactions = self._objects_transaction_create([bd1])
+        transactions_create = self._objects_transaction_create([bd1])
+        transactions_delete = self._objects_transaction_delete([bda2])
         exp_calls = [
-            mock.call(mock.ANY, transactions[0].get_top_level_roots()[0][1],
-                      'test-tenant', 'test')]
+            mock.call(mock.ANY,
+                      transactions_create[0].get_top_level_roots()[0][1],
+                      'test-tenant', 'test'),
+            mock.call(mock.ANY,
+                      transactions_delete[0].get_top_level_roots()[0][1],
+                      'test-tenant', 'test2')]
         self._check_call_list(
             exp_calls, self.manager.ac_context.aci_session.post_body_dict)
         # Failure in pushing object
