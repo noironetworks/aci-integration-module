@@ -189,7 +189,7 @@ class ApicClientsContext(object):
             resp = session.login()
             if not resp.ok:
                 LOG.warning('%s Websocket connection failed: %s',
-                            purpose, resp.text)
+                            purpose, resp.content)
                 retries += 1
                 if session.session:
                     session.close()
@@ -325,7 +325,7 @@ class ApicClientsContext(object):
                 if not resp.ok:
                     return resp
                 LOG.debug('Subscribed to %s %s %s ', url, resp,
-                          resp.text)
+                          resp.content)
         return resp
 
     def _unsubscribe(self, urls):
@@ -345,13 +345,13 @@ class ApicClientsContext(object):
         resp = self._subscribe(urls)
         if resp is not None:
             if resp.ok:
-                return utils.json_loads(resp.text)['imdata']
+                return utils.json_loads(resp.content)['imdata']
             else:
                 if resp.status_code in [405, 598, 500]:
                     self.establish_sessions()
                 raise WebSocketSubscriptionFailed(urls=urls,
                                                   code=resp.status_code,
-                                                  text=resp.text)
+                                                  text=resp.content)
 
     def unsubscribe(self, urls):
         if urls == self.EMPTY_URLS:
@@ -362,7 +362,7 @@ class ApicClientsContext(object):
                 self.establish_sessions()
             raise WebSocketUnsubscriptionFailed(urls=urls,
                                                 code=resp.status_code,
-                                                text=resp.text)
+                                                text=resp.content)
 
     def refresh_subscriptions(self, urls=None):
         self.session.refresh_subscriptions(urls=urls)
