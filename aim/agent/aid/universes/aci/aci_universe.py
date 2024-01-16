@@ -189,7 +189,7 @@ class ApicClientsContext(object):
             resp = session.login()
             if not resp.ok:
                 LOG.warning('%s Websocket connection failed: %s',
-                            purpose, resp.text)
+                            purpose, resp.content)
                 retries += 1
                 if session.session:
                     session.close()
