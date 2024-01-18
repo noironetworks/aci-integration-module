@@ -126,6 +126,9 @@ agent_opts = [
     cfg.BoolOpt('support_gen1_hw_gratarps', default=False,
                 help=("(Temporary) Set to True to ensure grat-ARPs are sent"
                       "to fabric CPUs (gen1 hwardware support")),
+    cfg.BoolOpt('enable_faults_subscriptions', default=False,
+                help=("(Temporary) Set to True to ensure faults are subscribed"
+                      "to under the tenants")),
 ]
 
 # TODO(ivar): move into AIM section

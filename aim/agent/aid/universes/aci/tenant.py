@@ -21,6 +21,7 @@ import traceback
 from acitoolkit import acitoolkit
 from apicapi import apic_client
 from apicapi import exceptions as apic_exc
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from aim.agent.aid import event_handler
@@ -146,9 +147,15 @@ class Root(acitoolkit.BaseACIObject):
     def _get_instance_subscription_urls(self,
                                         ws_subscription_to=BASELINE_WS_TO):
         if not self.dn.startswith('topology'):
-            url = ('/api/node/mo/{}.json?query-target=subtree&'
-                   'rsp-prop-include=config-only&rsp-subtree-include=faults&'
-                   'subscription=yes'.format(self.dn))
+            if cfg.CONF.aim.enable_faults_subscriptions:
+                url = ('/api/node/mo/{}.json?query-target=subtree&'
+                       'rsp-prop-include=config-only&'
+                       'rsp-subtree-include=faults&'
+                       'subscription=yes'.format(self.dn))
+            else:
+                url = ('/api/node/mo/{}.json?query-target=subtree&'
+                       'rsp-prop-include=config-only&'
+                       'subscription=yes'.format(self.dn))
             if ws_subscription_to != '0':
                 url += '&refresh-timeout={}'.format(ws_subscription_to)
             # TODO(amitbose) temporary workaround for ACI bug,
@@ -162,8 +169,12 @@ class Root(acitoolkit.BaseACIObject):
         else:
             urls = []
             for child in self.filtered_children:
-                url = ('/api/node/class/{}.json?subscription=yes&'
-                       'rsp-subtree-include=faults'.format(child))
+                if cfg.CONF.aim.enable_faults_subscriptions:
+                    url = ('/api/node/class/{}.json?subscription=yes&'
+                           'rsp-subtree-include=faults'.format(child))
+                else:
+                    url = ('/api/node/class/{}.json?subscription=yes&'
+                           .format(child))
                 if ws_subscription_to != '0':
                     url += '&refresh-timeout={}'.format(ws_subscription_to)
                 urls.append(url)
