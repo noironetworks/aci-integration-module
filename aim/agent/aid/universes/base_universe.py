@@ -292,6 +292,7 @@ class HashTreeStoredUniverse(AimUniverse):
             errors.SYSTEM_CRITICAL: self._fail_agent,
         }
         self._sync_log = {}
+        self._deleting_roots = {}
         return self
 
     def _dissect_key(self, key):
@@ -331,7 +332,7 @@ class HashTreeStoredUniverse(AimUniverse):
         pass
 
     def reconcile(self, context, other_universe, delete_candidates):
-        return self._reconcile(context, other_universe)
+        return self._reconcile(context, other_universe, delete_candidates)
 
     def vote_deletion_candidates(self, context, other_universe,
                                  delete_candidates, vetoes):
@@ -345,13 +346,14 @@ class HashTreeStoredUniverse(AimUniverse):
                                      delete_candidates):
         self._pop_up_sync_log(delete_candidates)
 
-    def _reconcile(self, context, other_universe):
+    def _reconcile(self, context, other_universe, delete_candidates):
         # "self" is always the current state, "other" the desired
         my_state = self.state
         other_state = other_universe.state
         diff = False
         for tenant in set(my_state.keys()) & set(other_state.keys()):
             # TODO(ivar): parallelize the procedure on Tenant's basis
+            deleting_count = None
             try:
                 differences = {CREATE: [], DELETE: []}
                 other_tenant_state = other_state[tenant]
@@ -361,6 +363,8 @@ class HashTreeStoredUniverse(AimUniverse):
                 difference = other_tenant_state.diff(my_tenant_state)
                 differences[CREATE].extend(difference['add'])
                 differences[DELETE].extend(difference['remove'])
+                if tenant in delete_candidates:
+                    deleting_count = self._deleting_roots.setdefault(tenant, 0)
 
                 if differences.get(CREATE) or differences.get(DELETE):
                     LOG.info("Universe differences between %s and %s: %s",
@@ -370,6 +374,15 @@ class HashTreeStoredUniverse(AimUniverse):
                     CREATE: other_universe.get_resources(differences[CREATE]),
                     DELETE: self.get_resources_for_delete(differences[DELETE])
                 }
+                if (deleting_count is not None and
+                        not result[CREATE] and not result[DELETE] and
+                        not my_tenant_state.root and
+                        not other_tenant_state.root):
+                    deleting_count += 1
+                elif deleting_count is not None:
+                    deleting_count = 0
+                if deleting_count is not None:
+                    self._deleting_roots[tenant] = deleting_count
 
                 reset, fail, skip = self._track_universe_actions(result,
                                                                  tenant)
@@ -422,6 +435,12 @@ class HashTreeStoredUniverse(AimUniverse):
                     context, other_tenant_state, differences, skipset)
                 # Reconciliation method for pushing changes
                 self.push_resources(context, result)
+                # Wait up to 3 cycles before allowing other universes
+                # to vote on deleting this tenant. Once all universes
+                # have allowed the vote to go through, then the tenant
+                # will be deleted.
+                if deleting_count is not None and deleting_count <= 3:
+                    delete_candidates.remove(tenant)
             except Exception as e:
                 LOG.error("An unexpected error has occurred while "
                           "reconciling tenant %s: %s" % (tenant, str(e)))
@@ -546,7 +565,8 @@ class HashTreeStoredUniverse(AimUniverse):
         pass
 
     def cleanup_state(self, context, key):
-        pass
+        if key in list(self._deleting_roots.keys()):
+            del(self._deleting_roots[key])
 
     def creation_succeeded(self, aim_object):
         pass
