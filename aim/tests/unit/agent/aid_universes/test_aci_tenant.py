@@ -41,6 +41,7 @@ class FakeResponse(object):
         self.ok = ok
         self.text = text or json.dumps({'imdata': {}})
         self.status_code = status_code
+        self.content = self.text.encode('utf-8')
 
 
 def _flat_result(result):
