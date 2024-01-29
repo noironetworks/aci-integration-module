@@ -481,12 +481,37 @@ class TestAimDBBase(BaseTestCase):
         return example_tenant
 
     @classmethod
+    def _get_example_aim_epg_static_path(cls, **kwargs):
+        example = resource.EPGStaticPath(
+            tenant_name='t1', app_profile_name='a1',
+            epg_name='test',
+            path='topology/pod-1/paths-0/pathep-[eth0/0]',
+            encap='vlan-0',
+            mode='regular')
+        example.__dict__.update(kwargs)
+        return example
+
+    @classmethod
     def _get_example_aim_epg(cls, **kwargs):
         example = resource.EndpointGroup(
             tenant_name='t1', app_profile_name='a1', name='test',
             bd_name='net1')
         example.__dict__.update(kwargs)
         return example
+
+    @classmethod
+    def _get_example_aci_epg_static_path(cls, **kwargs):
+        example_epg_static_path = {
+            "fvRsPathAtt": {
+                "attributes": {
+                    "dn": "uni/tn-t1/ap-a1/epg-test/rspathAtt-"
+                          "[topology/pod-1/paths-0/pathep-[eth0/0]]",
+                    "descr": ""
+                }
+            }
+        }
+        example_epg_static_path['fvRsPathAtt']['attributes'].update(kwargs)
+        return example_epg_static_path
 
     @classmethod
     def _get_example_aci_epg(cls, **kwargs):

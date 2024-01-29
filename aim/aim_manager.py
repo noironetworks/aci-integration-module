@@ -61,6 +61,7 @@ class AimManager(object):
                      api_res.VRF,
                      api_res.ApplicationProfile,
                      api_res.EndpointGroup,
+                     api_res.EPGStaticPath,
                      api_res.Filter,
                      api_res.FilterEntry,
                      api_res.OutOfBandContract,
