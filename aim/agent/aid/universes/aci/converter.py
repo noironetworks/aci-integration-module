@@ -196,24 +196,23 @@ def fv_rs_path_att_converter(object_dict, otype, helper,
         for index, attr in enumerate(destination_identity_attributes):
             res_dict[attr] = id[index]
         if object_dict.get('tDn') and object_dict.get('encap'):
-            res_dict['static_paths'] = [{'path': object_dict['tDn'],
-                                         'mode': object_dict.get('mode',
-                                                                 'regular'),
-                                         'encap': object_dict['encap']}]
+            res_dict['path'] = object_dict['tDn']
+            res_dict['mode'] = object_dict.get('mode', 'regular')
+            res_dict['encap'] = object_dict['encap']
         result.append(default_to_resource(res_dict, helper, to_aim=True))
     else:
-        for p in object_dict['static_paths']:
-            if p.get('path') and p.get('encap'):
-                dn = default_identity_converter(
-                    object_dict, otype, helper, extra_attributes=[p['path']],
-                    aci_mo_type=helper['resource'], to_aim=False)[0]
-                result.append({helper['resource']: {'attributes':
-                                                    {'dn': dn,
-                                                     'tDn': p['path'],
-                                                     'mode':
-                                                         p.get('mode',
-                                                               'regular'),
-                                                     'encap': p['encap']}}})
+        if object_dict['path'] and object_dict['encap']:
+            dn = default_identity_converter(
+                object_dict, otype, helper, extra_attributes=[
+                    object_dict['path']],
+                aci_mo_type=helper['resource'], to_aim=False)[0]
+            result.append({helper['resource']: {'attributes':
+                                                {'dn': dn,
+                                                 'tDn': object_dict['path'],
+                                                 'mode': object_dict.get(
+                                                     'mode', 'regular'),
+                                                 'encap': object_dict[
+                                                     'encap']}}})
     return result
 
 
@@ -987,7 +986,6 @@ resource_map = {
                  'physical_domain_names',
                  'physical_domains',
                  'vmm_domains',
-                 'static_paths',
                  'qos_name',
                  'epg_contract_masters'],
     }],
@@ -1206,7 +1204,7 @@ resource_map = {
         'resource': resource.ExternalSubnet,
     }],
     'fvRsPathAtt': [{
-        'resource': resource.EndpointGroup,
+        'resource': resource.EPGStaticPath,
         'converter': fv_rs_path_att_converter,
     }],
     'hostprotPol': [

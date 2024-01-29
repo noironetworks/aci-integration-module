@@ -206,6 +206,7 @@ class SqlAlchemyStore(AimStore):
                     api_res.VRF: models.VRF,
                     api_res.ApplicationProfile: models.ApplicationProfile,
                     api_res.EndpointGroup: models.EndpointGroup,
+                    api_res.EPGStaticPath: models.EndpointGroupStaticPath,
                     api_res.Filter: models.Filter,
                     api_res.FilterEntry: models.FilterEntry,
                     api_res.Contract: models.Contract,
