@@ -119,6 +119,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             # There could still be logs, but they will re-create the
             # tenants in the next iteration.
             self.tree_manager.delete_by_root_rn(context, key, if_empty=True)
+        super(AimDbUniverse, self).cleanup_state(context, key)
 
     def _get_state(self, context, tree=tree_manager.CONFIG_TREE):
         return self.tree_manager.find_changed(
@@ -150,9 +151,7 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
         other_state = other_universe.state
         for tenant in list(delete_candidates):
             # Remove tenants that have been emptied.
-            # This means the tenant has been created then deleted
-            if (tenant in other_state and not other_state[tenant].root and
-                    other_state[tenant].has_populated is True):
+            if (tenant in other_state and not other_state[tenant].root):
                 pass
             else:
                 delete_candidates.discard(tenant)
@@ -358,7 +357,7 @@ class AimDbOperationalUniverse(AimDbUniverse):
 
     def reconcile(self, context, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(context, other_universe)
+        return self._reconcile(context, other_universe, delete_candidates)
 
     def update_status_objects(self, context, tenant_state, raw_diff,
                               skip_keys):
@@ -414,7 +413,7 @@ class AimDbMonitoredUniverse(AimDbUniverse):
 
     def reconcile(self, context, other_universe, delete_candidates):
         self._mask_tenant_state(other_universe, delete_candidates)
-        return self._reconcile(context, other_universe)
+        return self._reconcile(context, other_universe, delete_candidates)
 
     def get_resources_for_delete(self, resource_keys):
         des_mon = self.multiverse[base.MONITOR_UNIVERSE]['desired'].state

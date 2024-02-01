@@ -461,6 +461,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Now tenant will be deleted (still served)
         agent._reconciliation_cycle()
         self.assertIsNone(agent.current_universe.state[tn1.rn].root)
+        # It takes 3 iterations in each multiverse before tenant
+        # deletion is allowed. It has to clear all multiverses before
+        # the tenant is finally removed.
+        for loop_num, _ in enumerate(tree_manager.SUPPORTED_TREES):
+            agent._reconciliation_cycle()
+            agent._reconciliation_cycle()
+            agent._reconciliation_cycle()
         tree1 = agent.tree_manager.find(self.ctx, root_rn=[tn1.rn])
         self.assertEqual(0, len(tree1))
 
@@ -632,6 +639,13 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         # Agent will delete remaining objects
         agent._reconciliation_cycle()
         self.assertTrue(tn1.rn in desired_monitor.serving_tenants)
+        # It takes 3 iterations in each multiverse before tenant
+        # deletion is allowed. It has to clear all multiverses before
+        # the tenant is finally removed.
+        for loop_num, _ in enumerate(tree_manager.SUPPORTED_TREES):
+            agent._reconciliation_cycle()
+            agent._reconciliation_cycle()
+            agent._reconciliation_cycle()
         # Now deletion happens
         agent._reconciliation_cycle()
         self.assertTrue(tn1.rn not in desired_monitor.serving_tenants)
