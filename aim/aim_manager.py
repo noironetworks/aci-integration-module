@@ -135,7 +135,8 @@ class AimManager(object):
                      api_res.SystemSecurityGroupSubject,
                      api_res.SystemSecurityGroupRule,
                      api_res.SecurityGroupRemoteIpContainer,
-                     api_res.SecurityGroupRemoteIp}
+                     api_res.SecurityGroupRemoteIp,
+                     api_res.StaticPath}
 
     # Keep _db_model_map in AIM manager for backward compatibility
     _db_model_map = {k: None for k in aim_resources}

@@ -991,6 +991,9 @@ resource_map = {
                  'qos_name',
                  'epg_contract_masters'],
     }],
+    'staticPt': [{
+        'resource': resource.StaticPath,
+    }],
     'fvRsBd': [{
         'resource': resource.EndpointGroup,
         'exceptions': {
@@ -1496,7 +1499,10 @@ resource_map.update({
     'bgpAsP__Peer': [{
         'resource': resource.L3OutInterfaceBgpPeerP,
         'identity_converter': bgp_as_id_converter,
-    }]
+    }],
+    'staticPt': [{
+        'resource': resource.StaticPath,
+        }],
 })
 
 resource_map.update(service_graph.resource_map_post_reverse)
