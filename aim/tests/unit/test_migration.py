@@ -22,6 +22,7 @@ from aim.api import tree
 from aim.common import utils
 from aim import config
 from aim.db.migration.data_migration import add_host_column
+from aim.db.migration.data_migration import add_static_path
 from aim.db.migration.data_migration import fix_bd_garp
 from aim.db.migration.data_migration import host_domain_mapping_v2
 from aim.db.migration.data_migration import status_add_tenant
@@ -72,6 +73,7 @@ class TestDataMigration(base.TestAimDBBase):
                 tenant_name='t2', l3out_name='dc', node_profile_name='1',
                 interface_profile_name='dc2', interface_path='h2/path'))
         add_host_column.migrate(self.ctx.db_session)
+        add_static_path.migrate(self.ctx.db_session)
         epg1 = self.mgr.get(self.ctx, epg1)
         self.assertEqual(
             utils.deep_sort(

@@ -329,6 +329,20 @@ class EndpointGroupContractMasters(model_base.Base):
     name = model_base.name_column(primary_key=True)
 
 
+class StaticPath(model_base.Base, model_base.HasAimId,
+                 model_base.AttributeMixin, model_base.HasName,
+                 model_base.IsMonitored,
+                 model_base.HasTenantName):
+    """DB model for Static Path."""
+    __tablename__ = 'aim_static_path'
+    __table_args__ = (model_base.uniq_column(__tablename__, 'path', 'name') +
+                      model_base.to_tuple(model_base.Base.__table_args__))
+    path = sa.Column(VARCHAR(512, charset='latin1'))
+    host = sa.Column(sa.String(255), nullable=True, index=True)
+    mode = sa.Column(sa.Enum('regular', 'native', 'untagged'))
+    encap = sa.Column(sa.String(24))
+
+
 class EndpointGroup(model_base.Base, model_base.HasAimId,
                     model_base.HasName, model_base.HasDisplayName,
                     model_base.HasTenantName,

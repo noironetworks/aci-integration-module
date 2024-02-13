@@ -1091,6 +1091,27 @@ class ExternalNetwork(AciResourceBase):
             **kwargs)
 
 
+class StaticPath(AciResourceBase):
+    """Resource representing static routes used by EndpointGroup"""
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('path', t.name),
+        ('host', t.name),
+        ('name', t.name))
+    other_attributes = t.other(
+        ('encap', t.name),
+        ('mode', t.enum("regular", "native", "untagged")),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'staticPt'
+    _tree_parent = EndpointGroup
+
+    def __init__(self, **kwargs):
+        super(StaticPath, self).__init__({
+            'monitored': False}, **kwargs)
+
+
 class ExternalNetworkProvidedContract(AciResourceBase):
     """Resource representing Contract Refrences used by ExternalNetwork."""
 
