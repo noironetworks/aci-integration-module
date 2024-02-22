@@ -1019,7 +1019,7 @@ class SGRsRemoteIpContainer(model_base.Base):
     security_group_rule_aim_id = sa.Column(
         sa.Integer, sa.ForeignKey('aim_security_group_rules.aim_id'),
         primary_key=True)
-    tDn = sa.Column(sa.String(256), nullable=False, primary_key=True)
+    tDn = sa.Column(sa.String(255), nullable=False, primary_key=True)
 
 
 class SecurityGroupRuleRemoteIp(model_base.Base):

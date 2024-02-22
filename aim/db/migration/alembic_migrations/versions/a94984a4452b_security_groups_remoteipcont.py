@@ -62,7 +62,7 @@ def upgrade():
                   sa.String(255), nullable=False),
         sa.Column('epoch', sa.BigInteger(), nullable=False,
                   server_default='0'),
-        sa.Column('tDn', sa.String(256), nullable=False),
+        sa.Column('tDn', sa.String(255), nullable=False),
         sa.PrimaryKeyConstraint('security_group_rule_aim_id', 'tDn'))
 
     op.create_table(
