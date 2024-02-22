@@ -61,10 +61,10 @@ def to_resource_filter_container(converted, helper, to_aim=True):
     if to_aim:
         return default_to_resource(converted, helper, to_aim=to_aim)
     else:
-        in_ = (helper['resource'] is 'vzInTerm' and
+        in_ = (helper['resource'] == 'vzInTerm' and
                (converted.get('inFilters') or
                 converted.get('inServiceGraphName')))
-        out = (helper['resource'] is 'vzOutTerm' and
+        out = (helper['resource'] == 'vzOutTerm' and
                (converted.get('outFilters') or
                 converted.get('outServiceGraphName')))
         if in_ or out:
