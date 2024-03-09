@@ -301,20 +301,57 @@ class ContractRelationMixin(model_base.AttributeMixin):
         return res_attr
 
 
-class EndpointGroupStaticPath(model_base.Base):
+class EndpointGroupStaticPath(model_base.Base, model_base.HasAimId,
+                              model_base.HasTenantName,
+                              model_base.AttributeMixin,
+                              model_base.IsMonitored):
     """DB model for static-paths configured for an EPG."""
 
     __tablename__ = 'aim_endpoint_group_static_paths'
+    __table_args__ = (
+        model_base.uniq_column(__tablename__, 'tenant_name',
+                               'app_profile_name',
+                               'epg_name', 'path') +
+        model_base.to_tuple(model_base.Base.__table_args__))
 
-    epg_aim_id = sa.Column(sa.Integer,
-                           sa.ForeignKey('aim_endpoint_groups.aim_id'),
-                           primary_key=True)
     # Use VARCHAR with ASCII encoding to work-around MySQL limitations
     # on the length of primary keys
+    app_profile_name = model_base.name_column(nullable=False)
+    epg_name = model_base.name_column(nullable=False)
     path = sa.Column(VARCHAR(512, charset='latin1'), primary_key=True)
     host = sa.Column(sa.String(255), nullable=True, index=True)
     mode = sa.Column(sa.Enum('regular', 'native', 'untagged'))
     encap = sa.Column(sa.String(24))
+
+    def from_attr(self, session, res_attr):
+        if 'path' in res_attr:
+            self.path = res_attr.pop('path', None)
+        if 'host' in res_attr:
+            self.host = res_attr.pop('host', '')
+        if 'mode' in res_attr:
+            self.mode = res_attr.pop('mode', 'regular')
+        if 'encap' in res_attr:
+            self.encap = res_attr.pop('encap', None)
+
+        # map remaining attributes to model
+        super(EndpointGroupStaticPath, self).from_attr(session,
+                                                       res_attr)
+
+    def to_attr(self, session):
+        res_attr = super(EndpointGroupStaticPath, self).to_attr(session)
+        path = res_attr.pop('path', '')
+        if path:
+            res_attr['path'] = path
+        host = res_attr.pop('host', '')
+        if host:
+            res_attr['host'] = host
+        mode = res_attr.pop('mode', 'regular')
+        if mode:
+            res_attr['mode'] = mode
+        encap = res_attr.pop('encap', '')
+        if encap:
+            res_attr['encap'] = encap
+        return res_attr
 
 
 class EndpointGroupContractMasters(model_base.Base):
@@ -361,10 +398,6 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
                                         backref='epg',
                                         cascade='all, delete-orphan',
                                         lazy='joined')
-    static_paths = orm.relationship(EndpointGroupStaticPath,
-                                    backref='epg',
-                                    cascade='all, delete-orphan',
-                                    lazy='joined')
     epg_contract_masters = orm.relationship(EndpointGroupContractMasters,
                                             backref='epg',
                                             cascade='all, delete-orphan',
@@ -409,30 +442,6 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
         self.vmm_domains = vmm_domains
         self.physical_domains = physical_domains
 
-        if 'static_paths' in res_attr:
-            existing_static_paths = self.static_paths[:]
-            new_static_paths = res_attr.pop('static_paths', []) or []
-            existing_static_paths_map = {item.path: item
-                                         for item in existing_static_paths}
-            new_static_paths_map = {item['path']: item
-                                    for item in new_static_paths
-                                    if item['path'] and item['encap']}
-            for p in existing_static_paths:
-                updated_static_path = new_static_paths_map.pop(p.path, None)
-                if not updated_static_path:
-                    self.static_paths.remove(p)
-                    continue
-                p.encap = updated_static_path['encap']
-                p.host = updated_static_path.get('host', '')
-                p.mode = updated_static_path.get('mode', 'regular')
-
-            for p in list(new_static_paths_map.values()):
-                if (p.get('path') and p.get('encap') and
-                        p['path'] not in existing_static_paths_map):
-                    self.static_paths.append(EndpointGroupStaticPath(
-                        path=p['path'], encap=p['encap'],
-                        mode=p.get('mode', 'regular'), host=p.get('host', '')))
-
         if 'epg_contract_masters' in res_attr:
             epg_contract_masters = []
             for p in (res_attr.pop('epg_contract_masters', []) or []):
@@ -460,13 +469,6 @@ class EndpointGroup(model_base.Base, model_base.HasAimId,
             # NOTE(ivar): backward compatibility
             res_attr.setdefault('physical_domain_names', []).append(
                 d.physdom_name)
-        for p in res_attr.pop('static_paths', []):
-            static_path = {'path': p.path, 'encap': p.encap}
-            if p.host:
-                static_path['host'] = p.host
-            if p.mode and p.mode != 'regular':
-                static_path['mode'] = p.mode
-            res_attr.setdefault('static_paths', []).append(static_path)
         for p in res_attr.pop('epg_contract_masters', []):
             res_attr.setdefault('epg_contract_masters', []).append(
                 {'app_profile_name': p.app_profile_name, 'name': p.name})

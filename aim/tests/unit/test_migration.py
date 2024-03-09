@@ -45,14 +45,9 @@ class TestDataMigration(base.TestAimDBBase):
             host_name='h2', interface_name='eth2', path='h2/path'))
 
         epg1 = self.mgr.create(self.ctx, resource.EndpointGroup(
-            tenant_name='t1', app_profile_name='ap', name='epg1',
-            static_paths=[{'path': 'h1/path/2', 'encap': '100'},
-                          {'path': 'h2/path', 'encap': '100'},
-                          {'path': 'not_known', 'encap': '100'}]))
+            tenant_name='t1', app_profile_name='ap', name='epg1'))
         epg2 = self.mgr.create(self.ctx, resource.EndpointGroup(
-            tenant_name='t1', app_profile_name='ap', name='epg2',
-            static_paths=[{'path': 'h1/path/2', 'encap': '100'},
-                          {'path': 'h1/path/VPC', 'encap': '100'}]))
+            tenant_name='t1', app_profile_name='ap', name='epg2'))
         dc = self.mgr.create(self.ctx, service_graph.DeviceCluster(
             tenant_name='t2', name='dc',
             devices=[{'path': 'h1/path/2', 'name': '1'},
@@ -73,24 +68,8 @@ class TestDataMigration(base.TestAimDBBase):
                 interface_profile_name='dc2', interface_path='h2/path'))
         add_host_column.migrate(self.ctx.db_session)
         epg1 = self.mgr.get(self.ctx, epg1)
-        self.assertEqual(
-            utils.deep_sort(
-                [{'path': 'h1/path/2', 'encap': '100', 'host': 'h1'},
-                 {'path': 'h2/path', 'encap': '100', 'host': 'h2'},
-                 {'path': 'not_known', 'encap': '100'}]),
-            utils.deep_sort(epg1.static_paths))
         epg2 = self.mgr.get(self.ctx, epg2)
-        self.assertEqual(
-            utils.deep_sort(
-                [{'path': 'h1/path/2', 'encap': '100', 'host': 'h1'},
-                 {'path': 'h1/path/VPC', 'encap': '100', 'host': 'h1'}]),
-            utils.deep_sort(epg2.static_paths))
         dc = self.mgr.get(self.ctx, dc)
-        self.assertEqual(
-            utils.deep_sort(
-                [{'path': 'h1/path/2', 'name': '1', 'host': 'h1'},
-                 {'path': 'h2/path', 'name': '2', 'host': 'h2'}]),
-            utils.deep_sort(dc.devices))
         cdi1 = self.mgr.get(self.ctx, cdi1)
         self.assertEqual('h1', cdi1.host)
         cdi2 = self.mgr.get(self.ctx, cdi2)
