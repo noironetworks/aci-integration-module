@@ -90,12 +90,16 @@ def manager(ctx):
     ctx.obj['aim_ctx'] = aim_ctx
 
 
+def is_attr_unspecified(value):
+    return value is ATTR_UNSPECIFIED or str(value) == str(ATTR_UNSPECIFIED)
+
+
 def filter_kwargs(klass, kwargs):
     res = {}
     LOG.debug('args: %s', kwargs)
     dummy = klass(**{k: kwargs[k] for k in klass.identity_attributes})
     for k, v in list(kwargs.items()):
-        if v is not ATTR_UNSPECIFIED:
+        if not is_attr_unspecified(v):
             try:
                 attr_type = klass.other_attributes.get(k)
                 is_list_of_dicts = (

@@ -539,7 +539,7 @@ class AciTenantManager(utils.AIMThread):
                     for op in ['create', 'delete']:
                         for i, req in enumerate(requests.get(op, [])):
                             for j, new in enumerate(resources.get(op, [])):
-                                if op is 'create':
+                                if op == 'create':
                                     req_dn = req.dn
                                     new_dn = new.dn
                                 else:

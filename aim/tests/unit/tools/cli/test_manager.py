@@ -209,7 +209,7 @@ class TestManager(base.TestShell):
                          'domain_name': 'ostack2',
                          'domain_type': 'OpenStack'}]
         for mapping in cfg_mappings:
-            if mapping['domain_type'] is 'PhysDom':
+            if mapping['domain_type'] == 'PhysDom':
                 domain = resource.PhysicalDomain(name=mapping['domain_name'])
             else:
                 domain = resource.VMMDomain(type=mapping['domain_type'],
@@ -260,7 +260,7 @@ class TestManager(base.TestShell):
                               'host_name': 'vm2',
                               'domain_name': 'ostack4'}]
         for mapping in cfg_mappings:
-            if mapping['domain_type'] is 'PhysDom':
+            if mapping['domain_type'] == 'PhysDom':
                 domain = resource.PhysicalDomain(name=mapping['domain_name'],
                                                  monitored=True)
             else:
@@ -334,7 +334,7 @@ class TestManager(base.TestShell):
             result = self.run_command(
                 'manager sync-state-find -p -s %s' % state)
             parsed = self._parse_sync_find_output(result)
-            if state is 'synced':
+            if state == 'synced':
                 self.assertEqual(5, len(parsed))
             else:
                 self.assertEqual(4, len(parsed))
