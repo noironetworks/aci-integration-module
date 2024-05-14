@@ -34,34 +34,4 @@ function buildPackage {
    popd
 }
 
-# Prepare build scripts for python3 packaging
-function python3Packaging {
-    cp debian/control .
-    cp debian/rules .
-    sed -i "s/python/python3/g" debian/control
-    sed -i "s/Package: aci-integration-module/Package: python3-aci-integration-module/g" debian/control
-    sed -i "s/Python2.7/Python3/g" debian/control
-    sed -i "s/2.7/3.3/g" debian/control
-    sed -i "s/acitoolkit/python3-acitoolkit/g" debian/control
-    sed -i "s/python2/python3/g" debian/rules
-}
-
-# Save any previous python packages
-function savePackages {
-    cp debbuild/*.deb .
-    rm -rf debbuild
-}
-
-# restore the original files and debian packages
-function restorePackaging {
-    mv control debian/control
-    mv rules debian/rules
-    mv *.deb debbuild/
-}
-
-buildPackage python2
-savePackages
-python3Packaging
 buildPackage python3
-restorePackaging
-
