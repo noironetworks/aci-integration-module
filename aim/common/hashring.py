@@ -89,7 +89,7 @@ class ConsistentHashRing(object):
             yield self._hash(str(node) + str(x))
 
     def _hash(self, key):
-        return int(md5(b64.encode_as_bytes(key)).hexdigest(), 16)
+        return int(md5(b64.encode_as_bytes(key)).hexdigest(), 16)  # nosec
 
     def add_node(self, node, weight=None):
         """Add a node to the ring

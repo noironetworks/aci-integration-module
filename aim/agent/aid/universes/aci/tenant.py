@@ -451,16 +451,18 @@ class AciTenantManager(utils.AIMThread):
             LOG.info("Scheduled tree reset for root %s" % self.tenant_name)
             try:
                 self._unsubscribe_tenant()
-            except Exception:
-                pass
+            except Exception as e:
+                LOG.info("Exception has occurred while unsubscribing tenant %s"
+                         ", error: %s" % (self.tenant_name, str(e)))
         except Exception as e:
             LOG.error("An exception has occurred in thread serving tenant "
                       "%s, error: %s" % (self.tenant_name, str(e)))
             LOG.error(traceback.format_exc())
             try:
                 self._unsubscribe_tenant()
-            except Exception:
-                pass
+            except Exception as e:
+                LOG.info("Exception has occurred while unsubscribing tenant %s"
+                         ", error: %s" % (self.tenant_name, str(e)))
             self.recovery_retries = utils.exponential_backoff(
                 TENANT_FAILURE_MAX_WAIT, tentative=self.recovery_retries)
             if self.recovery_retries.get() >= self.max_retries:

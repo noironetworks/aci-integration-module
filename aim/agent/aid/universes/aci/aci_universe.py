@@ -273,7 +273,8 @@ class ApicClientsContext(object):
                 # the extra aim-aids won't all go for the same backup url.
                 backup_urls_len = len(backup_urls)
                 if backup_urls_len > 1:
-                    backup_urls.rotate(random.randint(1, backup_urls_len))
+                    backup_urls.rotate(random.randint(
+                        1, backup_urls_len))  # nosec
                 for url in backup_urls:
                     is_conn_successful = self._ws_session_login(
                         url, url_max_retries, BACKUP_PURPOSE)
@@ -519,8 +520,9 @@ class AciCRUDLoginManager(utils.AIMThread):
             LOG.error(
                 'Could not refresh APIC login due to ApicResponseNotOk')
         # All others - just login after timeout
-        except Exception:
-            pass
+        except Exception as e:
+            LOG.info("Exception occurred. Log in after timeout. error: %s",
+                     str(e))
 
     def run(self):
         if self._apic_client._is_cert_auth():
