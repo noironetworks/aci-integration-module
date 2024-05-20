@@ -111,7 +111,7 @@ class ResourceBase(object):
             # Don't know the type, make it serializable anyways
             return str(attr)
         serializable = make_serializable(None, self.members)
-        return int(md5(base64.b64encode(
+        return int(md5(base64.b64encode(  # nosec
             oslo_serialization.jsonutils.dump_as_bytes(
                 serializable, sort_keys=True))).hexdigest(), 16)
 
@@ -284,12 +284,13 @@ class NetflowVMMExporterPol(AciResourceBase):
     _tree_parent = Infra
 
     def __init__(self, **kwargs):
-        super(NetflowVMMExporterPol, self).__init__({'dst_addr': '',
-                                                     'dst_port': 'unspecified',
-                                                     'src_addr': '0.0.0.0',
-                                                     'ver': 'v5',
-                                                     'monitored': False},
-                                                    **kwargs)
+        super(NetflowVMMExporterPol, self).__init__(
+            {'dst_addr': '',
+             'dst_port': 'unspecified',
+             'src_addr': '0.0.0.0',  # nosec
+             'ver': 'v5',
+             'monitored': False},
+            **kwargs)
 
 
 class BridgeDomain(AciResourceBase):
@@ -833,7 +834,7 @@ class VMMDomain(AciResourceBase):
         defaults = {'monitored': False,
                     'enforcement_pref': 'hw',
                     'mode': 'default',
-                    'mcast_address': '0.0.0.0',
+                    'mcast_address': '0.0.0.0',  # nosec
                     'encap_mode': 'unknown',
                     'pref_encap_mode': 'unspecified',
                     'vlan_pool_name': '',
@@ -1433,8 +1434,8 @@ class VmmInjectedService(AciResourceBase):
     def __init__(self, **kwargs):
         super(VmmInjectedService, self).__init__(
             {'service_type': 'clusterIp',
-             'cluster_ip': '0.0.0.0',
-             'load_balancer_ip': '0.0.0.0',
+             'cluster_ip': '0.0.0.0',  # nosec
+             'load_balancer_ip': '0.0.0.0',  # nosec
              'service_ports': [],
              'endpoints': [],
              'guid': ''},
@@ -1748,15 +1749,16 @@ class SpanVepgSummary(AciResourceBase):
     _tree_parent = SpanVdest
 
     def __init__(self, **kwargs):
-        super(SpanVepgSummary, self).__init__({'monitored': False,
-                                               'dst_ip': '',
-                                               'flow_id': '1',
-                                               'ttl': '64',
-                                               'mtu': '1518',
-                                               'mode': 'not-visible',
-                                               'src_ip_prefix': '0.0.0.0',
-                                               'dscp': 'unspecified'},
-                                              **kwargs)
+        super(SpanVepgSummary, self).__init__(
+            {'monitored': False,
+             'dst_ip': '',
+             'flow_id': '1',
+             'ttl': '64',
+             'mtu': '1518',
+             'mode': 'not-visible',
+             'src_ip_prefix': '0.0.0.0',  # nosec
+             'dscp': 'unspecified'},
+            **kwargs)
 
 
 class InfraAccBundleGroup(AciResourceBase):

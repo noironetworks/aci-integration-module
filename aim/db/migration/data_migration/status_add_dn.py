@@ -13,12 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
 from oslo_utils import importutils
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 from sqlalchemy import update
 
 from aim import aim_store
+
+LOG = logging.getLogger(__name__)
 
 resource_paths = ('aim.api.resource', 'aim.api.service_graph',
                   'aim.api.infra')
@@ -60,6 +63,7 @@ def migrate(session):
                 res = store.make_resource(res_class, db_res)
                 session.execute(update(Status).where(
                     Status.c.id == st.id).values(resource_dn=res.dn))
-            except Exception:
+            except Exception as e:
                 # Silently ignore
-                pass
+                LOG.info("Exception occurred while migrating status."
+                         "error: %s", str(e))

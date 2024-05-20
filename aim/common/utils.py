@@ -130,7 +130,8 @@ class Counter(object):
 
 def get_backoff_time(max_time, tentative_number):
     try:
-        return min(random.random() * (2 ** tentative_number), max_time)
+        return min(random.random() * (2 ** tentative_number),  # nosec
+                   max_time)
     except OverflowError:
         return max_time
 
@@ -379,8 +380,8 @@ def json_dumps(dict):
 
 
 def schedule_next_event(interval, deviation):
-    return get_time() + interval + random.randrange(-interval * deviation,
-                                                    interval * deviation)
+    return get_time() + interval + random.randrange(  # nosec
+        -interval * deviation, interval * deviation)
 
 
 def get_time():
