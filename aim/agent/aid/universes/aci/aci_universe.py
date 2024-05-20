@@ -273,8 +273,8 @@ class ApicClientsContext(object):
                 # the extra aim-aids won't all go for the same backup url.
                 backup_urls_len = len(backup_urls)
                 if backup_urls_len > 1:
-                    backup_urls.rotate(random.randint(
-                        1, backup_urls_len))  # nosec
+                    backup_urls.rotate(random.randint(  # nosec
+                        1, backup_urls_len))
                 for url in backup_urls:
                     is_conn_successful = self._ws_session_login(
                         url, url_max_retries, BACKUP_PURPOSE)
