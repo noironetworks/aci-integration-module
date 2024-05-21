@@ -5,7 +5,7 @@
 %define aim_http aim-http-server.service
 %global srcname aci-integration-module
 
-Name:           %{srcname}
+Name:           python3-%{srcname}
 Version:	@VERSION@
 Release:	@RELEASE@%{?dist}
 Summary:	Python library for programming ACI
@@ -13,14 +13,14 @@ License:	ASL 2.0
 URL:		http://github.com/noironetworks/%{srcname}
 Source:		%{srcname}-%{version}.tar.gz
 BuildArch:	noarch
-BuildRequires:	python2-devel
-BuildRequires:	python2-pbr
-BuildRequires:	python2-setuptools
-Requires:	python2-oslo-config >= 1.4.0
-Requires:	python-click >= 3.3
-Requires:   python-semantic_version
-Requires:       python2-sqlalchemy
-Requires:       acitoolkit >= 0.3.2
+BuildRequires:	python3-devel
+BuildRequires:	python3-pbr
+BuildRequires:	python3-setuptools
+Requires:	python3-oslo-config >= 1.4.0
+Requires:	python3-click >= 3.3
+Requires:       python3-semantic_version
+Requires:       python3-sqlalchemy
+Requires:       python3-acitoolkit >= 0.3.2
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -33,10 +33,10 @@ Library for programming ACI.
 rm -f requirements.txt
 
 %build
-%{__python2} setup.py build
+%{__python3} setup.py build
 
 %install
-%{__python2} setup.py install -O1 --install-data / --skip-build --root %{buildroot}
+%{__python3} setup.py install -O1 --install-data / --skip-build --root %{buildroot}
 install -p -D -m 0644 rpm/%{aim_daemon} %{buildroot}/%{_unitdir}/%{aim_daemon}
 install -p -D -m 0644 rpm/%{aim_eventpool} %{buildroot}/%{_unitdir}/%{aim_eventpool}
 install -p -D -m 0644 rpm/%{aim_eventrpc} %{buildroot}/%{_unitdir}/%{aim_eventrpc}
@@ -46,7 +46,7 @@ mkdir -p $RPM_BUILD_ROOT/run/aid/events
 install -p -D -m 0644 etc/logrotate.d/aim %{buildroot}%{_sysconfdir}/logrotate.d/aim
 
 # Remove unused files
-rm -rf %{buildroot}%{python2_sitelib}/aim/tests
+rm -rf %{buildroot}%{python3_sitelib}/aim/tests
 
 %post
 %if 0%{?systemd_post:1}
@@ -100,8 +100,8 @@ rm -rf %{buildroot}%{python2_sitelib}/aim/tests
 
 %files
 %doc README.rst
-%{python2_sitelib}/aim
-%{python2_sitelib}/aci_integration_module-*.egg-info
+%{python3_sitelib}/aim
+%{python3_sitelib}/aci_integration_module-*.egg-info
 %{_bindir}/aimctl
 %{_bindir}/aimdebug
 %{_bindir}/aim-aid

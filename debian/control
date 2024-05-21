@@ -1,17 +1,17 @@
 Source: aci-integration-module
-Section: python
+Section: python3
 Priority: optional
 Maintainer: Cisco Systems, Inc. <aci-integration-module@noironetworks.com>
-Build-Depends: debhelper (>= 9), dh-systemd, python-setuptools (>= 3.3), python-all (>= 2.7)
+Build-Depends: debhelper (>= 9), dh-systemd, python3-setuptools (>= 3.3), python3-all (>= 3.3)
 Standards-Version: 3.9.5
 Homepage: http://github.com/noironetworks/aci-integration-module/
 Vcs-Git: git://github.com/noironetworks/aci-integration-module.git
 Vcs-Browser: http://github.com/noironetworks/aci-integration-module
 
-Package: aci-integration-module
+Package: python3-aci-integration-module
 Architecture: all
-Depends: python-click-cli (>=3.3) | python-click (>=6.2), python-oslo.config (>=1.4),
-         ${misc:Depends}, alembic, acitoolkit, python-apicapi, python-click, python-jsonschema,
-         python-pbr, python-tabulate, python-semantic-version
-Description: Python2.7 library for programming ACI
+Depends: python3-click-cli (>=3.3) | python3-click (>=6.2), python3-oslo.config (>=1.4),
+         ${misc:Depends}, alembic, python3-acitoolkit, python3-apicapi, python3-click, python3-jsonschema,
+         python3-pbr, python3-tabulate, python3-semantic-version
+Description: Python3 library for programming ACI
  Library for programming ACI 
