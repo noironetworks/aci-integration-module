@@ -195,3 +195,13 @@ class ACISupportedMoManager(object):
             for obj in db_objs:
                 setattr(obj, "supports", status)
                 self.aim_context.store.add(obj)
+
+
+class AimHashRing(model_base.Base, model_base.AttributeMixin):
+    """DB model for configurable params for consistent hashing algo"""
+
+    __tablename__ = 'aim_consistent_hashring_params'
+
+    name = sa.Column(sa.String(16), nullable=False,
+                     primary_key=True)
+    value = sa.Column(sa.Integer, nullable=False)
