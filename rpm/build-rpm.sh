@@ -30,34 +30,4 @@ function buildPackage {
    rpmbuild --clean -ba --define "_topdir $BUILD_DIR" $BUILD_DIR/SPECS/$SPEC_FILE
 }
 
-# Save any previous python packages
-function savePackages {
-   cp rpmbuild/RPMS/noarch/*.rpm .
-   cp rpmbuild/SRPMS/*.rpm .
-   rm -rf rpmbuild
-}
-
-# Prepare build scripts for python3 packaging
-function python3Packaging {
-   cp rpm/aci-integration-module.spec.in .
-
-   sed -i "s/python2/python3/g" rpm/aci-integration-module.spec.in
-   sed -i "s/python-/python3-/g" rpm/aci-integration-module.spec.in
-   sed -i "s/acitoolkit/python3-acitoolkit/g" rpm/aci-integration-module.spec.in
-   sed -i "s/Name:           %{srcname}/Name:           python3-%{srcname}/g" rpm/aci-integration-module.spec.in
-}
-
-# restore the original files and RPM packages
-function restorePackaging {
-   mv *.src.rpm rpmbuild/SRPMS/
-   mv *.noarch.rpm rpmbuild/RPMS/noarch/
-
-   # Restore the spec file
-   mv aci-integration-module.spec.in rpm/aci-integration-module.spec.in
-}
-
-buildPackage python2
-savePackages
-python3Packaging
 buildPackage python3
-restorePackaging
