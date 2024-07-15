@@ -169,6 +169,7 @@ class AimManager(object):
             new_monitored = None
             if overwrite:
                 old_db_obj = self._query_db_obj(context.store, resource)
+                LOG.warning("old_db_obj is : %s", old_db_obj)
                 if old_db_obj:
                     old_monitored = getattr(old_db_obj, 'monitored', None)
                     new_monitored = getattr(resource, 'monitored', None)
@@ -186,6 +187,7 @@ class AimManager(object):
                     context.store.from_attr(old_db_obj, type(resource),
                                             attr_val)
             db_obj = old_db_obj or context.store.make_db_obj(resource)
+            LOG.warning("db_obj is : %s", db_obj)
             context.store.add(db_obj)
             if self._should_set_pending(old_db_obj, old_monitored,
                                         new_monitored):
@@ -195,6 +197,7 @@ class AimManager(object):
                 # we take ownership of the objects, which should be removed
                 # soon as it's causing most of our bugs.
                 self.set_resource_sync_pending(context, resource)
+            LOG.warning("db object after create is : %s",self.get(context, resource))
             return self.get(context, resource)
 
     @utils.log
@@ -308,6 +311,7 @@ class AimManager(object):
         self._validate_resource_class(resource)
         db_obj = self._query_db_obj(context.store, resource,
                                     for_update=for_update)
+        LOG.warning("db_obj in get method is: %s", db_obj)
         return self._make_resource(context, resource, db_obj,
                                    include_aim_id=include_aim_id)
 
@@ -513,6 +517,7 @@ class AimManager(object):
         id_attr = store.extract_attributes(resource, "id")
         cls = type(resource)
         objs = self._query_db(store, cls, for_update=for_update, **id_attr)
+        LOG.warning("objs list is: %s", objs)
         return objs[0] if objs else None
 
     def _get_status_params(self, context, resource):

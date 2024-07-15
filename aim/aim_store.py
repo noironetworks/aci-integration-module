@@ -372,6 +372,7 @@ class SqlAlchemyStore(AimStore):
     def _query(self, db_obj_type, resource_klass, in_=None, notin_=None,
                order_by=None, lock_update=False, **filters):
         query = self.db_session.query(db_obj_type)
+        LOG.warning("The query is : %s", query)
         for k, v in list((in_ or {}).items()):
             query = query.filter(getattr(db_obj_type, k).in_(v))
         for k, v in list((notin_ or {}).items()) or {}:
@@ -385,6 +386,7 @@ class SqlAlchemyStore(AimStore):
             else:
                 args = [getattr(db_obj_type, order_by)]
             query = query.order_by(*args)
+        LOG.warning("The final query is : %s", query)
         return query
 
     def query_statuses(self, resources):
