@@ -39,6 +39,8 @@ class HostLink(resource.ResourceBase):
         ('path', t.string()),
         ('pod_id', t.string()),
         ('from_config', t.bool))
+    db_attributes = t.db(
+        ('timestamp', t.string()))
 
     def __init__(self, **kwargs):
         super(HostLink, self).__init__({'interface_mac': '',
