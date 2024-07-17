@@ -513,7 +513,8 @@ class AimManager(object):
         id_attr = store.extract_attributes(resource, "id")
         cls = type(resource)
         objs = self._query_db(store, cls, for_update=for_update, **id_attr)
-        LOG.warning("objs list is: %s", objs)
+        for lst in objs:
+            LOG.warning("The elements on the objs list is: %s", lst)
         return objs[0] if objs else None
 
     def _get_status_params(self, context, resource):
