@@ -306,8 +306,10 @@ class AimManager(object):
         otherwise.
         """
         self._validate_resource_class(resource)
+        LOG.warning("resource in get method is %s", resource)
         db_obj = self._query_db_obj(context.store, resource,
                                     for_update=for_update)
+        LOG.warning("db object inside get method is %s", db_obj)
         return self._make_resource(context, resource, db_obj,
                                    include_aim_id=include_aim_id)
 
@@ -512,8 +514,8 @@ class AimManager(object):
     def _query_db_obj(self, store, resource, for_update=False):
         id_attr = store.extract_attributes(resource, "id")
         cls = type(resource)
-        objs = self._query_db(store, cls, for_update=for_update, **id_attr)
-        LOG.warning("Get for the resource is: %s", resource)
+        LOG.warning("Resource inside _query_db_obj is: %s", resource)
+        objs = self._query_db(store, cls, for_update=for_update, **id_attr)        
         LOG.warning("length of the list is: %s", len(objs))
         for lst in objs:
             LOG.warning("The elements on the objs list is: %s", lst)

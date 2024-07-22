@@ -372,11 +372,14 @@ class SqlAlchemyStore(AimStore):
     def _query(self, db_obj_type, resource_klass, in_=None, notin_=None,
                order_by=None, lock_update=False, **filters):
         query = self.db_session.query(db_obj_type)
+        LOG.warning("The first query is : %s", query)
         for k, v in list((in_ or {}).items()):
             query = query.filter(getattr(db_obj_type, k).in_(v))
+        LOG.warning("The second query is : %s", query)
         for k, v in list((notin_ or {}).items()) or {}:
             query = query.filter(getattr(db_obj_type, k).notin_(
                 [(x or '') for x in v]))
+        LOG.warning("The third query is : %s", query)
         if filters:
             query = query.filter_by(**filters)
         if order_by:
