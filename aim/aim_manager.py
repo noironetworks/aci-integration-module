@@ -305,8 +305,9 @@ class AimManager(object):
         of the object in the database if the object is found, None
         otherwise.
         """
+        LOG.warning("Resource before validate inside get is %s", resource)
         self._validate_resource_class(resource)
-        LOG.warning("resource in get method is %s", resource)
+        LOG.warning("Resource after validate inside get is %s", resource)
         db_obj = self._query_db_obj(context.store, resource,
                                     for_update=for_update)
         LOG.warning("db object inside get method is %s", db_obj)
