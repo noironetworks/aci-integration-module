@@ -167,3 +167,14 @@ class ACISupportedMo(resource.ResourceBase):
     def __init__(self, **kwargs):
         super(ACISupportedMo, self).__init__({'supports': False},
                                              **kwargs)
+
+
+class AimHashRing(resource.ResourceBase):
+    """Parameters configuruable for modifying consistent hashring algorithm"""
+
+    identity_attributes = t.identity(
+        ('name', t.string(16)))
+    other_attributes = t.other(('value', t.integer))
+
+    def __init__(self, **kwargs):
+        super(AimHashRing, self).__init__({}, **kwargs)

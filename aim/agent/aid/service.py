@@ -19,6 +19,7 @@ import time
 
 from oslo_log import log as logging
 import semantic_version
+import sqlalchemy as sa
 
 from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import aci_universe
@@ -46,6 +47,7 @@ DAEMON_LOOP_MAX_WAIT = 5
 DAEMON_LOOP_MAX_RETRIES = 5
 HB_LOOP_MAX_WAIT = 60
 HB_LOOP_MAX_RETRY = 10
+DEFAULT_VNODES_HASHRING = 40
 
 logging.register_options(aim_cfg.CONF)
 
@@ -230,6 +232,22 @@ class AID(object):
         LOG.info("Sending Heartbeat for agent %s" % self.agent_id)
         self.agent = self.manager.update(aim_ctx, self.agent)
 
+    def get_vnodes_value(self, aim_ctx):
+        dbsession = aim_ctx.store.db_session
+        dbsession.get_bind()
+        with dbsession.begin(subtransactions=True):
+            aim_consistent_hashring_params_table = sa.Table(
+                'aim_consistent_hashring_params', sa.MetaData(),
+                sa.Column('value', sa.Integer, nullable=False),
+                sa.Column('name', sa.String(16), nullable=False,
+                          primary_key=True))
+            query = (sa.select([aim_consistent_hashring_params_table.c.value]).
+                     where(aim_consistent_hashring_params_table.c.name
+                           == 'vnodes'))
+            result = dbsession.execute(query).fetchone()
+            vnodes_value = result[0] if result else DEFAULT_VNODES_HASHRING
+            return vnodes_value
+
     def _calculate_tenants(self, aim_ctx):
         with aim_ctx.store.begin(subtransactions=True):
             # Refresh this agent
@@ -275,8 +293,10 @@ class AID(object):
             return result
         # TODO(ivar): In future, for better resource usage, each agent
         # could have a weight value in the DB definition
-        ring = hashring.ConsistentHashRing(dict([(x.id, None)
-                                                 for x in agents]))
+        LOG.info("Vnodes value %s" % self.get_vnodes_value(aim_ctx))
+        ring = hashring.ConsistentHashRing(
+            dict([(x.id, None) for x in agents]),
+            vnodes=self.get_vnodes_value(aim_ctx))
         # retrieve tenants
         for tenant in self.tree_manager.get_roots(aim_ctx):
             allocations = ring.assign_key(tenant)
