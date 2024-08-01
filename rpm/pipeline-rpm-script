@@ -40,7 +40,7 @@ pipeline {
                         script {
                             sh """
                                 for rpm in "$WORKSPACE/rpmbuild/SRPMS/"* "$WORKSPACE/rpmbuild/RPMS/noarch/"*; do
-                                    curl -v -u ${ARTIFACTORY_USER}:${ARTIFACT_TOKEN} -X PUT "${ARTIFACTORY_URL}/\$(basename \$rpm)" -T "\$rpm"
+                                    curl -v -u ${ARTIFACTORY_USER}:\${ARTIFACT_TOKEN} -X PUT "${ARTIFACTORY_URL}/\$(basename \$rpm)" -T "\$rpm"
                                 done 
                             """
                         }
