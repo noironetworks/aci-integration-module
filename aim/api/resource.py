@@ -499,7 +499,6 @@ class EndpointGroup(AciResourceBase):
         ('physical_domain_names', t.list_of_names),
         ('vmm_domains', t.list_of_dicts(('type', t.name), ('name', t.name))),
         ('physical_domains', t.list_of_dicts(('name', t.name))),
-        ('static_paths', t.list_of_static_paths),
         ('epg_contract_masters', t.list_of_dicts(('app_profile_name', t.name),
                                                  ('name', t.name))),
         ('monitored', t.bool),
@@ -522,12 +521,39 @@ class EndpointGroup(AciResourceBase):
                                              'physical_domains': [],
                                              'policy_enforcement_pref':
                                              self.POLICY_UNENFORCED,
-                                             'static_paths': [],
                                              'epg_contract_masters': [],
                                              'qos_name': '',
                                              'monitored': False,
                                              'sync': True},
                                             **kwargs)
+
+
+class EPGStaticPath(AciResourceBase):
+    """Resource representing a EPGStaticPath in ACI.
+
+    ...
+    """
+
+    identity_attributes = t.identity(
+        ('tenant_name', t.name),
+        ('app_profile_name', t.name),
+        ('epg_name', t.name),
+        ('path', t.static_path))
+    other_attributes = t.other(
+        ('mode', t.enum("regular", "native", "untagged")),
+        ('encap', t.name),
+        ('host', t.name),
+        ('monitored', t.bool))
+
+    _aci_mo_name = 'fvRsPathAtt'
+    _tree_parent = EndpointGroup
+
+    def __init__(self, **kwargs):
+        super(EPGStaticPath, self).__init__(
+            {'mode': 'regular',
+             'encap': '',
+             'host': '',
+             'monitored': False}, **kwargs)
 
 
 class EPGSubnet(AciResourceBase):

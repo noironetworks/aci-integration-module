@@ -912,17 +912,6 @@ class TestEndpointGroupMixin(object):
                                 'provided_contract_names': ['k', 'p1', 'p2'],
                                 'consumed_contract_names': ['c1', 'c2', 'k'],
                                 'openstack_vmm_domain_names': ['openstack'],
-                                'static_paths': [{'path': 'topology/pod-1/'
-                                                          'paths-101/pathep-'
-                                                          '[eth1/2]',
-                                                  'mode': 'untagged',
-                                                  'encap': 'vlan-2'},
-                                                 {'path': 'topology/pod-1/'
-                                                          'paths-102/pathep-'
-                                                          '[eth1/5]',
-                                                  'mode': 'untagged',
-                                                  'encap': 'vlan-5',
-                                                  'host': 'h1'}],
                                 'physical_domains': [{'name': 'phys'}],
                                 'epg_contract_masters': [
                                     {'app_profile_name': 'masterap1',
@@ -936,12 +925,6 @@ class TestEndpointGroupMixin(object):
                               'provided_contract_names': ['c2', 'k', 'p1'],
                               'consumed_contract_names': ['c1', 'k', 'p2'],
                               'physical_domain_names': ['phys'],
-                              'static_paths': [{'path': ('topology/pod-1/'
-                                                         'paths-101/pathep-'
-                                                         '[eth1/2]'),
-                                                'mode': 'untagged',
-                                                'encap': 'vlan-22',
-                                                'host': 'h2'}],
                               'epg_contract_masters': [
                                   {'app_profile_name': 'masterap1',
                                    'name': 'masterepg1'}]}
@@ -953,7 +936,6 @@ class TestEndpointGroupMixin(object):
                            'physical_domain_names': [],
                            'policy_enforcement_pref':
                            resource.EndpointGroup.POLICY_UNENFORCED,
-                           'static_paths': [],
                            'epg_contract_masters': []}
     test_dn = 'uni/tn-tenant1/ap-lab/epg-web'
     res_command = 'endpoint-group'
@@ -2646,57 +2628,40 @@ class TestEndpointGroup(TestEndpointGroupMixin, TestAciResourceOpsBase,
                               physical_domains=[{'name': 'pdom'}])
         self.assertNotEqual(old_epoch, epg.epoch)
         old_epoch = epg.epoch
-        epg = self.mgr.update(self.ctx, epg, static_paths=[])
-        self.assertNotEqual(old_epoch, epg.epoch)
-
-        epg = self.mgr.update(self.ctx, epg, static_paths=[{'host': 'h1',
-                                                            'path': 'path',
-                                                            'encap': '123'},
-                                                           {'host': 'h2',
-                                                            'path': 'path2',
-                                                            'encap': '1234'}])
-        self.assertNotEqual(old_epoch, epg.epoch)
-        old_epoch = epg.epoch
-        # Same update
-        epg = self.mgr.update(self.ctx, epg, static_paths=[{'host': 'h2',
-                                                            'path': 'path2',
-                                                            'encap': '1234'},
-                                                           {'host': 'h1',
-                                                            'path': 'path',
-                                                            'encap': '123'}])
         self.assertEqual(old_epoch, epg.epoch)
 
     @base.requires(['sql'])
     def test_static_path_scale(self):
         res = resource.EndpointGroup(**self.test_required_attributes)
         epg = self.mgr.create(self.ctx, res)
-        old_epoch = epg.epoch
-        epg = self.mgr.update(self.ctx, epg,
-                              static_paths=self.test_static_paths)
-        self.assertNotEqual(old_epoch, epg.epoch)
-        self.assertEqual(len(epg.static_paths), len(self.test_static_paths))
-        old_epoch = epg.epoch
+        for test_static_path in self.test_static_paths:
+            self.mgr.create(self.ctx, resource.EPGStaticPath(
+                tenant_name=epg.tenant_name,
+                app_profile_name=epg.app_profile_name,
+                epg_name=epg.name,
+                path=test_static_path['path'],
+                encap=test_static_path['encap'],
+                host=test_static_path['host']))
         new_static_paths = copy.deepcopy(self.test_static_paths)
         updated_path = new_static_paths.pop()
         old_host = updated_path['host']
         updated_path['host'] = '%s-updated' % old_host
-        removed_path = new_static_paths.pop()
         new_path = {'host': 'node200',
                     'path': 'topology/pod-1/paths-119/pathep-[eth1/20]',
                     'encap': 'vlan-2'}
-        new_static_paths.append(updated_path)
-        new_static_paths.append(new_path)
-        epg = self.mgr.update(self.ctx, epg, static_paths=new_static_paths)
-        self.assertEqual(len(epg.static_paths), len(new_static_paths))
-        self.assertNotEqual(old_epoch, epg.epoch)
-        self.assertEqual(epg.static_paths[-1], new_path)
-        self.assertEqual(
-            list([x for x in epg.static_paths
-                  if x['path'] == updated_path['path']])[0]['host'],
-            updated_path['host'])
-        self.assertEqual(
-            list([x for x in epg.static_paths
-                  if x['path'] == removed_path['path']]), [])
+        static_path = self.mgr.get(self.ctx, resource.EPGStaticPath(
+            tenant_name=epg.tenant_name,
+            app_profile_name=epg.app_profile_name,
+            epg_name=epg.name,
+            path=updated_path['path']))
+        self.mgr.update(self.ctx, static_path, host=updated_path['host'])
+        self.mgr.create(self.ctx, resource.EPGStaticPath(
+            tenant_name=epg.tenant_name,
+            app_profile_name=epg.app_profile_name,
+            epg_name=epg.name,
+            path=new_path['path'],
+            host=new_path['host'],
+            encap=new_path['encap']))
 
 
 class TestFilter(TestFilterMixin, TestAciResourceOpsBase, base.TestAimDBBase):
