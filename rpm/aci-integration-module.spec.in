@@ -5,7 +5,7 @@
 %define aim_http aim-http-server.service
 %global srcname aci-integration-module
 
-Name:           %{srcname}
+Name:           python3-%{srcname}
 Version:	@VERSION@
 Release:	@RELEASE@%{?dist}
 Summary:	Python library for programming ACI
