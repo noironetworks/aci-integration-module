@@ -20,7 +20,7 @@ Requires:	python3-oslo-config >= 1.4.0
 Requires:	python3-click >= 3.3
 Requires:   python3-semantic_version
 Requires:       python3-sqlalchemy
-Requires:       acitoolkit >= 0.3.2
+Requires:       python3-acitoolkit >= 0.3.2
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
