@@ -381,7 +381,7 @@ def json_dumps(dict):
 
 def schedule_next_event(interval, deviation):
     return get_time() + interval + random.randrange(  # nosec
-        -interval * deviation, interval * deviation)
+        int(-interval * deviation), int(interval * deviation))
 
 
 def get_time():
