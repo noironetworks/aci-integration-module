@@ -311,7 +311,8 @@ class HashTreeDbListener(object):
         oper = tree_manager.OPERATIONAL_TREE
         for root_rn in log_by_root:
             try:
-                tree_map = {}
+                tree_map_inmem = {}
+                tree_map_db = {}
                 with ctx.store.begin(subtransactions=True):
                     try:
                         ttree = self.tt_mgr.get_base_tree(ctx, root_rn,
@@ -321,22 +322,32 @@ class HashTreeDbListener(object):
                                         'resetting trees' % root_rn)
                             self.reset(ctx.store, root_rn)
                             continue
-                        ttree_conf = self.tt_mgr.get(
-                            ctx, root_rn, lock_update=True, tree=conf)
-                        ttree_operational = self.tt_mgr.get(
-                            ctx, root_rn, lock_update=True, tree=oper)
-                        ttree_monitor = self.tt_mgr.get(
-                            ctx, root_rn, lock_update=True, tree=monitor)
+
+                        ttree_conf = self.tt_mgr.get(root_rn, tree=conf)
+                        ttree_operational = self.tt_mgr.get(root_rn, tree=oper)
+                        ttree_monitor = self.tt_mgr.get(root_rn, tree=monitor)
                     except hexc.HashTreeNotFound:
                         ttree_conf = htree.StructuredHashTree()
                         ttree_operational = htree.StructuredHashTree()
                         ttree_monitor = htree.StructuredHashTree()
-                    tree_map.setdefault(
+                    ttree_conf_db = htree.StructuredHashTree()
+                    ttree_operational_db = htree.StructuredHashTree()
+                    ttree_monitor_db = htree.StructuredHashTree()
+
+                    tree_map_inmem.setdefault(
                         self.tt_builder.CONFIG, {})[root_rn] = ttree_conf
-                    tree_map.setdefault(
+                    tree_map_inmem.setdefault(
                         self.tt_builder.OPER, {})[root_rn] = ttree_operational
-                    tree_map.setdefault(
+                    tree_map_inmem.setdefault(
                         self.tt_builder.MONITOR, {})[root_rn] = ttree_monitor
+                    tree_map_db.setdefault(
+                        self.tt_builder.CONFIG, {})[root_rn] = ttree_conf_db
+                    tree_map_db.setdefault(
+                        self.tt_builder.OPER, {})[root_rn] = (
+                        ttree_operational_db)
+                    tree_map_db.setdefault(
+                        self.tt_builder.MONITOR, {})[root_rn] = (
+                        ttree_monitor_db)
 
                     for action, aim_res, _ in log_by_root[root_rn]:
                         if action == aim_tree.ActionLog.SKIP:
@@ -346,14 +357,26 @@ class HashTreeDbListener(object):
                             added = [aim_res]
                         else:
                             deleted = [aim_res]
-                        self.tt_builder.build(added, [], deleted, tree_map,
+                        # Build the hashmap for inmemory (only root node)
+                        self.tt_builder.build(added, [], deleted,
+                                              tree_map_inmem, inmem=True,
                                               aim_ctx=ctx)
+                        # Build the hashmap for DB.
+                        self.tt_builder.build(added, [], deleted,
+                                              tree_map_db, inmem=False,
+                                              aim_ctx=ctx)
+                    # get ttree_conf and other
                     if ttree_conf.root_key:
                         self.tt_mgr.update(ctx, ttree_conf)
                     if ttree_operational.root_key:
                         self.tt_mgr.update(ctx, ttree_operational, tree=oper)
                     if ttree_monitor.root_key:
                         self.tt_mgr.update(ctx, ttree_monitor, tree=monitor)
+
+                    tree_manager.HASHTREES.update({root_rn: ((ttree_conf,
+                                                             ttree_operational,
+                                                             ttree_monitor))})
+
                     if delete_logs:
                         self._delete_logs(ctx, log_by_root[root_rn])
             except Exception as e:
