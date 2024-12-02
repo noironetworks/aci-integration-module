@@ -21,7 +21,7 @@ HostDomainMappingV2 = sa.Table(
     sa.Column('host_name', sa.String(128)),
     sa.Column('domain_name', sa.String(64)),
     sa.Column('domain_type', sa.Enum('PhysDom', 'OpenStack', 'Kubernetes',
-                                     'VMware'))
+                                     'VMware', name='enum_domain_type'))
 )
 
 HostDomainMapping = sa.Table(
