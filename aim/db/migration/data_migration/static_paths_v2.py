@@ -54,20 +54,19 @@ EndPointGroup = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
-        migrations = []
-        for static_path in session.query(StaticPaths).all():
-            epg = session.query(EndPointGroup).filter(
-                EndPointGroup.c.aim_id == static_path.epg_aim_id).one()
-            migrations.append({'aim_id': utils.generate_uuid(),
-                               'tenant_name': epg.tenant_name,
-                               'app_profile_name': epg.app_profile_name,
-                               'epg_name': epg.name,
-                               'path': static_path.path,
-                               'host': static_path.host,
-                               'mode': static_path.mode,
-                               'encap': static_path.encap})
-        session.execute(StaticPaths.delete())
-        if migrations:
-            for migration in migrations:
-                session.execute(StaticPathsV2.insert().values(migration))
+    migrations = []
+    for static_path in session.query(StaticPaths).all():
+        epg = session.query(EndPointGroup).filter(
+            EndPointGroup.c.aim_id == static_path.epg_aim_id).one()
+        migrations.append({'aim_id': utils.generate_uuid(),
+                           'tenant_name': epg.tenant_name,
+                           'app_profile_name': epg.app_profile_name,
+                           'epg_name': epg.name,
+                           'path': static_path.path,
+                           'host': static_path.host,
+                           'mode': static_path.mode,
+                           'encap': static_path.encap})
+    session.execute(StaticPaths.delete())
+    if migrations:
+        for migration in migrations:
+             session.execute(StaticPathsV2.insert().values(migration))
