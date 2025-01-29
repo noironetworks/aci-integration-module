@@ -60,17 +60,16 @@ class ConfigurationDBManager(object):
                 'version': db_cfg.version}
 
     def _get(self, context, group, key, host='', **kwargs):
-        with context.store.begin(subtransactions=True):
-            curr = self.aim_mgr.get(
-                context, resource.Configuration(group=group, key=key,
-                                                host=host))
-            if curr:
-                return curr
-            else:
-                if 'default' in kwargs:
-                    return kwargs['default']
-                raise exc.ConfigurationUndefined(group=group, conf=key,
-                                                 host=host)
+        curr = self.aim_mgr.get(
+            context, resource.Configuration(group=group, key=key,
+                                            host=host))
+        if curr:
+            return curr
+        else:
+            if 'default' in kwargs:
+                return kwargs['default']
+            raise exc.ConfigurationUndefined(group=group, conf=key,
+                                             host=host)
 
     @utils.log
     def update_bulk(self, context, configs):
@@ -81,18 +80,17 @@ class ConfigurationDBManager(object):
         {(group, key, host): value}
         :return:
         """
-        with context.store.begin(subtransactions=True):
+        with context.store.db_session.begin():
             for conf, v in list(configs.items()):
                 group, key, host = conf
                 cfg = resource.Configuration(group=group, key=key, host=host,
                                              value=v)
-                self.aim_mgr.create(context, cfg, overwrite=True)
+                self.aim_mgr._create(context, cfg, overwrite=True)
 
     @utils.log
     def update(self, context, group, key, value, host=''):
-        with context.store.begin(subtransactions=True):
-            return self.update_bulk(
-                context, {(group, key, host): value})
+        return self.update_bulk(
+            context, {(group, key, host): value})
 
     def get(self, context, group, key, host='', **kwargs):
         return self._to_dict(
@@ -101,15 +99,14 @@ class ConfigurationDBManager(object):
     @utils.log
     def delete_all(self, context, group=None, host=None):
         # Can filter by group, host or both
-        with context.store.begin(subtransactions=True):
-            filters = {}
-            if group:
-                filters['group'] = group
-            if host:
-                filters['host'] = host
-            for entry in self.aim_mgr.find(context, resource.Configuration,
-                                           **filters):
-                self.aim_mgr.delete(context, entry)
+        filters = {}
+        if group:
+            filters['group'] = group
+        if host:
+            filters['host'] = host
+        for entry in self.aim_mgr.find(context, resource.Configuration,
+                                       **filters):
+            self.aim_mgr.delete(context, entry)
 
     @utils.log
     def replace_all(self, context, configs, host=None):
@@ -122,9 +119,8 @@ class ConfigurationDBManager(object):
         """
 
         # Remove all the existing config and override with new ones
-        with context.store.begin(subtransactions=True):
-            self.delete_all(context, host=host)
-            self.update_bulk(context, configs)
+        self.delete_all(context, host=host)
+        self.update_bulk(context, configs)
 
     def get_changed(self, context, configs):
         """Get changed configurations
@@ -134,11 +130,10 @@ class ConfigurationDBManager(object):
         {(group, key, host): version}
         :return: list configurations that don't match the provided version
         """
-        with context.store.begin(subtransactions=True):
-            result = []
-            all = self.aim_mgr.find(context, resource.Configuration)
-            for cfg in all:
-                if (cfg.group, cfg.key, cfg.host) in configs:
-                    if cfg.version != configs[(cfg.group, cfg.key, cfg.host)]:
-                        result.append(cfg)
-            return [self._to_dict(x) for x in result]
+        result = []
+        all = self.aim_mgr.find(context, resource.Configuration)
+        for cfg in all:
+            if (cfg.group, cfg.key, cfg.host) in configs:
+                if cfg.version != configs[(cfg.group, cfg.key, cfg.host)]:
+                    result.append(cfg)
+        return [self._to_dict(x) for x in result]

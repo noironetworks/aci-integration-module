@@ -414,8 +414,8 @@ def l3ext_next_hop_converter(object_dict, otype, helper,
             return []
         for index, attr in enumerate(destination_identity_attributes):
             res_dict[attr] = id[index]
-        if (object_dict.get('type') == 'prefix' and object_dict.get('nhAddr')
-                and object_dict.get('pref')):
+        if (object_dict.get('type') == 'prefix' and object_dict.
+                get('nhAddr') and object_dict.get('pref')):
             res_dict['next_hop_list'] = [{'addr': object_dict['nhAddr'],
                                           'preference': object_dict['pref']}]
         result.append(default_to_resource(res_dict, helper, to_aim=True))
