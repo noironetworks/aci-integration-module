@@ -32,6 +32,7 @@ from aim.common import utils
 from aim import config as aim_cfg
 from aim import context
 from aim.db import api
+from aim.db import hashtree_db_listener
 from aim import tree_manager
 
 LOG = logging.getLogger(__name__)
@@ -120,6 +121,9 @@ class AID(object):
     def daemon_loop(self):
         # Serve tenants the very first time regardless of the events received
         self.events.serve()
+        aim_ctx = context.AimContext(store=api.get_store())
+        listener = hashtree_db_listener.HashTreeDbListener(self.manager)
+        listener._recreate_trees(aim_ctx, root=None)
         self._daemon_loop()
 
     @utils.retry_loop(DAEMON_LOOP_MAX_WAIT, DAEMON_LOOP_MAX_RETRIES, 'AID',
