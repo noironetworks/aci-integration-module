@@ -401,7 +401,7 @@ class ApicClientsContext(object):
 
             while flag['monitor_runs']:
                 for thd, name in threads:
-                    if thd and not thd.isAlive():
+                    if thd and not thd.is_alive():
                         if name_to_retry[name] and name_to_retry[
                                 name].get() >= max_retries:
                             utils.perform_harakiri(
