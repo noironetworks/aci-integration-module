@@ -13,13 +13,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import datetime
 import mock
+from mock import MagicMock
 import requests.exceptions as rexc
 
 from apicapi import exceptions
 
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes.aci import tenant as aci_tenant
+from aim import aim_manager
+from aim.api import infra as api_infra
 from aim.api import resource
 from aim.common.hashtree import structured_tree
 from aim.common import utils
@@ -541,6 +545,121 @@ class TestAciUniverseLogin(base.TestAimDBBase):
                 self.assertEqual(60, crud_mgr._login_timeout)
         else:
             apic_client.login.assert_not_called()
+
+
+class TestApicClientsContext(base.TestAimDBBase):
+
+    def setUp(self):
+        super(TestApicClientsContext, self).setUp()
+        self.aim_manager = aim_manager.AimManager()
+
+        # Mock lock acquisition to always succeed
+        mock_rlock_instance = MagicMock()
+        self.mock_get_rlock = mock.patch('aim.common.utils.get_rlock',
+                return_value=True)
+        self.mocked_get_rlock = self.mock_get_rlock.start()
+        self.mocked_get_rlock.return_value = mock_rlock_instance
+
+        # Creating an instance of ApicClientsContext
+        self.mock_session = mock.patch('acitoolkit.acitoolkit.Session',
+                return_value=True)
+
+        # Mock the Session and its login behavior
+        self.mock_session_instance = MagicMock()
+        self.mock_session.return_value = self.mock_session_instance
+        self.mock_session_instance.login.return_value.ok = True
+        self.mocked_session = self.mock_session.start()
+        self.mocked_session.return_value = self.mock_session_instance
+
+        mock_spawn = mock.patch(
+            'aim.agent.aid.universes.aci.aci_universe.ApicClientsContext' +
+            '._spawn_monitors')
+        self.mocked_spawn = mock_spawn.start()
+        self.mock_apic_client = mock.patch('apicapi.apic_client.RestClient')
+        self.mocked_apic_client = self.mock_apic_client.start()
+        self.addCleanup(self.mocked_apic_client)
+        self.addCleanup(self.mocked_spawn)
+        self.addCleanup(self.mocked_session)
+        self.addCleanup(self.mocked_get_rlock)
+
+        self.context = aci_universe.ApicClientsContext(self.cfg_manager,
+                self.aim_manager)
+        self.context.need_recovery = True
+
+    def test_recovery_with_multiple_ips(self):
+
+        class MockEffect(object):
+            def __init__(self, status, content=None):
+                self._ok = status
+                self._content = content
+            @property
+            def ok(self):
+                return self._ok
+            @property
+            def content(self):
+                return self._content
+
+        # Set up other URLs to be owned by other (fake) AIMs
+        apic_assign_2 = api_infra.ApicAssignment(
+                apic_host='https://1.1.1.2', aim_id='h2')
+        self.aim_manager.create(self.ctx, apic_assign_2)
+        apic_assign_3 = api_infra.ApicAssignment(
+                apic_host='https://1.1.1.3', aim_id='h3')
+        self.aim_manager.create(self.ctx, apic_assign_3)
+
+        # Start with connection to the first controller
+        self.mock_session_instance.ipaddr = '1.1.1.1'
+
+        # With 2 attempts per URL, make the first URL fail, but the
+        # second URL (backup) succeed.
+        self.mock_session_instance.login.side_effect = [
+                MockEffect(False, "Not there"),
+                MockEffect(False, "Not there"),
+                MockEffect(True) ]
+
+        # Call to move to backup
+        self.context.establish_sessions(recovery_mode=False)
+
+        # Ensure the login method was called for each URL in the ws_urls deque
+        #self.assertEqual(self.mocked_session.call_count, len(self.context.ws_urls))
+        self.mocked_session.assert_any_call(
+            'https://1.1.1.1',
+            'admin',
+            'password',
+            verify_ssl=False,
+            cert_name=None,
+            key=None
+        )
+
+        # Ensure recovery flag is updated correctly
+        self.assertTrue(self.context.need_recovery)
+
+        # Connection is now on the second controller
+        self.mock_session_instance.ipaddr = '1.1.1.2'
+
+        # Fake the expiration, so that the second AIM/AID no longer
+        # is assigned to the second APIC, making it available to be taken.
+        expired_ts = self.ctx.store.current_timestamp - datetime.timedelta(
+                seconds=601)
+        # We can only set the timestamp on creation, so delete then
+        # create the assignment entry with the expired timestamp
+        self.aim_manager.delete(self.ctx, apic_assign_2)
+        apic_assign_2.last_update_timestamp=expired_ts
+        apic_assign_2 = self.aim_manager.create(self.ctx, apic_assign_2)
+
+        # With 2 attempts per URL, make the first URL fail, but the
+        # second URL (backup) succeed.
+        self.mock_session_instance.login.side_effect = [
+                MockEffect(False, "Not there"),
+                MockEffect(False, "Not there"),
+                MockEffect(True) ]
+
+        # The second assignment is now available, so we should
+        # be able to take ownership of it in recovery mode.
+        self.context.establish_sessions(recovery_mode=True)
+
+        # Ensure recovery flag is updated correctly
+        self.assertFalse(self.context.need_recovery)
 
 
 class TestAciOperationalUniverse(TestAciUniverseMixin, base.TestAimDBBase):
