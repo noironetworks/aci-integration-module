@@ -240,9 +240,17 @@ class ApicClientsContext(object):
                     apic_assign = api_infra.ApicAssignment(apic_host=url)
                     apic_assign_obj = self.manager.get(aim_context,
                                                        apic_assign)
+                    if apic_assign_obj:
+                        LOG.warn('TBB: %(url)s, %(obj)s, %(obj_id)s, %(agent_id)s, %(current)s, %(last)s, ', 
+                                 {'url': url, 'obj': apic_assign_obj,
+                                  'obj_id': apic_assign_obj.aim_aid_id,
+                                  'agent_id': self.agent_id,
+                                  'current': aim_context.store.current_timestamp,
+                                  'last': apic_assign_obj.last_update_timestamp})
                     if (apic_assign_obj and
                         apic_assign_obj.aim_aid_id != self.agent_id and
                             not apic_assign_obj.is_available(aim_context)):
+                        LOG.warn('Adding backup url: %s', url)
                         backup_urls.append(url)
                         continue
 
@@ -250,6 +258,7 @@ class ApicClientsContext(object):
                     # crashed or something. We will just take it!
                     if (recovery_mode and apic_assign_obj and
                             self.session.ipaddr in url):
+                        LOG.warn('[BACKUP] Claiming unused url: %s', url)
                         obj = self._update_apic_assign_db(
                             aim_context, apic_assign, apic_assign_obj)
                         if obj is None:
@@ -262,9 +271,12 @@ class ApicClientsContext(object):
                         url, url_max_retries, purpose,
                         aim_context, apic_assign, apic_assign_obj)
                     if is_conn_successful:
+                        LOG.warn('Login successful to URL: %s', url)
                         self.establish_aci_session(url)
                         return
                     else:
+                        LOG.warn('Failed login to URL: %s, adding to backups',
+                                 url)
                         backup_urls.append(url)
 
                 if recovery_mode:
@@ -276,6 +288,7 @@ class ApicClientsContext(object):
                     backup_urls.rotate(random.randint(  # nosec
                         1, backup_urls_len))
                 for url in backup_urls:
+                    LOG.warn('Attempting to login to backup URL: %s', url)
                     is_conn_successful = self._ws_session_login(
                         url, url_max_retries, BACKUP_PURPOSE)
                     if is_conn_successful:

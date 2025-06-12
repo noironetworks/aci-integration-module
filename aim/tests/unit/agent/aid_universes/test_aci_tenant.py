@@ -537,8 +537,8 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
 
             # Simulate running in the recovery mode where we will just
             # resume the ownership in the DB.
-            api_infra.ApicAssignment.is_available = mock.Mock(
-                return_value=True)
+            #api_infra.ApicAssignment.is_available = mock.Mock(
+            #    return_value=True)
             self.manager.ac_context.establish_sessions(recovery_mode=True)
             self.assertEqual(self.manager.ac_context.session.ipaddr, '1.1.1.1')
             self.assertEqual(self.manager.ac_context.need_recovery, False)
