@@ -621,7 +621,8 @@ class FilterEntry(AciResourceBase):
     --------------------------------------------------------------------------
     arp_opcode        | req, reply
     ether_type        | trill, arp, mpls_ucast, mac_security, fcoe, ip
-    ip_protocol       | icmp, igmp, tcp, egp, igp, udp, icmpv6, eigrp, ospfigp
+    ip_protocol       | icmp, igmp, tcp, egp, igp, udp,  esp, icmpv6,
+                      | eigrp, ospfigp
     icmpv4_type       | echo-rep, dst-unreach, src-quench, echo, time-exceeded
     icmpv6_type       | dst-unreach, time-exceeded, echo-req, echo-rep,
                       | nbr-solicit, nbr-advert, redirect
