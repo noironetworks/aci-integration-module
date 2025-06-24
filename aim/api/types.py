@@ -37,8 +37,9 @@ icmpv6_type = {'0': UNSPECIFIED, '1': 'dst-unreach', '3': 'time-exceeded',
                '136': 'nbr-advert', '137': 'redirect'}
 icmpv6_code = {'0xffff': UNSPECIFIED}
 ip_protocol = {'0': UNSPECIFIED, '1': 'icmp', '2': 'igmp', '6': 'tcp',
-               '8': 'egp', '9': 'igp', '17': 'udp', '58': 'icmpv6',
-               '88': 'eigrp', '89': 'ospfigp', '103': 'pim', '115': 'l2tp'}
+               '8': 'egp', '9': 'igp', '17': 'udp', '50': 'esp',
+               '58': 'icmpv6', '88': 'eigrp', '89': 'ospfigp',
+               '103': 'pim', '115': 'l2tp'}
 
 ethertype = {'0': UNSPECIFIED, '1': 'ipv4', '2': 'ipv6'}
 spmodes = {'0': 'regular', '1': 'native', '2': 'untagged'}
