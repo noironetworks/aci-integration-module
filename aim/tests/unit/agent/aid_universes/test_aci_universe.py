@@ -359,14 +359,14 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
         self.universe.ac_context.monitor_max_backoff = 0
         self.universe.ac_context.monitor_sleep_time = 0
         t = mock.Mock()
-        t.isAlive = mock.Mock(return_value=False)
+        t.is_alive = mock.Mock(return_value=False)
         self.universe.ac_context.subs_thread = t
         with mock.patch.object(utils, 'perform_harakiri') as harakiri:
             self.universe.ac_context._thread_monitor({'monitor_runs': 4})
-            self.assertEqual(4, t.isAlive.call_count)
+            self.assertEqual(4, t.is_alive.call_count)
             harakiri.assert_called_once_with(mock.ANY, mock.ANY)
             harakiri.reset_mock()
-            t.isAlive = mock.Mock(return_value=True)
+            t.is_alive = mock.Mock(return_value=True)
             self.universe.ac_context._thread_monitor({'monitor_runs': 4})
             self.assertEqual(0, harakiri.call_count)
 
