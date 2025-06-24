@@ -49,7 +49,8 @@ EndPointGroup = sa.Table(
     sa.Column('tenant_name', sa.String(64)),
     sa.Column('bd_name', sa.String(64)),
     sa.Column('policy_enforcement_pref', sa.String(16)),
-    sa.Column('qos_name', sa.String(64))
+    sa.Column('qos_name', sa.String(64)),
+    sa.Column('monitored', sa.Boolean)
 )
 
 
@@ -66,7 +67,8 @@ def migrate(session):
                                'path': static_path.path,
                                'host': static_path.host,
                                'mode': static_path.mode,
-                               'encap': static_path.encap})
+                               'encap': static_path.encap,
+                               'monitored': epg.monitored})
         session.execute(StaticPaths.delete())
         if migrations:
             for migration in migrations:
