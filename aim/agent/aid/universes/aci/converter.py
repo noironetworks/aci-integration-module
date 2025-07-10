@@ -824,6 +824,14 @@ def hostprot_remoteIp_converter(object_dict, otype, helper,
             res_dict[attr] = id[index]
         if object_dict.get(aci_attr):
             res_dict[aim_attr] = [object_dict[aci_attr]]
+        ip_addr = object_dict.get(aci_attr)
+        if ip_addr:
+            # Normalize the IP address
+            # this is necessary for composing Security Group Rules usecase.
+            # Since APIC strips /32 from customer config.
+            normalized_ip = ('0.0.0.0/32' if ip_addr == '0.0.0.0'
+                             else ip_addr)
+            res_dict[aim_attr] = [normalized_ip]
         result.append(default_to_resource(res_dict, helper, to_aim=True))
     else:
         aci_type = helper['resource']
