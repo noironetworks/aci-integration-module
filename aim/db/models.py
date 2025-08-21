@@ -230,13 +230,18 @@ class VMMDomain(model_base.Base, model_base.HasDisplayName,
                       model_base.to_tuple(model_base.Base.__table_args__))
 
     type = sa.Column(sa.String(64))
-    enforcement_pref = sa.Column(sa.Enum('sw', 'hw', 'unknown'))
-    mode = sa.Column(sa.Enum('default', 'n1kv', 'unknown', 'ovs', 'k8s'))
+    enforcement_pref = sa.Column(sa.Enum('sw', 'hw', 'unknown',
+        name='enum_enforcement_pref'))
+    mode = sa.Column(sa.Enum('default', 'n1kv', 'unknown', 'ovs', 'k8s',
+        name='enum_aim_vmm_domains_mode'))
     mcast_address = sa.Column(sa.String(64))
-    encap_mode = sa.Column(sa.Enum('unknown', 'vlan', 'vxlan'))
-    pref_encap_mode = sa.Column(sa.Enum('unspecified', 'vlan', 'vxlan'))
+    encap_mode = sa.Column(sa.Enum('unknown', 'vlan', 'vxlan',
+        name='enum_encap_mode'))
+    pref_encap_mode = sa.Column(sa.Enum('unspecified', 'vlan', 'vxlan',
+        name='enum_pref_encap_mode'))
     vlan_pool_name = model_base.name_column()
-    vlan_pool_type = sa.Column(sa.Enum('static', 'dynamic'))
+    vlan_pool_type = sa.Column(sa.Enum('static', 'dynamic',
+        name='enum_vlan_pool_type'))
     mcast_addr_pool_name = model_base.name_column()
 
 
@@ -551,7 +556,8 @@ class ContractSubjectFilter(model_base.Base):
                                sa.ForeignKey('aim_contract_subjects.aim_id'),
                                primary_key=True)
     name = model_base.name_column(primary_key=True)
-    direction = sa.Column(sa.Enum('bi', 'in', 'out'), primary_key=True)
+    direction = sa.Column(sa.Enum('bi', 'in', 'out', name='enum_direction'),
+        primary_key=True)
 
 
 class ContractSubject(model_base.Base, model_base.HasAimId,
@@ -1170,10 +1176,12 @@ class VMMController(model_base.Base, model_base.HasDisplayName,
     domain_type = model_base.name_column(nullable=False)
 
     scope = sa.Column(sa.Enum('unmanaged', 'vm', 'iaas', 'network',
-                              'MicrosoftSCVMM', 'openstack', 'kubernetes'))
+                              'MicrosoftSCVMM', 'openstack', 'kubernetes',
+                              name='enum_scope'))
     root_cont_name = sa.Column(sa.String(64))
     host_or_ip = sa.Column(sa.String(128))
-    mode = sa.Column(sa.Enum('default', 'n1kv', 'unknown', 'ovs', 'k8s'))
+    mode = sa.Column(sa.Enum('default', 'n1kv', 'unknown', 'ovs', 'k8s',
+                             name='enum_aim_vmm_controllers_mode'))
 
 
 class VmmInjectedNamespace(model_base.Base, model_base.HasAimId,
@@ -1266,7 +1274,8 @@ class VmmInjectedService(model_base.Base, model_base.HasAimId,
     controller_name = model_base.name_column(nullable=False)
     namespace_name = model_base.name_column(nullable=False)
     service_type = sa.Column(sa.Enum('clusterIp', 'externalName',
-                                     'nodePort', 'loadBalancer'))
+                                     'nodePort', 'loadBalancer',
+                                     name='enum_service_type'))
     cluster_ip = sa.Column(sa.String(64))
     load_balancer_ip = sa.Column(sa.String(64))
 
