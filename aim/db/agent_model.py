@@ -32,7 +32,7 @@ class Agent(model_base.Base, model_base.HasId, model_base.AttributeMixin):
 
     __table_args__ = (
         sa.UniqueConstraint('agent_type', 'host',
-                            name='uniq_agents0agent_type0host'),
+                            name='aim_agents_uniq_agents0agent_type0host'),
         model_base.Base.__table_args__
     )
 
