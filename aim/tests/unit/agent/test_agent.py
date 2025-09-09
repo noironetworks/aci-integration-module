@@ -2222,12 +2222,12 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         current.observe(self.ctx)
         # Because of the possible error nodes, we need to verify that the
         # diff is empty
-        self.assertEqual(list(current.state.keys()),
-                         list(desired.state.keys()),
-                         'Not in sync:\n current(%s)\n: %s \n\n '
-                         'desired(%s)\n: %s' %
-                         (current.name, printable_state(current), desired.name,
-                          printable_state(desired)))
+        self.assertItemsEqual(list(current.state.keys()),
+                              list(desired.state.keys()),
+                              'Not in sync:\n current(%s)\n: %s \n\n '
+                              'desired(%s)\n: %s' %
+                              (current.name, printable_state(current),
+                               desired.name, printable_state(desired)))
         for tenant in (tenants or current.state):
             if negative:
                 self.assertNotEqual(

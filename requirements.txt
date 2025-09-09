@@ -16,7 +16,7 @@ oslo.config
 oslo.db
 oslo.messaging>=5.35.6,!=9.0.0
 oslo.log
-oslo.utils
-pbr>=1.6
+oslo.utils<9.0.0
+pbr>=1.6,<5.5
 semantic_version
 tabulate
