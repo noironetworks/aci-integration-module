@@ -89,6 +89,8 @@ agent_opts = [
     cfg.StrOpt('aim_service_identifier', default=socket.gethostname(),
                help="(Restart Required) Identifier for this specific AID "
                     "service, defaults to the hostname."),
+    cfg.StrOpt('aim_agentid_base', default=socket.gethostname(),
+               help="Base identifier for agent ID in k8s StatefulSets."),
     cfg.StrOpt('aim_store', default='sql', choices=['k8s', 'sql'],
                help="Backend store of this AIM installation. It can be either "
                     "SQL via sqlalchemy or k8s via the Kubernetes API server."
