@@ -431,6 +431,7 @@ def convert(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1).lower()
 
+
 for res in aim_manager.AimManager._db_model_map:
     # runtime create commands
     def specify_other_attrs(f):
