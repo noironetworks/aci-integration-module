@@ -17,6 +17,6 @@ oslo.db
 oslo.messaging>=5.35.6,!=9.0.0
 oslo.log
 oslo.utils
-pbr>=1.6
+pbr<7.0
 semantic_version
 tabulate
