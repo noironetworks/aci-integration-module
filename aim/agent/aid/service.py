@@ -242,8 +242,8 @@ class AID(object):
                 sa.Column('name', sa.String(16), nullable=False,
                           primary_key=True))
             query = (sa.select([aim_consistent_hashring_params_table.c.value]).
-                     where(aim_consistent_hashring_params_table.c.name
-                           == 'vnodes'))
+                     where(aim_consistent_hashring_params_table.c.name ==
+                           'vnodes'))
             result = dbsession.execute(query).fetchone()
             vnodes_value = result[0] if result else DEFAULT_VNODES_HASHRING
             return vnodes_value
