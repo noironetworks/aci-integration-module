@@ -312,8 +312,8 @@ class ServiceGraph(model_base.Base, model_base.HasAimId,
     def from_attr(self, session, res_attr):
         if 'linear_chain_nodes' in res_attr:
             nodes = []
-            for i, n in enumerate((res_attr.pop('linear_chain_nodes', [])
-                                   or [])):
+            for i, n in enumerate((res_attr.pop('linear_chain_nodes', []) or
+                                   [])):
                 if not n.get('name'):
                     continue
                 nodes.append(
