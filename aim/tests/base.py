@@ -177,6 +177,8 @@ class TestAimDBBase(BaseTestCase):
             #
             # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
+            logging.getLogger("aim.config").setLevel(logging.ERROR)
+
             def clear_tables():
                 with self.engine.begin() as conn:
                     for table in reversed(
