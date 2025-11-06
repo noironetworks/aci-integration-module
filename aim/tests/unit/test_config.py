@@ -279,3 +279,90 @@ class TestAimConfig(base.TestAimDBBase):
         cfg_mgr2 = config.ConfigManager(self.ctx, 'h2')
         self.assertTrue(cfg_mgr1 is not cfg_mgr2)
         self.assertTrue(cfg_mgr1.subs_mgr is cfg_mgr2.subs_mgr)
+
+    def test_verify_ssl_opt_boolean_true(self):
+        """Test _verify_ssl_opt returns True for boolean true strings"""
+        cfg_mgr = config.ConfigManager(self.ctx, 'h1')
+
+        # Test various true strings
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('true'))
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('True'))
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('TRUE'))
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('yes'))
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('Yes'))
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('1'))
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('t'))
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('T'))
+
+    def test_verify_ssl_opt_boolean_false(self):
+        """Test _verify_ssl_opt returns False for boolean false strings"""
+        cfg_mgr = config.ConfigManager(self.ctx, 'h1')
+
+        # Test various false strings
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('false'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('False'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('FALSE'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('no'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('No'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('0'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('f'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('F'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('off'))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt(''))
+
+    def test_verify_ssl_opt_file_path(self):
+        """Test _verify_ssl_opt returns string path for file paths"""
+        cfg_mgr = config.ConfigManager(self.ctx, 'h1')
+
+        # Test absolute paths (should return as-is)
+        path1 = '/etc/ssl/certs/ca-certificates.crt'
+        self.assertEqual(path1, cfg_mgr._verify_ssl_opt(path1))
+
+        path2 = '/path/to/apic-ca-bundle.crt'
+        self.assertEqual(path2, cfg_mgr._verify_ssl_opt(path2))
+
+        # Test relative path (should return as-is with warning)
+        path3 = 'relative/path/ca.crt'
+        self.assertEqual(path3, cfg_mgr._verify_ssl_opt(path3))
+
+    def test_verify_ssl_opt_none(self):
+        """Test _verify_ssl_opt returns False for None (default)"""
+        cfg_mgr = config.ConfigManager(self.ctx, 'h1')
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt(None))
+
+    def test_verify_ssl_opt_whitespace(self):
+        """Test _verify_ssl_opt handles whitespace correctly"""
+        cfg_mgr = config.ConfigManager(self.ctx, 'h1')
+
+        # Whitespace should be stripped
+        self.assertEqual(True, cfg_mgr._verify_ssl_opt('  true  '))
+        self.assertEqual(False, cfg_mgr._verify_ssl_opt('  false  '))
+        self.assertEqual('/etc/ssl/ca.crt', cfg_mgr._verify_ssl_opt(
+                         '  /etc/ssl/ca.crt  '))
+
+    def test_verify_ssl_certificate_integration_boolean(self):
+        """Test integration of verify_ssl_certificate with booleans"""
+        # Set as boolean true string
+        self.set_override('verify_ssl_certificate', 'true', 'apic')
+        result = self.cfg_mgr.get_option('verify_ssl_certificate', 'apic')
+        self.assertEqual(True, result)
+        self.assertIsInstance(result, bool)
+
+        # Set as boolean false string
+        self.set_override('verify_ssl_certificate', 'false', 'apic')
+        result = self.cfg_mgr.get_option('verify_ssl_certificate', 'apic')
+        self.assertEqual(False, result)
+        self.assertIsInstance(result, bool)
+
+    def test_verify_ssl_certificate_integration_path(self):
+        """Test integration of verify_ssl_certificate with paths"""
+        # Set as file path
+        ca_path = '/etc/ssl/certs/apic-ca-bundle.crt'
+        self.set_override('verify_ssl_certificate', ca_path, 'apic')
+        result = self.cfg_mgr.get_option('verify_ssl_certificate', 'apic')
+        self.assertEqual(ca_path, result)
+        self.assertIsInstance(result, str)
+
+        # Verify it's not converted to boolean
+        self.assertNotEqual(True, result)
+        self.assertNotEqual(False, result)

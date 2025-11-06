@@ -275,7 +275,10 @@ class ConfigManager(object):
             if isinstance(obj, cfg.IntOpt):
                 db_conf['value'] = self._int_opt(value)
             elif isinstance(obj, cfg.StrOpt):
-                db_conf['value'] = self._str_opt(value)
+                if item == 'verify_ssl_certificate':
+                    db_conf['value'] = self._verify_ssl_opt(value)
+                else:
+                    db_conf['value'] = self._str_opt(value)
             elif isinstance(obj, cfg.ListOpt):
                 db_conf['value'] = self._list_opt(value)
             elif isinstance(obj, cfg.BoolOpt):
@@ -297,6 +300,37 @@ class ConfigManager(object):
             return ','.join(value)
         else:
             return str(value)
+
+    def _verify_ssl_opt(self, value):
+        """Parse verify_ssl_certificate option.
+
+        Returns:
+            - True if value is boolean true string
+              ('true', 'yes', '1', etc)
+            - False if value is boolean false string
+              ('false', 'no', '0', etc)
+            - String path otherwise (assumed to be CA cert path)
+        """
+        if value is None:
+            return False  # Default to False for backwards compatibility
+
+        # Convert to string and strip whitespace
+        value_str = str(value).strip()
+
+        # Check if it's a boolean string
+        value_lower = value_str.lower()
+
+        if value_lower in self.true:  # ['true', 'yes', '1', 't', 'on']
+            return True
+        elif value_lower in ['false', 'no', '0', 'f', 'off', '']:
+            return False
+        else:
+            # Assume it's a file path
+            if not value_str.startswith('/'):
+                LOG.warning(
+                    "verify_ssl_certificate path should be absolute: %s",
+                    value_str)
+            return value_str
 
     def get_option(self, item, group='default', host=None):
         host = host or self.host
