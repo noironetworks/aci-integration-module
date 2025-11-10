@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
 import signal
 import sys
 import time
@@ -94,7 +95,13 @@ class AID(object):
         # AIM's
         self.manager = aim_manager.AimManager()
         self.tree_manager = tree_manager.HashTreeManager()
-        self.agent_id = 'aid-%s' % self.host
+        pod_ordinal = os.environ.get('POD_ORDINAL')
+        if pod_ordinal:
+            self.agent_id = "aid-%s-%s" % (conf.aim.aim_agentid_base,
+                                           pod_ordinal)
+        else:
+            # TripleO deployment
+            self.agent_id = 'aid-%s' % self.host
         self.agent = resource.Agent(id=self.agent_id, agent_type=AGENT_TYPE,
                                     host=self.host, binary_file=AGENT_BINARY,
                                     description=AGENT_DESCRIPTION,
