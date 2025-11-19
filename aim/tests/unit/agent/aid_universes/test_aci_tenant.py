@@ -260,7 +260,7 @@ class TestAciClientMixin(object):
         for root, updates in list(by_root.items()):
             tree_manager.AimHashTreeMaker().update(
                 state.setdefault(root, structured_tree.StructuredHashTree()),
-                updates)
+                updates, inmem=True)
 
     def _remove_data_from_tree(self, data, state):
         aim_res = converter.AciToAimModelConverter().convert(data)

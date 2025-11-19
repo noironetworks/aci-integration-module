@@ -44,6 +44,9 @@ class TestAimDbUniverseBase(object):
         self.universe.serve(self.ctx, tenants)
         self.assertEqual(set(tenants), set(self.universe._served_tenants))
 
+    # This has been skipped when removing DB persistance of hashtrees, as the
+    # hashtrees are not saved in the DB anymore.
+    @base.requires(['skip'])
     def test_state(self, tree_type=tree_manager.CONFIG_TREE):
         # Create some trees in the AIM DB
         data1 = tree.StructuredHashTree().include(
@@ -221,16 +224,15 @@ class TestAimDbUniverseBase(object):
         aim_mgr.set_resource_sync_synced(self.ctx, sg1)
         aim_mgr.set_resource_sync_synced(self.ctx, srp1)
         aim_mgr.set_resource_sync_synced(self.ctx, dc_ctx1)
-
         # Two trees exist
-        trees = tree_mgr.find(self.ctx, tree=tree_type)
+        trees = tree_mgr.find_inmem(self.ctx, tree=tree_type)
         self.assertEqual(2, len(trees))
 
         # Calculate the different with empty trees to retrieve missing keys
-        diff_tn_1 = trees[0].diff(tree.StructuredHashTree())
-        diff_tn_2 = trees[1].diff(tree.StructuredHashTree())
+        diff_tn_1 = trees[0][1].diff(tree.StructuredHashTree())
+        diff_tn_2 = trees[1][1].diff(tree.StructuredHashTree())
         self.universe.get_relevant_state_for_read = mock.Mock(
-            return_value=[{'tn-t1': trees[0], 'tn-t2': trees[1]}])
+            return_value=[{'tn-t1': trees[0][1], 'tn-t2': trees[1][1]}])
         result = self.universe.get_resources(diff_tn_1.get('add', []) +
                                              diff_tn_1.get('remove', []) +
                                              diff_tn_2.get('add', []) +
@@ -241,6 +243,7 @@ class TestAimDbUniverseBase(object):
         if tree_type == tree_manager.MONITORED_TREE:
             for x in converted:
                 x.monitored = True
+
         if tree_type in [tree_manager.CONFIG_TREE,
                          tree_manager.MONITORED_TREE]:
             self.assertEqual(len(converted), len(result))
@@ -255,6 +258,9 @@ class TestAimDbUniverseBase(object):
             self.assertTrue(srp1_fault in result)
             self.assertTrue(dc_ctx1_fault in result)
 
+    # This has been skipped when removing DB persistance of hashtrees, as the
+    # hashtrees are not saved in the DB anymore.
+    @base.requires(['skip'])
     def test_cleanup_state(self, tree_type=tree_manager.CONFIG_TREE):
         tree_mgr = tree_manager.HashTreeManager()
         aim_mgr = aim_manager.AimManager()

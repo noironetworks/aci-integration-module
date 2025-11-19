@@ -251,7 +251,7 @@ class StructuredHashTree(base.ComparableCollection):
             root._children.add(StructuredHashTree._build_tree(child))
         return root
 
-    def add(self, key, **kwargs):
+    def add(self, key, inmem=True, **kwargs):
         if not key:
             # nothing to do
             return self
@@ -272,30 +272,32 @@ class StructuredHashTree(base.ComparableCollection):
             if (key[0],) != self.root.key:
                 raise exc.MultipleRootTreeError(key=key,
                                                 root_key=self.root.key)
-
         node = self.root
         stack = [node]
         partial_key = (key[0],)
-        # Traverse the tree and place the node, discard first part of the key
-        for part in key[1:]:
-            partial_key += (part,)
-            # Get child or set it with a placeholder if it doesn't exist
-            node = node.set_child(
-                partial_key, StructuredTreeNode(
-                    partial_key, self._hash_attributes(key=partial_key,
-                                                       _dummy=True)))
-            stack.append(node)
-        # When a node is explicitly added, it is not dummy
-        node.dummy = False
-        # Node is the last added element at this point
-        node.partial_hash = self._hash_attributes(key=key, _dummy=node.dummy,
-                                                  **kwargs)
-        node.error = error
-        if has_metadata:
-            if metadata_dict is not None:
-                node.metadata.update(metadata)
-            else:
-                node.metadata = metadata
+        if inmem is True:
+            # Traverse the tree and place the node, discard 1st part of the key
+            for part in key[1:]:
+                partial_key += (part,)
+                # Get child or set it with a placeholder if it doesn't exist
+                node = node.set_child(
+                    partial_key, StructuredTreeNode(
+                        partial_key, self._hash_attributes(key=partial_key,
+                                                           _dummy=True)))
+                stack.append(node)
+            # When a node is explicitly added, it is not dummy
+            node.dummy = False
+            # Node is the last added element at this point
+            node.partial_hash = self._hash_attributes(key=key,
+                                                      _dummy=node.dummy,
+                                                      **kwargs)
+            node.error = error
+            if has_metadata:
+                if metadata_dict is not None:
+                    node.metadata.update(metadata)
+                else:
+                    node.metadata = metadata
+
         # Recalculate full hashes navigating the stack backwards
         self._recalculate_parents_stack(stack)
         return self
@@ -314,7 +316,7 @@ class StructuredHashTree(base.ComparableCollection):
                 # 'key' is not considered in the Hash calculation
                 key = node.pop('key')
                 cache.append(key)
-                self.add(key, **node)
+                self.add(key, inmem=True, **node)
             return self
         except Exception as e:
             LOG.error("An exception has occurred while adding nodes, "
