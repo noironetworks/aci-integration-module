@@ -127,7 +127,9 @@ class TestServer(base.TestAimDBBase, TestServerMixin):
                 # There are AIM IDs now
                 for item in data:
                     item.update({'aim_id': mock.ANY})
-                sorting_key = lambda x: x['attributes']
+
+                def sorting_key(x):
+                    return x['attributes']
                 data_resp = resp.json()['data']
                 for to_compare in [data, data_resp]:
                     for x in to_compare:

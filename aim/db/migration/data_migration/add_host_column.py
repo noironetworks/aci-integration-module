@@ -90,7 +90,7 @@ Status = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with session.begin():
         host_links = session.query(HostLink).all()
         for hlink in host_links:
             session.execute(update(EndpointGroupStaticPath).where(

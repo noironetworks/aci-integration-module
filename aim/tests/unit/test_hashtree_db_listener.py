@@ -257,7 +257,6 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             # Creating a tenant also cause a log to be created, and
             # consequently a reconcile call
             exp_calls = [
-                mock.call(mock.ANY, 'serve', None),
                 mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             self.mgr.create(self.ctx, tn)
@@ -267,14 +266,11 @@ class TestHashTreeDbListener(base.TestAimDBBase):
             # Create AP will create tenant, create EPG will modify it
             exp_calls = [
                 mock.call(mock.ANY, 'reconcile', None),
-                mock.call(mock.ANY, 'reconcile', None),
-                mock.call(mock.ANY, 'reconcile', None),
                 mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             cast.reset_mock()
             self.mgr.update(self.ctx, epg, bd_name='bd2')
             exp_calls = [
-                mock.call(mock.ANY, 'reconcile', None),
                 mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             cast.reset_mock()
@@ -470,18 +466,20 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
 
             # This transaction will generate some action logs, which
             # will trigger a 'reconcile' event.
-            with self.ctx.store.begin(subtransactions=True):
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn)
-                    self.mgr.create(self.ctx, ap)
-                    self.mgr.create(self.ctx, epg)
-                self.assertEqual(0, cast.call_count)
-                with self.ctx.store.begin(subtransactions=True):
-                    self.mgr.create(self.ctx, tn1)
-                    self.mgr.create(self.ctx, ap1)
-                    self.mgr.create(self.ctx, epg1)
-                self.assertEqual(0, cast.call_count)
-            exp_calls = [mock.call(mock.ANY, 'reconcile', None)]
+            self.mgr.create(self.ctx, tn)
+            self.mgr.create(self.ctx, ap)
+            self.mgr.create(self.ctx, epg)
+            self.assertEqual(3, cast.call_count)
+            self.mgr.create(self.ctx, tn1)
+            self.mgr.create(self.ctx, ap1)
+            self.mgr.create(self.ctx, epg1)
+            self.assertEqual(6, cast.call_count)
+            exp_calls = [mock.call(mock.ANY, 'reconcile', None),
+                         mock.call(mock.ANY, 'reconcile', None),
+                         mock.call(mock.ANY, 'reconcile', None),
+                         mock.call(mock.ANY, 'reconcile', None),
+                         mock.call(mock.ANY, 'reconcile', None),
+                         mock.call(mock.ANY, 'reconcile', None)]
             self._check_call_list(exp_calls, cast)
             cast.reset_mock()
 
@@ -490,6 +488,5 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
             # will be generated.
             self.db_l.catch_up_with_action_log(self.ctx.store)
             exp_calls = [
-                mock.call(mock.ANY, 'serve', None),
                 mock.call(mock.ANY, 'serve', None)]
             self._check_call_list(exp_calls, cast)

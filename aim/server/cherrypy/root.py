@@ -97,25 +97,22 @@ class AIMController(object):
 
     def POST(self, path_, *args, **kwargs):
         # Replace the whole model
-        with self.ctx.store.begin(subtransactions=True):
-            self.DELETE(path_)
-            self.PUT(path_)
+        self.DELETE(path_)
+        self.PUT(path_)
 
     def PUT(self, path_, *args, **kwargs):
         try:
             body = cherrypy.request.json
         except AttributeError:
             body = json.loads(cherrypy.request.body.read())
-        with self.ctx.store.begin(subtransactions=True):
-            for item in body:
-                res = self._generate_aim_resource(item)
-                self.mgr.create(self.ctx, res, overwrite=True)
+        for item in body:
+            res = self._generate_aim_resource(item)
+            self.mgr.create(self.ctx, res, overwrite=True)
 
     def DELETE(self, path_, *args, **kwargs):
         _, klasses, filters = self._inspect_selection_query(**kwargs)
-        with self.ctx.store.begin(subtransactions=True):
-            for klass in klasses:
-                self.mgr.delete_all(self.ctx, klass, **filters)
+        for klass in klasses:
+            self.mgr.delete_all(self.ctx, klass, **filters)
 
     def _inspect_selection_query(self, **kwargs):
         include_status = kwargs.pop('include-status', False)
