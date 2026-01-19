@@ -42,7 +42,10 @@ class AIDEventRpcApi(object):
                                  rpc_backend='')
         try:
             transport = oslo_messaging.get_rpc_transport(aim_cfg.CONF)
-            self.client = oslo_messaging.get_rpc_client(transport, target)
+            if hasattr(oslo_messaging, 'get_rpc_client'):
+                self.client = oslo_messaging.get_rpc_client(transport, target)
+            else:
+                self.client = oslo_messaging.RPCClient(transport, target)
         except (oslo_messaging.DriverLoadFailure,
                 oslo_messaging.InvalidTransportURL) as ex:
             LOG.debug(traceback.format_exc())
