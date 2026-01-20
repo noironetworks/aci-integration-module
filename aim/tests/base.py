@@ -184,6 +184,7 @@ class TestAimDBBase(BaseTestCase):
                     for table in reversed(
                             model_base.Base.metadata.sorted_tables):
                         conn.execute(table.delete())
+                tree_manager.HASHTREES.clear()
             self.addCleanup(clear_tables)
             if mock_store:
                 self.old_initialize_hooks = (

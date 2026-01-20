@@ -417,7 +417,7 @@ class HashTreeStoredUniverse(AimUniverse):
 
                     for action, res in skip:
                         for key in (tree_manager.AimHashTreeMaker.
-                                    aim_res_to_nodes(res)):
+                                    aim_res_to_nodes(res, inmem=True)):
                             differences[action].discard(key)
                             skipset.add(key)
                     differences[CREATE] = list(differences[CREATE])

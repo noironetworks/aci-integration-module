@@ -35,6 +35,7 @@ CONFIG_TREE = tree_res.ConfigTree
 OPERATIONAL_TREE = tree_res.OperationalTree
 MONITORED_TREE = tree_res.MonitoredTree
 SUPPORTED_TREES = [CONFIG_TREE, OPERATIONAL_TREE, MONITORED_TREE]
+HASHTREES = {}
 
 
 class TreeManager(object):
@@ -47,6 +48,7 @@ class TreeManager(object):
 
     @utils.log
     def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
+        # for this get the input to be only the tenant root
         trees = {self.root_rn_funct(x): x for x in hash_trees}
         with context.store.begin(subtransactions=True):
             db_objs = self._find_query(context, tree, lock_update=True,
@@ -65,7 +67,8 @@ class TreeManager(object):
                 self._create_if_not_exist(context, ROOT_TREE, root_rn)
                 for tree_klass in SUPPORTED_TREES:
                     if tree_klass == tree:
-                        # Then put the updated tree in it
+                        # Hash trees are saved in memory. But we update the DB
+                        # with the hashtree roots.
                         self._create_if_not_exist(
                             context, tree_klass, root_rn,
                             tree=str(hash_tree).encode('utf-8'),
@@ -83,6 +86,21 @@ class TreeManager(object):
         return db_objs[0] if db_objs else None
 
     @utils.log
+    def delete_inmem_bulk(self, root_rns):
+        for root_rn in root_rns:
+            if root_rn in HASHTREES:
+                del HASHTREES[root_rn]
+
+    @utils.log
+    def delete_inmem_all(self):
+        HASHTREES.clear()
+
+    @utils.log
+    def delete_inmem_by_root_rn(self, root_rn):
+        if root_rn in HASHTREES:
+            del HASHTREES[root_rn]
+
+    @utils.log
     def delete_bulk(self, context, hash_trees):
         with context.store.begin(subtransactions=True):
             root_rns = [self.root_rn_funct(x) for x in hash_trees]
@@ -91,6 +109,7 @@ class TreeManager(object):
                                            in_={'root_rn': root_rns})
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
+            self.delete_inmem_bulk(root_rns)
 
     @utils.log
     def delete_all(self, context):
@@ -99,6 +118,7 @@ class TreeManager(object):
                 db_objs = self._find_query(context, type, lock_update=True)
                 for db_obj in db_objs:
                     context.store.delete(db_obj)
+        self.delete_inmem_all()
 
     def update(self, context, hash_tree, tree=CONFIG_TREE):
         return self.update_bulk(context, [hash_tree], tree=tree)
@@ -114,9 +134,24 @@ class TreeManager(object):
                 for type in SUPPORTED_TREES:
                     self._delete_if_exist(context, type, root_rn,
                                           if_empty=if_empty)
+                    self.delete_inmem_by_root_rn(root_rn)
         except exc.HashTreeNotEmpty:
             LOG.warning("Hashtree not empty for root %s, rolling "
                         "back deletion." % root_rn)
+
+    @utils.log
+    def clean_all_inmem(self):
+        for root_rn in HASHTREES:
+            HASHTREES[root_rn] = (structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree())
+
+    @utils.log
+    def clean_inmem_by_root_rn(self, root_rn):
+        if root_rn in HASHTREES:
+            HASHTREES[root_rn] = (structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree(),
+                                  structured_tree.StructuredHashTree())
 
     @utils.log
     def clean_by_root_rn(self, context, root_rn):
@@ -128,6 +163,7 @@ class TreeManager(object):
                 if obj:
                     obj[0].tree = str(empty_tree).encode('utf-8')
                     context.store.add(obj[0])
+                    self.clean_inmem_by_root_rn(root_rn)
             obj = self._find_query(context, ROOT_TREE, root_rn=root_rn,
                                    lock_update=True)
             if obj:
@@ -144,10 +180,24 @@ class TreeManager(object):
                 for db_obj in db_objs:
                     db_obj.tree = str(empty_tree).encode('utf-8')
                     context.store.add(db_obj)
+                self.clean_all_inmem()
             db_objs = self._find_query(context, ROOT_TREE, lock_update=True)
             for db_obj in db_objs:
                 db_obj.needs_reset = False
                 context.store.add(db_obj)
+
+    @utils.log
+    def find_inmem(self, context, tree=CONFIG_TREE, **kwargs):
+        ht_list = []
+        result = self._find_query(context, tree, in_=kwargs)
+        for x in result:
+            if tree == CONFIG_TREE:
+                ht_list.append((x.root_rn, HASHTREES[x.root_rn][0]))
+            elif tree == OPERATIONAL_TREE:
+                ht_list.append((x.root_rn, HASHTREES[x.root_rn][1]))
+            elif tree == MONITORED_TREE:
+                ht_list.append((x.root_rn, HASHTREES[x.root_rn][2]))
+        return ht_list
 
     @utils.log
     def find(self, context, tree=CONFIG_TREE, **kwargs):
@@ -157,26 +207,48 @@ class TreeManager(object):
             self.root_key_funct(x.root_rn)) for x in result]
 
     @utils.log
-    def get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
+    def get(self, root_rn, tree=CONFIG_TREE):
         try:
-            return self.tree_klass.from_string(str(
-                self._find_query(context, tree, lock_update=lock_update,
-                                 root_rn=root_rn)[0].tree.decode('utf-8')),
-                self.root_key_funct(root_rn))
-        except IndexError:
+            tenant_hash = HASHTREES[root_rn]
+            if tree == CONFIG_TREE:
+                return tenant_hash[0]
+            elif tree == OPERATIONAL_TREE:
+                return tenant_hash[1]
+            elif tree == MONITORED_TREE:
+                return tenant_hash[2]
+        except KeyError:
             raise exc.HashTreeNotFound(root_rn=root_rn)
 
     @utils.log
+    def _find_query_inmem(self, tenant_list, tree=CONFIG_TREE):
+        ht_list = []
+        if tenant_list in HASHTREES:
+            tenant_ht = HASHTREES[tenant_list]
+            if tree == CONFIG_TREE:
+                ht_list.append(tenant_ht[0])
+            elif tree == OPERATIONAL_TREE:
+                ht_list.append(tenant_ht[1])
+            elif tree == MONITORED_TREE:
+                ht_list.append(tenant_ht[2])
+        return ht_list
+
+    @utils.log
     def find_changed(self, context, root_map, tree=CONFIG_TREE):
+        ret = {}
         if not root_map:
-            return {}
-        return dict((
-            x.root_rn,
-            self.tree_klass.from_string(
-                str(x.tree.decode('utf-8')), self.root_key_funct(x.root_rn)))
-            for x in self._find_query(
-                context, tree, in_={'root_rn': list(root_map.keys())},
-                notin_={'root_full_hash': list(root_map.values())}))
+            return ret
+        root_rn_list = list(root_map.keys())
+        root_full_hash_list = list(root_map.values())
+
+        for root in root_rn_list:
+            query_result = self._find_query_inmem(root, tree)
+            for x in query_result:
+                if ((x.root_full_hash) == None or
+                        (x.root_full_hash not in root_full_hash_list)):
+                    tree_instance = self.tree_klass.from_string(
+                        str(x), self.root_key_funct(root))
+                    ret[root] = tree_instance
+        return ret
 
     @utils.log
     def get_roots(self, context):
@@ -297,7 +369,7 @@ class AimHashTreeMaker(object):
                 tree.clear(child.key)
                 self._clean_related(tree, child)
 
-    def _prepare_aim_resource(self, tree, aim_res):
+    def _prepare_aim_resource(self, tree, aim_res, inmem):
         result = {}
         aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
         if not aim_res_dn:
@@ -307,10 +379,10 @@ class AimHashTreeMaker(object):
         aim_res_key = AimHashTreeMaker._build_hash_tree_key(aim_res)
         node = tree.find(aim_res_key) if aim_res_key else None
         self._clean_related(tree, node)
-        return self.aim_res_to_nodes(aim_res)
+        return self.aim_res_to_nodes(aim_res, inmem)
 
     @staticmethod
-    def aim_res_to_nodes(aim_res):
+    def aim_res_to_nodes(aim_res, inmem):
         result = {}
         aim_res_dn = AimHashTreeMaker._extract_dn(aim_res)
         is_error = getattr(aim_res, '_error', False)
@@ -324,17 +396,19 @@ class AimHashTreeMaker(object):
                 dn = attr.pop('dn', None)
                 key = AimHashTreeMaker._build_hash_tree_key_from_dn(dn, mo)
                 if key:
-                    attr['_metadata'] = {'monitored': is_monitored,
-                                         'attributes': copy.copy(attr)}
-                    if dn != aim_res_dn:
-                        attr['_metadata']['related'] = True
-                    if pending is not None:
-                        attr['_metadata']['pending'] = pending
-                    attr['_error'] = is_error
+                    if inmem:
+                        attr['_metadata'] = {'monitored': is_monitored,
+                                             'attributes': copy.copy(attr)}
+                        if dn != aim_res_dn:
+                            attr['_metadata']['related'] = True
+                        if pending is not None:
+                            attr['_metadata']['pending'] = pending
+                        attr['_error'] = is_error
                     result[key] = attr
+
         return result
 
-    def update(self, tree, updates):
+    def update(self, tree, updates, inmem=False):
         """Add/update AIM resource to tree.
 
         :param tree: ComparableCollection instance
@@ -344,12 +418,12 @@ class AimHashTreeMaker(object):
         """
         to_update = {}
         for aim_res in updates:
-            to_update.update(self._prepare_aim_resource(tree, aim_res))
+            to_update.update(self._prepare_aim_resource(tree, aim_res, inmem))
         for k, v in list(to_update.items()):
-            tree.add(k, **v)
+            tree.add(k, inmem=inmem, **v)
         return tree
 
-    def delete(self, tree, deletes):
+    def delete(self, tree, deletes, inmem=False):
         """Delete AIM resources from tree.
 
         :param tree: ComparableCollection instance
@@ -357,6 +431,8 @@ class AimHashTreeMaker(object):
                         deleted
         :return: The updated tree (value is also changed)
         """
+        if inmem is False:
+            return tree
         for resource in deletes:
             key = self._build_hash_tree_key(resource)
             if key:
@@ -429,7 +505,7 @@ class HashTreeBuilder(object):
         self.aim_manager = aim_manager
         self.tt_maker = AimHashTreeMaker()
 
-    def build(self, added, updated, deleted, tree_map, aim_ctx=None):
+    def build(self, added, updated, deleted, tree_map, inmem, aim_ctx=None):
         """Build hash tree
 
         :param updated: list of AIM objects
@@ -521,22 +597,23 @@ class HashTreeBuilder(object):
             except KeyError:
                 # Some objects do not belong to the specified roots
                 continue
+
             # Update Configuration Tree
-            self.tt_maker.update(ttree, upd[conf][0])
-            self.tt_maker.delete(ttree, upd[conf][1])
+            self.tt_maker.update(ttree, upd[conf][0], inmem)
+            self.tt_maker.delete(ttree, upd[conf][1], inmem)
             # Clear new monitored objects
             self.tt_maker.clear(ttree, upd[monitor][0])
 
             # Update Operational Tree
-            self.tt_maker.update(ttree_operational, upd[oper][0])
-            self.tt_maker.delete(ttree_operational, upd[oper][1])
+            self.tt_maker.update(ttree_operational, upd[oper][0], inmem)
+            self.tt_maker.delete(ttree_operational, upd[oper][1], inmem)
             # Delete operational resources as well
-            self.tt_maker.delete(ttree_operational, upd[conf][1])
-            self.tt_maker.delete(ttree_operational, upd[monitor][1])
+            self.tt_maker.delete(ttree_operational, upd[conf][1], inmem)
+            self.tt_maker.delete(ttree_operational, upd[monitor][1], inmem)
 
             # Update Monitored Tree
-            self.tt_maker.update(ttree_monitor, upd[monitor][0])
-            self.tt_maker.delete(ttree_monitor, upd[monitor][1])
+            self.tt_maker.update(ttree_monitor, upd[monitor][0], inmem)
+            self.tt_maker.delete(ttree_monitor, upd[monitor][1], inmem)
             # Clear new owned objects
             self.tt_maker.clear(ttree_monitor, upd[conf][0])
 

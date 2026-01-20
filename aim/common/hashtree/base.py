@@ -26,12 +26,13 @@ class ComparableCollection(object):
     __slots__ = ()
 
     @abc.abstractmethod
-    def add(self, key, **kwargs):
+    def add(self, key, inmem, **kwargs):
         """Add a member to the Comparable Collection
 
         Adding an existing key will result in an update
         :param key: Key of the member
         :param kwargs: Original attributes of the member
+        :param inmem: Whether we are calculating the tree for inmem or db
         :return: The ComparableCollection reference
         :raises:
         """

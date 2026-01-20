@@ -22,6 +22,7 @@ from aim.agent.aid.universes.aci import converter
 from aim.agent.aid.universes import base_universe as base
 from aim.api import resource as aim_resource
 from aim.api import status as aim_status
+from aim.common.hashtree import structured_tree
 from aim.common import utils
 from aim.db import hashtree_db_listener
 from aim import exceptions as aim_exc
@@ -79,7 +80,10 @@ class AimDbUniverse(base.HashTreeStoredUniverse):
             LOG.debug('%s serving tenants: %s' % (self.name, tenants))
             self._served_tenants = set(tenants)
         for tenant in self._served_tenants:
-            new_state.setdefault(tenant, self._state.get(tenant))
+            if tenant in self._state:
+                new_state[tenant] = self._state.get(tenant)
+            else:
+                new_state[tenant] = structured_tree.StructuredHashTree()
         self._state = new_state
 
     def observe(self, context):

@@ -754,7 +754,7 @@ class AciTenantManager(utils.AIMThread):
              self.tree_builder.MONITOR:
                  {self.tenant_name: self._monitored_state},
              self.tree_builder.OPER:
-                 {self.tenant_name: self._operational_state}})
+                 {self.tenant_name: self._operational_state}}, inmem=True)
 
         # Send events on update
         modified = False

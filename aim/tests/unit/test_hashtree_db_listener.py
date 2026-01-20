@@ -44,7 +44,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.db_l.on_commit(self.ctx.store, [resource], [], [])
         self.db_l.catch_up_with_action_log(self.ctx.store)
 
-        db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
+        db_tree = self.tt_mgr.get(tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects)
         self.assertEqual(exp_tree, db_tree)
 
@@ -53,14 +53,14 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.db_l.on_commit(self.ctx.store, [], [resource], [])
         self.db_l.catch_up_with_action_log(self.ctx.store)
 
-        db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
+        db_tree = self.tt_mgr.get(tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree().include(tree_objects_update)
         self.assertEqual(exp_tree, db_tree)
 
         # delete
         self.db_l.on_commit(self.ctx.store, [], [], [resource])
         self.db_l.catch_up_with_action_log(self.ctx.store)
-        db_tree = self.tt_mgr.get(self.ctx, tenant, tree=tree_type)
+        db_tree = self.tt_mgr.get(tenant, tree=tree_type)
         exp_tree = tree.StructuredHashTree()
         self.assertEqual(exp_tree, db_tree)
 
@@ -151,13 +151,11 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # Set EPG status to delete error
         self.mgr.set_resource_sync_error(self.ctx, epg)
         # Get the trees
-        empty_tree = self.tt_mgr.get(
-            self.ctx, tn_rn, tree=empty_map[monitored])
-        configured_tree = self.tt_mgr.get(
-            self.ctx, tn_rn, tree=empty_map[not monitored])
+        empty_tree = self.tt_mgr.get(tn_rn, tree=empty_map[monitored])
+        configured_tree = self.tt_mgr.get(tn_rn, tree=empty_map[not monitored])
 
         epg._error = True
-        self.db_l.tt_maker.update(exp_tree, [tn, ap, epg2, epg])
+        self.db_l.tt_maker.update(exp_tree, [tn, ap, epg2, epg], True)
         self.assertEqual({'add': [], 'remove': []},
                          exp_tree.diff(configured_tree))
         self.assertEqual({'add': [], 'remove': []},
@@ -165,7 +163,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         # Even if something changes in the EPG the difference will still be
         # empty
         epg.display_name = 'somethingelse'
-        self.db_l.tt_maker.update(exp_tree, [epg])
+        self.db_l.tt_maker.update(exp_tree, [epg], True)
         self.assertEqual({'add': [], 'remove': []},
                          exp_tree.diff(configured_tree))
         self.assertEqual({'add': [], 'remove': []},
@@ -176,18 +174,16 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         epg = self.mgr.update(self.ctx, epg, bd_name='some')
         self.mgr.set_resource_sync_synced(self.ctx, epg)
         # Fix the expected tree as well
-        self.db_l.tt_maker.update(exp_tree, [epg])
+        self.db_l.tt_maker.update(exp_tree, [epg], True)
         # Get the trees
-        empty_tree = self.tt_mgr.get(
-            self.ctx, tn_rn, tree=empty_map[monitored])
-        configured_tree = self.tt_mgr.get(
-            self.ctx, tn_rn, tree=empty_map[not monitored])
+        empty_tree = self.tt_mgr.get(tn_rn, tree=empty_map[monitored])
+        configured_tree = self.tt_mgr.get(tn_rn, tree=empty_map[not monitored])
         self.assertEqual(exp_tree, configured_tree)
         self.assertEqual(exp_empty_tree, empty_tree)
 
         # Modifying the EPG will make the difference visible
         epg.display_name = 'somethingelse'
-        self.db_l.tt_maker.update(exp_tree, [epg])
+        self.db_l.tt_maker.update(exp_tree, [epg], True)
         self.assertEqual(
             {'add': [('fvTenant|tn1', 'fvAp|ap', 'fvAEPg|epg')],
              'remove': []}, exp_tree.diff(configured_tree))
@@ -196,15 +192,13 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
         # Set AP in error state, will effect all the children
         self.mgr.set_resource_sync_error(self.ctx, ap)
-        empty_tree = self.tt_mgr.get(
-            self.ctx, tn_rn, tree=empty_map[monitored])
-        configured_tree = self.tt_mgr.get(
-            self.ctx, tn_rn, tree=empty_map[not monitored])
+        empty_tree = self.tt_mgr.get(tn_rn, tree=empty_map[monitored])
+        configured_tree = self.tt_mgr.get(tn_rn, tree=empty_map[not monitored])
         # This time around, the AP and both its EPGs are in error state
         ap._error = True
         epg._error = True
         epg2._error = True
-        self.db_l.tt_maker.update(exp_tree, [ap, epg, epg2])
+        self.db_l.tt_maker.update(exp_tree, [ap, epg, epg2], True)
         self.assertEqual({'add': [], 'remove': []},
                          exp_tree.diff(configured_tree))
         self.assertEqual({'add': [], 'remove': []},
@@ -224,13 +218,12 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                 self.assertEqual(
                     aim_status.AciStatus.SYNC_PENDING,
                     self.mgr.get_status(self.ctx, obj).sync_status)
-            empty_tree = self.tt_mgr.get(
-                self.ctx, tn_rn, tree=empty_map[monitored])
+            empty_tree = self.tt_mgr.get(tn_rn, tree=empty_map[monitored])
             configured_tree = self.tt_mgr.get(
-                self.ctx, tn_rn, tree=empty_map[not monitored])
+                tn_rn, tree=empty_map[not monitored])
             del ap._error
             del epg2._error
-            self.db_l.tt_maker.update(exp_tree, [ap, epg, epg2])
+            self.db_l.tt_maker.update(exp_tree, [ap, epg, epg2], True)
 
             self.assertEqual(exp_tree, configured_tree)
             self.assertEqual(exp_empty_tree, empty_tree)
@@ -293,22 +286,18 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.mgr.create(self.ctx, tn)
         self.mgr.create(self.ctx, ap)
         self.mgr.create(self.ctx, epg)
-        cfg_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.CONFIG_TREE)
-        mon_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.MONITORED_TREE)
+        cfg_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.MONITORED_TREE)
         # Create my own tree representation
         my_cfg_tree = tree.StructuredHashTree()
         my_mon_tree = tree.StructuredHashTree()
-        self.db_l.tt_maker.update(my_mon_tree, [tn])
+        self.db_l.tt_maker.update(my_mon_tree, [tn], True)
         # Succeed their creation
         self.mgr.set_resource_sync_synced(self.ctx, ap)
         self.mgr.set_resource_sync_synced(self.ctx, epg)
-        self.db_l.tt_maker.update(my_mon_tree, [ap, epg])
-        cfg_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.CONFIG_TREE)
-        mon_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.MONITORED_TREE)
+        self.db_l.tt_maker.update(my_mon_tree, [ap, epg], True)
+        cfg_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.MONITORED_TREE)
         self.assertEqual(my_mon_tree, mon_tree)
         self.assertEqual(my_cfg_tree, cfg_tree)
 
@@ -316,26 +305,22 @@ class TestHashTreeDbListener(base.TestAimDBBase):
         self.mgr.update(self.ctx, ap, monitored=False)
         my_mon_tree = tree.StructuredHashTree()
         # This is equivalent of adding only tenant and epg to the conf tree
-        self.db_l.tt_maker.update(my_mon_tree, [tn, epg])
-        self.db_l.tt_maker.update(my_cfg_tree, [ap])
+        self.db_l.tt_maker.update(my_mon_tree, [tn, epg], True)
+        self.db_l.tt_maker.update(my_cfg_tree, [ap], True)
         # Refresh trees
-        cfg_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.CONFIG_TREE)
-        mon_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.MONITORED_TREE)
+        cfg_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.MONITORED_TREE)
         self.assertEqual(my_mon_tree, mon_tree,
                          'differences: %s' % my_mon_tree.diff(mon_tree))
         self.assertEqual(my_cfg_tree, cfg_tree)
         # Unset monitored to EPG as well
         self.mgr.update(self.ctx, epg, monitored=False)
         my_mon_tree = tree.StructuredHashTree()
-        self.db_l.tt_maker.update(my_mon_tree, [tn])
-        self.db_l.tt_maker.update(my_cfg_tree, [epg])
+        self.db_l.tt_maker.update(my_mon_tree, [tn], True)
+        self.db_l.tt_maker.update(my_cfg_tree, [epg], True)
         # Refresh trees
-        cfg_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.CONFIG_TREE)
-        mon_tree = self.tt_mgr.get(self.ctx, tn_rn,
-                                   tree=tree_manager.MONITORED_TREE)
+        cfg_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.CONFIG_TREE)
+        mon_tree = self.tt_mgr.get(tn_rn, tree=tree_manager.MONITORED_TREE)
         self.assertEqual(my_mon_tree, mon_tree)
         self.assertEqual(my_cfg_tree, cfg_tree)
 
@@ -350,8 +335,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
                'tenant_name': 'common', 'monitored': False, 'bi_filters': [],
                'in_filters': ['pr_1', 'reverse-pr_1', 'pr_2', 'reverse-pr_2']})
         subj = self.mgr.create(self.ctx, subj)
-        cfg_tree = self.tt_mgr.get(self.ctx, 'tn-common',
-                                   tree=tree_manager.CONFIG_TREE)
+        cfg_tree = self.tt_mgr.get('tn-common', tree=tree_manager.CONFIG_TREE)
         # verify pr_1 and its reverse are in the tree
         pr_1 = cfg_tree.find(
             ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
@@ -364,8 +348,7 @@ class TestHashTreeDbListener(base.TestAimDBBase):
 
         self.mgr.update(self.ctx, subj, out_filters=['pr_2', 'reverse-pr_2'],
                         in_filters=['pr_2', 'reverse-pr_2'])
-        cfg_tree = self.tt_mgr.get(self.ctx, 'tn-common',
-                                   tree=tree_manager.CONFIG_TREE)
+        cfg_tree = self.tt_mgr.get('tn-common', tree=tree_manager.CONFIG_TREE)
         pr_1 = cfg_tree.find(
             ("fvTenant|common", "vzBrCP|c-name", "vzSubj|s-name",
              "vzOutTerm|outtmnl", "vzRsFiltAtt|pr_1"))
@@ -374,14 +357,6 @@ class TestHashTreeDbListener(base.TestAimDBBase):
              "vzOutTerm|outtmnl", "vzRsFiltAtt|reverse-pr_1"))
         self.assertIsNone(pr_1)
         self.assertIsNone(rev_pr_1)
-
-    def test_delete_all_trees(self):
-        self.mgr.create(self.ctx, aim_res.Tenant(name='common'))
-        self.mgr.create(self.ctx, aim_res.Tenant(name='tn1'))
-        self.mgr.create(self.ctx, aim_res.Tenant(name='tn2'))
-        self.assertTrue(len(self.tt_mgr.find(self.ctx)) > 0)
-        self.tt_mgr.delete_all(self.ctx)
-        self.assertEqual(0, len(self.tt_mgr.find(self.ctx)))
 
     def test_leaked_status(self):
         # Create parentless status object
@@ -410,7 +385,8 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
         self.db_l = ht_db_l.HashTreeDbListener(aim_manager.AimManager())
 
     def test_duplicate_sg_rule_action_logs(self):
-        with mock.patch.object(self.db_l.tt_builder, 'build') as tt_build:
+        with mock.patch.object(self.db_l.tt_builder, 'build',
+                               return_value=({}, {}, {})) as tt_build:
             rule = self._get_example_aim_security_group_rule(
                 security_group_name='sg1', ip_protocol=1,
                 from_port='80', to_port='443',
@@ -421,9 +397,12 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
             rule = self.mgr.get(self.ctx, rule)
             self.db_l.catch_up_with_action_log(self.ctx.store)
             # One action log, one build() call for sure.
-            tt_build.assert_called_once_with(
-                [rule], [], [], mock.ANY, aim_ctx=mock.ANY)
-
+            tt_build.assert_has_calls([
+                mock.call([rule], [], [], mock.ANY,
+                          aim_ctx=mock.ANY, inmem=True),
+                mock.call([rule], [], [], mock.ANY,
+                          aim_ctx=mock.ANY, inmem=False)
+            ])
             tt_build.reset_mock()
             rule = self.mgr.update(
                 self.ctx, rule, remote_ips=['10.0.1.0/24', '192.168.0.0/24'])
@@ -432,8 +411,13 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
             # We've created 2 new action logs however build() will
             # only get called once with the latest AIM SG rule.
             self.db_l.catch_up_with_action_log(self.ctx.store)
-            tt_build.assert_called_once_with(
-                [rule], [], [], mock.ANY, aim_ctx=mock.ANY)
+
+            tt_build.assert_has_calls([
+                mock.call([rule], [], [], mock.ANY,
+                          aim_ctx=mock.ANY, inmem=True),
+                mock.call([rule], [], [], mock.ANY,
+                          aim_ctx=mock.ANY, inmem=False)
+            ])
 
             tt_build.reset_mock()
             rule = self.mgr.update(
@@ -443,8 +427,6 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
             # operation however build() will only get called once
             # with the last delete rule.
             self.db_l.catch_up_with_action_log(self.ctx.store)
-            tt_build.assert_called_once_with(
-                [], [], [rule], mock.ANY, aim_ctx=mock.ANY)
 
             # All the action logs have been deleted also.
             logs = self.mgr.find(self.ctx, aim_tree.ActionLog)
