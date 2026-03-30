@@ -23,6 +23,7 @@ Tests for `utils` module.
 import mock
 
 from aim.common import utils as internal_utils
+from aim.db import model_base
 from aim.tests import base
 from aim import utils
 
@@ -105,6 +106,60 @@ class TestUtils(base.TestAimDBBase):
             [('fvTenant', 'common'), ('vzBrCP', 'p'), ('vzSubj', 'p'),
              ('vzInTerm', 'intmnl'), ('vzRsFiltAtt', 'p')],
             internal_utils.decompose_dn(type, dn))
+
+    def test_decompose_dn_preserves_case(self):
+        dn = 'uni/tn-TenantA/ap-AppProfileA/epg-MyEPG'
+        type = 'fvAEPg'
+        self.assertEqual(
+            [('fvTenant', 'TenantA'), ('fvAp', 'AppProfileA'),
+             ('fvAEPg', 'MyEPG')],
+            internal_utils.decompose_dn(type, dn))
+
+    def test_decompose_dn_preserves_case_for_relation_dn(self):
+        dn = 'uni/tn-common/out-fab2021_2/instP-fab2021_2/'
+        dn += 'rsprov-ostack-pt-1-s1_EXT-fab2021_2'
+        type = 'fvRsProv'
+        self.assertEqual(
+            [('fvTenant', 'common'), ('l3extOut', 'fab2021_2'),
+             ('l3extInstP', 'fab2021_2'),
+             ('fvRsProv', 'ostack-pt-1-s1_EXT-fab2021_2')],
+            internal_utils.decompose_dn(type, dn))
+
+    def test_decompose_dn_no_arg_rn(self):
+        dn = 'uni/vmmp-OpenStack/dom-ostack-pt-1-s1/rsvlanNs'
+        type = 'infraRsVlanNs'
+        self.assertEqual(
+            [('vmmProvP', 'OpenStack'), ('vmmDomP', 'ostack-pt-1-s1'),
+             ('infraRsVlanNs', 'rsvlanNs')],
+            internal_utils.decompose_dn(type, dn))
+
+    def test_retrieve_rns_skips_no_arg_rns(self):
+        dn = 'uni/vmmp-OpenStack/dom-ostack-pt-1-s1/rsvlanNs'
+        type = 'infraRsVlanNs'
+        self.assertEqual(
+            ['OpenStack', 'ostack-pt-1-s1'],
+            internal_utils.retrieve_rns(dn, type))
+
+    def test_retrieve_rns_flattens_multi_param_rns(self):
+        dn = 'uni/infra/vlanns-[ostack-pt-1-s1_vlan_ns]-dynamic'
+        type = 'fvnsVlanInstP'
+        self.assertEqual(
+            ['ostack-pt-1-s1_vlan_ns', 'dynamic'],
+            internal_utils.retrieve_rns(dn, type))
+
+    def test_decompose_dn_prefers_explicit_type_for_oob_contract(self):
+        dn = 'uni/tn-common/oobbrc-default/subj-default'
+        type = 'vzSubj__tn'
+        self.assertEqual(
+            [('fvTenant', 'common'), ('vzOOBBrCP', 'default'),
+             ('vzSubj__tn', 'default')],
+            internal_utils.decompose_dn(type, dn))
+
+    def test_name_columns_are_case_sensitive(self):
+        column = model_base.name_column()
+        self.assertEqual(64, column.type.length)
+        self.assertEqual('latin1', column.type.charset)
+        self.assertEqual('latin1_bin', column.type.collation)
 
     @internal_utils.rlock('test')
     def locked_func(self):

@@ -197,10 +197,8 @@ class AciResourceBase(ResourceBase):
 
     @classmethod
     def from_dn(cls, dn):
-        dn_mgr = apic_client.DNManager()
         try:
-            mos_and_rns = dn_mgr.aci_decompose_with_type(dn, cls._aci_mo_name)
-            rns = dn_mgr.filter_rns(mos_and_rns)
+            rns = utils.retrieve_rns(dn, cls._aci_mo_name)
             if len(rns) < len(cls.identity_attributes):
                 raise exc.InvalidDNForAciResource(dn=dn, cls=cls)
             attr = {p[0]: p[1] for p in zip(cls.identity_attributes, rns)}

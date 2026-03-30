@@ -896,6 +896,18 @@ class TestAciToAimConverterOutOfBandContractSubject(TestAciToAimConverterBase,
                                           display_name='prs1')
         ]
 
+    def test_oob_default_subject_is_not_mapped_as_regular_contract(self):
+        converted = self.converter.convert(
+            [get_example_aci_oob_subject(
+                dn='uni/tn-common/oobbrc-default/subj-default',
+                name='default', nameAlias='default')])
+        self.assertEqual(
+            [resource.OutOfBandContractSubject(tenant_name='common',
+                                               contract_name='default',
+                                               name='default',
+                                               display_name='default')],
+            converted)
+
 
 class TestAciToAimConverterFault(TestAciToAimConverterBase,
                                  base.TestAimDBBase):
@@ -1432,6 +1444,23 @@ class TestAciToAimSGContainerRemoteIp(TestAciToAimConverterBase,
                                        security_group_name='p2',
                                        addr='20.1.10.1/32',
                                        display_name='alias')]
+
+
+class TestAciToAimSecurityGroupRuleRemoteIpContainerChild(
+        base.TestAimDBBase):
+
+    def test_remote_ip_under_container_maps_to_container_resource(self):
+        conv = converter.AciToAimModelConverter()
+        result = conv.convert([_aci_obj(
+            'hostprotRemoteIp',
+            dn='uni/tn-common/pol-sec_grp_foo/remoteipcont/ip-[4.5.3.2/24]',
+            addr='4.5.3.2/24')])
+        self.assertEqual(
+            [resource.SecurityGroupRemoteIp(
+                tenant_name='common',
+                security_group_name='sec_grp_foo',
+                addr='4.5.3.2/24')],
+            result)
 
 
 class TestAciToAimConverterDeviceCluster(TestAciToAimConverterBase,
@@ -1971,6 +2000,18 @@ class TestAciToAimConverterVMMDomain(TestAciToAimConverterBase,
             mcast_address='225.1.2.3', enforcement_pref='hw',
             mode='ovs', encap_mode='vxlan', pref_encap_mode='unspecified'),
     ]
+
+
+class TestAciToAimConverterInfraRsVlanNsPhysicalDomain(
+        base.TestAimDBBase):
+
+    def test_physical_domain_vlan_ns_is_ignored(self):
+        conv = converter.AciToAimModelConverter()
+        result = conv.convert([_aci_obj(
+            'infraRsVlanNs',
+            dn='uni/phys-pdom_physnet1/rsvlanNs',
+            tDn='uni/infra/vlanns-[pdom_physnet1_pool]-static')])
+        self.assertEqual([], result)
 
 
 class TestAciToAimConverterVMMController(TestAciToAimConverterBase,
@@ -5199,6 +5240,17 @@ class TestAciToAimConverterQosDppPol(TestAciToAimConverterBase,
                            rate_unit='kilo',
                            burst_unit='kilo',
                            display_name='alias')]
+
+
+class TestAciToAimConverterInfraQosDppPol(base.TestAimDBBase):
+
+    def test_infra_qos_dpp_pol_is_ignored(self):
+        conv = converter.AciToAimModelConverter()
+        result = conv.convert([_aci_obj(
+            'qosDppPol',
+            dn='uni/infra/qosdpppol-default',
+            name='default')])
+        self.assertEqual([], result)
 
 
 class TestAimToAciConverterSpanVsourceGroup(TestAimToAciConverterBase,

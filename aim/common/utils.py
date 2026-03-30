@@ -228,7 +228,7 @@ class FakeContext(object):
 
 def decompose_dn(mo_type, dn):
     try:
-        return apic_client.DNManager().aci_decompose_dn_guess(dn, mo_type)[1]
+        return decompose_dn_with_aci_type(dn, mo_type)
     except (apic_client.DNManager.InvalidNameFormat, KeyError,
             apic_client.cexc.ApicManagedObjectNotSupported, IndexError):
         log_ = LOG.warning
@@ -238,11 +238,87 @@ def decompose_dn(mo_type, dn):
         return
 
 
+def _split_aci_dn(dn):
+    parts = []
+    current = []
+    bracket_depth = 0
+    for char in dn or '':
+        if char == '/' and bracket_depth == 0:
+            if current:
+                parts.append(''.join(current))
+                current = []
+            continue
+        current.append(char)
+        if char == '[':
+            bracket_depth += 1
+        elif char == ']':
+            bracket_depth = max(0, bracket_depth - 1)
+    if current:
+        parts.append(''.join(current))
+    return parts
+
+
+def _identity_from_rn(mo_type, rn, fallback=None):
+    mo = apic_client.ManagedObjectClass(mo_type)
+    if not getattr(mo, 'rn_param_count', 0):
+        return rn
+
+    tokens = ['__AIM_TOKEN_%s__' % i for i in range(mo.rn_param_count)]
+    template = mo.rn(*tokens)
+    pattern = re.escape(template)
+    for token in tokens:
+        pattern = pattern.replace(re.escape(token), '(.*)', 1)
+    match = re.match('^%s$' % pattern, rn)
+    if not match:
+        return fallback
+    groups = match.groups()
+    if len(groups) == 1:
+        return groups[0]
+    return groups
+
+
+def decompose_dn_with_aci_type(dn, mo_type):
+    dn_mgr = apic_client.DNManager()
+    try:
+        mos_and_rns = dn_mgr.aci_decompose_with_type(dn, mo_type)
+    except (apic_client.DNManager.InvalidNameFormat, KeyError,
+            apic_client.cexc.ApicManagedObjectNotSupported, IndexError):
+        mos_and_rns = dn_mgr.aci_decompose_dn_guess(dn, mo_type)[1]
+    filtered_rns = dn_mgr.filter_rns(mos_and_rns)
+    raw_rns = _split_aci_dn(dn)
+    if len(raw_rns) >= len(mos_and_rns):
+        raw_rns = raw_rns[-len(mos_and_rns):]
+    result = []
+    filtered_index = 0
+    for (aci_mo, fallback_rn), raw_rn in zip(mos_and_rns, raw_rns):
+        identity = _identity_from_rn(
+            aci_mo, raw_rn,
+            fallback=(filtered_rns[filtered_index]
+                      if filtered_index < len(filtered_rns)
+                      else fallback_rn))
+        if getattr(apic_client.ManagedObjectClass(aci_mo), 'rn_param_count', 0):
+            filtered_index += 1
+        result.append((aci_mo, identity))
+    return result
+
+
+def retrieve_rns(dn, mo_type):
+    result = []
+    for aci_mo, identity in decompose_dn_with_aci_type(dn, mo_type):
+        if not getattr(apic_client.ManagedObjectClass(aci_mo),
+                       'rn_param_count', 0) or identity is None:
+            continue
+        if isinstance(identity, tuple):
+            result.extend(identity)
+        else:
+            result.append(identity)
+    return result
+
+
 def retrieve_fault_parent(fault_dn, resource_map):
     # external is the DN of the ACI resource
-    dn_mgr = apic_client.DNManager()
-    mos_rns = dn_mgr.aci_decompose_with_type(fault_dn, ACI_FAULT)[:-1]
-    rns = dn_mgr.filter_rns(mos_rns)
+    mos_rns = decompose_dn_with_aci_type(fault_dn, ACI_FAULT)[:-1]
+    rns = [x[1] for x in mos_rns if x[1] is not None]
     conv_info = None
     step = -1
     while conv_info is None or len(conv_info) > 1:

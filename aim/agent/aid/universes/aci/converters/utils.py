@@ -18,6 +18,7 @@ import copy
 from oslo_log import log as logging
 
 from apicapi import apic_client
+from aim.common import utils as aim_utils
 
 LOG = logging.getLogger(__name__)
 IGNORE = object()
@@ -150,11 +151,8 @@ def default_identity_converter(object_dict, otype, helper,
     to the resource class 'identity_attributes'
     """
     if to_aim:
-        dn_mgr = apic_client.DNManager()
         aci_type = aci_mo_type or otype
-        mos_and_rns = dn_mgr.aci_decompose_with_type(object_dict['dn'],
-                                                     aci_type)
-        return dn_mgr.filter_rns(mos_and_rns)
+        return aim_utils.retrieve_rns(object_dict['dn'], aci_type)
     else:
         attr = [object_dict[x] for x in otype.identity_attributes]
         if extra_attributes:
@@ -373,9 +371,7 @@ def dn_decomposer(aim_attr_list, aci_mo):
         if to_aim:
             dn = object_dict.get(attribute)
             if dn:
-                dnm = apic_client.DNManager()
-                mos_and_rns = dnm.aci_decompose_with_type(dn, aci_mo)
-                rns = dnm.filter_rns(mos_and_rns)
+                rns = aim_utils.retrieve_rns(dn, aci_mo)
                 return dict(list(zip(aim_attr_list, rns)))
             else:
                 return {}
@@ -407,9 +403,7 @@ def tdn_rs_converter(aim_attr_list, aci_mo):
                 res_dict[attr] = id[index]
             tdn = object_dict.get('tDn')
             if tdn:
-                dnm = apic_client.DNManager()
-                mos_and_rns = dnm.aci_decompose_with_type(tdn, aci_mo)
-                rns = dnm.filter_rns(mos_and_rns)
+                rns = aim_utils.retrieve_rns(tdn, aci_mo)
                 res_dict.update(dict(list(zip(aim_attr_list, rns))))
             to_res = helper.get('to_resource', default_to_resource)
             result.append(to_res(res_dict, helper, to_aim=True))

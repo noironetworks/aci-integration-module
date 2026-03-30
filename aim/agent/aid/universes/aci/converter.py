@@ -376,7 +376,7 @@ def fv_rs_master_epg_converter(object_dict, otype, helper,
         for index, attr in enumerate(destination_identity_attributes):
             res_dict[attr] = id[index]
         if object_dict.get('tDn'):
-            master_id = apic_client.DNManager().aci_decompose_with_type(
+            master_id = aim_utils.decompose_dn_with_aci_type(
                 object_dict['tDn'], 'fvAEPg')
             res_dict['epg_contract_masters'] = [
                 {'app_profile_name': master_id[1][1], 'name': master_id[2][1]}]
@@ -614,19 +614,28 @@ def contract_converter(object_dict, otype, helper,
     result = []
     res_dict = {}
     if to_aim:
-        try:
-            identity = default_identity_converter(object_dict, otype, helper,
-                                                  to_aim=True)
-        except apic_client.DNManager.InvalidNameFormat:
-            # It hits this exception if it's out of band contract subject only.
-            # Modify AIM resource to point to OutOfBand Contract and aci type
-            # to vzSubj__tn
+        dn = object_dict.get('dn', '')
+        if '/oobbrc-' in dn:
             helper = resource_map['vzSubj__tn'][0]
             destination_identity_attributes = (
                 helper['resource'].identity_attributes)
             identity = default_identity_converter(object_dict, otype, helper,
                                                   aci_mo_type="vzSubj__tn",
                                                   to_aim=True)
+        else:
+            try:
+                identity = default_identity_converter(object_dict, otype,
+                                                      helper, to_aim=True)
+            except apic_client.DNManager.InvalidNameFormat:
+                # It hits this exception if it's out of band contract subject
+                # only. Modify AIM resource to point to OutOfBand Contract and
+                # aci type to vzSubj__tn.
+                helper = resource_map['vzSubj__tn'][0]
+                destination_identity_attributes = (
+                    helper['resource'].identity_attributes)
+                identity = default_identity_converter(
+                    object_dict, otype, helper, aci_mo_type="vzSubj__tn",
+                    to_aim=True)
     else:
         identity = default_identity_converter(object_dict, otype, helper,
                                               to_aim=False)
@@ -805,14 +814,7 @@ def hostprot_remoteIp_converter(object_dict, otype, helper,
     aim_attr = 'remote_ips'
     aci_attr = 'addr'
     if to_aim:
-        if 'SystemSecurityGroup' in object_dict['dn']:
-            helper = resource_map['hostprotRemoteIp'][1]
-
-        aci_type = otype
-        try:
-            id = default_identity_converter(object_dict, aci_type,
-                                            helper, to_aim=True)
-        except apic_client.DNManager.InvalidNameFormat:
+        if '/remoteipcont/' in object_dict['dn']:
             helper = resource_map['hostprotRemoteIp__cont'][0]
             destination_identity_attributes = (
                 helper['resource'].identity_attributes)
@@ -820,6 +822,13 @@ def hostprot_remoteIp_converter(object_dict, otype, helper,
                 object_dict, otype, helper,
                 aci_mo_type="hostprotRemoteIp__cont",
                 to_aim=True)
+        elif 'SystemSecurityGroup' in object_dict['dn']:
+            helper = resource_map['hostprotRemoteIp'][1]
+            id = default_identity_converter(object_dict, otype,
+                                            helper, to_aim=True)
+        else:
+            id = default_identity_converter(object_dict, otype,
+                                            helper, to_aim=True)
         for index, attr in enumerate(destination_identity_attributes):
             res_dict[attr] = id[index]
         if object_dict.get(aci_attr):
@@ -912,6 +921,29 @@ def infraRsVlan_vmm_id_converter(object_dict, otype, helper, to_aim=True):
     return utils.default_identity_converter(object_dict, otype, helper,
                                             aci_mo_type='infraRsVlanNs__vmm',
                                             to_aim=to_aim)
+
+
+def infraRsVlanNs_converter(object_dict, otype, helper,
+                            source_identity_attributes,
+                            destination_identity_attributes, to_aim=True):
+    if to_aim and object_dict.get('dn', '').startswith('uni/phys-'):
+        # Physical-domain vlan namespace attachments do not map to
+        # VMMDomain attributes in AIM, so ignore them.
+        return []
+    return utils.default_converter(object_dict, otype, helper,
+                                   source_identity_attributes,
+                                   destination_identity_attributes, to_aim)
+
+
+def qosDppPol_converter(object_dict, otype, helper,
+                        source_identity_attributes,
+                        destination_identity_attributes, to_aim=True):
+    if to_aim and object_dict.get('dn', '').startswith('uni/infra/'):
+        # AIM models tenant-scoped qosDppPol resources only.
+        return []
+    return utils.default_converter(object_dict, otype, helper,
+                                   source_identity_attributes,
+                                   destination_identity_attributes, to_aim)
 
 
 def bgp_as_id_converter(object_dict, otype, helper, to_aim=True):
@@ -1298,6 +1330,7 @@ resource_map = {
     }],
     'infraRsVlanNs': [{
         'resource': resource.VMMDomain,
+        'converter': infraRsVlanNs_converter,
         'exceptions': {'tDn': {'other': 'vlan_pool_name',
                                'converter': infraRsVlanNs_vmm_converter,
                                'skip_if_empty': True}},
@@ -1371,6 +1404,7 @@ resource_map = {
     }],
     'qosDppPol': [{
         'resource': resource.QosDppPol,
+        'converter': qosDppPol_converter,
     }],
     'qosRsIngressDppPol': [{
         'resource': resource.QosRequirement,

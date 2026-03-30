@@ -118,7 +118,6 @@ class TestAimManager(base.TestAimDBBase):
                                                             name='test'))
         self.mgr.set_resource_sync_error(self.ctx, vmmd)
         self.mgr.recover_root_errors(self.ctx, t1.root)
-
         ap = self.mgr.get_status(self.ctx, resource.ApplicationProfile(
             tenant_name=t1.name, name='test'))
         epg = self.mgr.get_status(self.ctx, resource.EndpointGroup(
@@ -148,6 +147,13 @@ class TestAimManager(base.TestAimDBBase):
         vmmd = self.mgr.get_status(self.ctx, resource.VMMDomain(type=vmmp.type,
                                                                 name='test'))
         self.assertEqual(aim_status.AciStatus.SYNC_PENDING, vmmd.sync_status)
+
+    def test_from_dn_preserves_case(self):
+        dn = 'uni/tn-TenantA/ap-AppProfileA/epg-MyEPG'
+        epg = resource.EndpointGroup.from_dn(dn)
+        self.assertEqual('TenantA', epg.tenant_name)
+        self.assertEqual('AppProfileA', epg.app_profile_name)
+        self.assertEqual('MyEPG', epg.name)
 
     def test_multiple_statuses(self):
         t1 = self.mgr.create(self.ctx, resource.Tenant(name='t1'))
