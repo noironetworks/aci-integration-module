@@ -33,7 +33,9 @@ def uniq_column(table, *args, **kwargs):
 
 
 def name_column(**kwargs):
-    return sa.Column(sa.String(64), **kwargs)
+    return sa.Column(
+        mysql.VARCHAR(64, charset='latin1', collation='latin1_bin'),
+        **kwargs)
 
 
 def dn_column(**kwargs):

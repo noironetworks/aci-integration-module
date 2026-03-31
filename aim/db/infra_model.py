@@ -125,8 +125,8 @@ class OpflexDevice(model_base.Base, model_base.AttributeMixin,
     host_name = sa.Column(sa.String(128))
     ip = sa.Column(sa.String(64))
     fabric_path_dn = sa.Column(sa.String(512))
-    domain_name = sa.Column(sa.String(64))
-    controller_name = sa.Column(sa.String(64))
+    domain_name = model_base.name_column()
+    controller_name = model_base.name_column()
 
 
 class HostDomainMapping(model_base.Base, model_base.AttributeMixin):
@@ -134,15 +134,15 @@ class HostDomainMapping(model_base.Base, model_base.AttributeMixin):
 
     host_name = sa.Column(sa.String(128), primary_key=True)
 
-    vmm_domain_name = sa.Column(sa.String(64))
-    physical_domain_name = sa.Column(sa.String(64))
+    vmm_domain_name = model_base.name_column()
+    physical_domain_name = model_base.name_column()
 
 
 class HostDomainMappingV2(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_host_domain_mapping_v2'
 
     host_name = sa.Column(sa.String(128), primary_key=True)
-    domain_name = sa.Column(sa.String(64), primary_key=True)
+    domain_name = model_base.name_column(primary_key=True)
     domain_type = sa.Column(sa.Enum('PhysDom',
                                     'OpenStack',
                                     'Kubernetes',
@@ -153,7 +153,7 @@ class HostLinkNetworkLabel(model_base.Base, model_base.AttributeMixin):
     __tablename__ = 'aim_host_link_network_label'
 
     host_name = sa.Column(sa.String(128), primary_key=True)
-    network_label = sa.Column(sa.String(64), primary_key=True)
+    network_label = model_base.name_column(primary_key=True)
     interface_name = sa.Column(sa.String(32), primary_key=True)
 
 
@@ -171,8 +171,7 @@ class ACISupportedMo(model_base.Base, model_base.AttributeMixin):
 
     __tablename__ = 'aim_aci_supported_mos'
 
-    name = sa.Column(sa.String(64), nullable=False,
-                     primary_key=True)
+    name = model_base.name_column(nullable=False, primary_key=True)
     supports = sa.Column(sa.Boolean, nullable=False)
 
 
