@@ -571,6 +571,12 @@ class AciUniverse(base.HashTreeStoredUniverse):
                 self.get_state_by_type(base.MONITOR_UNIVERSE),
                 self.get_state_by_type(base.OPER_UNIVERSE)]
 
+    def _consume_push_failures(self):
+        failed = False
+        for manager in list(self.serving_tenants.values()):
+            failed = manager.consume_push_failures() or failed
+        return failed
+
     @property
     def name(self):
         return "ACI_Config_Universe"
@@ -640,6 +646,12 @@ class AciUniverse(base.HashTreeStoredUniverse):
             # failure in serve method. Restart the process
             utils.perform_harakiri(LOG,
                                    "Error in serve. Reset the tenants")
+
+    def reconcile(self, context, other_universe, delete_candidates):
+        had_push_failures = self._consume_push_failures()
+        diff = super(AciUniverse, self).reconcile(
+            context, other_universe, delete_candidates)
+        return self._consume_push_failures() or had_push_failures or diff
 
     def tenant_creation_failed(self, aim_object, reason='unknown',
                                error=errors.UNKNOWN):

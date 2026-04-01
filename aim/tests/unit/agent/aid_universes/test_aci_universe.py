@@ -131,6 +131,17 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             self.assertTrue(isinstance(self.universe.state[tenant],
                                        structured_tree.StructuredHashTree))
 
+    def test_reconcile_reports_push_failures(self):
+        tenant = mock.Mock()
+        tenant.consume_push_failures = mock.Mock(side_effect=[True, False])
+        self.universe.serving_tenants['tn-fail'] = tenant
+        other = mock.Mock()
+        with mock.patch.object(
+                aci_universe.base.HashTreeStoredUniverse, 'reconcile',
+                return_value=False):
+            self.assertTrue(
+                self.universe.reconcile(self.ctx, other, set()))
+
     def test_serve_exception(self):
         tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(self.ctx, tenant_list)

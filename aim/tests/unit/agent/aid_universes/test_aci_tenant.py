@@ -694,6 +694,18 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
         self.manager.push_aim_resources({'delete': [bda1, bda2]})
         self.manager._push_aim_resources()
 
+        self.manager.creation_failed = mock.Mock()
+        self.manager.ac_context.aci_session.post_body_dict = mock.Mock(
+            side_effect=apic_client.cexc.ApicResponseNotOk(
+                request='my_request', status=400,
+                reason='bad request', err_text='bad request text',
+                err_code=120))
+        self.manager.push_aim_resources({'create': [bd1]})
+        self.manager._push_aim_resources()
+        self.assertTrue(self.manager.consume_push_failures())
+        self.assertFalse(self.manager.consume_push_failures())
+        self.assertEqual(1, self.manager.creation_failed.call_count)
+
     def test_fill_events_noop(self):
         # On unchanged data, fill events is a noop
         events = self._init_event()

@@ -368,6 +368,15 @@ class AciTenantManager(utils.AIMThread):
     def _reset_object_backlog(self):
         self.object_backlog = Queue.Queue()
 
+    def note_push_failure(self, aim_object, method, error):
+        self.failure_log[(method, repr(aim_object))] = {
+            'method': method, 'object': repr(aim_object), 'error': str(error)}
+
+    def consume_push_failures(self):
+        had_failures = bool(self.failure_log)
+        self.failure_log = {}
+        return had_failures
+
     def kill(self, *args, **kwargs):
         try:
             self._unsubscribe_tenant(kill=True)
@@ -661,6 +670,7 @@ class AciTenantManager(utils.AIMThread):
                             LOG.error("An error has occurred during %s for "
                                       "object %s: %s" % (method, aim_object,
                                                          str(e)))
+                            self.note_push_failure(aim_object, method, e)
                             if method == base_universe.CREATE:
                                 err_type = (
                                     self.error_handler.analyze_exception(e))
