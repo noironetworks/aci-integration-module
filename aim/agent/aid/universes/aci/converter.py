@@ -84,6 +84,17 @@ ip_protocol = mapped_attribute(t.ip_protocol)
 ethertype = mapped_attribute(t.ethertype)
 
 
+def hostprot_rule_protocol(object_dict, attribute, to_aim=True):
+    curr = default_attribute_converter(object_dict, attribute, to_aim=to_aim)
+    if to_aim:
+        if str(curr) == t.ip_protocol.get('50'):
+            return '50'
+        return str(curr)
+    if str(curr) == '50':
+        return '50'
+    return t.ip_protocol.get(str(curr), str(curr))
+
+
 def port_with_ssh(object_dict, attribute, to_aim=True):
     # ACI releases prior to 5.x  wouldn't aaccept 'ssh' as a valid
     # fromPort or toPort value. In order to support both 5.x and prior
@@ -1236,7 +1247,7 @@ resource_map = {
          'skip': ['remote_ips', 'remote_group_id', 'tDn'],
          'exceptions': {
              'protocol': {'other': 'ip_protocol',
-                          'converter': ip_protocol},
+                          'converter': hostprot_rule_protocol},
              'fromPort': {'other': 'from_port',
                           'converter': port_with_ssh},
              'toPort': {'other': 'to_port',
@@ -1252,7 +1263,7 @@ resource_map = {
          'skip': ['remote_ips'],
          'exceptions': {
              'protocol': {'other': 'ip_protocol',
-                          'converter': ip_protocol},
+                          'converter': hostprot_rule_protocol},
              'fromPort': {'other': 'from_port',
                           'converter': port_with_ssh},
              'toPort': {'other': 'to_port',
