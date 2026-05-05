@@ -54,7 +54,7 @@ ExternalNetwork = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    with session.begin():
         provides = []
         consumes = []
         ext_net_dict = {}

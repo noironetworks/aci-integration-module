@@ -103,6 +103,7 @@ def revision(ctx, message, autogenerate):
 
 def fix_no_nat_l3out_ownership(aim_ctx):
     """Relinquish ownership of no-NAT L3Outs in AIM and APIC."""
+    metadata = sa.MetaData()
     saved_l3out_table = sa.Table(
         'aim_lib_save_l3out',
         sa.MetaData(),
@@ -112,11 +113,13 @@ def fix_no_nat_l3out_ownership(aim_ctx):
         sa.Column('vrf_name', nullable=True))
     session = aim_ctx.store.db_session
     bind = session.get_bind()
-    with session.begin(subtransactions=True):
-        if not saved_l3out_table.exists(bind=bind):
+    with session.begin():
+        metadata.reflect(bind=bind)
+        if 'aim_lib_save_l3out' not in metadata.tables:
             return
         results = session.execute(
-            saved_l3out_table.select(saved_l3out_table.c.monitored.is_(True)))
+            sa.select(saved_l3out_table).
+            where(saved_l3out_table.c.monitored.is_(True)))
         click.echo("Fixing ownership of no-NAT L3Outs")
         rows = results.fetchall()
         if rows:
@@ -131,6 +134,6 @@ def fix_no_nat_l3out_ownership(aim_ctx):
                 tag_dn = "/mo/" + l3out.dn + "/tag-" + system_id
                 click.echo('Deleting AIM tag %s' % tag_dn)
                 apic.DELETE(tag_dn + ".json")
-    # drop the table after the transaction completes because databases
-    # like MySQL hold locks on the table
+        # drop the table after the transaction completes because databases
+        # like MySQL hold locks on the table
     saved_l3out_table.drop(bind=bind)

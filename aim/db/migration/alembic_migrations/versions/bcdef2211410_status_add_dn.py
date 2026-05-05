@@ -38,7 +38,7 @@ from aim.db.migration.data_migration import status_add_dn
 def upgrade():
 
     session = api.get_session(expire_on_commit=True)
-    with session.begin(subtransactions=True):
+    with session.begin():
         op.add_column(
             'aim_statuses',
             sa.Column('resource_dn', VARCHAR(512, charset='latin1'),

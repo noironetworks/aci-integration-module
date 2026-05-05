@@ -53,7 +53,7 @@ def get_resource_class(resource_type):
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    def migration():
         store = aim_store.SqlAlchemyStore(None)
         for st in session.query(Status).all():
             res_table, res_class = get_resource_class(st.resource_type)
@@ -63,7 +63,11 @@ def migrate(session):
                 res = store.make_resource(res_class, db_res)
                 session.execute(update(Status).where(
                     Status.c.id == st.id).values(resource_dn=res.dn))
-            except Exception as e:
+            except Exception:
                 # Silently ignore
-                LOG.info("Exception occurred while migrating status."
-                         "error: %s", str(e))
+                pass
+    if session.in_transaction():
+        migration()
+    else:
+        with session.begin():
+            migration()

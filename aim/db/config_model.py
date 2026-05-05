@@ -59,8 +59,17 @@ class ConfigurationDBManager(object):
                 'value': db_cfg.value,
                 'version': db_cfg.version}
 
+    def _in_transaction(self, db_session):
+        sess = getattr(db_session, 'session', db_session)
+        if hasattr(sess, "in_transaction"):
+            return sess.in_transaction()
+        try:
+            return sess.transaction is not None
+        except AttributeError:
+            return False
+
     def _get(self, context, group, key, host='', **kwargs):
-        with context.store.begin(subtransactions=True):
+        with context.store.begin():
             curr = self.aim_mgr.get(
                 context, resource.Configuration(group=group, key=key,
                                                 host=host))
@@ -81,16 +90,22 @@ class ConfigurationDBManager(object):
         {(group, key, host): value}
         :return:
         """
-        with context.store.begin(subtransactions=True):
+        def do_update():
             for conf, v in list(configs.items()):
                 group, key, host = conf
-                cfg = resource.Configuration(group=group, key=key, host=host,
-                                             value=v)
-                self.aim_mgr.create(context, cfg, overwrite=True)
+                cfg = resource.Configuration(group=group, key=key,
+                                             host=host, value=v)
+                self.aim_mgr._create(context, cfg, overwrite=True)
+
+        if self._in_transaction(context.store.db_session):
+            do_update()
+        else:
+            with context.store.begin():
+                do_update()
 
     @utils.log
     def update(self, context, group, key, value, host=''):
-        with context.store.begin(subtransactions=True):
+        with context.store.begin():
             return self.update_bulk(
                 context, {(group, key, host): value})
 
@@ -101,15 +116,21 @@ class ConfigurationDBManager(object):
     @utils.log
     def delete_all(self, context, group=None, host=None):
         # Can filter by group, host or both
-        with context.store.begin(subtransactions=True):
+        def do_delete():
             filters = {}
             if group:
                 filters['group'] = group
             if host:
                 filters['host'] = host
+
             for entry in self.aim_mgr.find(context, resource.Configuration,
                                            **filters):
                 self.aim_mgr.delete(context, entry)
+        if self._in_transaction(context.store.db_session):
+            do_delete()
+        else:
+            with context.store.begin():
+                do_delete()
 
     @utils.log
     def replace_all(self, context, configs, host=None):
@@ -122,9 +143,14 @@ class ConfigurationDBManager(object):
         """
 
         # Remove all the existing config and override with new ones
-        with context.store.begin(subtransactions=True):
+        def replace():
             self.delete_all(context, host=host)
             self.update_bulk(context, configs)
+        if self._in_transaction(context.store.db_session):
+            replace()
+        else:
+            with context.store.begin():
+                replace()
 
     def get_changed(self, context, configs):
         """Get changed configurations
@@ -134,7 +160,7 @@ class ConfigurationDBManager(object):
         {(group, key, host): version}
         :return: list configurations that don't match the provided version
         """
-        with context.store.begin(subtransactions=True):
+        with context.store.begin():
             result = []
             all = self.aim_mgr.find(context, resource.Configuration)
             for cfg in all:

@@ -766,11 +766,11 @@ class TestHashTreeManager(base.TestAimDBBase):
         self.assertEqual(set(['keyA', 'keyA1', 'keyA2']), set(tenants))
 
     def test_single_session_multi_objects(self):
-        with self.ctx.store.begin(subtransactions=True):
+        with self.ctx.store.begin():
             data = tree.StructuredHashTree().include(
                 [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
-                 {'key': ('keyA', 'keyC', 'keyD')}])
-            self.mgr.update(self.ctx, data)
+                    {'key': ('keyA', 'keyC', 'keyD')}])
+            self.mgr._update(self.ctx, data)
             agent = resource.Agent(id='test', agent_type='aid', host='host3',
                                    binary_file='binary', hash_trees=['keyA'],
                                    version='1.0')
@@ -784,17 +784,17 @@ class TestHashTreeManager(base.TestAimDBBase):
 
     def test_agents_to_trees_association(self):
         # N, M association
-        with self.ctx.store.begin(subtransactions=True):
+        with self.ctx.store.begin():
             data = tree.StructuredHashTree().include(
                 [{'key': ('keyA', 'keyB')}, {'key': ('keyA', 'keyC')},
-                 {'key': ('keyA', 'keyC', 'keyD')}])
+                    {'key': ('keyA', 'keyC', 'keyD')}])
             data2 = tree.StructuredHashTree().include(
                 [{'key': ('keyA1', 'keyB')}, {'key': ('keyA1', 'keyC')},
-                 {'key': ('keyA1', 'keyC', 'keyD')}])
+                    {'key': ('keyA1', 'keyC', 'keyD')}])
             data3 = tree.StructuredHashTree().include(
                 [{'key': ('keyA2', 'keyB')}, {'key': ('keyA2', 'keyC')},
-                 {'key': ('keyA2', 'keyC', 'keyD')}])
-            self.mgr.update_bulk(self.ctx, [data, data2, data3])
+                    {'key': ('keyA2', 'keyC', 'keyD')}])
+            self.mgr._update_bulk(self.ctx, [data, data2, data3])
             agent1 = resource.Agent(agent_type='aid', host='host',
                                     binary_file='binary',
                                     hash_trees=['keyA', 'keyA1', 'keyA2'],

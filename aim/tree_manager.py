@@ -45,119 +45,149 @@ class TreeManager(object):
         self.root_rn_funct = root_rn_funct or self._default_root_rn_funct
         self.root_key_funct = root_key_funct or self._default_root_key_funct
 
-    @utils.log
-    def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
+    def _update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
         trees = {self.root_rn_funct(x): x for x in hash_trees}
-        with context.store.begin(subtransactions=True):
-            db_objs = self._find_query(context, tree, lock_update=True,
-                                       in_={'root_rn': list(trees.keys())})
-            for obj in db_objs:
-                hash_tree = trees.pop(obj.root_rn)
-                obj.root_full_hash = hash_tree.root_full_hash
-                obj.tree = str(hash_tree).encode('utf-8')
-                context.store.add(obj)
+        db_objs = self._find_query(context, tree, lock_update=True,
+                                   in_={'root_rn': list(trees.keys())})
+        for obj in db_objs:
+            hash_tree = trees.pop(obj.root_rn)
+            obj.root_full_hash = hash_tree.root_full_hash
+            obj.tree = str(hash_tree).encode('utf-8')
+            context.store.add(obj)
 
-            for hash_tree in list(trees.values()):
-                # Tree creation
-                empty_tree = structured_tree.StructuredHashTree()
-                # Create base tree
-                root_rn = self.root_rn_funct(hash_tree)
-                self._create_if_not_exist(context, ROOT_TREE, root_rn)
-                for tree_klass in SUPPORTED_TREES:
-                    if tree_klass == tree:
-                        # Then put the updated tree in it
-                        self._create_if_not_exist(
-                            context, tree_klass, root_rn,
-                            tree=str(hash_tree).encode('utf-8'),
-                            root_full_hash=hash_tree.root_full_hash or 'none')
-                    else:
-                        # Attempt to create an empty tree:
-                        self._create_if_not_exist(
-                            context, tree_klass, root_rn,
-                            tree=str(empty_tree).encode('utf-8'),
-                            root_full_hash=empty_tree.root_full_hash or 'none')
+        for hash_tree in list(trees.values()):
+            # Tree creation
+            empty_tree = structured_tree.StructuredHashTree()
+            # Create base tree
+            root_rn = self.root_rn_funct(hash_tree)
+            self._create_if_not_exist(context, ROOT_TREE, root_rn)
+            for tree_klass in SUPPORTED_TREES:
+                if tree_klass == tree:
+                    # Then put the updated tree in it
+                    self._create_if_not_exist(
+                        context, tree_klass, root_rn,
+                        tree=str(hash_tree).encode('utf-8'),
+                        root_full_hash=hash_tree.root_full_hash or 'none')
+                else:
+                    # Attempt to create an empty tree:
+                    self._create_if_not_exist(
+                        context, tree_klass, root_rn,
+                        tree=str(empty_tree).encode('utf-8'),
+                        root_full_hash=empty_tree.root_full_hash or 'none')
 
-    def get_base_tree(self, context, root_rn, lock_update=False):
+    def update_bulk(self, context, hash_trees, tree=CONFIG_TREE):
+        with context.store.db_session.begin():
+            self._update_bulk(context, hash_trees, tree)
+
+    def _get_base_tree(self, context, root_rn, lock_update=False):
         db_objs = self._find_query(context, ROOT_TREE, lock_update=lock_update,
                                    in_={'root_rn': [root_rn]})
         return db_objs[0] if db_objs else None
 
-    @utils.log
-    def delete_bulk(self, context, hash_trees):
-        with context.store.begin(subtransactions=True):
-            root_rns = [self.root_rn_funct(x) for x in hash_trees]
-            for type in SUPPORTED_TREES + [ROOT_TREE]:
-                db_objs = self._find_query(context, type, lock_update=True,
-                                           in_={'root_rn': root_rns})
-                for db_obj in db_objs:
-                    context.store.delete(db_obj)
+    def get_base_tree(self, context, root_rn, lock_update=False):
+        with context.store.db_session.begin():
+            return self._get_base_tree(context, root_rn, lock_update)
 
     @utils.log
+    def _delete_bulk(self, context, hash_trees):
+        # with context.store.begin():
+        root_rns = [self.root_rn_funct(x) for x in hash_trees]
+        for type in SUPPORTED_TREES + [ROOT_TREE]:
+            db_objs = self._find_query(context, type, lock_update=True,
+                                       in_={'root_rn': root_rns})
+            for db_obj in db_objs:
+                context.store.delete(db_obj)
+
+    def delete_bulk(self, context, hash_trees):
+        with context.store.db_session.begin():
+            self._delete_bulk(context, hash_trees)
+
+    @utils.log
+    def _delete_all(self, context):
+        # with context.store.begin():
+        for type in SUPPORTED_TREES + [ROOT_TREE]:
+            db_objs = self._find_query(context, type, lock_update=True)
+            for db_obj in db_objs:
+                context.store.delete(db_obj)
+
     def delete_all(self, context):
-        with context.store.begin(subtransactions=True):
-            for type in SUPPORTED_TREES + [ROOT_TREE]:
-                db_objs = self._find_query(context, type, lock_update=True)
-                for db_obj in db_objs:
-                    context.store.delete(db_obj)
+        with context.store.db_session.begin():
+            self._delete_all(context)
 
     def update(self, context, hash_tree, tree=CONFIG_TREE):
         return self.update_bulk(context, [hash_tree], tree=tree)
+
+    def _update(self, context, hash_tree, tree=CONFIG_TREE):
+        return self._update_bulk(context, [hash_tree], tree=tree)
 
     def delete(self, context, hash_tree):
         return self.delete_bulk(context, [hash_tree])
 
     @utils.log
-    def delete_by_root_rn(self, context, root_rn, if_empty=False):
+    def _delete_by_root_rn(self, context, root_rn, if_empty=False):
         try:
-            with context.store.begin(subtransactions=True):
-                self._delete_if_exist(context, ROOT_TREE, root_rn)
-                for type in SUPPORTED_TREES:
-                    self._delete_if_exist(context, type, root_rn,
-                                          if_empty=if_empty)
+            self._delete_if_exist(context, ROOT_TREE, root_rn)
+            for type in SUPPORTED_TREES:
+                self._delete_if_exist(context, type, root_rn,
+                                      if_empty=if_empty)
         except exc.HashTreeNotEmpty:
             LOG.warning("Hashtree not empty for root %s, rolling "
                         "back deletion." % root_rn)
 
+    def delete_by_root_rn(self, context, root_rn, if_empty=False):
+        with context.store.db_session.begin():
+            self._delete_by_root_rn(context, root_rn, if_empty)
+
     @utils.log
-    def clean_by_root_rn(self, context, root_rn):
+    def _clean_by_root_rn(self, context, root_rn):
         empty_tree = structured_tree.StructuredHashTree()
-        with context.store.begin(subtransactions=True):
-            for tree_type in SUPPORTED_TREES:
-                obj = self._find_query(context, tree_type, root_rn=root_rn,
-                                       lock_update=True)
-                if obj:
-                    obj[0].tree = str(empty_tree).encode('utf-8')
-                    context.store.add(obj[0])
-            obj = self._find_query(context, ROOT_TREE, root_rn=root_rn,
+        for tree_type in SUPPORTED_TREES:
+            obj = self._find_query(context, tree_type, root_rn=root_rn,
                                    lock_update=True)
             if obj:
-                obj[0].needs_reset = False
+                obj[0].tree = str(empty_tree).encode('utf-8')
                 context.store.add(obj[0])
+        obj = self._find_query(context, ROOT_TREE, root_rn=root_rn,
+                               lock_update=True)
+        if obj:
+            obj[0].needs_reset = False
+            context.store.add(obj[0])
+
+    def clean_by_root_rn(self, context, root_rn):
+        with context.store.db_session.begin():
+            self._clean_by_root_rn(context, root_rn)
 
     @utils.log
-    def clean_all(self, context):
+    def _clean_all(self, context):
         empty_tree = structured_tree.StructuredHashTree()
-        with context.store.begin(subtransactions=True):
-            for tree_type in SUPPORTED_TREES:
-                db_objs = self._find_query(context, tree_type,
-                                           lock_update=True)
-                for db_obj in db_objs:
-                    db_obj.tree = str(empty_tree).encode('utf-8')
-                    context.store.add(db_obj)
-            db_objs = self._find_query(context, ROOT_TREE, lock_update=True)
+        for tree_type in SUPPORTED_TREES:
+            db_objs = self._find_query(context, tree_type,
+                                       lock_update=True)
             for db_obj in db_objs:
-                db_obj.needs_reset = False
+                db_obj.tree = str(empty_tree).encode('utf-8')
                 context.store.add(db_obj)
+        db_objs = self._find_query(context, ROOT_TREE, lock_update=True)
+        for db_obj in db_objs:
+            db_obj.needs_reset = False
+            context.store.add(db_obj)
+
+    def clean_all(self, context):
+        with context.store.db_session.begin():
+            self._clean_all(context)
 
     @utils.log
-    def find(self, context, tree=CONFIG_TREE, **kwargs):
+    def _find(self, context, tree=CONFIG_TREE, **kwargs):
         result = self._find_query(context, tree, in_=kwargs)
         return [self.tree_klass.from_string(
             str(x.tree.decode('utf-8')),
             self.root_key_funct(x.root_rn)) for x in result]
 
+    def find(self, context, tree=CONFIG_TREE, **kwargs):
+        with context.store.db_session.begin():
+            return self._find(context, tree, **kwargs)
+
     @utils.log
-    def get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
+    def _get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
         try:
             return self.tree_klass.from_string(str(
                 self._find_query(context, tree, lock_update=lock_update,
@@ -166,8 +196,12 @@ class TreeManager(object):
         except IndexError:
             raise exc.HashTreeNotFound(root_rn=root_rn)
 
+    def get(self, context, root_rn, lock_update=False, tree=CONFIG_TREE):
+        with context.store.db_session.begin():
+            return self._get(context, root_rn, lock_update, tree)
+
     @utils.log
-    def find_changed(self, context, root_map, tree=CONFIG_TREE):
+    def _find_changed(self, context, root_map, tree=CONFIG_TREE):
         if not root_map:
             return {}
         return dict((
@@ -178,19 +212,31 @@ class TreeManager(object):
                 context, tree, in_={'root_rn': list(root_map.keys())},
                 notin_={'root_full_hash': list(root_map.values())}))
 
-    @utils.log
-    def get_roots(self, context):
-        return [x.root_rn for x in self._find_query(context, ROOT_TREE)]
+    def find_changed(self, context, root_map, tree=CONFIG_TREE):
+        with context.store.db_session.begin():
+            return self._find_changed(context, root_map, tree)
 
     @utils.log
-    def set_needs_reset_by_root_rn(self, context, root_rn, needs_reset=True):
+    def _get_roots(self, context):
+        return [x.root_rn for x in self._find_query(context, ROOT_TREE)]
+
+    def get_roots(self, context):
+        with context.store.db_session.begin():
+            return self._get_roots(context)
+
+    @utils.log
+    def _set_needs_reset_by_root_rn(self, context, root_rn, needs_reset=True):
         db_obj = self._find_query(context, ROOT_TREE, lock_update=True,
                                   root_rn=root_rn)
         if db_obj:
             db_obj[0].needs_reset = needs_reset
             context.store.add(db_obj[0])
 
-    def retrieve_uninitialized_roots(self, context):
+    def set_needs_reset_by_root_rn(self, context, root_rn, needs_reset=True):
+        with context.store.db_session.begin():
+            self._set_needs_reset_by_root_rn(context, root_rn, needs_reset)
+
+    def _retrieve_uninitialized_roots(self, context):
         # Only works with sql store
         if 'sql' in context.store.features:
             db_session = context.store.db_session
@@ -202,27 +248,30 @@ class TreeManager(object):
         else:
             return []
 
+    def retrieve_uninitialized_roots(self, context):
+        with context.store.db_session.begin():
+            return self._retrieve_uninitialized_roots(context)
+
     def _delete_if_exist(self, context, tree_type, root_rn, if_empty=False):
-        with context.store.begin(subtransactions=True):
-            obj = self._find_query(context, tree_type, root_rn=root_rn,
-                                   lock_update=True)
-            if obj:
-                if if_empty:
-                    tree = self.tree_klass.from_string(
-                        str(obj[0].tree.decode('utf-8')),
-                        self.root_key_funct(root_rn))
-                    if tree.root:
-                        # Raise a error to rollback any ongoing transaction
-                        raise exc.HashTreeNotEmpty(root_rn=root_rn)
-                context.store.delete(obj[0])
+        obj = self._find_query(context, tree_type, root_rn=root_rn,
+                               lock_update=True)
+        if obj:
+            if if_empty:
+                tree = self.tree_klass.from_string(
+                    str(obj[0].tree.decode('utf-8')),
+                    self.root_key_funct(root_rn))
+                if tree.root:
+                    # Raise a error to rollback any ongoing transaction
+                    raise exc.HashTreeNotEmpty(root_rn=root_rn)
+            context.store.delete(obj[0])
 
     def _create_if_not_exist(self, context, tree_type, root_rn, **kwargs):
-        with context.store.begin(subtransactions=True):
-            obj = self._find_query(context, tree_type, root_rn=root_rn)
-            if not obj:
-                resource = tree_type(root_rn=root_rn, **kwargs)
-                db_obj = context.store.make_db_obj(resource)
-                context.store.add(db_obj)
+        # with context.store.begin():
+        obj = self._find_query(context, tree_type, root_rn=root_rn)
+        if not obj:
+            resource = tree_type(root_rn=root_rn, **kwargs)
+            db_obj = context.store.make_db_obj(resource)
+            context.store.add(db_obj)
 
     def _find_query(self, context, tree_type, in_=None, notin_=None,
                     lock_update=False, **kwargs):
@@ -451,7 +500,7 @@ class HashTreeBuilder(object):
             tree_index = 0 if idx < 2 else 1
             for res in all_updates[idx]:
                 if isinstance(res, aim_status.AciStatus) and aim_ctx:
-                    parent = self.aim_manager.get_by_id(
+                    parent = self.aim_manager._get_by_id(
                         aim_ctx, res.parent_class, res.resource_id)
                     # Remove main object from config tree if in sync error
                     # during an update
@@ -483,7 +532,7 @@ class HashTreeBuilder(object):
                         try:
                             LOG.info("Deleting parentless status object "
                                      "%s" % res)
-                            self.aim_manager.delete(aim_ctx, res)
+                            self.aim_manager._delete(aim_ctx, res)
                         except Exception as e:
                             LOG.warning("An exception has occurred while "
                                         "trying to delete status object "

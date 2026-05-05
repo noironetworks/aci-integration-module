@@ -55,7 +55,7 @@ EndPointGroup = sa.Table(
 
 
 def migrate(session):
-    with session.begin(subtransactions=True):
+    def migration():
         migrations = []
         for static_path in session.query(StaticPaths).all():
             epg = session.query(EndPointGroup).filter(
@@ -73,3 +73,8 @@ def migrate(session):
         if migrations:
             for migration in migrations:
                 session.execute(StaticPathsV2.insert().values(migration))
+    if session.in_transaction():
+        migration()
+    else:
+        with session.begin():
+            migration()

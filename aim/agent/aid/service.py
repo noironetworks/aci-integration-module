@@ -242,21 +242,21 @@ class AID(object):
     def get_vnodes_value(self, aim_ctx):
         dbsession = aim_ctx.store.db_session
         dbsession.get_bind()
-        with dbsession.begin(subtransactions=True):
-            aim_consistent_hashring_params_table = sa.Table(
-                'aim_consistent_hashring_params', sa.MetaData(),
-                sa.Column('value', sa.Integer, nullable=False),
-                sa.Column('name', sa.String(16), nullable=False,
-                          primary_key=True))
-            query = (sa.select([aim_consistent_hashring_params_table.c.value]).
-                     where(aim_consistent_hashring_params_table.c.name ==
-                           'vnodes'))
-            result = dbsession.execute(query).fetchone()
-            vnodes_value = result[0] if result else DEFAULT_VNODES_HASHRING
-            return vnodes_value
+        aim_consistent_hashring_params_table = sa.Table(
+            'aim_consistent_hashring_params', sa.MetaData(),
+            sa.Column('value', sa.Integer, nullable=False),
+            sa.Column('name', sa.String(16), nullable=False,
+                      primary_key=True))
+        query = (
+            sa.select(aim_consistent_hashring_params_table.c.value)
+            .where(aim_consistent_hashring_params_table.c.name == 'vnodes')
+        )
+        result = dbsession.execute(query).fetchone()
+        vnodes_value = result[0] if result else DEFAULT_VNODES_HASHRING
+        return vnodes_value
 
     def _calculate_tenants(self, aim_ctx):
-        with aim_ctx.store.begin(subtransactions=True):
+        with aim_ctx.store.begin():
             # Refresh this agent
             self.agent = self.manager.get(aim_ctx, self.agent)
             if not self.single_aid:
@@ -305,7 +305,7 @@ class AID(object):
             dict([(x.id, None) for x in agents]),
             vnodes=self.get_vnodes_value(aim_ctx))
         # retrieve tenants
-        for tenant in self.tree_manager.get_roots(aim_ctx):
+        for tenant in self.tree_manager._get_roots(aim_ctx):
             allocations = ring.assign_key(tenant)
             if self.agent_id in allocations:
                 result.append(tenant)
