@@ -21,7 +21,7 @@ UNSPECIFIED = "unspecified"
 tcp_flags = {UNSPECIFIED: ""}
 ports = {'0': UNSPECIFIED, '20': 'ftpData', '25': 'smtp',
          '53': 'dns', '80': 'http', '110': 'pop3', '443': 'https',
-         '554': 'rstp'}
+         '554': 'rtsp'}
 arp_opcode = {'0': UNSPECIFIED, '1': 'req', '2': 'reply'}
 ether_type = {
     '0': UNSPECIFIED, '0x22F3': 'trill', '0x806': 'arp',
