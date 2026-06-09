@@ -105,6 +105,37 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                 # This was replaced fresh
                 self.assertIsNot(v, self.universe.serving_tenants[k])
 
+    def test_serve_session_reconnect_replaces_serving_tenants(self):
+        tenant_list = ['tn-%s' % x for x in range(2)]
+        self.universe.serve(self.ctx, tenant_list)
+        serving_tenants_copy = dict(self.universe.serving_tenants)
+        for tenant_mgr in serving_tenants_copy.values():
+            tenant_mgr.kill = mock.Mock()
+            tenant_mgr.is_dead = mock.Mock(return_value=False)
+
+        self.universe.ac_context.is_session_reconnected = True
+        self.universe.serve(self.ctx, tenant_list)
+
+        self.assertFalse(self.universe.ac_context.is_session_reconnected)
+        self.assertEqual(set(tenant_list),
+                         set(self.universe.serving_tenants.keys()))
+        for root, tenant_mgr in serving_tenants_copy.items():
+            tenant_mgr.kill.assert_called_once_with()
+            self.assertIsNot(tenant_mgr, self.universe.serving_tenants[root])
+
+    def test_reset_discards_serving_tenant_even_if_kill_does_not_exit(self):
+        tenant_list = ['tn-%s' % x for x in range(2)]
+        self.universe.serve(self.ctx, tenant_list)
+        stale_mgr = self.universe.serving_tenants['tn-0']
+        stale_mgr.kill = mock.Mock()
+        stale_mgr.is_dead = mock.Mock(return_value=False)
+
+        self.universe.reset(self.ctx, ['tn-0'])
+
+        stale_mgr.kill.assert_called_once_with()
+        self.assertNotIn('tn-0', self.universe.serving_tenants)
+        self.assertIn('tn-1', self.universe.serving_tenants)
+
     def test_observe(self):
         tenant_list = ['tn-%s' % x for x in range(10)]
         self.universe.serve(self.ctx, tenant_list)

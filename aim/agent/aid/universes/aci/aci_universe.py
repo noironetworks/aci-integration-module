@@ -586,7 +586,6 @@ class AciUniverse(base.HashTreeStoredUniverse):
         if self.ac_context.is_session_reconnected is True:
             self.reset(context, serving_tenants)
             self.ac_context.is_session_reconnected = False
-            return
         try:
             serving_tenant_copy = serving_tenants
             serving_tenants = {}
@@ -663,11 +662,13 @@ class AciUniverse(base.HashTreeStoredUniverse):
         # Reset can only be called during reconciliation. serving_tenants
         # can't be modified meanwhile
         global serving_tenants
-        LOG.warning('Reset called for roots %s' % tenants)
-        for root in tenants:
-            if root in serving_tenants:
+        roots = list(tenants)
+        LOG.warning('Reset called for roots %s' % roots)
+        for root in roots:
+            tenant_mgr = serving_tenants.pop(root, None)
+            if tenant_mgr:
                 try:
-                    serving_tenants[root].kill()
+                    tenant_mgr.kill()
                 except Exception:
                     LOG.error(traceback.format_exc())
                     LOG.error('Failed to reset tenant %s' % root)
