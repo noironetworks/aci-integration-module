@@ -2904,7 +2904,7 @@ class TestAimToAciConverterFilterEntry(TestAimToAciConverterBase,
     sample_input = [
         get_example_aim_filter_entry(
             source_from_port='80', source_to_port=444,
-            dest_from_port='110', dest_to_port='rstp',
+            dest_from_port='110', dest_to_port='554',
             tcp_flags='unspecified', arp_opcode=1,
             ether_type='0x8847', ip_protocol=115,
             icmpv4_type=0, icmpv6_type='135', display_name='alias'),
@@ -2915,7 +2915,7 @@ class TestAimToAciConverterFilterEntry(TestAimToAciConverterBase,
                   arpOpc='req', etherT='mpls_ucast', prot='l2tp',
                   icmpv4T='echo-rep', icmpv6T='nbr-solicit',
                   sFromPort='http', sToPort='444',
-                  dFromPort='pop3', dToPort='rstp',
+                  dFromPort='pop3', dToPort='rtsp',
                   tcpRules='', stateful='yes', applyToFrag='no',
                   nameAlias='alias')],
         [_aci_obj('vzEntry', dn='uni/tn-test-tenant/flt-f1/e-e2',
@@ -3540,7 +3540,11 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                         from_port='80', to_port='443',
                         direction='egress', ethertype='2',
                         conn_track='normal', icmp_type='unspecified',
-                        icmp_code='unspecified', tDn='uni/test')]
+                        icmp_code='unspecified', tDn='uni/test'),
+                    base.TestAimDBBase._get_example_aim_security_group_rule(
+                        security_group_name='sg5', ip_protocol=6,
+                        from_port='554', to_port='554',
+                        direction='ingress', ethertype='1')]
 
     sample_output = [
         [_aci_obj('hostprotRule',
@@ -3582,7 +3586,13 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
          _aci_obj('hostprotRsRemoteIpContainer',
                   dn='uni/tn-t1/pol-sg4/subj-sgs1/rule-rule1/'
                   'rsremoteIpContainer-[uni/test]',
-                  tDn='uni/test')]]
+                  tDn='uni/test')],
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-t1/pol-sg5/subj-sgs1/rule-rule1',
+                  protocol='tcp', direction='ingress',
+                  fromPort='rtsp', toPort='rtsp',
+                  ethertype='ipv4', nameAlias='', connTrack='reflexive',
+                  icmpCode='unspecified', icmpType='unspecified')]]
 
 
 def get_example_aim_sg_remoteip_container(**kwargs):
