@@ -33,8 +33,15 @@ depends_on = None
 
 
 def upgrade():
-    session = sa.orm.Session(bind=op.get_bind())
-    with session.begin():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         op.create_table(
             'aim_endpoint_group_static_paths_v2',
             sa.Column('aim_id', sa.String(255), nullable=False),
@@ -65,6 +72,13 @@ def upgrade():
         # Rename new table
         op.rename_table("aim_endpoint_group_static_paths_v2",
                         "aim_endpoint_group_static_paths")
+
+    session = sa.orm.Session(bind=op.get_bind())
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)
 
 
 def downgrade():

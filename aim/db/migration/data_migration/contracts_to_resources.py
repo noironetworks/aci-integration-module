@@ -54,7 +54,15 @@ ExternalNetwork = sa.Table(
 
 
 def migrate(session):
-    with session.begin():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         provides = []
         consumes = []
         ext_net_dict = {}
@@ -86,3 +94,9 @@ def migrate(session):
             for consumed in consumes:
                 session.execute(
                     ExternalNetworkConsumedContracts.insert().values(consumed))
+
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)

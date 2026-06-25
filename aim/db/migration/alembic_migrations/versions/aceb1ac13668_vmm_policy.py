@@ -38,6 +38,13 @@ from aim.db import api
 
 
 def upgrade():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
 
     op.create_table(
         'aim_vmm_policies',
@@ -58,13 +65,20 @@ def upgrade():
     ctx = context.AimContext(db_session=session)
     new_vmms = []
     new_phys = []
-    with session.begin():
+
+    def migration1(session):
         for vmm in session.query(old_vmm_table).all():
             new_vmms.append(resource.VMMDomain(type=vmm.type, name=vmm.name,
                                                monitored=True))
         for phys in session.query(old_phys_table).all():
             new_phys.append(resource.PhysicalDomain(name=phys.name,
                                                     monitored=True))
+
+    if in_transaction(session):
+        migration1(session)
+    else:
+        with session.begin():
+            migration1(session)
 
     op.drop_table('aim_vmm_domains')
     op.drop_table('aim_physical_domains')
@@ -99,9 +113,15 @@ def upgrade():
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'))
 
-    with session.begin():
+    def migraiton2(session):
         for obj in new_vmms + new_phys:
             mgr.create(ctx, obj)
+
+    if in_transaction(session):
+        migration2(session)
+    else:
+        with session.begin():
+            migration2(session)
 
 
 def downgrade():

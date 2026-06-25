@@ -27,7 +27,15 @@ BridgeDomain = sa.Table(
 
 
 def migrate(session):
-    with session.begin():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         gen1_hw = cfg.CONF.aim.support_gen1_hw_gratarps
         ep_move = 'garp' if gen1_hw is True else ''
         bds = session.query(BridgeDomain).all()
@@ -36,3 +44,9 @@ def migrate(session):
                 session.execute(update(BridgeDomain).where(
                     BridgeDomain.c.aim_id == bd.aim_id).values(
                     ep_move_detect_mode=ep_move))
+
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)
