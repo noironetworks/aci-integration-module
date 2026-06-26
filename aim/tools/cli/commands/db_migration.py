@@ -118,7 +118,7 @@ def fix_no_nat_l3out_ownership(aim_ctx):
         if 'aim_lib_save_l3out' not in metadata.tables:
             return
         results = session.execute(
-            sa.select(saved_l3out_table).
+            saved_l3out_table.select().
             where(saved_l3out_table.c.monitored.is_(True)))
         click.echo("Fixing ownership of no-NAT L3Outs")
         rows = results.fetchall()

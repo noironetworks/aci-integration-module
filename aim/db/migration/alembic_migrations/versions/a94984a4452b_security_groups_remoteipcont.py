@@ -79,9 +79,7 @@ def upgrade():
         sa.Column('name', sa.String(64), nullable=False, primary_key=True))
     stmt = sa.insert(aim_aci_supported_mos_table).values(name="remoteipcont",
                                                          supports=False)
-    dbsession = sa.orm.Session(bind=op.get_bind())
-    dbsession.execute(stmt)
-    dbsession.commit()
+    op.get_bind().execute(stmt)
 
 
 def downgrade():

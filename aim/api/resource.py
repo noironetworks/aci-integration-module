@@ -131,7 +131,7 @@ class ResourceBase(object):
 
         missing = object()
 
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
 
         for attr in self.user_attributes():

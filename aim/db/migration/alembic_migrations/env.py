@@ -14,6 +14,7 @@
 #    under the License.
 
 
+import contextlib
 from logging.config import fileConfig
 
 from alembic import context
@@ -43,6 +44,15 @@ target_metadata = model_base.Base.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+
+@contextlib.contextmanager
+def _connection_context(connection, close_connection):
+    if close_connection:
+        with connection:
+            yield connection
+    else:
+        yield connection
 
 
 def run_migrations_offline():
@@ -81,11 +91,12 @@ def run_migrations_online():
             prefix='sqlalchemy.',
             poolclass=pool.NullPool)
 
-    if isinstance(connectable, Connection):
+    close_connection = not isinstance(connectable, Connection)
+    if not close_connection:
         connection = connectable
     else:
         connection = connectable.connect()
-    with connection:
+    with _connection_context(connection, close_connection):
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

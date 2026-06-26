@@ -113,7 +113,7 @@ def upgrade():
         sa.Column('monitored', sa.Boolean, nullable=False, default=False),
         sa.PrimaryKeyConstraint('aim_id'))
 
-    def migraiton2(session):
+    def migration2(session):
         for obj in new_vmms + new_phys:
             mgr.create(ctx, obj)
 
