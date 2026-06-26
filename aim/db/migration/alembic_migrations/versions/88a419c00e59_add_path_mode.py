@@ -34,14 +34,26 @@ from aim.db import api
 
 
 def upgrade():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
 
-    session = api.get_session(expire_on_commit=True)
-    with session.begin():
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         op.add_column(
             'aim_endpoint_group_static_paths',
             sa.Column('mode', sa.Enum('regular', 'native', 'untagged'),
                       nullable=False, server_default='regular'))
 
+    session = api.get_session(expire_on_commit=True)
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)
 
 def downgrade():
     pass

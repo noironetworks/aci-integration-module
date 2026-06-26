@@ -55,7 +55,15 @@ EndPointGroup = sa.Table(
 
 
 def migrate(session):
-    def migration():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         migrations = []
         for static_path in session.query(StaticPaths).all():
             epg = session.query(EndPointGroup).filter(
@@ -73,8 +81,9 @@ def migrate(session):
         if migrations:
             for migration in migrations:
                 session.execute(StaticPathsV2.insert().values(migration))
-    if session.in_transaction():
-        migration()
+
+    if in_transaction(session):
+        migration(session)
     else:
         with session.begin():
-            migration()
+            migration(session)

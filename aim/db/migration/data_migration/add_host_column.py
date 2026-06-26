@@ -90,7 +90,15 @@ Status = sa.Table(
 
 
 def migrate(session):
-    with session.begin():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         host_links = session.query(HostLink).all()
         for hlink in host_links:
             session.execute(update(EndpointGroupStaticPath).where(
@@ -105,3 +113,9 @@ def migrate(session):
             session.execute(update(L3OutInterface).where(
                 L3OutInterface.c.interface_path == hlink.path).values(
                 host=hlink.host_name))
+
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)

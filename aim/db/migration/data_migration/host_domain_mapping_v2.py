@@ -33,7 +33,15 @@ HostDomainMapping = sa.Table(
 
 
 def migrate(session):
-    with session.begin():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         migrations = []
         for mapping in session.query(HostDomainMapping).all():
             if mapping.vmm_domain_name:
@@ -47,3 +55,9 @@ def migrate(session):
         session.execute(HostDomainMapping.delete())
         if migrations:
             session.execute(HostDomainMappingV2.insert().values(migrations))
+
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)

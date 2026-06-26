@@ -53,7 +53,15 @@ def get_root_klass(resource):
 
 
 def migrate(session):
-    with session.begin():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         for st in session.query(Status).all():
             parent_table, parent_class = get_parent_class(st.resource_type)
             root_klass = get_root_klass(parent_class)
@@ -72,3 +80,9 @@ def migrate(session):
                         ))[0]: root_name}).rn
             session.execute(update(Status).where(
                 Status.c.id == st.id).values(resource_root=rn))
+
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)

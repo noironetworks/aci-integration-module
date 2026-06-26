@@ -37,13 +37,27 @@ from aim.db.migration.data_migration import status_add_dn
 
 def upgrade():
 
-    session = api.get_session(expire_on_commit=True)
-    with session.begin():
+    def in_transaction(session):
+        if hasattr(session, "in_transaction"):
+            return session.in_transaction()  # SQLAlchemy >= 1.4
+
+        # SQLAlchemy <= 1.3
+        tx = getattr(session, "transaction", None)
+        return tx is not None and tx.is_active
+
+    def migration(session):
         op.add_column(
             'aim_statuses',
             sa.Column('resource_dn', VARCHAR(512, charset='latin1'),
                       nullable=False, server_default=''))
         status_add_dn.migrate(session)
+
+    session = api.get_session(expire_on_commit=True)
+    if in_transaction(session):
+        migration(session)
+    else:
+        with session.begin():
+            migration(session)
 
 
 def downgrade():
