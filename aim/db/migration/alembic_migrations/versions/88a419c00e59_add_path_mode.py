@@ -55,5 +55,6 @@ def upgrade():
         with session.begin():
             migration(session)
 
+
 def downgrade():
     pass

@@ -44,9 +44,7 @@ def upgrade():
     stmt = sa.insert(aim_consistent_hashring_params_table).values(
         name="vnodes",
         value=40)
-    dbsession = sa.orm.Session(bind=op.get_bind())
-    dbsession.execute(stmt)
-    dbsession.commit()
+    op.get_bind().execute(stmt)
 
 
 def downgrade():

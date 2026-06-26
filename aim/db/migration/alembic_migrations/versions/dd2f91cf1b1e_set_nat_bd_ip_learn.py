@@ -72,8 +72,6 @@ def get_bd_l3out_values(session):
     for row in session.query(bd_l3outs).all():
         bd_id, name = row
         values.append({'bd_aim_id': bd_id})
-    # this commit appears to be necessary to allow further operations
-    session.commit()
     return values
 
 

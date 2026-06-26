@@ -2846,7 +2846,7 @@ class TestAimToAciConverterEPGNoUseg(TestAimToAciConverterEPG):
             for tla in tll:
                 if 'fvRsDomAtt' in tla:
                     if 'classPref' in tla['fvRsDomAtt']['attributes']:
-                        del(tla['fvRsDomAtt']['attributes']['classPref'])
+                        del tla['fvRsDomAtt']['attributes']['classPref']
         aim_cfg.CONF.set_override('disable_micro_segmentation', True, 'aim')
 
 
@@ -3598,14 +3598,15 @@ class TestAimToAciConverterSecurityGroupRule(TestAimToAciConverterBase,
                   fromPort='rtsp', toPort='rtsp',
                   ethertype='ipv4', nameAlias='', connTrack='reflexive',
                   icmpCode='unspecified', icmpType='unspecified')],
-         _aci_obj(hostprotRule
+        [_aci_obj('hostprotRule',
+                  dn='uni/tn-t1/pol-sg6/subj-sgs1/rule-rule1',
                   protocol='50', direction='egress',
                   fromPort='unspecified', toPort='unspecified',
                   ethertype='ipv4', nameAlias='', connTrack='normal',
                   icmpCode='unspecified', icmpType='unspecified'),
          _aci_obj(
              'hostprotRemoteIp',
-             dn='uni/tn-t1/pol-sg5/subj-sgs1/rule-rule1/ip-[0.0.0.0/0]',
+             dn='uni/tn-t1/pol-sg6/subj-sgs1/rule-rule1/ip-[0.0.0.0/0]',
              addr='0.0.0.0/0')]]
 
 

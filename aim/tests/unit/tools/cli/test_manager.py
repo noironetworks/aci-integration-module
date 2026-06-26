@@ -599,7 +599,7 @@ class TestManagerResourceOpsBase(object):
     def _create_prerequisite_objects(self):
         for obj in (self.prereq_objects or []):
             res_command = climanager.convert(type(obj).__name__)
-            if(res_command == 'system-security-group'):
+            if res_command == 'system-security-group':
                 self.run_command('manager ' + res_command + '-create',
                                  raises=False)
             else:

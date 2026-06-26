@@ -566,7 +566,7 @@ class HashTreeStoredUniverse(AimUniverse):
 
     def cleanup_state(self, context, key):
         if key in list(self._deleting_roots.keys()):
-            del(self._deleting_roots[key])
+            del self._deleting_roots[key]
 
     def creation_succeeded(self, aim_object):
         pass

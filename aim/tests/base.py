@@ -55,7 +55,7 @@ def etcdir(*p):
 
 def resource_equal(self, other):
 
-    if type(self) != type(other):
+    if type(self) is not type(other):
         return False
     for attr in self.identity_attributes:
         if getattr(self, attr) != getattr(other, attr):
