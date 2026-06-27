@@ -202,6 +202,17 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._send_heartbeat(self.ctx)
         self.assertTrue(current_tstamp < agent.agent.heartbeat_timestamp)
 
+    def test_get_vnodes_value_uses_table_select(self):
+        agent = service.AID.__new__(service.AID)
+        dbsession = mock.Mock()
+        dbsession.execute.return_value.fetchone.return_value = (99,)
+        aim_ctx = mock.Mock(store=mock.Mock(db_session=dbsession))
+
+        with mock.patch.object(service.sa, 'select',
+                               side_effect=AssertionError):
+            self.assertEqual(99, agent.get_vnodes_value(aim_ctx))
+            service.sa.select.assert_not_called()
+
     def test_calculate_tenants(self):
         # One agent, zero tenants
         agent = self._create_agent()

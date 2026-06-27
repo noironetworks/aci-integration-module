@@ -248,7 +248,7 @@ class AID(object):
             sa.Column('name', sa.String(16), nullable=False,
                       primary_key=True))
         query = (
-            sa.select(aim_consistent_hashring_params_table.c.value)
+            aim_consistent_hashring_params_table.select()
             .where(aim_consistent_hashring_params_table.c.name == 'vnodes')
         )
         result = dbsession.execute(query).fetchone()
