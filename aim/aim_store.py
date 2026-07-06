@@ -342,7 +342,16 @@ class SqlAlchemyStore(AimStore):
 
     @property
     def current_timestamp(self):
-        if self.db_session.in_transaction():
+        def _in_transaction(db_session):
+            sess = getattr(db_session, 'session', db_session)
+            if hasattr(sess, "in_transaction"):
+                return sess.in_transaction()
+            try:
+                return sess.transaction is not None
+            except AttributeError:
+                return False
+
+        if _in_transaction(self.db_session):
             return self.db_session.query(func.now()).scalar()
 
         with self.db_session.begin():
