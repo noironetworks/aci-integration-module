@@ -280,7 +280,8 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
             {'fvRsCtx': {'attributes': {
                 'dn': 'uni/tn-test-tenant/BD-test/rsctx', 'tnFvCtxName': ''}}},
             {'vzSubj': {'attributes': {'dn': 'uni/tn-t1/brc-c/subj-s',
-                                       'nameAlias': ''}}},
+                                       'nameAlias': '',
+                                       'revFltPorts': 'yes'}}},
             {'vzInTerm': {'attributes': {
                 'dn': 'uni/tn-t1/brc-c/subj-s/intmnl'}}},
             {'vzOutTerm': {'attributes': {

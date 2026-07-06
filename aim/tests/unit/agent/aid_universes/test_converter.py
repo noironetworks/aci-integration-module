@@ -737,7 +737,9 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
     resource_type = resource.ContractSubject
     reverse_map_output = [
         {'resource': 'vzSubj',
-         'exceptions': {},
+         'exceptions': {
+             'reverse_filter_ports': {'other': 'revFltPorts',
+                                      'converter': converter.boolean}},
          'converter': converter.contract_converter,
          'skip': ['inFilters', 'outFilters', 'biFilters',
                   'serviceGraphName', 'inServiceGraphName',
@@ -859,7 +861,8 @@ class TestAciToAimConverterContractSubject(TestAciToAimConverterBase,
         resource.ContractSubject(tenant_name='common', contract_name='prs1',
                                  name='prs1', display_name='prs1',
                                  in_filters=['pr1', 'reverse-pr1'],
-                                 out_filters=['pr1', 'reverse-pr1'])]
+                                 out_filters=['pr1', 'reverse-pr1'],
+                                 reverse_filter_ports=True)]
 
 
 def get_example_aci_oob_subject(**kwargs):
@@ -2968,12 +2971,14 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
                                          bi_filters=['f1', 'f2'],
                                          service_graph_name='g1',
                                          in_service_graph_name='g2',
+                                         reverse_filter_ports=True,
                                          display_name='alias'),
         get_example_aim_contract_subject(name='s2',
-                                         out_service_graph_name='g3')]
+                                         out_service_graph_name='g3',
+                                         reverse_filter_ports=False)]
     sample_output = [
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s1',
-                  nameAlias='alias'),
+                  nameAlias='alias', revFltPorts='yes'),
          _aci_obj('vzRsSubjFiltAtt',
                   dn='uni/tn-test-tenant/brc-c1/subj-s1/rssubjFiltAtt-f1',
                   tnVzFilterName='f1'),
@@ -3004,7 +3009,7 @@ class TestAimToAciConverterContractSubject(TestAimToAciConverterBase,
                      'rsInTermGraphAtt',
                   tnVnsAbsGraphName='g2')],
         [_aci_obj('vzSubj', dn='uni/tn-test-tenant/brc-c1/subj-s2',
-                  nameAlias=""),
+                  nameAlias="", revFltPorts='no'),
          _aci_obj('vzOutTerm',
                   dn='uni/tn-test-tenant/brc-c1/subj-s2/outtmnl'),
          _aci_obj('vzRsOutTermGraphAtt',
