@@ -722,6 +722,7 @@ class ContractSubject(AciResourceBase):
         ('service_graph_name', t.name),
         ('in_service_graph_name', t.name),
         ('out_service_graph_name', t.name),
+        ('reverse_filter_ports', t.bool),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vzSubj'
@@ -733,6 +734,7 @@ class ContractSubject(AciResourceBase):
              'service_graph_name': '',
              'in_service_graph_name': '',
              'out_service_graph_name': '',
+             'reverse_filter_ports': True,
              'monitored': False}, **kwargs)
 
 

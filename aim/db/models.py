@@ -570,6 +570,7 @@ class ContractSubject(model_base.Base, model_base.HasAimId,
     service_graph_name = model_base.name_column()
     in_service_graph_name = model_base.name_column()
     out_service_graph_name = model_base.name_column()
+    reverse_filter_ports = sa.Column(sa.Boolean, nullable=False, default=True)
     filters = orm.relationship(ContractSubjectFilter,
                                backref='contract',
                                cascade='all, delete-orphan',

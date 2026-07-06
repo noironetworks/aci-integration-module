@@ -930,7 +930,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
         self.maker.update(htree, [subj])
 
         exp_tree = exp_tree.add(('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1'),
-                                nameAlias='')
+                                nameAlias='', revFltPorts='yes')
         exp_tree = exp_tree.add(
             ('fvTenant|t1', 'vzBrCP|c1', 'vzSubj|s1',
              'vzInTerm|intmnl', 'vzRsFiltAtt|i1'),

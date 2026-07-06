@@ -1091,6 +1091,9 @@ resource_map = {
     }],
     'vzSubj': [{
         'resource': resource.ContractSubject,
+        'exceptions': {
+            'revFltPorts': {'other': 'reverse_filter_ports',
+                            'converter': boolean}},
         'converter': contract_converter,
         'skip': ['in_filters', 'out_filters', 'bi_filters',
                  'service_graph_name', 'in_service_graph_name',
