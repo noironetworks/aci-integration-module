@@ -1683,7 +1683,9 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
     resource_type = aim_service_graph.ServiceRedirectPolicy
     reverse_map_output = [
         {'resource': 'vnsSvcRedirectPol',
-         'exceptions': {},
+         'exceptions': {'resilient_hash_enabled': {
+             'other': 'resilientHashEnabled',
+             'converter': conv_utils.boolean}},
          'skip': ['destinations', 'monitoringPolicyTenantName',
                   'monitoringPolicyName']},
         {'resource': 'vnsRedirectDest',
@@ -1700,7 +1702,8 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
     ]
     sample_input = [[_aci_obj('vnsSvcRedirectPol',
                               dn='uni/tn-t1/svcCont/svcRedirectPol-r1',
-                              nameAlias='alias'),
+                              nameAlias='alias',
+                              resilientHashEnabled='yes'),
                      _aci_obj('vnsRedirectDest',
                               dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
                                   'RedirectDest_ip-[10.6.1.1]'),
@@ -1732,7 +1735,8 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
                              mac='90:E2:Ba:b1:36:6d', destName='dest-name')
                      ],
                     _aci_obj('vnsSvcRedirectPol',
-                             dn='uni/tn-t1/svcCont/svcRedirectPol-r2')]
+                             dn='uni/tn-t1/svcCont/svcRedirectPol-r2',
+                             resilientHashEnabled='no')]
     sample_output = [
         aim_service_graph.ServiceRedirectPolicy(
             tenant_name='t1', name='r1',
@@ -1743,8 +1747,10 @@ class TestAciToAimConverterServiceRedirectPolicy(TestAciToAimConverterBase,
                           {'ip': '10.6.1.2',
                            'redirect_health_group_dn': 'my/dn2'},
                           {'ip': '10.6.1.3', 'mac': '90:E2:BA:B1:36:6D',
-                           'name': 'dest-name'}]),
-        aim_service_graph.ServiceRedirectPolicy(tenant_name='t1', name='r2')
+                           'name': 'dest-name'}],
+            resilient_hash_enabled=True),
+        aim_service_graph.ServiceRedirectPolicy(
+            tenant_name='t1', name='r2', resilient_hash_enabled=False)
     ]
 
 
@@ -4092,28 +4098,32 @@ def get_example_aim_service_redirect_policy(**kwargs):
 
 class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                                                  base.TestAimDBBase):
-    sample_input = [get_example_aim_service_redirect_policy(
-        display_name='R', destinations=[{'ip': '10.10.1.1',
-                                         'mac': '90:E2:BA:B1:37:6C'}]),
-                    get_example_aim_service_redirect_policy(
-                        name='r2',
-                        monitoring_policy_tenant_name='common',
-                        monitoring_policy_name='mon_policy',
-                        destinations=[{'ip': '10.6.1.1',
-                                       'mac': '90:e2:ba:B1:36:6C',
-                                       'redirect_health_group_dn': 'my/dn1'},
-                                      {'ip': '10.6.1.2',
-                                       'redirect_health_group_dn': 'my/dn2'},
-                                      {'ip': '10.6.1.3',
-                                       'mac': '90:e2:ba:B1:36:6D',
-                                       'name': 'dest-name',
-                                       'redirect_health_group_dn': ''},
-                                      {'foo': 'bar'}])]
+    sample_input = [
+        get_example_aim_service_redirect_policy(
+            display_name='R',
+            destinations=[{'ip': '10.10.1.1',
+                           'mac': '90:E2:BA:B1:37:6C'}],
+            resilient_hash_enabled=True),
+        get_example_aim_service_redirect_policy(
+            name='r2',
+            monitoring_policy_tenant_name='common',
+            monitoring_policy_name='mon_policy',
+            destinations=[{'ip': '10.6.1.1',
+                           'mac': '90:e2:ba:B1:36:6C',
+                           'redirect_health_group_dn': 'my/dn1'},
+                          {'ip': '10.6.1.2',
+                           'redirect_health_group_dn': 'my/dn2'},
+                          {'ip': '10.6.1.3',
+                           'mac': '90:e2:ba:B1:36:6D',
+                           'name': 'dest-name',
+                           'redirect_health_group_dn': ''},
+                          {'foo': 'bar'}],
+            resilient_hash_enabled=False)]
 
     sample_output = [
         [_aci_obj('vnsSvcRedirectPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r1',
-                  nameAlias='R'),
+                  nameAlias='R', resilientHashEnabled='yes'),
          _aci_obj('vnsRedirectDest',
                   dn=('uni/tn-t1/svcCont/svcRedirectPol-r1/'
                       'RedirectDest_ip-[10.10.1.1]'),
@@ -4121,7 +4131,7 @@ class TestAimToAciConverterServiceRedirectPolicy(TestAimToAciConverterBase,
                   mac='90:E2:BA:B1:37:6C')],
         [_aci_obj('vnsSvcRedirectPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r2',
-                  nameAlias=''),
+                  nameAlias='', resilientHashEnabled='no'),
          _aci_obj('vnsRsIPSLAMonitoringPol',
                   dn='uni/tn-t1/svcCont/svcRedirectPol-r2/'
                      'rsIPSLAMonitoringPol',

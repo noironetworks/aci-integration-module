@@ -1808,14 +1808,17 @@ class TestServiceRedirectPolicyMixin(object):
                                                   'mac': 'aa:bb:bb:cc:dd:ef',
                                                   'name': 'dest-name'}],
                                 'monitoring_policy_name': 'mpname',
-                                'monitoring_policy_tenant_name': 'mptname'}
+                                'monitoring_policy_tenant_name': 'mptname',
+                                'resilient_hash_enabled': True}
     test_search_attributes = {'name': 'srp1',
                               'monitoring_policy_name': 'mpname'}
     test_update_attributes = {'destinations': [],
                               'display_name': 'REDIR',
                               'monitoring_policy_name': 'mpname2',
-                              'monitoring_policy_tenant_name': 'mptname2'}
-    test_default_values = {'destinations': []}
+                              'monitoring_policy_tenant_name': 'mptname2',
+                              'resilient_hash_enabled': False}
+    test_default_values = {'destinations': [],
+                           'resilient_hash_enabled': False}
     test_dn = 'uni/tn-tenant1/svcCont/svcRedirectPol-srp1'
     res_command = 'service-redirect-policy'
 

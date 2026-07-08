@@ -393,6 +393,8 @@ class ServiceRedirectPolicy(model_base.Base, model_base.HasAimId,
 
     monitoring_policy_tenant_name = model_base.name_column()
     monitoring_policy_name = model_base.name_column()
+    resilient_hash_enabled = sa.Column(sa.Boolean, nullable=False,
+                                       default=False)
     dest = orm.relationship(ServiceRedirectPolicyDestination,
                             backref='redirect_policy',
                             cascade='all, delete-orphan',
