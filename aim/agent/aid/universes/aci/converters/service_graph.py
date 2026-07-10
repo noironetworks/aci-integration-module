@@ -325,6 +325,10 @@ resource_map = {
     }],
     'vnsSvcRedirectPol': [{
         'resource': service_graph.ServiceRedirectPolicy,
+        'exceptions': {
+            'resilientHashEnabled': {'other': 'resilient_hash_enabled',
+                                     'converter': utils.boolean},
+        },
         'skip': ['destinations', 'monitoring_policy_tenant_name',
                  'monitoring_policy_name'],
     }],

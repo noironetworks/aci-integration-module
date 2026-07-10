@@ -297,6 +297,7 @@ class ServiceRedirectPolicy(resource.AciResourceBase):
                                          ('redirect_health_group_dn',
                                           t.string()),
                                          ('name', t.name))),
+        ('resilient_hash_enabled', t.bool),
         ('monitored', t.bool))
 
     _aci_mo_name = 'vnsSvcRedirectPol'
@@ -308,6 +309,7 @@ class ServiceRedirectPolicy(resource.AciResourceBase):
              'monitoring_policy_tenant_name': '',
              'monitoring_policy_name': '',
              'destinations': [],
+             'resilient_hash_enabled': False,
              'monitored': False},
             **kwargs)
 
