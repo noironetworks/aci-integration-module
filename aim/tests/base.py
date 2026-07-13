@@ -149,7 +149,8 @@ def _initialize_hooks(self):
 
 def _catch_up_logs(self, added, updated, removed):
     # Create new session and populate the hashtrees
-    session = api.get_session(expire_on_commit=True,
+    session = api.get_session(autocommit=False,
+                              expire_on_commit=True,
                               use_slave=False)
     store = aim_store.SqlAlchemyStore(session)
     ht_db_l.HashTreeDbListener(

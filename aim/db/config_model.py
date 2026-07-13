@@ -64,22 +64,21 @@ class ConfigurationDBManager(object):
         if hasattr(sess, "in_transaction"):
             return sess.in_transaction()
         try:
-            return sess.transaction is not None
+            tx = sess.transaction
+            return tx is not None and getattr(tx, 'is_active', False)
         except AttributeError:
             return False
 
     def _get(self, context, group, key, host='', **kwargs):
-        with context.store.begin():
-            curr = self.aim_mgr.get(
-                context, resource.Configuration(group=group, key=key,
-                                                host=host))
-            if curr:
-                return curr
-            else:
-                if 'default' in kwargs:
-                    return kwargs['default']
-                raise exc.ConfigurationUndefined(group=group, conf=key,
-                                                 host=host)
+        curr = self.aim_mgr.get(
+            context, resource.Configuration(group=group, key=key,
+                                            host=host))
+        if curr:
+            return curr
+        if 'default' in kwargs:
+            return kwargs['default']
+        raise exc.ConfigurationUndefined(group=group, conf=key,
+                                         host=host)
 
     @utils.log
     def update_bulk(self, context, configs):
