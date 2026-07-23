@@ -53,15 +53,15 @@ def get_connection_connector_dns(tenant_name, service_graph_name, node_name,
     if connector_name == PROVIDER:
         return [
             get_terminal_connector_dn(
-                tenant_name, service_graph_name, CONSUMER),
+                tenant_name, service_graph_name, PROVIDER),
             get_node_connector_dn(
-                tenant_name, service_graph_name, node_name, CONSUMER)]
+                tenant_name, service_graph_name, node_name, PROVIDER)]
     if connector_name == CONSUMER:
         return [
             get_node_connector_dn(
-                tenant_name, service_graph_name, node_name, PROVIDER),
+                tenant_name, service_graph_name, node_name, CONSUMER),
             get_terminal_connector_dn(
-                tenant_name, service_graph_name, PROVIDER)]
+                tenant_name, service_graph_name, CONSUMER)]
     raise ValueError(
         "Unsupported service graph connection connector: %s" %
         connector_name)
