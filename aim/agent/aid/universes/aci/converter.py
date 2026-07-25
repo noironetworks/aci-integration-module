@@ -952,6 +952,9 @@ resource_map = {
             'ipLearning': {
                 'converter': boolean
             },
+            'serviceBdRoutingDisable': {
+                'converter': boolean
+            },
         },
         'identity_converter': None,
         'converter': None,

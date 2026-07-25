@@ -157,7 +157,10 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                         'l2_unknown_unicast_mode': {
                         'other': 'unkMacUcastAct', },
                         'ip_learning': {'other': 'ipLearning',
-                                        'converter': converter.boolean}, },
+                                        'converter': converter.boolean},
+                        'service_bd_routing_disable': {
+                        'other': 'serviceBdRoutingDisable',
+                        'converter': converter.boolean}, },
          'identity_converter': None,
          'converter': None,
          'skip': ['vrfName', 'l3outNames']},
@@ -171,7 +174,8 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                     [base.TestAimDBBase._get_example_aci_bd(
                         dn='uni/tn-test-tenant/BD-test-1',
                         nameAlias='alias',
-                        ipLearning='no'),
+                        ipLearning='no',
+                        serviceBdRoutingDisable='yes'),
                      _aci_obj('fvRsCtx',
                               dn='uni/tn-test-tenant/BD-test-1/rsctx',
                               tnFvCtxName='shared'),
@@ -186,6 +190,7 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                               limit_ip_learn_to_subnets=False,
                               ip_learning=True,
                               l2_unknown_unicast_mode='proxy',
+                              service_bd_routing_disable=False,
                               ep_move_detect_mode=''),
         resource.BridgeDomain(tenant_name='test-tenant',
                               name='test-1',
@@ -194,6 +199,7 @@ class TestAciToAimConverterBD(TestAciToAimConverterBase, base.TestAimDBBase):
                               limit_ip_learn_to_subnets=False,
                               ip_learning=False,
                               l2_unknown_unicast_mode='proxy',
+                              service_bd_routing_disable=True,
                               ep_move_detect_mode='',
                               vrf_name='shared',
                               l3out_names=['o1'],
@@ -2571,15 +2577,16 @@ class TestAimToAciConverterBase(object):
 class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
     sample_input = [base.TestAimDBBase._get_example_aim_bd(l3out_names=[
                                                            'l1', 'l2']),
-                    base.TestAimDBBase._get_example_aim_bd(name='test-1',
-                                                           vrf_name='common',
-                                                           display_name='ali',
-                                                           ip_learning=False)]
+                    base.TestAimDBBase._get_example_aim_bd(
+                        name='test-1', vrf_name='common',
+                        display_name='ali', ip_learning=False,
+                        service_bd_routing_disable=True)]
     sample_output = [
         [_aci_obj('fvBD', dn="uni/tn-test-tenant/BD-test",
                   arpFlood='no', epMoveDetectMode="",
                   limitIpLearnToSubnets="no", unicastRoute="yes",
-                  ipLearning="yes", unkMacUcastAct="proxy", nameAlias=""),
+                  ipLearning="yes", serviceBdRoutingDisable="no",
+                  unkMacUcastAct="proxy", nameAlias=""),
          _aci_obj('fvRsCtx', dn="uni/tn-test-tenant/BD-test/rsctx",
                   tnFvCtxName='default'),
          _aci_obj('fvRsBDToOut',
@@ -2598,6 +2605,7 @@ class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
                     "ipLearning": "no",
                     "unicastRoute": "yes",
                     "nameAlias": "ali",
+                    "serviceBdRoutingDisable": "yes",
                     "unkMacUcastAct": "proxy"}}}, {
             "fvRsCtx": {
                 "attributes": {
@@ -2614,6 +2622,7 @@ class TestAimToAciConverterBD(TestAimToAciConverterBase, base.TestAimDBBase):
                 "ipLearning": "yes",
                 "unicastRoute": "yes",
                 "unkMacUcastAct": "proxy",
+                "serviceBdRoutingDisable": "no",
                 "nameAlias": ""}}}]
 
 

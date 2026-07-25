@@ -700,11 +700,13 @@ class TestBridgeDomainMixin(object):
                               'display_name': 'pretty-net1',
                               'vrf_name': 'default',
                               'ip_learning': True,
+                              'service_bd_routing_disable': True,
                               'l3out_names': ['l3out1', 'out2']}
     test_default_values = {'vrf_name': '',
                            'enable_arp_flood': True,
                            'enable_routing': True,
                            'limit_ip_learn_to_subnets': False,
+                           'service_bd_routing_disable': False,
                            'ip_learning': True,
                            'l2_unknown_unicast_mode': 'proxy',
                            'ep_move_detect_mode': '',

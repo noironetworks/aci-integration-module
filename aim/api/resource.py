@@ -307,6 +307,7 @@ class BridgeDomain(AciResourceBase):
         ('vrf_name', t.name),
         ('enable_arp_flood', t.bool),
         ('enable_routing', t.bool),
+        ('service_bd_routing_disable', t.bool),
         ('limit_ip_learn_to_subnets', t.bool),
         ('ip_learning', t.bool),
         ('l2_unknown_unicast_mode', t.enum("", "flood", "proxy")),
@@ -324,6 +325,8 @@ class BridgeDomain(AciResourceBase):
         super(BridgeDomain, self).__init__({'vrf_name': '',
                                             'enable_arp_flood': True,
                                             'enable_routing': True,
+                                            'service_bd_routing_disable':
+                                            False,
                                             'limit_ip_learn_to_subnets': False,
                                             'ip_learning': True,
                                             'l2_unknown_unicast_mode': 'proxy',

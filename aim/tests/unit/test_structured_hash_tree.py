@@ -864,6 +864,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                      'limitIpLearnToSubnets': 'no',
                      'ipLearning': 'yes',
                      'unicastRoute': 'yes',
+                     'serviceBdRoutingDisable': 'no',
                      'unkMacUcastAct': 'proxy',
                      'nameAlias': ''}
         fvRsCtx_attr = {'tnFvCtxName': 'default'}
@@ -963,6 +964,7 @@ class TestAimHashTreeMaker(base.TestAimDBBase):
                      'limitIpLearnToSubnets': 'no',
                      'ipLearning': 'yes',
                      'unicastRoute': 'yes',
+                     'serviceBdRoutingDisable': 'no',
                      'unkMacUcastAct': 'proxy',
                      'nameAlias': ''}
         fvRsCtx_attr = {'tnFvCtxName': 'default'}
