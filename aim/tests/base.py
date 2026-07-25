@@ -275,6 +275,7 @@ class TestAimDBBase(BaseTestCase):
                                         enable_routing=True,
                                         limit_ip_learn_to_subnets=False,
                                         l2_unknown_unicast_mode='proxy',
+                                        service_bd_routing_disable=False,
                                         ep_move_detect_mode='')
         example.__dict__.update(kwargs)
         return example
@@ -295,6 +296,7 @@ class TestAimDBBase(BaseTestCase):
                     "ownerKey": "", "ownerTag": "", "unicastRoute": "yes",
                     "unkMacUcastAct": "proxy", "unkMcastAct": "flood",
                     "vmac": "not-applicable"}}}
+        example_bd['fvBD']['attributes']['serviceBdRoutingDisable'] = "no"
         example_bd['fvBD']['attributes'].update(kwargs)
         return example_bd
 
