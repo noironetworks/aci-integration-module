@@ -43,17 +43,17 @@ class TestServiceGraph(base.TestAimDBBase):
 
     def test_provider_connection_connector_dns(self):
         self.assertEqual(
-            ['uni/tn-common/AbsGraph-sg1/AbsTermNodeCon-T1/AbsTConn',
+            ['uni/tn-common/AbsGraph-sg1/AbsTermNodeProv-T2/AbsTConn',
              'uni/tn-common/AbsGraph-sg1/AbsNode-loadbalancer/'
-             'AbsFConn-consumer'],
+             'AbsFConn-provider'],
             service_graph.get_connection_connector_dns(
                 'common', 'sg1', 'loadbalancer', 'provider'))
 
     def test_consumer_connection_connector_dns(self):
         self.assertEqual(
             ['uni/tn-common/AbsGraph-sg1/AbsNode-loadbalancer/'
-             'AbsFConn-provider',
-             'uni/tn-common/AbsGraph-sg1/AbsTermNodeProv-T2/AbsTConn'],
+             'AbsFConn-consumer',
+             'uni/tn-common/AbsGraph-sg1/AbsTermNodeCon-T1/AbsTConn'],
             service_graph.get_connection_connector_dns(
                 'common', 'sg1', 'loadbalancer', 'consumer'))
 
