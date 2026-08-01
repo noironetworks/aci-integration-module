@@ -755,6 +755,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                     'arpFlood': 'no', 'dn': 'uni/tn-test-tenant/BD-test',
                     'epMoveDetectMode': '', 'ipLearning': 'yes',
                     'limitIpLearnToSubnets': 'no', 'nameAlias': '',
+                    'serviceBdRoutingDisable': 'no',
                     'unicastRoute': 'yes', 'unkMacUcastAct': 'proxy'}}}
         self._add_data_to_tree([parent_bd, complete], self.backend_state)
         events = self.manager.ownership_mgr.filter_ownership(
@@ -966,6 +967,7 @@ class TestAciTenant(base.TestAimDBBase, TestAciClientMixin):
                                      'ipLearning': 'yes',
                                      'limitIpLearnToSubnets': 'no',
                                      'nameAlias': '',
+                                     'serviceBdRoutingDisable': 'no',
                                      'unicastRoute': 'yes',
                                      'unkMacUcastAct': 'proxy'}}},
             {'fvRsCtx': {

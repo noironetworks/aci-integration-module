@@ -275,6 +275,7 @@ class TestAciUniverseMixin(test_aci_tenant.TestAciClientMixin):
                                'ipLearning': 'yes',
                                'limitIpLearnToSubnets': 'no',
                                'nameAlias': '',
+                               'serviceBdRoutingDisable': 'no',
                                'unicastRoute': 'yes',
                                'unkMacUcastAct': 'proxy'}}},
             {'fvRsCtx': {'attributes': {
