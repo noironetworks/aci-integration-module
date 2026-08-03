@@ -800,7 +800,11 @@ class AciUniverse(base.HashTreeStoredUniverse):
                     config_desire = self.multiverse[
                         base.CONFIG_UNIVERSE]['desired'].state
                     node = config_desire[root].find(parent_key)
-                    if node:
+                    # TODO(tbachman): Need to generalize. Right now this is
+                    # just a special case for service container MOs.
+                    root_name = "fvTenant|%s" % root[3:]
+                    service_node = (root_name, 'vnsSvcCont|svcCont')
+                    if node or parent_key == service_node:
                         result.append(aci_object)
                     # Also has to make sure the parent is not in the monitor
                     # desired tree before we skip it
