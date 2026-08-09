@@ -35,7 +35,8 @@ def upgrade():
     with op.batch_alter_table('aim_device_clusters') as batch_op:
         batch_op.alter_column(
             "vmm_domain_type", existing_type=sa.Enum('OpenStack', 'Kubernetes',
-                                                     'VMware', ''),
+                                                     'VMware', '',
+                                                     name='enum_vmm_domain_type'),
             type_=sa.String(64))
 
 

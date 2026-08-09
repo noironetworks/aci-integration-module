@@ -113,7 +113,9 @@ def upgrade():
         'aim_contract_subject_filters',
         sa.Column('subject_aim_id', sa.Integer, nullable=False),
         sa.Column('name', sa.String(64), nullable=False),
-        sa.Column('direction', sa.Enum('bi', 'in', 'out'), nullable=False),
+        sa.Column('direction', sa.Enum('bi', 'in', 'out',
+                  name='enum_aim_contract_subject_filters_direction'),
+                  nullable=False),
         sa.PrimaryKeyConstraint('subject_aim_id', 'name', 'direction'),
         sa.ForeignKeyConstraint(
             ['subject_aim_id'], ['aim_contract_subjects.aim_id']))

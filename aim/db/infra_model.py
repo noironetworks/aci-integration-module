@@ -146,7 +146,9 @@ class HostDomainMappingV2(model_base.Base, model_base.AttributeMixin):
     domain_type = sa.Column(sa.Enum('PhysDom',
                                     'OpenStack',
                                     'Kubernetes',
-                                    'VMware'), primary_key=True)
+                                    'VMware',
+                                    name='enum_domain_type'),
+                                    primary_key=True)
 
 
 class HostLinkNetworkLabel(model_base.Base, model_base.AttributeMixin):
