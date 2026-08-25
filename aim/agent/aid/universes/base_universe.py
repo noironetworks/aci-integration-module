@@ -328,9 +328,6 @@ class HashTreeStoredUniverse(AimUniverse):
                 other_universe.state[tenant] = (
                     structured_tree.StructuredHashTree())
 
-    def observe(context, self):
-        pass
-
     def reconcile(self, context, other_universe, delete_candidates):
         return self._reconcile(context, other_universe, delete_candidates)
 

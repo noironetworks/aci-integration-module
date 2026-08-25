@@ -954,22 +954,6 @@ class ExternalNetwork(model_base.Base, model_base.HasAimId,
 
     nat_epg_dn = sa.Column(sa.String(1024))
 
-    def _get_primary_keys(self, res_attr):
-        # We need the primary keys for the provided and consumed
-        # contracts. For create operations, they are available in
-        # the passed parameters. For update operations, they are
-        # available in the passed resource
-        primary_keys = {'tenant_name': None,
-                        'l3out_name': None,
-                        'name': None}
-        for primary_key in primary_keys.keys():
-            if res_attr.get(primary_key):
-                primary_keys[primary_key] = res_attr[primary_key]
-            else:
-                primary_keys[primary_key] = self.__dict__[primary_key]
-        primary_keys['monitored'] = False
-        return primary_keys
-
 
 class ExternalSubnet(model_base.Base, model_base.HasAimId,
                      model_base.HasDisplayName,

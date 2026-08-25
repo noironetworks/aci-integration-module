@@ -151,9 +151,6 @@ class AimManager(object):
         except AttributeError:
             pass
 
-    def __init__(self):
-        pass
-
     @utils.log
     def _create(self, context, resource, overwrite=False, fix_ownership=False):
         """Persist AIM resource to the database.
