@@ -56,9 +56,6 @@ class AimStore(object):
     _update_listeners = {}
     _postcommit_listeners = {}
 
-    def __init__(self):
-        pass
-
     def __getattr__(self, item):
         if item.startswith('supports_'):
             return item.replace('supports_', '') in self.features

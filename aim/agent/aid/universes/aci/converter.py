@@ -1531,9 +1531,6 @@ for item in reverse_resource_map[resource.L3OutInterfaceBgpPeerP]:
 
 class BaseConverter(object):
 
-    def __init__(self):
-        pass
-
     def convert(self, objects):
         """Converter AIM/ACI main method
 

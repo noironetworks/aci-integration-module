@@ -299,9 +299,6 @@ class AimHashTreeMaker(object):
     list('apicType|res-name', 'apicChildType|res-name')
     """
 
-    def __init__(self):
-        pass
-
     @staticmethod
     def _extract_dn(res):
         try:

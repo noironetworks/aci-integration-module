@@ -12,6 +12,12 @@ matrix:
     - python: 3.12
       env:
         - TOX_ENV=py312
+    - python: 3.13
+      env:
+        - TOX_ENV=py313
+    - python: 3.14
+      env:
+        - TOX_ENV=py314
     - python: 3.10
       env:
         - TOX_ENV=pep8
