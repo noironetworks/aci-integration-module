@@ -58,6 +58,12 @@ def create(ctx):
     ctx.obj['apic_manager'].ensure_infra_created_on_apic()
     ctx.obj['apic_manager'].ensure_bgp_pod_policy_created_on_apic()
     ctx.obj['apic_manager'].ensure_opflex_client_cert_validation_disabled()
+    db_session = ctx.obj['apic_manager'].db.aim_context.store.db_session
+    sess = getattr(db_session, 'session', db_session)
+    in_txn = (sess.in_transaction() if hasattr(sess, 'in_transaction')
+              else sess.transaction is not None)
+    if in_txn:
+        db_session.commit()
 
 
 @infra.command(name='tag-list')
