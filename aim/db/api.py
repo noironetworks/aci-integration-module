@@ -14,48 +14,85 @@
 #    under the License.
 
 from oslo_config import cfg
-from oslo_db.sqlalchemy import session
+from oslo_db import options as db_options
+try:
+    from oslo_db.sqlalchemy import session as db_session
+except ImportError:  # oslo.db without legacy session facade support
+    db_session = None
+from oslo_db.sqlalchemy import enginefacade
 
 from aim import aim_store
 
+cfg.CONF.register_opts(db_options.database_opts, group='database')
 
 _FACADE = None
+_ENGINE = None
+_SESSIONMAKER = None
+_LEGACY_ENGINE_FACADE = getattr(db_session, 'EngineFacade', None)
 
 
-def _create_facade_lazily():
-    global _FACADE
+def _configure():
+    global _FACADE, _ENGINE, _SESSIONMAKER
 
-    if _FACADE is None:
-        _FACADE = session.EngineFacade.from_config(cfg.CONF, sqlite_fk=True)
+    if _FACADE is not None:
+        return
 
-    return _FACADE
+    if _LEGACY_ENGINE_FACADE is not None:
+        _FACADE = _LEGACY_ENGINE_FACADE.from_config(
+            cfg.CONF, sqlite_fk=True)
+        return
+
+    _FACADE = enginefacade.transaction_context()
+    _FACADE.configure(sqlite_fk=True)
+
+    _ENGINE = _FACADE.writer.get_engine()
+    _SESSIONMAKER = _FACADE.writer.get_sessionmaker()
 
 
 def get_engine():
     """Helper method to grab engine."""
-    facade = _create_facade_lazily()
-    return facade.get_engine()
+    _configure()
+    if _ENGINE is not None:
+        return _ENGINE
+    return _FACADE.get_engine()
 
 
 def dispose():
     # Don't need to do anything if an enginefacade hasn't been created
-    if _FACADE is not None:
-        get_engine().pool.dispose()
+    if _ENGINE is not None:
+        _ENGINE.pool.dispose()
+    elif _FACADE is not None:
+        _FACADE.get_engine().pool.dispose()
 
 
-def get_session(expire_on_commit=True, use_slave=False):
+def get_session(autocommit=True, expire_on_commit=True, use_slave=False):
     """Helper method to grab session."""
-    facade = _create_facade_lazily()
-    return facade.get_session(expire_on_commit=expire_on_commit,
-                              use_slave=use_slave)
+    _configure()
+    if _SESSIONMAKER is not None:
+        # The newer transaction_context path does not expose use_slave/
+        # autocommit controls.
+        return _SESSIONMAKER(expire_on_commit=expire_on_commit)
+    try:
+        return _FACADE.get_session(autocommit=autocommit,
+                                   expire_on_commit=expire_on_commit,
+                                   use_slave=use_slave)
+    except TypeError:
+        # Some legacy facade/version combinations may not support
+        # autocommit in the signature.
+        return _FACADE.get_session(expire_on_commit=expire_on_commit,
+                                   use_slave=use_slave)
 
 
-def get_store(expire_on_commit=True, use_slave=False):
+def get_store(autocommit=True, expire_on_commit=True, use_slave=False):
     store = cfg.CONF.aim.aim_store
+
     if store == 'sql':
-        db_session = get_session(expire_on_commit=expire_on_commit,
-                                 use_slave=use_slave)
+        db_session = get_session(
+            autocommit=autocommit,
+            expire_on_commit=expire_on_commit,
+            use_slave=use_slave)
         return aim_store.SqlAlchemyStore(db_session)
+
     elif store == 'k8s':
         return aim_store.K8sStore(
             namespace=cfg.CONF.aim_k8s.k8s_namespace,

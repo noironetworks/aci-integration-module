@@ -19,6 +19,7 @@ from oslo_log import log as logging
 import six
 from sqlalchemy import and_
 from sqlalchemy import event as sa_event
+from sqlalchemy import exc as sa_exc
 from sqlalchemy import or_
 from sqlalchemy.sql.expression import func
 
@@ -347,7 +348,8 @@ class SqlAlchemyStore(AimStore):
             if hasattr(sess, "in_transaction"):
                 return sess.in_transaction()
             try:
-                return sess.transaction is not None
+                tx = sess.transaction
+                return tx is not None and getattr(tx, 'is_active', False)
             except AttributeError:
                 return False
 
@@ -362,7 +364,15 @@ class SqlAlchemyStore(AimStore):
         return True
 
     def begin(self, **kwargs):
-        return self.db_session.begin()
+        try:
+            return self.db_session.begin()
+        except sa_exc.InvalidRequestError:
+            # SQLAlchemy 1.3 nested begin requires subtransactions.
+            try:
+                return self.db_session.begin(subtransactions=True)
+            except TypeError:
+                # SQLAlchemy 1.4+ removed subtransactions.
+                return _begin(**kwargs)
 
     def resource_to_db_type(self, resource_klass):
         return self.db_model_map.get(resource_klass)
