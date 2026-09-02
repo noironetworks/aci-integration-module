@@ -15,9 +15,12 @@ matrix:
     - python: 3.10
       env:
         - TOX_ENV=pep8
+    - python: 3.10
+      env:
+        - TOX_ENV=cover
 
 install:
   - pip install tox
 
 script:
-  - tox -e $TOX_ENV
+  - travis_wait 15 tox -e $TOX_ENV
