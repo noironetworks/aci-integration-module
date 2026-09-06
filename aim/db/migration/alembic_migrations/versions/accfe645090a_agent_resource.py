@@ -48,7 +48,7 @@ def upgrade():
         sa.Column('version', sa.String(10)),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('agent_type', 'host',
-                            name='uniq_agents0agent_type0host'))
+                            name='aim_agents_uniq_agents0agent_type0host'))
 
     op.create_table(
         'aim_agent_to_tree_associations',
