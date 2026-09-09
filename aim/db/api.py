@@ -92,10 +92,3 @@ def get_store(autocommit=True, expire_on_commit=True, use_slave=False):
             expire_on_commit=expire_on_commit,
             use_slave=use_slave)
         return aim_store.SqlAlchemyStore(db_session)
-
-    elif store == 'k8s':
-        return aim_store.K8sStore(
-            namespace=cfg.CONF.aim_k8s.k8s_namespace,
-            config_file=cfg.CONF.aim_k8s.k8s_config_path,
-            vmm_domain=cfg.CONF.aim_k8s.k8s_vmm_domain,
-            vmm_controller=cfg.CONF.aim_k8s.k8s_controller)

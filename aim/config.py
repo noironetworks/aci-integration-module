@@ -90,14 +90,9 @@ agent_opts = [
                help="(Restart Required) Identifier for this specific AID "
                     "service, defaults to the hostname."),
     cfg.StrOpt('aim_agentid_base', default=socket.gethostname(),
-               help="Base identifier for agent ID in k8s StatefulSets."),
-    cfg.StrOpt('aim_store', default='sql', choices=['k8s', 'sql'],
-               help="Backend store of this AIM installation. It can be either "
-                    "SQL via sqlalchemy or k8s via the Kubernetes API server."
-                    "If the former is chosen, a DB section needs to exist "
-                    "with info on how to create a DB session. In the case of "
-                    "the Kubernetes store, specify the config file path in "
-                    "the [aim_k8s] section"),
+               help="Base identifier for agent IDs."),
+    cfg.StrOpt('aim_store', default='sql', choices=['sql'],
+               help="Backend store of this AIM installation."),
     cfg.IntOpt('error_state_recovery_interval', default=3600,
                help="Number of seconds (with a 20% random deviation) AIM "
                     "waits before re-trying objects in error state."),
@@ -141,19 +136,6 @@ event_service_polling_opts = [
                        "notification")),
 ]
 
-k8s_options = [
-    cfg.StrOpt('k8s_config_path', default='/root/.kube/config',
-               help="Path to the Kubernetes configuration file."),
-    cfg.StrOpt('k8s_namespace', default='kube-system',
-               help="Kubernetes namespace used by this AIM installation."),
-    cfg.StrOpt('k8s_vmm_domain', default='kubernetes',
-               help="Name of Kubernetes VMM domain used by this "
-                    "AIM installation."),
-    cfg.StrOpt('k8s_controller', default='kube-cluster',
-               help="Name of controller in Kubernetes VMM domain used "
-                    "by this AIM installation.")
-]
-
 server_options = [
     cfg.StrOpt('socket_file', default='',
                help="Path to the socket file used to bind the server. By "
@@ -169,7 +151,6 @@ server_options = [
 
 cfg.CONF.register_opts(agent_opts, 'aim')
 cfg.CONF.register_opts(event_service_polling_opts, 'aim_event_service_polling')
-cfg.CONF.register_opts(k8s_options, 'aim_k8s')
 cfg.CONF.register_opts(server_options, 'aim_server')
 CONF = cfg.CONF
 

@@ -2821,36 +2821,6 @@ class TestSecurityGroupSubject(TestSecurityGroupSubjectMixin,
     pass
 
 
-class TestSecurityGroupRule(TestSecurityGroupRuleMixin,
-                            TestAciResourceOpsBase, base.TestAimDBBase):
-
-    @base.requires(['k8s'])
-    def test_k8s_repr(self):
-        sgr = resource.SecurityGroupRule(
-            name='0_0', tenant_name='kubernetes',
-            security_group_subject_name='NetworkPolicy',
-            security_group_name='default_test-network-policy')
-        db_obj = self.ctx.store.resource_to_db_type(
-            resource.SecurityGroupRule)()
-        self.ctx.store.from_attr(db_obj, resource.SecurityGroupRule,
-                                 sgr.__dict__)
-        self.assertEqual(
-            's5u2ian7mxyipkk3rx632jc3zptp3ivwut4xxutricexuqn5fbia',
-            db_obj['metadata']['labels']['tenant_name'])
-        self.assertEqual(
-            'igvrfnunwbqt35yheohgplxpzfilv7oyageq3qysiyiidx2rqknq',
-            db_obj['metadata']['labels']['security_group_subject_name'])
-        self.assertEqual(
-            'l2yj2yf7qdftxom2xzclfhmfnp7fh75xyxryq2ggbvh77v7mjcla',
-            db_obj['metadata']['labels']['security_group_name'])
-        self.assertEqual(
-            '3lmgcuqwadvc425mfmk7dt5keazplrjrt7ygaorbjhna6ttv4ndq',
-            db_obj['metadata']['labels']['name'])
-        self.assertEqual(
-            'uwb4yv2u6k6lvjrhoi36genjxnhgkevjg24rvhuns7gzmeibpjyq',
-            db_obj['metadata']['name'])
-
-
 class TestConfiguration(TestConfigurationMixin, TestResourceOpsBase,
                         base.TestAimDBBase):
     pass
@@ -2980,47 +2950,6 @@ class TestVmmInjectedReplicaSet(TestVmmInjectedReplicaSetMixin,
         super(TestVmmInjectedReplicaSet, self).setUp()
         self._setUp()
 
-    @base.requires(['k8s'])
-    def test_owner_reference(self):
-        # Creating a Deployment creates an implicit ReplicaSet.
-        # Verify that the ReplicaSet points to the Deployment.
-        self._create_prerequisite_objects()
-        ns = [o for o in self.prereq_objects
-              if isinstance(o, resource.VmmInjectedNamespace)][0]
-        depl = resource.VmmInjectedDeployment(
-            domain_type=ns.domain_type,
-            domain_name=ns.domain_name,
-            controller_name=ns.controller_name,
-            namespace_name=ns.name,
-            name='depl1')
-        self.mgr.create(self.ctx, depl)
-        rss = self.mgr.find(self.ctx, resource.VmmInjectedReplicaSet,
-                            domain_type=ns.domain_type,
-                            domain_name=ns.domain_name,
-                            controller_name=ns.controller_name,
-                            namespace_name=ns.name)
-        self.assertGreater(len(rss), 0)
-        for rs in rss:
-            self.assertEqual(depl.name, rs.deployment_name)
-
-        # test older k8s version - simulate no ownerReferences
-        rs_db_obj = self.ctx.store.make_db_obj(rs)
-        curr = self.ctx.store.klient.read(type(rs_db_obj),
-                                          rs_db_obj['metadata']['name'],
-                                          rs_db_obj['metadata']['namespace'])
-        curr['metadata'].pop('ownerReferences', None)
-        self.ctx.store.klient.replace(type(rs_db_obj),
-                                      rs_db_obj['metadata']['name'],
-                                      rs_db_obj['metadata']['namespace'],
-                                      curr)
-        curr = self.ctx.store.klient.read(type(rs_db_obj),
-                                          rs_db_obj['metadata']['name'],
-                                          rs_db_obj['metadata']['namespace'])
-        self.assertFalse(curr['metadata'].get('ownerReferences'))
-
-        rs = self.mgr.get(self.ctx, rs)
-        self.assertEqual(depl.name, rs.deployment_name)
-
 
 class TestVmmInjectedService(TestVmmInjectedServiceMixin,
                              TestAciResourceOpsBase, base.TestAimDBBase):
@@ -3028,45 +2957,6 @@ class TestVmmInjectedService(TestVmmInjectedServiceMixin,
     def setUp(self):
         super(TestVmmInjectedService, self).setUp()
         self._setUp()
-
-    @base.requires(['k8s'])
-    def test_endpoints(self):
-        # Create an Endpoints object for a Service and verify that it
-        # gets reported properly in VmmInjectedService
-        self._create_prerequisite_objects()
-        svc = resource.VmmInjectedService(**self.test_required_attributes)
-        svc = self.mgr.create(self.ctx, svc)
-
-        exp_ep = [{'ip': '10.1.2.3', 'pod_name': 'foo'},
-                  {'ip': '10.1.2.4', 'pod_name': 'bar'}]
-
-        store = self.ctx.store
-
-        # create Endpoints
-        svc.endpoints = exp_ep
-        svc_db_obj = store.make_db_obj(svc)
-        ep_db_obj = svc_db_obj.endpoints
-        ep_db_obj['subsets'][0]['ports'] = [{'port': 80}]
-        store.klient.create(type(ep_db_obj),
-                            ep_db_obj['metadata']['namespace'],
-                            ep_db_obj)
-
-        svc = self.mgr.get(self.ctx, svc)
-        self.assertEqual(exp_ep, svc.endpoints)
-
-        # update Endpoints
-        exp_ep.append({'ip': '10.1.2.5', 'pod_name': 'baz'})
-        svc.endpoints = exp_ep
-        svc_db_obj = store.make_db_obj(svc)
-        ep_db_obj = svc_db_obj.endpoints
-        ep_db_obj['subsets'][0]['ports'] = [{'port': 80}]
-        store.klient.replace(type(ep_db_obj),
-                             ep_db_obj['metadata']['name'],
-                             ep_db_obj['metadata']['namespace'],
-                             ep_db_obj)
-
-        svc = self.mgr.get(self.ctx, svc)
-        self.assertEqual(exp_ep, svc.endpoints)
 
 
 class TestVmmInjectedHost(TestVmmInjectedHostMixin,
@@ -3083,48 +2973,6 @@ class TestVmmInjectedContGroup(TestVmmInjectedContGroupMixin,
     def setUp(self):
         super(TestVmmInjectedContGroup, self).setUp()
         self._setUp()
-
-    @base.requires(['k8s'])
-    def test_owner_reference(self):
-        # Inject an ownerReference to a Pod object and verify
-        # replica_set_name is reported correctly
-        self._create_prerequisite_objects()
-        ns = [o for o in self.prereq_objects
-              if isinstance(o, resource.VmmInjectedNamespace)][0]
-        rs = resource.VmmInjectedReplicaSet(
-            domain_type=ns.domain_type,
-            domain_name=ns.domain_name,
-            controller_name=ns.controller_name,
-            namespace_name=ns.name,
-            name='rs1')
-        rs = self.mgr.create(self.ctx, rs)
-        store = self.ctx.store
-        rs_db_obj = store.make_db_obj(rs)
-        rs_db_obj = store.klient.read(type(rs_db_obj),
-                                      rs_db_obj['metadata']['name'],
-                                      rs_db_obj['metadata']['namespace'])
-
-        grp = self.mgr.create(
-            self.ctx,
-            resource.VmmInjectedContGroup(**self.test_required_attributes))
-        grp_db_obj = store.make_db_obj(grp)
-        grp_db_type = type(grp_db_obj)
-        grp_db_obj = store.klient.read(grp_db_type,
-                                       grp_db_obj['metadata']['name'],
-                                       grp_db_obj['metadata']['namespace'])
-
-        own_ref = {'kind': rs_db_obj['kind'],
-                   'apiVersion': rs_db_obj['apiVersion'],
-                   'name': rs_db_obj['metadata']['name'],
-                   'uid': rs_db_obj['metadata']['uid']}
-        grp_db_obj['metadata']['ownerReferences'] = [own_ref]
-        self.ctx.store.klient.replace(grp_db_type,
-                                      grp_db_obj['metadata']['name'],
-                                      grp_db_obj['metadata']['namespace'],
-                                      grp_db_obj)
-
-        grp = self.mgr.get(self.ctx, grp)
-        self.assertEqual(rs.name, grp.replica_set_name)
 
 
 class TestBgpPeerPMixin(object):
@@ -3336,30 +3184,3 @@ class TestSystemSecurityGroupSubject(TestSystemSecurityGroupSubjectMixin,
                                      TestAciResourceOpsBase,
                                      base.TestAimDBBase):
     pass
-
-
-class TestSystemSecurityGroupRule(TestSystemSecurityGroupRuleMixin,
-                                  TestAciResourceOpsBase,
-                                  base.TestAimDBBase):
-
-    @base.requires(['k8s'])
-    def test_k8s_repr(self):
-        sgr = resource.SystemSecurityGroupRule(
-            name='0_0',
-            security_group_subject_name='NetworkPolicy')
-        db_obj = self.ctx.store.resource_to_db_type(
-            resource.SystemSecurityGroupRule)()
-        self.ctx.store.from_attr(db_obj, resource.SystemSecurityGroupRule,
-                                 sgr.__dict__)
-        self.assertEqual(
-            's5u2ian7mxyipkk3rx632jc3zptp3ivwut4xxutricexuqn5fbia',
-            db_obj['metadata']['labels']['tenant_name'])
-        self.assertEqual(
-            'l2yj2yf7qdftxom2xzclfhmfnp7fh75xyxryq2ggbvh77v7mjcla',
-            db_obj['metadata']['labels']['security_group_name'])
-        self.assertEqual(
-            '3lmgcuqwadvc425mfmk7dt5keazplrjrt7ygaorbjhna6ttv4ndq',
-            db_obj['metadata']['labels']['name'])
-        self.assertEqual(
-            'uwb4yv2u6k6lvjrhoi36genjxnhgkevjg24rvhuns7gzmeibpjyq',
-            db_obj['metadata']['name'])
