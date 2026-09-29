@@ -17,8 +17,6 @@
 # Keep all the lock names/prefixes here stored in constants for an easier
 # lookup of who is using them.
 
-# Access to the k8s watcher tree shared resource
-K8S_WATCHER_TREE_LOCK = 'k8s_watcher_trees'
 # Prevent AID from observing new state for all roots
 AID_OBSERVER_LOCK = 'aid_observer_lock'
 # Access ACI tree of a specific root

@@ -10,7 +10,6 @@ alembic
 Click
 jsonschema<4.0.0;python_version=='2.7' # MIT
 jsonschema;python_version!='2.7' # MIT
-kubernetes
 oslo.concurrency
 oslo.config
 oslo.db

@@ -82,14 +82,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
             'aim.agent.aid.event_handler.EventHandler._spawn_listener')
         self.events_thread.start()
 
-        self.watcher_threads = mock.patch(
-            'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.run')
-        self.watcher_threads.start()
-
-        self.stop_watcher_threads = mock.patch(
-            'aim.agent.aid.universes.k8s.k8s_watcher.K8sWatcher.stop_threads')
-        self.stop_watcher_threads.start()
-
         self.hb_loop = mock.patch(
             'aim.agent.aid.service.AID._spawn_heartbeat_loop')
         self.hb_loop.start()
@@ -99,8 +91,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         self.addCleanup(self.thread_dead.stop)
         self.addCleanup(self.thread_warm.stop)
         self.addCleanup(self.events_thread.stop)
-        self.addCleanup(self.watcher_threads.stop)
-        self.addCleanup(self.stop_watcher_threads.stop)
         self.addCleanup(self.hb_loop.stop)
 
     def _first_serve(self, agent):
@@ -1373,30 +1363,6 @@ class TestAgent(base.TestAimDBBase, test_aci_tenant.TestAciClientMixin):
         agent._reconciliation_cycle()
         self.assertEqual(aim_status.AciStatus.SYNCED,
                          self.aim_manager.get_status(self.ctx, tn).sync_status)
-
-    @base.requires(['k8s'])
-    def test_k8s_node_faults(self):
-        agent = self._create_agent()
-
-        desired_oper = agent.multiverse[1]['desired']
-        apic_client.ApicSession.post_body_dict = (
-            self._mock_current_manager_post)
-        vmm = resource.VMMDomain(type='Kubernetes', name='kubernetes',
-                                 monitored=True)
-        self.aim_manager.create(self.ctx, vmm)
-        agent._reconciliation_cycle()
-        f1 = aim_status.AciFault(
-            fault_code='F609007',
-            external_identifier='comp/prov-Kubernetes/'
-                                'ctrlr-[kubernetes]-kubernetes/'
-                                'injcont/ns-[default]/'
-                                'svc-[frontend]/p-http-prot-tcp-t-80/'
-                                'fault-F609007')
-        self.assertIsNotNone(self.aim_manager.create(self.ctx, f1))
-        # see if it gets deleted
-        self._observe_aci_events(desired_oper)
-        agent._reconciliation_cycle()
-        self.assertIsNone(self.aim_manager.get(self.ctx, f1))
 
     def test_create_delete(self):
         agent = self._create_agent()

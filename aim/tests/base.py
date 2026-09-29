@@ -14,7 +14,6 @@
 # under the License.
 
 import logging  # noqa
-import mock
 import os
 
 from oslo_config import cfg
@@ -24,7 +23,6 @@ from oslotest import base
 from sqlalchemy.orm import sessionmaker as sa_sessionmaker
 
 from aim.agent.aid.universes.aci import aci_universe
-from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
 from aim import aim_store
 from aim.api import resource
@@ -35,7 +33,6 @@ from aim import context
 from aim.db import api
 from aim.db import hashtree_db_listener as ht_db_l
 from aim.db import model_base
-from aim.k8s import api_v1 as k8s_api_v1
 from aim.tools.cli import shell  # noqa
 from aim import tree_manager
 
@@ -43,8 +40,6 @@ CONF = cfg.CONF
 ROOTDIR = os.path.dirname(__file__)
 ETCDIR = os.path.join(ROOTDIR, 'etc')
 o_log.register_options(aim_cfg.CONF)
-K8S_STORE_VENV = 'K8S_STORE'
-K8S_CONFIG_ENV = 'K8S_CONFIG'
 
 LOG = o_log.getLogger(__name__)
 
@@ -116,29 +111,6 @@ class BaseTestCase(base.BaseTestCase):
 
 name_to_res = {utils.camel_to_snake(x.__name__): x for x in
                aim_manager.AimManager.aim_resources}
-k8s_watcher_instance = None
-
-
-def _k8s_post_create(self, created):
-    if created:
-        w = k8s_watcher_instance
-        w.klient.get_new_watch()
-        event = {'type': 'ADDED', 'object': created}
-        w.klient.watch.stream = mock.Mock(return_value=[event])
-        w._reset_trees = mock.Mock()
-        w.q.put(event)
-        w._persistence_loop(save_on_empty=True, warmup_wait=0)
-
-
-def _k8s_post_delete(self, deleted):
-    if deleted:
-        w = k8s_watcher_instance
-        event = {'type': 'DELETED', 'object': deleted}
-        w.klient.get_new_watch()
-        w.klient.watch.stream = mock.Mock(return_value=[event])
-        w._reset_trees = mock.Mock()
-        w.q.put(event)
-        w._persistence_loop(save_on_empty=True, warmup_wait=0)
 
 
 def _initialize_hooks(self):
@@ -166,52 +138,37 @@ class TestAimDBBase(BaseTestCase):
         self.test_id = uuidutils.generate_uuid()
         aim_cfg.OPTION_SUBSCRIBER_MANAGER = None
         aci_universe.ac_context = None
-        if not os.environ.get(K8S_STORE_VENV):
-            CONF.set_override('aim_store', 'sql', 'aim')
-            self.engine = api.get_engine()
-            if not TestAimDBBase._TABLES_ESTABLISHED:
-                model_base.Base.metadata.create_all(self.engine)
-                TestAimDBBase._TABLES_ESTABLISHED = True
+        CONF.set_override('aim_store', 'sql', 'aim')
+        self.engine = api.get_engine()
+        if not TestAimDBBase._TABLES_ESTABLISHED:
+            model_base.Base.metadata.create_all(self.engine)
+            TestAimDBBase._TABLES_ESTABLISHED = True
 
-            # Uncomment the line below to log SQL statements. Additionally, to
-            # log results of queries, change INFO to DEBUG
-            #
-            # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
+        # Uncomment the line below to log SQL statements. Additionally, to
+        # log results of queries, change INFO to DEBUG
+        #
+        # logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
-            logging.getLogger("aim.config").setLevel(logging.ERROR)
+        logging.getLogger("aim.config").setLevel(logging.ERROR)
 
-            def clear_tables():
-                with self.engine.begin() as conn:
-                    for table in reversed(
-                            model_base.Base.metadata.sorted_tables):
-                        conn.execute(table.delete())
-            self.addCleanup(clear_tables)
-            if mock_store:
-                self.old_initialize_hooks = (
-                    aim_store.SqlAlchemyStore._initialize_hooks)
-                aim_store.SqlAlchemyStore.old_initialize_hooks = (
+        def clear_tables():
+            with self.engine.begin() as conn:
+                for table in reversed(
+                        model_base.Base.metadata.sorted_tables):
+                    conn.execute(table.delete())
+        self.addCleanup(clear_tables)
+        if mock_store:
+            self.old_initialize_hooks = (
+                aim_store.SqlAlchemyStore._initialize_hooks)
+            aim_store.SqlAlchemyStore.old_initialize_hooks = (
+                self.old_initialize_hooks)
+            aim_store.SqlAlchemyStore._initialize_hooks = _initialize_hooks
+
+            def restore_initialize_hook():
+                aim_store.SqlAlchemyStore._initialize_hooks = (
                     self.old_initialize_hooks)
-                aim_store.SqlAlchemyStore._initialize_hooks = _initialize_hooks
-
-                def restore_initialize_hook():
-                    aim_store.SqlAlchemyStore._initialize_hooks = (
-                        self.old_initialize_hooks)
-                self.addCleanup(restore_initialize_hook)
-                aim_store.SqlAlchemyStore._catch_up_logs = _catch_up_logs
-        else:
-            CONF.set_override('aim_store', 'k8s', 'aim')
-            CONF.set_override('k8s_namespace', self.test_id, 'aim_k8s')
-            k8s_config_path = os.environ.get(K8S_CONFIG_ENV)
-            if k8s_config_path:
-                CONF.set_override('k8s_config_path', k8s_config_path,
-                                  'aim_k8s')
-            aim_store.K8sStore._post_delete = _k8s_post_delete
-            aim_store.K8sStore._post_create = _k8s_post_create
-            global k8s_watcher_instance
-            k8s_watcher_instance = k8s_watcher.K8sWatcher()
-            k8s_watcher_instance.event_handler = mock.Mock()
-            k8s_watcher_instance._renew_klient_watch = mock.Mock()
-            self.addCleanup(self._cleanup_objects)
+            self.addCleanup(restore_initialize_hook)
+            aim_store.SqlAlchemyStore._catch_up_logs = _catch_up_logs
 
         self.store = api.get_store(expire_on_commit=True)
 
@@ -241,18 +198,6 @@ class TestAimDBBase(BaseTestCase):
                                   host=host, context=self.ctx)
         if poll:
             self.cfg_manager.subs_mgr._poll_and_execute()
-
-    def _cleanup_objects(self):
-        objs = [k8s_api_v1.Namespace(metadata={'name': self.test_id}),
-                k8s_api_v1.Namespace(metadata={'name': 'ns-' + self.test_id}),
-                k8s_api_v1.Node(metadata={'name': self.test_id})]
-        for obj in objs:
-            try:
-                self.ctx.store.delete(obj)
-            except k8s_api_v1.klient.ApiException as e:
-                if str(e.status) != '420':
-                    LOG.warning("Error while cleaning %s %s: %s",
-                                obj.kind, obj['metadata']['name'], e)
 
     @classmethod
     def _get_example_aci_object(cls, type, dn, **kwargs):
