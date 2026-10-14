@@ -18,6 +18,7 @@ import os
 import click
 from oslo_db.sqlalchemy.migration_cli import manager
 import sqlalchemy as sa
+from sqlalchemy import exc as sa_exc
 
 from aim.agent.aid.universes.aci import aci_universe
 from aim import aim_manager
@@ -113,7 +114,13 @@ def fix_no_nat_l3out_ownership(aim_ctx):
         sa.Column('vrf_name', nullable=True))
     session = aim_ctx.store.db_session
     bind = session.get_bind()
-    with session.begin():
+    try:
+        tx_ctx = session.begin()
+    except sa_exc.InvalidRequestError:
+        # SQLAlchemy 1.3 requires subtransactions for nested begin().
+        tx_ctx = session.begin(subtransactions=True)
+
+    with tx_ctx:
         metadata.reflect(bind=bind)
         if 'aim_lib_save_l3out' not in metadata.tables:
             return

@@ -25,7 +25,6 @@ import sqlalchemy as sa
 from aim.agent.aid import event_handler
 from aim.agent.aid.universes.aci import aci_universe
 from aim.agent.aid.universes import aim_universe
-from aim.agent.aid.universes.k8s import k8s_watcher
 from aim import aim_manager
 from aim.api import resource
 from aim.common import hashring
@@ -65,12 +64,7 @@ class AID(object):
         # DB session which can result in conflicts.
         # TODO(amitbose) Fix ConfigManager to not use cached AimContext
         self.conf_manager = aim_cfg.ConfigManager(aim_ctx, self.host)
-        self.k8s_watcher = None
         self.single_aid = False
-        if conf.aim.aim_store == 'k8s':
-            self.single_aid = True
-            self.k8s_watcher = k8s_watcher.K8sWatcher()
-            self.k8s_watcher.run()
 
         self.multiverse = []
         # Define multiverse pairs, First position is desired state
@@ -318,8 +312,6 @@ class AID(object):
     def _handle_sigterm(self, signum, frame):
         LOG.warning("Agent caught SIGTERM, quitting daemon loop.")
         self.run_daemon_loop = False
-        if self.k8s_watcher:
-            self.k8s_watcher.stop_threads()
 
     def _change_polling_interval(self, new_conf):
         # TODO(ivar): interrupt current sleep and restart with new value

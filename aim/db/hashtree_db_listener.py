@@ -49,7 +49,8 @@ class HashTreeDbListener(object):
         if hasattr(sess, "in_transaction"):
             return sess.in_transaction()
         try:
-            return sess.transaction is not None
+            tx = sess.transaction
+            return tx is not None and getattr(tx, 'is_active', False)
         except AttributeError:
             return False
 
@@ -83,7 +84,10 @@ class HashTreeDbListener(object):
                     root_rn=root, action=action,
                     object_dict=utils.json_dumps(res.__dict__),
                     object_type=type(res).__name__)
-                self.aim_manager._create(ctx, log)
+                # This method runs from the SQLAlchemy before_flush hook.
+                # Avoid issuing extra ORM reads here, since they can interfere
+                # with active cursor/result handling on SQLAlchemy 1.3.
+                ctx.store.add(ctx.store.make_db_obj(log))
 
     def on_commit(self, store, added, updated, deleted):
         with store.db_session.begin():

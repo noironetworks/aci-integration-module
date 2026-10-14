@@ -24,7 +24,6 @@ flake8>=6.1.0,<7.0.0
 oslosphinx>=2.5.0 # Apache-2.0
 oslotest>=1.10.0 # Apache-2.0
 oslo.serialization!=2.19.1,>=2.18.0 # Apache-2.0
-oslo.db<18
 testrepository>=0.0.18
 testscenarios>=0.4
 testtools>=1.4.0
