@@ -147,16 +147,9 @@ class AIMController(object):
     def _generate_response(self, data):
         return {'count': len(data), 'data': data}
 
-    def _generate_error(self, code, text):
-        pass
-
     def _validate_path(self, path):
         if path != ['aim']:
             raise cherrypy.HTTPError(404)
-
-    def generate_http_error(self, status, code, text='Unknown Error'):
-        cherrypy.response.status = status
-        return self._generate_response([self._generate_error(code, text)])
 
 
 def run(config, retry=True):
