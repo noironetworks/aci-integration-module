@@ -407,6 +407,72 @@ class TestHashTreeDbListenerNoMockStore(base.TestAimDBBase):
         self.mgr = aim_manager.AimManager()
         self.db_l = ht_db_l.HashTreeDbListener(aim_manager.AimManager())
 
+    def _test_sg_rule_status_updates(self, included, **rule_attributes):
+        self.mgr.create(self.ctx, aim_res.Tenant(name='t1'))
+        self.mgr.create(self.ctx, aim_res.SecurityGroup(
+            tenant_name='t1', name='sg1'))
+        subject = self.mgr.create(self.ctx, aim_res.SecurityGroupSubject(
+            tenant_name='t1', security_group_name='sg1', name='sgs1'))
+        attributes = {'remote_group_id': 'remote-sg', 'remote_ips': []}
+        attributes.update(rule_attributes)
+        rule = self.mgr.create(
+            self.ctx, self._get_example_aim_security_group_rule(**attributes))
+        key = self.db_l.tt_maker._build_hash_tree_key(rule)
+
+        def check_tree():
+            self.db_l.catch_up_with_action_log(self.ctx.store)
+            cfg_tree = self.tt_mgr.get(self.ctx, rule.root)
+            node = cfg_tree.find(key)
+            self.assertEqual(included, node is not None and not node.dummy)
+
+        check_tree()
+        # Reconciliation sets the subject pending and creates statuses for
+        # its children, including rules excluded from the configuration tree.
+        self.mgr.set_resource_sync_pending(self.ctx, subject)
+        check_tree()
+        self.mgr.set_resource_sync_pending(self.ctx, rule)
+        check_tree()
+        self.mgr.set_resource_sync_synced(self.ctx, rule)
+        check_tree()
+
+    def test_block_all_sg_rule_status_updates(self):
+        self._test_sg_rule_status_updates(False)
+
+    def test_sg_rule_with_remote_ips_status_updates(self):
+        self._test_sg_rule_status_updates(
+            True, remote_ips=['10.0.1.0/24'])
+
+    def test_sg_rule_without_remote_group_status_updates(self):
+        self._test_sg_rule_status_updates(True, remote_group_id='')
+
+    def test_sg_rule_with_remote_ip_container_status_updates(self):
+        self._test_sg_rule_status_updates(
+            True, tDn='uni/tn-t1/remoteipcont-remote-sg')
+
+    def test_block_all_sg_rule_filter_disabled_status_updates(self):
+        base.CONF.set_override('remove_remote_group_sg_rule_if_block_all',
+                               False, 'aim')
+        self._test_sg_rule_status_updates(True)
+
+    def test_block_all_sg_rule_status_removes_existing_rule(self):
+        base.CONF.set_override('remove_remote_group_sg_rule_if_block_all',
+                               False, 'aim')
+        rule = self.mgr.create(
+            self.ctx, self._get_example_aim_security_group_rule(
+                remote_group_id='remote-sg', remote_ips=[]))
+        key = self.db_l.tt_maker._build_hash_tree_key(rule)
+        self.db_l.catch_up_with_action_log(self.ctx.store)
+        cfg_tree = self.tt_mgr.get(self.ctx, rule.root)
+        self.assertIsNotNone(cfg_tree.find(key))
+
+        base.CONF.set_override('remove_remote_group_sg_rule_if_block_all',
+                               True, 'aim')
+        # Only status logs are pending; there is no new rule log to filter.
+        self.mgr.set_resource_sync_pending(self.ctx, rule)
+        self.db_l.catch_up_with_action_log(self.ctx.store)
+        cfg_tree = self.tt_mgr.get(self.ctx, rule.root)
+        self.assertIsNone(cfg_tree.find(key))
+
     def test_duplicate_sg_rule_action_logs(self):
         with mock.patch.object(self.db_l.tt_builder, 'build') as tt_build:
             rule = self._get_example_aim_security_group_rule(
