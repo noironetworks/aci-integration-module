@@ -18,11 +18,13 @@ import copy
 from oslo_log import log as logging
 
 from aim.agent.aid.universes.aci import converter
+from aim.api import resource as aim_resource
 from aim.api import status as aim_status
 from aim.api import tree as tree_res
 from aim.common.hashtree import exceptions as exc
 from aim.common.hashtree import structured_tree
 from aim.common import utils
+from aim import config as aim_cfg
 from aim.db import tree_model
 
 from apicapi import apic_client
@@ -543,6 +545,17 @@ class HashTreeBuilder(object):
                     continue
                 updates_by_root.setdefault(
                     key, {conf: ([], []), monitor: ([], []), oper: ([], [])})
+                if (aim_cfg.CONF.aim.
+                    remove_remote_group_sg_rule_if_block_all and
+                    isinstance(res, aim_resource.SecurityGroupRule) and
+                    res.remote_group_id and not res.remote_ips and
+                        not res.tDn):
+                    # Status updates can queue the parent rule without going
+                    # through the action-log filter. Remove it here as well
+                    # so previously included block-all rules are cleaned up.
+                    updates_by_root[key][conf][1].append(res)
+                    updates_by_root[key][monitor][1].append(res)
+                    continue
                 if isinstance(res, aim_status.AciFault):
                     # Operational Tree
                     updates_by_root[key][oper][tree_index].append(res)
