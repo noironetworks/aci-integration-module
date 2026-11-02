@@ -105,6 +105,7 @@ def run_migrations_online():
 
         with context.begin_transaction():
             context.run_migrations()
+        connection.connection.commit()  # SA 1.4: force stamp commit via DBAPI
 
 
 if context.is_offline_mode():
